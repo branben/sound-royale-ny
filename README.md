@@ -19,7 +19,7 @@ Atomic Component Design: The BingoBoard is a pure presentational component. By d
 Optimistic UI Pattern: Audio submissions prioritize the artist's "Flow State." The UI confirms actions instantly (<50ms) while handling complex file uploads and metadata sync asynchronously.
 
 '''
-sequenceDiagram
+    sequenceDiagram
     participant P as 🎵 Producer (User)
     participant UI as 🖥️ Frontend (React)
     participant API as ⚙️ Backend (Django)
