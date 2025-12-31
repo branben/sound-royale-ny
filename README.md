@@ -6,13 +6,13 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![React](https://img.shields.io/badge/Frontend-React-blue)](https://reactjs.org/)
 
-🚀 The Vision
-Riddim Royale gamifies the music production workflow, challenging producers to break creative blocks using a 3x3 grid of randomized genre constraints. It bridges the gap between high-speed ideation and competitive spectator engagement.
+🚀
+Sound Royale gamifies the music production workflow, challenging producers to break creative blocks using a 3x3 grid of randomized genre constraints. It bridges the gap between high-speed ideation and competitive spectator engagement.
 
-🏗 Architectural Pillars
+🏗 
 This project is architected to handle the unique constraints of creative software, where user "flow" and real-time feedback are mission-critical.
 
-State Normalization: To support 9 unique genre battles simultaneously, I implemented a Flat State Schema in GameContext.tsx. This avoids deeply nested updates and ensures that voting on one tile never triggers a heavy re-render of the entire board.
+State Normalization: To support 9 unique genre battles simultaneously, we could implement a Flat State Schema in GameContext.tsx. This avoids deeply nested updates and ensures that voting on one tile never triggers a heavy re-render of the entire board.
 
 Atomic Component Design: The BingoBoard is a pure presentational component. By decoupling it from business logic, the same component powers the Producer, Spectator, and Lobby views, significantly reducing the maintenance surface area.
 
