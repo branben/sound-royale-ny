@@ -37,16 +37,17 @@ export default function Lobby() {
         setRoomData(data);
         
         // Transform backend players to local format
-        const transformedPlayers = data.players.map((player, index) => ({
+        const transformedPlayers = data.players.map((player) => ({
           id: player.id,
           name: player.name,
-          isHost: index === 0, // First player is host
+          isHost: player.is_host,
         }));
         
         setPlayers(transformedPlayers);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to join room');
         console.error('Error joining room:', err);
+        setIsJoined(false);
       } finally {
         setIsLoading(false);
       }
@@ -71,20 +72,22 @@ export default function Lobby() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      {/* Background effects */}
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
+      <div className="fixed inset-0 pointer-events-none z-50 opacity-20 bg-[linear-gradient(0deg,transparent_50%,rgba(0,0,0,0.1)_50%)] bg-[length:100%_4px]" />
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent/5 rounded-full blur-3xl" />
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#7C3AED]/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-[#F43F5E]/10 rounded-full blur-3xl" />
       </div>
 
-      <Card className="w-full max-w-md border-border/30 bg-card/60 backdrop-blur-xl shadow-2xl">
+      <Card className="w-full max-w-md border-[#7C3AED]/30 bg-[#0F0F23]/80 backdrop-blur-xl shadow-[0_25px_50px_rgba(0,0,0,0.5),0_0_0_1px_rgba(124,58,237,0.1)] card-enter">
         <CardHeader className="text-center space-y-4">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/20">
-            <Gamepad2 className="h-8 w-8 text-primary" />
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#7C3AED]/20 neon-glow">
+            <Gamepad2 className="h-8 w-8 text-[#7C3AED]" />
           </div>
-          <CardTitle className="text-3xl font-bold tracking-tight">Sound Royale</CardTitle>
-          <CardDescription className="text-muted-foreground">
+          <CardTitle className="text-3xl font-bold tracking-tight font-['Righteous'] text-transparent bg-clip-text bg-gradient-to-r from-[#7C3AED] to-[#F43F5E] drop-shadow-[0_0_10px_rgba(124,58,237,0.5)]">
+            Sound Royale
+          </CardTitle>
+          <CardDescription className="text-[#E2E8F0]/70">
             {isJoined ? 'Waiting for players...' : 'Enter a room code to join the battle'}
           </CardDescription>
         </CardHeader>
@@ -99,10 +102,10 @@ export default function Lobby() {
                   placeholder="0000"
                   value={roomCode}
                   onChange={handleCodeChange}
-                  className="text-center text-4xl font-mono tracking-[0.5em] h-16 bg-background/50 border-border/50"
+                  className="text-center text-4xl font-mono tracking-[0.5em] h-16 bg-[#0F0F23]/50 border-[#7C3AED]/50 focus:border-[#A78BFA] focus:shadow-[0_0_30px_rgba(124,58,237,0.5),inset_0_0_20px_rgba(124,58,237,0.1)] transition-all duration-200"
                   maxLength={4}
                 />
-                <p className="text-xs text-muted-foreground text-center">
+                <p className="text-xs text-[#E2E8F0]/50 text-center">
                   Enter 4-digit room code
                 </p>
               </div>
@@ -146,49 +149,48 @@ export default function Lobby() {
                 </div>
                 
                 <div className="space-y-2">
-                  {players.map((player) => (
+                  {players.map((player, index) => (
                     <div
                       key={player.id}
-                      className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/30"
+                      className="flex items-center gap-3 p-3 rounded-lg bg-[#0F0F23]/50 border border-[#7C3AED]/30 hover:border-[#7C3AED]/60 hover:shadow-[0_4px_12px_rgba(124,58,237,0.2)] hover:-translate-y-0.5 transition-all duration-200 stagger-enter"
+                      style={{ animationDelay: `${index * 100}ms` }}
                     >
-                      <Avatar className="h-10 w-10 border-2 border-primary/30">
-                        <AvatarFallback className="bg-primary/20 text-primary font-semibold">
+                      <Avatar className="h-10 w-10 border-2 border-[#7C3AED]/30">
+                        <AvatarFallback className="bg-[#7C3AED]/20 text-[#7C3AED] font-semibold font-['Poppins']">
                           {player.name.charAt(0)}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
-                        <p className="font-medium text-foreground">{player.name}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="font-medium text-[#E2E8F0]">{player.name}</p>
+                        <p className="text-xs text-[#E2E8F0]/60">
                           {player.isHost ? 'Host' : 'Ready'}
                         </p>
                       </div>
                       {player.isHost && (
-                        <Crown className="h-5 w-5 text-yellow-500" />
+                        <Crown className="h-5 w-5 text-[#EAB308] crown-glow drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]" />
                       )}
                     </div>
                   ))}
                 </div>
 
-                {/* Empty slots */}
                 {Array.from({ length: 2 - players.length }).map((_, i) => (
                   <div
                     key={`empty-${i}`}
-                    className="flex items-center gap-3 p-3 rounded-lg border border-dashed border-border/30"
+                    className="flex items-center gap-3 p-3 rounded-lg border border-dashed border-[#64748B]/40 bg-[#64748B]/10"
                   >
-                    <div className="h-10 w-10 rounded-full bg-muted/20 flex items-center justify-center">
-                      <Users className="h-5 w-5 text-muted-foreground/50" />
+                    <div className="h-10 w-10 rounded-full border-2 border-dashed border-[#64748B]/40 flex items-center justify-center pulse-waiting">
+                      <Users className="h-5 w-5 text-[#64748B]/60" />
                     </div>
-                    <p className="text-sm text-muted-foreground/50">Waiting for player...</p>
+                    <p className="text-sm text-[#64748B]/70 italic">Waiting for player...</p>
                   </div>
                 ))}
               </div>
               )}
 
-              {/* Host controls */}
               {isHost && players.length >= 2 && (
                 <Button
                   onClick={handleStartMatch}
-                  className="w-full h-12 text-lg font-semibold bg-gradient-to-r from-primary to-accent hover:opacity-90"
+                  className="w-full h-12 text-lg font-semibold font-['Righteous'] tracking-wider uppercase bg-gradient-to-r from-[#7C3AED] to-[#F43F5E] hover:shadow-[0_6px_20px_rgba(124,58,237,0.5),0_0_40px_rgba(244,63,94,0.3)] shadow-[0_4px_15px_rgba(124,58,237,0.4),0_0_30px_rgba(244,63,94,0.2)] transition-all duration-200 border-0"
                   size="lg"
                 >
                   <Gamepad2 className="mr-2 h-5 w-5" />
@@ -196,10 +198,9 @@ export default function Lobby() {
                 </Button>
               )}
 
-              {/* Room code display */}
-              <div className="pt-4 border-t border-border/30">
-                <p className="text-xs text-muted-foreground text-center">
-                  Room Code: <span className="font-mono text-primary tracking-wider">{roomCode}</span>
+              <div className="pt-4 border-t border-[#7C3AED]/20">
+                <p className="text-xs text-[#E2E8F0]/60 text-center">
+                  Room Code: <span className="font-mono text-[#7C3AED] tracking-wider neon-text">{roomCode}</span>
                 </p>
               </div>
             </>
