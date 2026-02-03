@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Upload, Music, X } from 'lucide-react';
 import { Tile } from '@/types/game';
+import { useToast } from '@/hooks/use-toast';
 
 interface UploadDrawerProps {
   isOpen: boolean;
@@ -16,6 +17,8 @@ interface UploadDrawerProps {
 export function UploadDrawer({ isOpen, onClose, tile, onUpload }: UploadDrawerProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const { toast } = useToast();
+  const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -31,6 +34,14 @@ export function UploadDrawer({ isOpen, onClose, tile, onUpload }: UploadDrawerPr
     setIsDragging(false);
     const file = e.dataTransfer.files[0];
     if (file && file.type.startsWith('audio/')) {
+      if (file.size > MAX_FILE_SIZE) {
+        toast({
+          variant: "destructive",
+          title: "File too large",
+          description: "Audio files must be 50MB or smaller",
+        });
+        return;
+      }
       setSelectedFile(file);
     }
   };
@@ -38,6 +49,14 @@ export function UploadDrawer({ isOpen, onClose, tile, onUpload }: UploadDrawerPr
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (file.size > MAX_FILE_SIZE) {
+        toast({
+          variant: "destructive",
+          title: "File too large",
+          description: "Audio files must be 50MB or smaller",
+        });
+        return;
+      }
       setSelectedFile(file);
     }
   };

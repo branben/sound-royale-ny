@@ -1,5 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;500;600;700&display=swap");
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Righteous&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -64,7 +63,8 @@ All colors MUST be HSL.
     --glass-bg: 240 8% 12% / 0.6;
     --glass-border: 240 6% 30% / 0.3;
 
-    --font-sans: 'DM Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+    --font-sans: 'Poppins', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+    --font-display: 'Righteous', cursive;
     --font-serif: 'Crimson Pro', ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
     --font-mono: 'SF Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 
@@ -135,5 +135,100 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+    font-family: 'Poppins', sans-serif;
+  }
+}
+
+/* CRT Scanline Effect */
+.crt-scanlines {
+  background: linear-gradient(
+    0deg,
+    transparent 50%,
+    rgba(0, 0, 0, 0.03) 50%
+  );
+  background-size: 100% 4px;
+  pointer-events: none;
+}
+
+/* Neon Glow Effects */
+.neon-glow {
+  box-shadow: 0 0 20px rgba(124, 58, 237, 0.4);
+}
+
+.neon-glow-strong {
+  box-shadow: 0 0 30px rgba(124, 58, 237, 0.6);
+}
+
+.neon-text {
+  text-shadow: 0 0 10px rgba(124, 58, 237, 0.5);
+}
+
+/* Crown Glow Animation */
+@keyframes crown-glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 5px rgba(234, 179, 8, 0.5));
+  }
+  50% {
+    filter: drop-shadow(0 0 15px rgba(234, 179, 8, 0.9));
+  }
+}
+
+.crown-glow {
+  animation: crown-glow 2s ease-in-out infinite;
+}
+
+/* Card Entrance Animation */
+@keyframes card-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.card-enter {
+  animation: card-enter 400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Stagger Animation for Lists */
+@keyframes stagger-enter {
+  0% {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.stagger-enter {
+  animation: stagger-enter 300ms ease-out forwards;
+}
+
+/* Pulse Animation for Waiting State */
+@keyframes pulse-waiting {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.pulse-waiting {
+  animation: pulse-waiting 2s ease-in-out infinite;
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  .crown-glow,
+  .card-enter,
+  .stagger-enter,
+  .pulse-waiting {
+    animation: none;
   }
 }
