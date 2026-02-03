@@ -1,0 +1,45 @@
+# Simplified Qodo Agent Configuration
+review:
+  description: "Code review and analysis"
+  instructions: |
+    Review the code for:
+    - Code quality and best practices
+    - Security vulnerabilities  
+    - Performance issues
+    - Maintainability concerns
+
+improve:
+  description: "Code improvement suggestions"
+  instructions: |
+    Suggest concrete improvements to the code:
+    - Refactoring opportunities
+    - Performance optimizations
+    - Code clarity enhancements
+    - Modern patterns and practices
+
+test:
+  description: "Test generation and analysis"
+  instructions: |
+    Generate or analyze tests:
+    - Unit tests for functions and classes
+    - Integration tests for components
+    - E2E tests for user workflows
+    - Test coverage analysis
+
+debug:
+  description: "Debug assistance and troubleshooting"
+  instructions: |
+    Help debug issues:
+    - Analyze error messages and stack traces
+    - Identify root causes
+    - Suggest debugging strategies
+    - Provide fix recommendations
+
+document:
+  description: "Documentation generation"
+  instructions: |
+    Generate or improve documentation:
+    - API documentation
+    - Code comments
+    - README files
+    - Architecture documentation

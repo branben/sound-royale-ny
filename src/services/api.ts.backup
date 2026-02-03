@@ -1,0 +1,109 @@
+import axios from 'axios';
+import { Player, Tile } from '@/types/game';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  withCredentials: false,
+});
+
+export const roomApi = {
+  getRooms: async (): Promise<any[]> => {
+    const response = await api.get('/rooms/');
+    return response.data;
+  },
+
+  getRoom: async (roomId: string): Promise<any> => {
+    const response = await api.get(`/rooms/${roomId}/`);
+    return response.data;
+  },
+
+  createRoom: async (roomName: string, playerName: string): Promise<any> => {
+    const response = await api.post('/rooms/', {
+      name: roomName,
+      player_name: playerName,
+    });
+    return response.data;
+  },
+};
+
+export const gameApi = {
+  getGameState: async (roomId: string): Promise<any> => {
+    const response = await api.get(`/rooms/${roomId}/game_state/`);
+    return response.data;
+  },
+
+  joinRoom: async (roomId: string, playerName: string, isSpectator?: boolean): Promise<Player> => {
+    const response = await api.post(`/rooms/${roomId}/join_game/`, {
+      name: playerName,
+      is_spectator: isSpectator || false,
+    });
+    return transformPlayer(response.data);
+  },
+
+  rejoinRoom: async (roomId: string, playerSecret: string): Promise<Player | null> => {
+    try {
+      const response = await api.post(`/rooms/${roomId}/rejoin_game/`, {
+        player_secret: playerSecret,
+      });
+      return transformPlayer(response.data);
+    } catch {
+      return null;
+    }
+  },
+
+  startGame: async (roomId: string): Promise<{ status: string }> => {
+    const response = await api.post(`/rooms/${roomId}/start_game/`);
+    return response.data;
+  },
+
+  submitTile: async (tileId: string, audioFile: File): Promise<Tile> => {
+    const formData = new FormData();
+    formData.append('audio_file', audioFile);
+
+    const response = await api.post(`/tiles/${tileId}/play_tile/`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  resetGame: async (roomId: string, playerSecret: string): Promise<{ status: string; round: number }> => {
+    const response = await api.post(`/rooms/${roomId}/reset_game/`, {
+      player_secret: playerSecret,
+    });
+    return response.data;
+  },
+
+  kickPlayer: async (roomId: string, playerId: string, playerSecret: string): Promise<{ status: string }> => {
+    const response = await api.post(`/rooms/${roomId}/kick_player/`, {
+      player_id: playerId,
+      player_secret: playerSecret,
+    });
+    return response.data;
+  },
+};
+
+/**
+ * Transforms a backend player object (snake_case) to frontend Player interface (camelCase)
+ */
+function transformPlayer(backendPlayer: Record<string, unknown>): Player {
+  return {
+    id: backendPlayer.id as string,
+    name: backendPlayer.name as string,
+    avatar: backendPlayer.avatar as string,
+    board: {
+      tiles: (backendPlayer.tiles as any[]) || []
+    },
+    playerSecret: backendPlayer.player_secret as string,
+    isConnected: backendPlayer.is_connected as boolean,
+    isSpectator: backendPlayer.is_spectator as boolean,
+  };
+}
+
+export default api;

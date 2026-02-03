@@ -23,11 +23,13 @@ export function BingoBoard({
   const pendingCount = boardData.tiles.filter(t => t.status === 'pending').length;
 
   return (
-    <div className={cn(
-      'flex flex-col gap-4 rounded-xl border border-border/30 bg-card/40 p-4 backdrop-blur-md',
-      'shadow-xl',
-      className
-    )}>
+    <div 
+      data-testid="game-board"
+      className={cn(
+        'flex flex-col gap-4 rounded-xl border border-border/30 bg-card/40 p-4 backdrop-blur-md',
+        'shadow-xl',
+        className
+      )}>
       {/* Player Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
