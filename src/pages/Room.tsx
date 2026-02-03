@@ -201,11 +201,23 @@ const newGameState = {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4">
-      <header className="border-b border-border/30 bg-card/40 backdrop-blur-md mb-4">
-        <div className="container mx-auto flex h-12 items-center justify-between">
-          <h1 className="text-2xl font-bold text-foreground md:text-3xl">Sound Royale</h1>
-          <Button onClick={() => navigate('/')} variant="outline">
+    <div className="min-h-screen bg-[#0F0F23] p-4 relative">
+      <div className="fixed inset-0 pointer-events-none z-50 opacity-20 bg-[linear-gradient(0deg,transparent_50%,rgba(0,0,0,0.1)_50%)] bg-[length:100%_4px]" />
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/3 left-1/3 w-96 h-96 bg-[#7C3AED]/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/3 right-1/3 w-96 h-96 bg-[#F43F5E]/10 rounded-full blur-3xl" />
+      </div>
+
+      <header className="border-b border-[#7C3AED]/20 bg-[#0F0F23]/80 backdrop-blur-md mb-4 relative z-10">
+        <div className="container mx-auto flex h-14 items-center justify-between">
+          <h1 className="text-2xl font-bold font-['Righteous'] text-transparent bg-clip-text bg-gradient-to-r from-[#7C3AED] to-[#F43F5E] drop-shadow-[0_0_10px_rgba(124,58,237,0.5)] md:text-3xl">
+            Sound Royale
+          </h1>
+          <Button 
+            onClick={() => navigate('/')} 
+            variant="outline"
+            className="border-[#7C3AED]/30 hover:border-[#7C3AED]/60 hover:shadow-[0_0_15px_rgba(124,58,237,0.3)] transition-all duration-200"
+          >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Lobby
           </Button>

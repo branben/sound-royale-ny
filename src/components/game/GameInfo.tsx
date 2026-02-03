@@ -72,7 +72,7 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
   const activePlayers = players.filter((p: Player) => !p.name?.startsWith('Spectator '));
 
   return (
-    <Card className="border-border/30 bg-card/60 backdrop-blur-xl mb-6">
+    <Card className="border-[#7C3AED]/30 bg-[#0F0F23]/80 backdrop-blur-xl mb-6 shadow-[0_0_30px_rgba(124,58,237,0.15)]">
       <CardContent className="p-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-2">
@@ -82,18 +82,18 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
             </div>
             {activePlayers.map((player: Player) => (
               <div key={player.id} className={cn(
-                "flex items-center justify-between p-2 rounded bg-background/50",
-                player.name === currentPlayerName && "ring-2 ring-primary/50"
+                "flex items-center justify-between p-2 rounded-lg bg-[#0F0F23]/60 border border-[#7C3AED]/20 hover:border-[#7C3AED]/40 transition-all duration-200",
+                player.name === currentPlayerName && "ring-2 ring-[#7C3AED]/50 shadow-[0_0_15px_rgba(124,58,237,0.3)]"
               )}>
                 <div className="flex items-center gap-2">
                   <span className={cn(
-                    "text-sm",
-                    player.name === currentPlayerName && "font-semibold text-primary"
+                    "text-sm font-['Poppins']",
+                    player.name === currentPlayerName && "font-semibold text-[#7C3AED] neon-text"
                   )}>
                     {player.name} {player.name === currentPlayerName && "(You)"}
                   </span>
                   {gameState.winner === player.id && (
-                    <Crown className="h-4 w-4 text-yellow-500" />
+                    <Crown className="h-4 w-4 text-[#EAB308] crown-glow drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]" />
                   )}
                 </div>
                 {isHost && player.id !== userSession.playerId && (
@@ -135,15 +135,15 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
           <div className="space-y-2">
             <div className="font-semibold text-foreground">Game Status</div>
             <div className="flex items-center gap-2">
-            <div className={cn(
-                "px-3 py-1 rounded-full text-sm font-medium transition-all duration-500",
-                gameState.status === 'lobby' && 'bg-yellow-100 text-yellow-800',
-                gameState.status === 'playing' && 'bg-blue-100 text-blue-800 animate-pulse',
-                gameState.status === 'finished' && 'bg-green-100 text-green-800 animate-bounce-in'
+              <div className={cn(
+                "px-3 py-1 rounded-full text-sm font-medium font-['Righteous'] tracking-wider uppercase transition-all duration-500 border",
+                gameState.status === 'lobby' && 'bg-[#EAB308]/10 border-[#EAB308]/50 text-[#EAB308]',
+                gameState.status === 'playing' && 'bg-[#7C3AED]/10 border-[#7C3AED]/50 text-[#7C3AED] animate-pulse shadow-[0_0_15px_rgba(124,58,237,0.3)]',
+                gameState.status === 'finished' && 'bg-[#10B981]/10 border-[#10B981]/50 text-[#10B981] animate-bounce-in shadow-[0_0_15px_rgba(16,185,129,0.3)]'
               )}>
-                {gameState.status === 'lobby' && '⏳'}
-                {gameState.status === 'playing' && '🎵'}
-                {gameState.status === 'finished' && '🏆'}
+                {gameState.status === 'lobby' && 'Waiting'}
+                {gameState.status === 'playing' && 'Live'}
+                {gameState.status === 'finished' && 'Done'}
               </div>
               <div className="text-sm text-muted-foreground">
                 <div className="capitalize font-medium">
