@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Users, Gamepad2, Crown } from 'lucide-react';
+import { Users, Gamepad2, Crown, Loader2 } from 'lucide-react';
+import { roomApi } from '@/services/api';
+import { RoomResponse } from '@/types/game';
 
 interface Player {
   id: string;
@@ -16,22 +18,51 @@ export default function Lobby() {
   const navigate = useNavigate();
   const [roomCode, setRoomCode] = useState('');
   const [isJoined, setIsJoined] = useState(false);
-  const [isHost] = useState(true); // Mock: current user is host
+  const [isHost] = useState(true);
   const [players, setPlayers] = useState<Player[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [roomData, setRoomData] = useState<RoomResponse | null>(null);
+
+  // Fetch real room data when joined
+  useEffect(() => {
+    if (!isJoined || !roomCode) return;
+
+    const fetchRoomData = async () => {
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        const data = await roomApi.getRoom(roomCode);
+        setRoomData(data);
+        
+        // Transform backend players to local format
+        const transformedPlayers = data.players.map((player, index) => ({
+          id: player.id,
+          name: player.name,
+          isHost: index === 0, // First player is host
+        }));
+        
+        setPlayers(transformedPlayers);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to join room');
+        console.error('Error joining room:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRoomData();
+  }, [isJoined, roomCode]);
 
   const handleJoin = () => {
     if (roomCode.length === 4) {
       setIsJoined(true);
-      // Mock players joining
-      setPlayers([
-        { id: '1', name: 'Producer A', isHost: true },
-        { id: '2', name: 'Producer B', isHost: false },
-      ]);
     }
   };
 
   const handleStartMatch = () => {
-    navigate('/spectator');
+    navigate(`/room/${roomCode}`);
   };
 
   const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -78,18 +109,37 @@ export default function Lobby() {
 
               <Button
                 onClick={handleJoin}
-                disabled={roomCode.length !== 4}
+                disabled={roomCode.length !== 4 || isLoading}
                 className="w-full h-12 text-lg font-semibold"
                 size="lg"
               >
-                <Users className="mr-2 h-5 w-5" />
-                Join Room
+                {isLoading ? (
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                ) : (
+                  <Users className="mr-2 h-5 w-5" />
+                )}
+                {isLoading ? 'Joining...' : 'Join Room'}
               </Button>
             </>
           ) : (
             <>
+              {/* Error display */}
+              {error && (
+                <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-sm">
+                  {error}
+                </div>
+              )}
+              
+              {/* Loading state */}
+              {isLoading && (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              )}
+              
               {/* Players list */}
-              <div className="space-y-3">
+              {!isLoading && (
+                <div className="space-y-3">
                 <div className="flex items-center justify-between text-sm text-muted-foreground px-1">
                   <span>Players in lobby</span>
                   <span className="text-primary">{players.length}/2</span>
@@ -132,6 +182,7 @@ export default function Lobby() {
                   </div>
                 ))}
               </div>
+              )}
 
               {/* Host controls */}
               {isHost && players.length >= 2 && (
