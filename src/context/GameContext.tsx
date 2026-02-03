@@ -48,7 +48,6 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
                 audioUrl: tile.audio_url,
               })) || []
             },
-            playerSecret: player.player_secret,
             isConnected: player.is_connected,
             isSpectator: player.is_spectator,
           };
@@ -121,4 +120,46 @@ export function useGame() {
     throw new Error('useGame must be used within a GameProvider');
   }
   return context;
+}
+
+// Refresh context for forcing game state updates
+const GameRefreshContext = createContext<{
+  forceRefresh: number;
+  setForceRefresh: (timestamp: number) => void;
+} | undefined>(undefined);
+
+export function GameRefreshProvider({ children }: { children: ReactNode }) {
+  const [forceRefresh, setForceRefresh] = useState<number>(Date.now());
+  
+  return (
+    <GameRefreshContext.Provider value={{ forceRefresh, setForceRefresh }}>
+      {children}
+    </GameRefreshContext.Provider>
+  );
+}
+
+export function useGameRefresh() {
+  const context = useContext(GameRefreshContext);
+  if (context === undefined) {
+    throw new Error('useGameRefresh must be used within a GameRefreshProvider');
+  }
+  return context;
+}
+
+export function useGameRefreshEffect(callback: () => void) {
+  const { forceRefresh } = useGameRefresh();
+  
+  useEffect(() => {
+    callback();
+  }, [forceRefresh, callback]);
+}
+
+// WebSocket connection hook (placeholder for future implementation)
+export function useWebSocketConnection() {
+  // Placeholder - WebSocket implementation to be added later
+  // This prevents build errors while maintaining the API contract
+  useEffect(() => {
+    // WebSocket connection logic will be implemented here
+    // For now, this is a no-op to satisfy the import requirements
+  }, []);
 }
