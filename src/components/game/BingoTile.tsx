@@ -10,15 +10,15 @@ interface BingoTileProps {
 
 export function BingoTile({ tile, onClick, isInteractive = false }: BingoTileProps) {
   const statusStyles = {
-    empty: 'bg-tile-empty/50 border-border/50 hover:border-primary/50',
-    pending: 'bg-tile-pending/20 border-tile-pending animate-pulse-glow',
-    complete: 'bg-tile-complete/20 border-tile-complete'
+    empty: 'bg-[#334155]/30 border-[#64748B]/30 hover:border-[#7C3AED]/50 hover:shadow-[0_0_15px_rgba(124,58,237,0.2)]',
+    pending: 'bg-[#F43F5E]/10 border-[#F43F5E]/60 shadow-[0_0_20px_rgba(244,63,94,0.4)] animate-pulse',
+    complete: 'bg-[#10B981]/15 border-[#10B981]/60 shadow-[0_0_20px_rgba(16,185,129,0.4)]'
   };
 
   const iconStyles = {
-    empty: 'text-muted-foreground',
-    pending: 'text-tile-pending',
-    complete: 'text-tile-complete'
+    empty: 'text-[#64748B]',
+    pending: 'text-[#F43F5E]',
+    complete: 'text-[#10B981]'
   };
 
   return (
@@ -50,19 +50,17 @@ export function BingoTile({ tile, onClick, isInteractive = false }: BingoTilePro
         )}
       </div>
 
-      {/* Genre Label */}
       <span className={cn(
-        'text-xs font-semibold uppercase tracking-wider',
-        tile.status === 'empty' && 'text-muted-foreground',
-        tile.status === 'pending' && 'text-tile-pending',
-        tile.status === 'complete' && 'text-tile-complete'
+        'text-xs font-semibold uppercase tracking-wider font-["Poppins"]',
+        tile.status === 'empty' && 'text-[#64748B]',
+        tile.status === 'pending' && 'text-[#F43F5E]',
+        tile.status === 'complete' && 'text-[#10B981]'
       )}>
         {tile.genre}
       </span>
 
-      {/* Glow effect for complete tiles */}
       {tile.status === 'complete' && (
-        <div className="absolute inset-0 rounded-lg bg-tile-complete/10 blur-sm" />
+        <div className="absolute inset-0 rounded-lg bg-[#10B981]/20 blur-md" />
       )}
     </button>
   );

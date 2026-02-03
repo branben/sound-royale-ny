@@ -26,35 +26,33 @@ export function BingoBoard({
     <div 
       data-testid="game-board"
       className={cn(
-        'flex flex-col gap-4 rounded-xl border border-border/30 bg-card/40 p-4 backdrop-blur-md',
-        'shadow-xl',
+        'flex flex-col gap-4 rounded-xl border border-[#7C3AED]/30 bg-[#1A1A2E]/80 p-4 backdrop-blur-md',
+        'shadow-[0_0_40px_rgba(124,58,237,0.2),inset_0_0_60px_rgba(0,0,0,0.3)]',
         className
       )}>
-      {/* Player Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 text-primary">
-            <span className="text-lg font-bold">{playerName.charAt(0)}</span>
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#7C3AED]/20 border border-[#7C3AED]/30 text-[#7C3AED]">
+            <span className="text-lg font-bold font-['Righteous']">{playerName.charAt(0)}</span>
           </div>
           <div>
-            <h3 className="font-semibold text-foreground">{playerName}</h3>
-            <p className="text-xs text-muted-foreground">
+            <h3 className="font-semibold text-[#E2E8F0] font-['Poppins']">{playerName}</h3>
+            <p className="text-xs text-[#E2E8F0]/60">
               {completedCount}/9 complete
               {pendingCount > 0 && ` • ${pendingCount} pending`}
             </p>
           </div>
         </div>
         
-        {/* Progress indicator */}
         <div className="flex gap-1">
           {boardData.tiles.map((tile) => (
             <div
               key={tile.id}
               className={cn(
                 'h-2 w-2 rounded-full transition-colors',
-                tile.status === 'empty' && 'bg-tile-empty/50',
-                tile.status === 'pending' && 'bg-tile-pending animate-pulse',
-                tile.status === 'complete' && 'bg-tile-complete'
+                tile.status === 'empty' && 'bg-[#334155]/50',
+                tile.status === 'pending' && 'bg-[#F43F5E] animate-pulse shadow-[0_0_8px_rgba(244,63,94,0.5)]',
+                tile.status === 'complete' && 'bg-[#10B981] shadow-[0_0_8px_rgba(16,185,129,0.5)]'
               )}
             />
           ))}
