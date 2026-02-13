@@ -6,6 +6,7 @@ private/
 experimental/
 *.secret.json
 drafts/
+.gaia_private/
 
 # Secrets and credentials
 .env
