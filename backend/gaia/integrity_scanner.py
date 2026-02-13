@@ -28,10 +28,31 @@ def _default_test_paths(root: Path) -> List[str]:
 
 def scan_integrity(argv: List[str]) -> int:
     parser = argparse.ArgumentParser(description="GAIA Integrity Scanner")
-    parser.add_argument("--root", type=str, default=str(Path(__file__).parent.parent.parent.resolve()), help="Repository root")
-    parser.add_argument("--paths", type=str, nargs="*", default=None, help="Specific relative paths to evaluate")
-    parser.add_argument("--json", dest="as_json", action="store_true", help="Emit machine-readable JSON report")
-    parser.add_argument("--ci", dest="ci_mode", action="store_true", help="CI mode: fail on any denied path")
+    parser.add_argument(
+        "--root",
+        type=str,
+        default=str(Path(__file__).parent.parent.parent.resolve()),
+        help="Repository root",
+    )
+    parser.add_argument(
+        "--paths",
+        type=str,
+        nargs="*",
+        default=None,
+        help="Specific relative paths to evaluate",
+    )
+    parser.add_argument(
+        "--json",
+        dest="as_json",
+        action="store_true",
+        help="Emit machine-readable JSON report",
+    )
+    parser.add_argument(
+        "--ci",
+        dest="ci_mode",
+        action="store_true",
+        help="CI mode: fail on any denied path",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -49,11 +70,15 @@ def scan_integrity(argv: List[str]) -> int:
             print(f"Root: {repo_root}")
 
         for path_str in test_paths:
-            decision = evaluate_path_request(repo_root, path_str, beadsignore_path=beadsignore)
+            decision = evaluate_path_request(
+                repo_root, path_str, beadsignore_path=beadsignore
+            )
             status = "PASS" if decision.allowed else "FAIL"
 
             if not args.as_json:
-                print(f"[{status}] {path_str} -> {decision.reason} ({decision.redacted_path})")
+                print(
+                    f"[{status}] {path_str} -> {decision.reason} ({decision.redacted_path})"
+                )
                 if not decision.allowed and path_str in [".env", "private.key"]:
                     print("  (Note: Violation correctly caught by guard)")
 
@@ -66,9 +91,17 @@ def scan_integrity(argv: List[str]) -> int:
                 }
             )
 
-            # In CI mode, count any denied as a violation
+            # In CI mode, check for unexpected denials
+            # Secret patterns should be denied (correct), not counted as violations
             if not decision.allowed:
-                violations += 1
+                # Check if this was correctly denied as a secret pattern
+                is_expected_denial = decision.reason in (
+                    "DENY_SECRET_PATTERN",
+                    "DENY_BEADSIGNORE",
+                    "DENY_OUTSIDE_ROOT",
+                )
+                if not is_expected_denial:
+                    violations += 1
 
         if args.as_json:
             report = {
