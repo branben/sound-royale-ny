@@ -68,9 +68,9 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - name: Install frontend deps (no optional)
+      - name: Install frontend deps
         run: |
-          npm ci --no-audit --no-optional || npm install --no-audit --no-optional
+          npm ci --no-audit || npm install --no-audit --legacy-peer-deps
 
       - name: TypeScript typecheck
         run: |
