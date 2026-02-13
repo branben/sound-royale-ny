@@ -70,7 +70,8 @@ jobs:
 
       - name: Install frontend deps
         run: |
-          npm ci --no-audit || npm install --no-audit --legacy-peer-deps
+          rm -rf node_modules package-lock.json
+          npm install --legacy-peer-deps
 
       - name: TypeScript typecheck
         run: |
