@@ -160,6 +160,11 @@ jobs:
           COSIGN_VERIFY_IMAGE: ${{ secrets.COSIGN_VERIFY_IMAGE }}
         run: |
           set -euo pipefail
+          # Skip if cosign is not installed
+          if ! command -v cosign >/dev/null 2>&1; then
+            echo "Cosign verify skipped: cosign not installed"
+            exit 0
+          fi
           if [ -z "${COSIGN_VERIFY_IMAGE:-}" ] || [ -z "${COSIGN_VERIFY_SUBJECT:-}" ]; then
             echo "Cosign verify skipped: missing COSIGN_VERIFY_IMAGE or COSIGN_VERIFY_SUBJECT"
             exit 0
