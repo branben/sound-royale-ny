@@ -2,32 +2,34 @@
 # Exclude sensitive directories and files from the Symbolic Ledger
 
 # Private pointers and experimental work
-private/
-experimental/
-*.secret.json
-drafts/
-.gaia_private/
+/.gaia_private/
+/private/
+/experimental/
+/*.secret.json
+/drafts/
 
 # Secrets and credentials
-.env
-*.key
-*.pem
-.aws/
-.ssh/
+/.env
+/*.key
+/*.pem
+/.aws/
+/.aws/
+/.ssh/
+/.ssh/*
 
 # Build artifacts and large dependencies
-node_modules/
-dist/
-build/
-.next/
-__pycache__/
-*.pyc
+/node_modules/
+/dist/
+/build/
+/.next/
+/__pycache__/
+/*.pyc
 
 # System files
-.DS_Store
-Thumbs.db
+/.DS_Store
+/Thumbs.db
 
 # Project-specific sensitive architectural components
 # Add components that reveal too much about internal security or proprietary logic
-backend/security_configs/
-src/context/InternalAuthContext.tsx
+/backend/security_configs/
+/src/context/InternalAuthContext.tsx

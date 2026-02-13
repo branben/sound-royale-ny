@@ -1,109 +1,288 @@
-# SOUND ROYALE - AGENTIC PROTOCOLS
+# SOUND ROYALE AGENT PROTOCOLS
 
-## 🎭 THE ROLES
-- **MANAGER (Plan Agent):** High-level architect. Uses `qodo`. Responsibilities: Problem diagnosis, dependency mapping, and updating `docs/CURRENT_PLAN.md`.
-- **BUILDER (Build Agent/Sisyphus):** The implementer. Reads the plan and executes code changes.
-- **DESIGNER (UI/UX Agent):** The aesthetic director. Uses `ui-ux-pro-max` skill. Responsibilities: Design system generation, visual consistency, preventing "AI slop".
+**Generated:** 2026-02-10
+**Commit:** sound-royale-ny
+**Branch:** main
 
-## 🛠 MCP TOOLSET STRATEGY
-| Tool | Primary Use Case |
-| :--- | :--- |
-| **qodo-open-aware** | Semantic search. Use this FIRST to find where logic "lives." |
-| **serena** | Symbol definition. Use this to get exact function signatures/interfaces. |
-| **sequential-thinking** | Complex problem decomposition. Use for multi-step reasoning and planning. |
-| **skill: ui-ux-pro-max** | **Design system generation.** Use for UI/UX work to prevent generic styling. |
-| **skill: frontend-ui-ux** | **Creative direction.** Use for aesthetic decisions and anti-pattern prevention. |
-| **bash** | Command execution for E2E tests, design system generation. |
-| **edit** | Multi-file code changes. |
+## ROLES AND RESPONSIBILITIES
 
-## 🔄 THE GOLDEN LOOP (WORKFLOW)
-1. **PLAN:** Manager analyzes the issue and writes/updates `docs/CURRENT_PLAN.md`.
-2. **DESIGN:** Designer generates design system using `ui-ux-pro-max` skill (for UI tasks).
-3. **RESET:** User runs `/new` to clear context and prevent "Agent Drift."
-4. **BUILD:** Builder (Sisyphus) reads the plan and design system.
-5. **EXECUTE:** Builder uses `bash`, `edit`, and MCP tools for implementation.
-6. **VERIFY:** Run `npm run test:e2e` or `python manage.py test`.
-7. **CLOSE:** Update plan status to `[x] DONE` and document any side effects.
+### Manager Agent
+- **Primary Responsibility**: Orchestrate workflow, verify compliance, ensure quality standards
+- **Decision Making**: Final authority on architectural decisions and task prioritization
+- **Verification**: Validate all work matches project conventions and requirements
+- **Communication**: Coordinate between Builder and Designer agents
 
-## 🎨 UI/UX SKILL INTEGRATION
+### Builder Agent
+- **Primary Responsibility**: Implement code, fix bugs, add features
+- **Code Quality**: Write production-ready code following all conventions
+- **Testing**: Ensure all changes pass tests and maintain system integrity
+- **Documentation**: Update relevant documentation for implemented features
 
-### **Skill: ui-ux-pro-max** (INSTALLED)
-**Location**: `.opencode/skills/ui-ux-pro-max/`
+### Designer Agent
+- **Primary Responsibility**: UI/UX design, user experience optimization
+- **Design System**: Apply sound-royale design system consistently
+- **User Flow**: Ensure intuitive user journeys and game mechanics
+- **Visual Consistency**: Maintain cohesive visual language across components
 
-**When to Use**:
-- Building new UI components or pages
-- Choosing color palettes and typography
-- Reviewing code for UX issues
-- Preventing "AI slop" (generic purple gradients, Inter font, etc.)
+### GAIA (Memory Agent)
+- **Primary Responsibility**: Automated Memory Layer & Symbolic Persistence
+- **Context Management**: Index and recall symbolic pointers via `beads` and `serena`
+- **Session Continuity**: Ensure task state persists across agent resets
+- **Security**: Enforce path integrity and secret exclusion across the ledger
 
-**Workflow**:
+## TOOL STRATEGY TABLE
+
+| Priority | Tool | Use Case | When to Apply |
+|----------|------|----------|----------------|
+| 1 | qodo-open-aware | Code analysis, anti-pattern detection | Before any code changes |
+| 2 | beads / serena | Symbolic Persistence / Memory | **GAIA Workflow**: Always used for session continuity |
+| 3 | serena | File operations, symbol management | For all file-level work |
+| 4 | sequential-thinking | Complex problem solving | Multi-step debugging scenarios |
+| 5 | ui-ux-pro-max | Design system queries | UI/UX design decisions |
+| 6 | playwright | E2E testing | Test automation |
+| 7 | git-master | Version control | All git operations |
+
+## GOLDEN LOOP WORKFLOW
+
+### 1. Plan
+- Analyze requirements and identify scope
+- Create detailed todo list for multi-step tasks
+- Select appropriate agent roles and tools
+- Verify understanding before proceeding
+
+### 2. Design
+- Consult ui-ux-pro-max for design patterns
+- Apply sound-royale design system
+- Create wireframes/mockups if needed
+- Validate design against requirements
+
+### 3. Reset
+- **User runs `/new`** to start fresh session
+- Clear any previous state or assumptions
+- Establish clean working context
+- Confirm project alignment
+
+### 4. Build
+- Implement following code conventions
+- Use qodo-open-aware for code quality
+- Apply design system components
+- Write tests concurrently
+
+### 5. Execute
+- Run test suites to verify functionality
+- Perform integration testing
+- Validate performance requirements
+- Check security considerations
+
+### 6. Verify
+- Run lsp_diagnostics on changed files
+- Execute build commands successfully
+- Pass all E2E tests
+- Review against anti-patterns
+
+### 7. Close
+- Mark all todos as completed
+- Cancel background tasks
+- Document outcomes and learnings
+- Prepare for next iteration
+
+## UI/UX SKILL INTEGRATION
+
+### ui-ux-pro-max Commands (standardized)
 ```bash
-# Step 1: Generate Design System (REQUIRED before UI work)
-python3 .opencode/skills/ui-ux-pro-max/scripts/search.py \
-  "<product_type> <industry> <keywords>" \
-  --design-system \
-  -p "Project Name"
+# Design system search
+python3 .opencode/skills/ui-ux-pro-max/scripts/search.py "multiplayer music bingo" --design-system -p "Sound Royale"
 
-# Step 2: Persist for hierarchical retrieval (OPTIONAL)
-python3 .opencode/skills/ui-ux-pro-max/scripts/search.py \
-  "<query>" \
-  --design-system \
-  --persist \
-  -p "Project Name"
+# Component pattern lookup
+python3 .opencode/skills/ui-ux-pro-max/scripts/search.py "bingo card" --design-system -p "Sound Royale"
 
-# Step 3: Domain-specific searches (as needed)
-python3 .opencode/skills/ui-ux-pro-max/scripts/search.py \
-  "<keyword>" \
-  --domain <domain> \
-  [-n <max_results>]
+# Multiplayer UI patterns
+python3 .opencode/skills/ui-ux-pro-max/scripts/search.py "real-time game" --design-system -p "Sound Royale"
+
+# Domain-specific lookups (style, color, typography)
+python3 .opencode/skills/ui-ux-pro-max/scripts/search.py "neon glow effects" --domain style
+python3 .opencode/skills/ui-ux-pro-max/scripts/search.py "gaming music" --domain color
+python3 .opencode/skills/ui-ux-pro-max/scripts/search.py "futuristic tech" --domain typography
 ```
 
-**Example for Sound Royale**:
-```bash
-python3 .opencode/skills/ui-ux-pro-max/scripts/search.py \
-  "multiplayer music bingo game social gaming" \
-  --design-system \
-  -p "Sound Royale"
+### When to Use ui-ux-pro-max
+- **Before component creation**: Search for existing patterns
+- **Design decisions**: Consult for best practices
+- **User flow optimization**: Get UX recommendations
+- **Visual consistency**: Verify against design system
+
+### frontend-ui-ux Integration
+- Use for React component design and implementation
+- Apply design system tokens and patterns
+- Ensure responsive design principles
+- Maintain accessibility standards
+
+## EXPLICIT ANTI-PATTERNS
+
+### Universal Anti-Patterns
+- **No plan-less coding**: Always create todos for multi-step tasks
+- **No direct mutation**: Always use setGameState with functional updates
+- **No AI-slop designs**: Always use design system, never generate generic UI
+- **No type suppression**: Never use `as any`, `@ts-ignore`, or `@ts-expect-error`
+- **No broken state**: Never leave code in non-working state after failures
+- **No undocumented changes**: Always update relevant documentation
+- **No Path Breakout (GAIA)**: Never use symbols that point outside the project root
+- **No Secret Indexing (GAIA)**: Never create beads for `.env`, `*.key`, or `*.pem` files
+
+### Project-Specific Anti-Patterns
+- Never expose playerSecret in logs or API responses
+- Never run blocking operations in WebSocket consumers
+- Never mutate gameState directly - use setGameState with functional updates
+- Never skip E2E testing for gameplay features
+- Never ignore WebSocket connection state management
+
+## PROJECT OVERVIEW
+
+### Architecture
+Multiplayer music bingo game with React frontend and Django backend using WebSockets for real-time gameplay.
+
+### Structure
+```
+sound-royale-ny/
+├── src/                     # React frontend
+│   ├── components/          # UI components  
+├── backend/                # Django backend
+│   ├── game_engine/       # Game logic + models
+│   └── sound_royale_api/  # API configuration
+├── tests/e2e/             # Playwright tests
+├── design-system/sound-royale/  # UI/UX design system
+└── AGENTS.md              # This protocol file
 ```
 
-**Available Domains**:
-- `product` - Product type recommendations
-- `style` - UI styles (67 available: Glassmorphism, Brutalism, etc.)
-- `color` - Color palettes (96 available)
-- `typography` - Font pairings (57 available)
-- `landing` - Page structure patterns
-- `chart` - Chart types for dashboards
-- `ux` - UX best practices and anti-patterns
+## WHERE TO LOOK
 
-### **Skill: frontend-ui-ux** (BUILT-IN)
-**When to Use**: Creative direction, aesthetic decisions, anti-pattern prevention.
+| Task | Location | Notes |
+|------|----------|-------|
+| Frontend components | src/components/ | React UI components |
+| Game logic | backend/game_engine/ | Django models + WebSocket consumers |
+| API config | backend/sound_royale_api/ | Django settings + routing |
+| E2E tests | tests/e2e/ | Playwright test scenarios |
+| Design system | design-system/sound-royale/ | UI patterns and tokens |
+| Agent protocols | AGENTS.md | This file |
+| Codex MCP config | /Users/brandonbennett/.codex/config.toml | MCP server configuration |
 
-**Anti-Patterns to Avoid** (from skill):
-- ❌ Generic fonts: Inter, Roboto, Arial, Space Grotesk
-- ❌ Cliched colors: Purple gradients on white ("AI slop")
-- ❌ Predictable layouts and component patterns
-- ❌ Cookie-cutter design lacking context-specific character
+## KEY SYMBOLS
 
-## ⚠️ ANTI-PATTERNS (DO NOT DO)
-- **No Guessing:** If a variable isn't in `CLAUDE.md`, use `serena` or `qodo` to find it.
-- **No Direct Mutation:** Frontend state must always use `setGameState` with functional updates.
-- **No Secret Exposure:** Never allow `playerSecret` to be logged or returned in API responses.
-- **No Plan-less Coding:** Never edit code without an entry in `CURRENT_PLAN.md`.
-- **No AI-Slop UI:** Never use generic styling (purple gradients, Inter font, predictable layouts). Always generate design system first.
+| Symbol | Type | Location | Refs | Role |
+|--------|------|----------|------|------|
+| Game | Model | backend/game_engine/models.py | High | Core game entity |
+| Player | Model | backend/game_engine/models.py | High | Player state management |
+| Board | Model | backend/game_engine/models.py | Medium | Bingo board state |
+| setGameState | Function | src/context/GameContext.tsx | High | Frontend state updates |
 
-## 🚀 COMMAND CHEATSHEET
+## CONVENTIONS
 
-### Development
-- **Frontend**: `npm run dev` | `npm run test:e2e`
-- **Backend**: `python manage.py runserver` | `python manage.py test`
-- **Typecheck**: `npx tsc --noEmit`
-- **Verify Symbols**: `serena-slim`
+### Frontend
+- Functional React with TypeScript
+- Immutable state updates only
+- Design system components first
+- Comprehensive E2E testing
 
-### Design System
-- **Generate**: `python3 .opencode/skills/ui-ux-pro-max/scripts/search.py "<query>" --design-system -p "Project"`
-- **Persist**: Add `--persist` flag for hierarchical retrieval
-- **Domain search**: Add `--domain <name>` for specific areas
+### Backend
+- Django REST Framework
+- UUID primary keys
+- playerSecret authentication
+- WebSocket consumers for real-time updates
 
-### Skills
-- **Load**: `skill(name="frontend-ui-ux")`
-- **Check available**: `skill(name="<skill-name>")` then review output
+### Testing
+- Playwright E2E tests for user flows
+- Django unit tests for models/consumers
+- Linting and type checking mandatory
+
+## COMMANDS
+
+```bash
+# Frontend
+npm run dev              # Development server
+npm run test:e2e         # Playwright E2E tests
+npx tsc --noEmit         # Type checking
+
+# Backend  
+python backend/manage.py runserver    # Django dev server
+python backend/manage.py test         # Django tests
+
+# Design System
+python3 .opencode/skills/ui-ux-pro-max/scripts/search.py "multiplayer music bingo" --design-system -p "Sound Royale"
+
+# Agent Operations
+/new                     # Reset workflow (User runs this)
+goose-ledger             # GAIA: Synchronize symbols and beads to the ledger
+bd sync                  # GAIA: Push symbolic memory to Gas Town (GitHub)
+```
+
+## GAIA WORKFLOW (SYMBOLIC PERSISTENCE)
+
+### 1. The Caching Cycle
+- Agent completes a sub-task.
+- Agent creates a **Bead** (Symbolic Link) using `beads` tool.
+- Information is anchored to a specific file/line via `serena`.
+
+### 2. The Recall Cycle
+- New agent session starts context-free.
+- Agent reads **M-BEAD** (Master Bead) to restore mission state.
+- Agent uses `serena` to instantly jump to the relevant code symbols.
+
+## WORKFLOW INTEGRATION
+
+### Starting New Work
+1. User runs `/new` to reset session
+2. Manager analyzes requirements
+3. Create detailed todo list
+4. Assign appropriate roles
+
+### Implementation Process
+1. Consult design system via ui-ux-pro-max
+2. Apply qodo-open-aware for code quality
+3. Use serena for file operations
+4. Test with playwright E2E
+
+### Verification Steps
+1. Run typecheck and lint (`npx tsc --noEmit`, `npm run lint`)
+2. Execute build and test commands
+3. Verify against anti-patterns
+4. Document outcomes
+
+## QUALITY GATES
+
+### Before Commit
+- All todos marked completed
+- lsp_diagnostics clean
+- Tests passing
+- Anti-pattern check passed
+
+### Before PR
+- E2E tests passing
+- Code review complete
+- Documentation updated
+- Design system compliance verified
+
+## Landing the Plane (Session Completion)
+
+**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+
+**MANDATORY WORKFLOW:**
+
+1. **File issues for remaining work** - Create issues for anything that needs follow-up
+2. **Run quality gates** (if code changed) - Tests, linters, builds
+3. **Update issue status** - Close finished work, update in-progress items
+4. **PUSH TO REMOTE** - This is MANDATORY:
+   ```bash
+   git pull --rebase
+   bd sync
+   git push
+   git status  # MUST show "up to date with origin"
+   ```
+5. **Clean up** - Clear stashes, prune remote branches
+6. **Verify** - All changes committed AND pushed
+7. **Hand off** - Provide context for next session
+
+**CRITICAL RULES:**
+- Work is NOT complete until `git push` succeeds
+- NEVER stop before pushing - that leaves work stranded locally
+- NEVER say "ready to push when you are" - YOU must push
+- If push fails, resolve and retry until it succeeds

@@ -16,10 +16,21 @@ class Decision:
 
 SECRET_GLOBS = [
     ".env",
+    ".env.*",
     "*.pem",
     "*.key",
+    "*.crt",
+    "*.cer",
+    "*.p12",
+    "*.pfx",
+    "*.asc",
+    "id_*",
     "id_rsa",
     "id_dsa",
+    ".ssh",
+    ".ssh/*",
+    ".aws",
+    ".aws/*",
     ".gaia_private",
     ".gaia_private/*",
 ]
@@ -41,7 +52,9 @@ def _read_beadsignore(beadsignore_path: Optional[Path]) -> Iterable[str]:
         return patterns
     try:
         if beadsignore_path.is_file():
-            for line in beadsignore_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            for line in beadsignore_path.read_text(
+                encoding="utf-8", errors="ignore"
+            ).splitlines():
                 s = line.strip()
                 if not s or s.startswith("#"):
                     continue
@@ -61,7 +74,11 @@ def _matches_any_glob(path: Path, patterns: Iterable[str], root: Path) -> bool:
         rel_str = abs_str
     name = path.name
     for pat in patterns:
-        if fnmatch.fnmatch(abs_str, pat) or fnmatch.fnmatch(rel_str, pat) or fnmatch.fnmatch(name, pat):
+        if (
+            fnmatch.fnmatch(abs_str, pat)
+            or fnmatch.fnmatch(rel_str, pat)
+            or fnmatch.fnmatch(name, pat)
+        ):
             return True
     return False
 
@@ -106,9 +123,24 @@ def evaluate_path_request(
     """
     root = Path(repo_root).resolve()
     raw_target = Path(target_path)
-
+    # Always anchor to repo root for relative inputs to avoid partial traversal before checks
+    candidate = raw_target if raw_target.is_absolute() else (root / raw_target)
     # Normalize and resolve symlinks without requiring existence
-    target_resolved = (root / raw_target).resolve() if not raw_target.is_absolute() else Path(raw_target).resolve()
+    target_resolved = candidate.resolve()
+
+    # On Windows, ensure same drive/anchor to prevent cross-volume escapes
+    if (
+        hasattr(target_resolved, "drive")
+        and hasattr(root, "drive")
+        and target_resolved.drive
+        and root.drive
+        and target_resolved.drive.lower() != root.drive.lower()
+    ):
+        return Decision(
+            allowed=False,
+            reason="DENY_OUTSIDE_ROOT",
+            redacted_path=_redact(target_resolved, root),
+        )
 
     # Deny if target resolves outside root
     if not _is_within(target_resolved, root):
