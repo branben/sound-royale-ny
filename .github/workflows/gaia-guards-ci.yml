@@ -80,15 +80,67 @@ jobs:
         run: |
           npm run build --if-present
 
-      - name: Secret grep checks
+      - name: Secret grep checks (CI Gate #4)
+        id: secrets
         run: |
           set -euo pipefail
-          if command -v rg >/dev/null 2>&1; then
-            rg -n "console\\.log.*secret" src/ || true
-            rg -n "playerSecret" src/context/GameContext.tsx || true
+          
+          # CI Gate #4: Comprehensive secret detection
+          # Checks for playerSecret exposure per AGENTS.md security policy
+          
+          VIOLATIONS=0
+          
+          # Helper function to check patterns
+          check_pattern() {
+            local pattern="$1"
+            local description="$2"
+            local files="$3"
+            
+            echo "Checking: $description"
+            if command -v rg >/dev/null 2>&1; then
+              matches=$(rg -n "$pattern" $files 2>/dev/null || true)
+              if [ -n "$matches" ]; then
+                echo "❌ VIOLATION: $description"
+                echo "$matches"
+                VIOLATIONS=$((VIOLATIONS + 1))
+              else
+                echo "✓ PASS: $description"
+              fi
+            else
+              matches=$(grep -R -n "$pattern" $files 2>/dev/null || true)
+              if [ -n "$matches" ]; then
+                echo "❌ VIOLATION: $description"
+                echo "$matches"
+                VIOLATIONS=$((VIOLATIONS + 1))
+              else
+                echo "✓ PASS: $description"
+              fi
+            fi
+          }
+          
+          # Gate 4a: Check for playerSecret in console.log (logs)
+          check_pattern 'console\.log.*playerSecret' "playerSecret in console.log (log exposure)" "src/"
+          
+          # Gate 4b: Check for playerSecret in API responses
+          check_pattern 'playerSecret.*:.*"' "playerSecret in API response objects" "src/"
+          check_pattern '"playerSecret"' "playerSecret key in objects" "src/"
+          
+          # Gate 4c: Check for playerSecret in error handling
+          check_pattern 'error.*playerSecret' "playerSecret in error context" "src/"
+          
+          # Gate 4d: Check GameContext specifically (critical)
+          check_pattern 'playerSecret' "playerSecret in GameContext" "src/context/GameContext.tsx"
+          
+          # Final verdict
+          echo ""
+          echo "========================================="
+          if [ $VIOLATIONS -gt 0 ]; then
+            echo "❌ FAILED: Found $VIOLATIONS secret exposure violation(s)"
+            echo "Refer to AGENTS.md security policy: Never expose playerSecret in logs or API responses"
+            exit 1
           else
-            grep -R -n "console.*secret" src/ || true
-            grep -R -n "playerSecret" src/context/GameContext.tsx || true
+            echo "✓ PASSED: CI Gate #4 - No secret exposures detected"
+            echo "========================================="
           fi
 
       - name: Install Cosign
