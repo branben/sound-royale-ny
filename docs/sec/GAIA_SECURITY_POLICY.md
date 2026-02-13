@@ -7,7 +7,7 @@ GAIA (Symbolic Persistence) uses "beads" to store task context and symbolic poin
 - **CI Environment**: All GAIA operations in CI must be signed/verified using **Sigstore/Cosign**.
 - **Local Development**: Developers should sign their work using GPG keys when pushing significant GAIA structure changes.
 
-## 3. Integrity Scanning
+## 3. [ACTIVE] Integrity Scanning
 The `integrity_scanner.py` runs in CI to:
 - Verify all beads point to locations within the repository root.
 - Ensure no beads index files containing secrets (e.g., `.env`, `*.key`, `*.pem`).
@@ -22,13 +22,13 @@ The `integrity_scanner.py` runs in CI to:
 
 ---
 
-## 6. CI Enforcement Contract
+## 6. [ACTIVE] CI Enforcement Contract
 - Scanner exit codes:
   - 0: pass (no violations)
   - 1: policy violations detected (DENY_*)
   - 2: internal scanner error/misconfiguration
 - CI must run `python backend/gaia/integrity_scanner.py --ci --json` and capture `integrity_report.json` as an artifact.
-- **Security Gate**: As of Phase 2, Cosign verification is active in CI. Builds will fail if valid signatures are not present for the identified subjects.
+- **Security Gate**: As of Phase 2, Cosign verification is active in CI. However, full automation of signing is slated for Phase 4.
 - Any non-zero exit code must fail the pipeline.
 
 ## 7. Secret Pattern Baseline and Allowlist
@@ -55,4 +55,4 @@ The `integrity_scanner.py` runs in CI to:
 ## 10. Signing (Sigstore/Cosign)
 - Default: keyless verification using GitHub OIDC (issuer `https://token.actions.githubusercontent.com`).
 - Subject must match the repository identity configured in CI secrets (e.g., `org/repo`).
-- If using keyed mode, store only public key in the repo or a secure secret store; never commit private keys.
+- If using keyed mode, the public key must be stored as a secure CI/CD secret or in another controlled-access system. Do not store the public key directly in the repository where it can be modified. Never commit private keys.

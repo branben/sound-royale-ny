@@ -3,6 +3,8 @@ backend/venv/
 venv/
 env/
 .env
+# Private Symbolic Namespace (GAIA Phase 3)
+.gaia_private/
 .env.*
 
 # Python cache
