@@ -386,12 +386,15 @@ Phase 2 “Completed” — Last Verified: 2026-02-13 (see Verification Matrix b
 
 ### GAIA Security Hardening (Symbolic Persistence) — IN PROGRESS
 - [x] Phase 1: Security Guards (Path Integrity & Secret Exclusion)
-- [x] Phase 2: CI/Policy — Signed commits and integrity scanners (2026-02-13)
-  - [x] Adopting Sigstore/Cosign for CI (keyless OIDC planned; optional gate with secrets)
-  - [x] Implemented integrity_scanner.py with CI flags (`--ci --json`) and strict exit codes (0/1/2)
-  - [x] Uploads integrity_report.json as CI artifact; fail-fast on violations
-  - [x] Created/updated docs/sec/GAIA_SECURITY_POLICY.md with CI contract, secret baseline, allowlist, and failure mapping
-- Phase 3: Namespace Split — Public vs. Private memory (Pending)
+- [x] Phase 2: Execution Integrity (CI Integration) [DONE]
+  - [x] Unit test extension (writes, consistency)
+  - [x] CI Integration (GitHub Actions)
+  - [x] Automated Registry cleanup
+
+- [x] Phase 3: Namespace Split [DONE]
+  - [x] Symbolic Memory partitioning (Public vs Private)
+  - [x] Persistent Storage Rig configuration
+  - [x] Protected namespace guards
 - Phase 4: Offline Ledger — Optional MFA-gated local store (Pending)
 
 ## 🚧 MISSION STATUS: IN PROGRESS

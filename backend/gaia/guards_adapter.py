@@ -20,7 +20,19 @@ SECRET_GLOBS = [
     "*.key",
     "id_rsa",
     "id_dsa",
+    ".gaia_private",
+    ".gaia_private/*",
 ]
+
+
+def get_beads_db_path(repo_root: Path | str, private: bool = False) -> Path:
+    """
+    Get the path to the Beads SQLite database for the specified namespace.
+    """
+    root = Path(repo_root).resolve()
+    if private:
+        return root / ".gaia_private" / "beads.db"
+    return root / ".beads" / "beads.db"
 
 
 def _read_beadsignore(beadsignore_path: Optional[Path]) -> Iterable[str]:
