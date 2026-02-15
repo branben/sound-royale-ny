@@ -5,11 +5,16 @@ test.describe('WebSocket Real-time Updates', () => {
     await page.goto('/room/test-room');
 
     const wsConnection = await page.evaluate(async () => {
-      return new Promise<string>((resolve) => {
+      return new Promise<string>((resolve, reject) => {
         let ws: WebSocket | null = null;
+        const timeoutId = setTimeout(() => {
+          reject(new Error('WebSocket connection check timed out'));
+        }, 5000);
+        
         const checkConnection = () => {
           const sockets = (window as unknown as { __WS_INSTANCES?: WebSocket[] }).__WS_INSTANCES || [];
           if (sockets.length > 0) {
+            clearTimeout(timeoutId);
             ws = sockets[0];
             resolve(ws?.readyState === WebSocket.OPEN ? 'connected' : 'pending');
           } else {
