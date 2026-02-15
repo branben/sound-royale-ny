@@ -36,7 +36,7 @@ export const roomApi = {
       const response = await api.get(`/rooms/${roomId}/stats/`);
       return response.data;
     } catch (error) {
-      console.error(`Failed to fetch stats for room ${roomId}:`, error);
+      console.error(`Failed to fetch stats for room ${roomId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       throw error;
     }
   },
