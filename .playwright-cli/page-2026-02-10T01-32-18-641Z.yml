@@ -1,0 +1,484 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T":
+    - list:
+      - listitem [ref=e40]:
+        - img [ref=e42]
+        - generic [ref=e45]: Failed to load room
+      - listitem [ref=e46]:
+        - img [ref=e48]
+        - generic [ref=e51]: Failed to load room
+      - listitem [ref=e52]:
+        - img [ref=e54]
+        - generic [ref=e57]: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+      - listitem:
+        - generic:
+          - img
+        - generic:
+          - generic: Failed to load room
+  - generic [ref=e60]:
+    - paragraph [ref=e61]: Failed to load room
+    - button "Back to Lobby" [ref=e62] [cursor=pointer]:
+      - img
+      - text: Back to Lobby
