@@ -1,6 +1,6 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, Crown, X } from 'lucide-react';
+import { Users, Crown, X, Clock, Trophy } from 'lucide-react';
 import { Player } from '@/types/game';
 import { cn } from '@/lib/utils';
 import { useGame } from '@/context/GameContext';
@@ -19,6 +19,35 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
   const { gameState } = useGame();
   const { userSession } = useUser();
   const [showVictory, setShowVictory] = useState(false);
+  const [roundTimeLeft, setRoundTimeLeft] = useState<number | null>(null);
+  
+  const ROUND_DURATION = 300;
+  
+  useEffect(() => {
+    if (gameState.status !== 'playing') {
+      setRoundTimeLeft(null);
+      return;
+    }
+    
+    setRoundTimeLeft(ROUND_DURATION);
+    
+    const interval = setInterval(() => {
+      setRoundTimeLeft(prev => {
+        if (prev === null || prev <= 1) {
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [gameState.status, gameState.currentRound]);
+
+  useEffect(() => {
+    if (gameState.status === 'finished' && gameState.winner && !showVictory) {
+      setShowVictory(true);
+    }
+  }, [gameState.status, gameState.winner]);
 
   const isHost = useMemo(() => {
     if (!userSession.playerSecret || !gameState.players) return false;
@@ -31,8 +60,9 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
     if (!userSession.playerSecret) return;
     
     try {
-      await gameApi.resetGame(roomId, userSession.playerSecret);
-      toast.success('Game reset! Starting new round...');
+      const result = await gameApi.resetGame(roomId, userSession.playerSecret);
+      const nextRound = result.round || gameState.currentRound + 1;
+      toast.success(`Round ${nextRound} starting! Get ready!`);
     } catch (err: unknown) {
       const error = err as { response?: { data?: { error?: string } }; message?: string };
       toast.error(error.response?.data?.error || 'Failed to reset game');
@@ -53,6 +83,12 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
       const error = err as { response?: { data?: { error?: string } }; message?: string };
       toast.error(error.response?.data?.error || 'Failed to kick player');
     }
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   
@@ -172,17 +208,31 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
               </div>
             </div>
             <div className="text-sm text-muted-foreground">
-              Round: {gameState.currentRound}
+              <div className="flex items-center gap-2">
+                <span>Round: {gameState.currentRound}</span>
+                {roundTimeLeft !== null && gameState.status === 'playing' && (
+                  <span className={cn(
+                    "flex items-center gap-1 ml-2 px-2 py-0.5 rounded-full text-xs font-mono",
+                    roundTimeLeft <= 30 && "bg-red-500/20 text-red-400 animate-pulse",
+                    roundTimeLeft > 30 && "bg-[#7C3AED]/20 text-[#7C3AED]"
+                  )}>
+                    <Clock className="h-3 w-3" />
+                    {formatTime(roundTimeLeft)}
+                  </span>
+                )}
+              </div>
             </div>
             {gameState.winner && (
-              <div className="text-sm font-semibold text-green-500 flex items-center gap-2 animate-bounce-in">
+              <div className="flex items-center gap-2 mt-2 p-3 rounded-lg bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/30 animate-bounce-in">
                 <div className="flex items-center gap-2">
                   <div className="animate-pulse-glow">
-                    <Crown className="h-6 w-6 text-yellow-500" />
+                    <Trophy className="h-8 w-8 text-yellow-500" />
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-lg font-bold">Victory!</span>
-                    <span>Winner: {players.find((p: Player) => p.id === gameState.winner)?.name}</span>
+                    <span className="text-lg font-bold text-yellow-500">Round Winner!</span>
+                    <span className="text-foreground font-semibold">
+                      {players.find((p: Player) => p.id === gameState.winner)?.name}
+                    </span>
                   </div>
                 </div>
               </div>
