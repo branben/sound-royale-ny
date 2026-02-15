@@ -28,6 +28,10 @@ const emptyGameState: GameState = {
 
 export function GameProvider({ children, roomCode }: { children: ReactNode; roomCode?: string }) {
   const isE2E = import.meta.env.VITE_E2E_TESTING === 'true';
+  
+  // Debug log for GameProvider initialization
+  console.log('[GameContext] Provider initialized', { roomCode, isE2E });
+  
   const [gameState, setGameState] = useState<GameState>(isE2E ? mockGameState : emptyGameState);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -211,6 +215,20 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
         [playerId]: {
           ...prev.players[playerId],
           isReady: !prev.players[playerId]?.isReady
+        }
+      }
+    }));
+  };
+
+  // PR ERROR 2: Direct state mutation - anti-pattern from Gas Town #660
+  const incrementScore = (playerId: string, points: number) => {
+    setGameState(prev => ({
+      ...prev,
+      players: {
+        ...prev.players,
+        [playerId]: {
+          ...prev.players[playerId],
+          score: (prev.players[playerId]?.score || 0) + points
         }
       }
     }));
