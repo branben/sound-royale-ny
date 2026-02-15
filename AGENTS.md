@@ -307,3 +307,32 @@ The polecat will:
 - NEVER stop before pushing - that leaves work stranded locally
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
+
+## MANDATORY CHECKLIST
+
+**BEFORE every commit**, complete the checklist:
+```
+.sisyphus/notepads/protocol/checklist.md
+```
+
+### Pre-Task (ALWAYS)
+- [ ] Read serena memories (`serena_list_memories`)
+- [ ] Read `current-session` bead
+- [ ] Check notepad for inherited wisdom
+
+### During Task
+- [ ] Create beads for significant work (per line 38)
+
+### Post-Task (BEFORE COMMIT)
+- [ ] Build passes (`npm run build && npx tsc --noEmit`)
+- [ ] Tests pass
+- [ ] **Did I create beads?**
+- [ ] **Did I update current-session?**
+- [ ] **Did I verify against project conventions?**
+
+### Commit Check
+- [ ] All protocol steps complete
+- [ ] `bd sync` run (push beads)
+- [ ] `git push` succeeds
+
+**IF ANY CHECKBOX MISSED → NOT DONE**
