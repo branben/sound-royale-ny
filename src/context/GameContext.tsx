@@ -10,6 +10,7 @@ interface GameContextType {
   updateTileStatus: (playerId: string, tileId: string, status: TileStatus) => void;
   setTileAudio: (playerId: string, tileId: string, audioUrl: string) => void;
   toggleReady: (playerId: string) => void;
+  incrementScore: (playerId: string, points: number) => void;
   isLoading: boolean;
   error: string | null;
   roomCode: string | null;
@@ -28,6 +29,10 @@ const emptyGameState: GameState = {
 
 export function GameProvider({ children, roomCode }: { children: ReactNode; roomCode?: string }) {
   const isE2E = import.meta.env.VITE_E2E_TESTING === 'true';
+  
+  // Debug log for GameProvider initialization
+  console.log('[GameContext] Provider initialized', { roomCode, isE2E });
+  
   const [gameState, setGameState] = useState<GameState>(isE2E ? mockGameState : emptyGameState);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -216,8 +221,22 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
     }));
   };
 
+  // PR ERROR 2: Direct state mutation - anti-pattern from Gas Town #660
+  const incrementScore = (playerId: string, points: number) => {
+    setGameState(prev => ({
+      ...prev,
+      players: {
+        ...prev.players,
+        [playerId]: {
+          ...prev.players[playerId],
+          score: (prev.players[playerId]?.score || 0) + points
+        }
+      }
+    }));
+  };
+
   return (
-    <GameContext.Provider value={{ gameState, setGameState, updateTileStatus, setTileAudio, toggleReady, isLoading, error, roomCode: roomCode || null }}>
+    <GameContext.Provider value={{ gameState, setGameState, updateTileStatus, setTileAudio, toggleReady, incrementScore, isLoading, error, roomCode: roomCode || null }}>
       {children}
     </GameContext.Provider>
   );
