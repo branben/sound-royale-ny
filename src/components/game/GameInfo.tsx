@@ -50,10 +50,10 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
   }, [gameState.status, gameState.currentRound]);
 
   useEffect(() => {
-    if (gameState.status === 'finished' && gameState.winner && !showVictory) {
-      setShowVictory(true);
+    if (gameState.status === 'finished' && gameState.winner) {
+      setShowVictory(prev => prev || true);
     }
-  }, [gameState.status, gameState.winner, showVictory]);
+  }, [gameState.status, gameState.winner]);
 
   const isHost = useMemo(() => {
     if (!userSession.playerSecret || !gameState.players) return false;
