@@ -29,6 +29,7 @@
 | WebSocket Real-time Connection | gameSocket.ts created, integrated with GameContext |
 | Audio Playback System | Play button added to BingoTile, audio playback works |
 | Player Reconnection | Enhanced rejoin with localStorage, better error handling |
+| Game Round Transitions | Round timer, winner announcements, round-to-round transitions |
 
 ### 🔄 IN PROGRESS
 
@@ -40,7 +41,6 @@
 
 | Priority | Goal |
 |----------|------|
-| MEDIUM | Game Round Transitions |
 | MEDIUM | Spectator Experience |
 | MEDIUM | E2E Test Expansion |
 
