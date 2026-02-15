@@ -1,0 +1,23 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e7]
+      - heading "Sound Royale" [level=3] [ref=e13]
+      - paragraph [ref=e14]: Waiting for players...
+    - generic [ref=e15]:
+      - generic [ref=e20]:
+        - generic [ref=e21]:
+          - generic [ref=e22]: Players in lobby
+          - generic [ref=e23]: 1/2
+        - generic [ref=e25]:
+          - generic [ref=e27]: H
+          - generic [ref=e28]:
+            - paragraph [ref=e29]: Host
+            - paragraph [ref=e30]: Ready
+        - generic [ref=e31]:
+          - img [ref=e33]
+          - paragraph [ref=e38]: Waiting for player...
+      - paragraph [ref=e40]: "Room Code: 2623"

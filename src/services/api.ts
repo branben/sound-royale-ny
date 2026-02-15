@@ -29,6 +29,17 @@ export const roomApi = {
     });
     return response.data;
   },
+
+  // PR ERROR 3: Missing error handler - no try/catch on async call
+  getRoomStats: async (roomId: string): Promise<any> => {
+    try {
+      const response = await api.get(`/rooms/${roomId}/stats/`);
+      return response.data;
+    } catch (error) {
+      console.error(`Failed to fetch stats for room ${roomId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw error;
+    }
+  },
 };
 
 export const gameApi = {

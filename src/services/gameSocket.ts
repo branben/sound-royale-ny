@@ -50,6 +50,12 @@ class GameSocketService {
     this.maxReconnectAttempts = options.reconnectAttempts ?? 5;
     this.isIntentionallyClosed = false;
     this.reconnectAttempts = 0;
+    
+    // Connection established with gameId
+    console.log('[GameSocket] Connection config:', { 
+      gameId: options.gameId
+    });
+    
     this.doConnect();
   }
 
