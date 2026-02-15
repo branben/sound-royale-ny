@@ -31,20 +31,21 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
     
     setShowVictory(false);
     setRoundTimeLeft(ROUND_DURATION);
-    
-    let interval: ReturnType<typeof setInterval> | null = null;
-    interval = setInterval(() => {
+
+    const intervalId = setInterval(() => {
       setRoundTimeLeft(prev => {
-        if (prev === null || prev <= 1) {
-          if (interval) clearInterval(interval);
+        if (prev === null) return prev;
+        const next = prev - 1;
+        if (next <= 0) {
+          clearInterval(intervalId);
           return 0;
         }
-        return prev - 1;
+        return next;
       });
     }, 1000);
-    
+
     return () => {
-      if (interval) clearInterval(interval);
+      clearInterval(intervalId);
     };
   }, [gameState.status, gameState.currentRound]);
 
