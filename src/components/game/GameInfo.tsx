@@ -68,7 +68,7 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
 
   useEffect(() => {
     if (gameState.status === 'finished' && gameState.winner) {
-      setShowVictory(prev => prev || true);
+      setShowVictory(true);
     }
   }, [gameState.status, gameState.winner]);
 
