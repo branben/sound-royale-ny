@@ -1,6 +1,18 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('WebSocket Real-time Updates', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as unknown as { __WS_INSTANCES?: WebSocket[] }).__WS_INSTANCES = [];
+      const OriginalWebSocket = window.WebSocket;
+      (window as unknown as { WebSocket: typeof WebSocket }).WebSocket = function(url: string | URL, protocols?: string | string[]) {
+        const ws = new OriginalWebSocket(url, protocols);
+        ((window as unknown as { __WS_INSTANCES?: WebSocket[] }).__WS_INSTANCES || []).push(ws);
+        return ws;
+      } as unknown as typeof WebSocket;
+    });
+  });
+
   test('should establish WebSocket connection on room join', async ({ page }) => {
     await page.goto('/room/test-room');
 
@@ -39,7 +51,7 @@ test.describe('WebSocket Real-time Updates', () => {
   test('should display real-time player updates', async ({ page }) => {
     await page.goto('/room/test-room');
 
-    await page.waitForTimeout(2000);
+    await expect(page.locator('header')).toBeVisible({ timeout: 5000 });
 
     const playerListVisible = await page.locator('[data-testid="player-list"]').count() > 0 ||
                              await page.locator('.player-list, [class*="player"]').count() > 0;
@@ -56,7 +68,7 @@ test.describe('WebSocket Real-time Updates', () => {
       }
     });
 
-    await page.waitForTimeout(3000);
+    await expect(page.locator('header')).toBeVisible({ timeout: 5000 });
 
     const hasReconnectionMessage = consoleMessages.some(
       msg => msg.toLowerCase().includes('disconnect') ||
@@ -70,9 +82,7 @@ test.describe('WebSocket Real-time Updates', () => {
   test('should show live indicator for active game', async ({ page }) => {
     await page.goto('/room/test-room');
 
-    await page.waitForTimeout(1000);
-
-    const liveIndicator = await page.locator('text=LIVE').count();
-    expect(liveIndicator).toBeGreaterThan(0);
+    const liveIndicator = page.locator('text=LIVE');
+    await expect(liveIndicator).toBeVisible({ timeout: 5000 });
   });
 });
