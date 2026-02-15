@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Users, Gamepad2, Crown, Loader2 } from 'lucide-react';
+import { Users, Gamepad2, Crown, Loader2, Sparkles } from 'lucide-react';
 import { roomApi } from '@/services/api';
 import { RoomResponse } from '@/types/game';
 
