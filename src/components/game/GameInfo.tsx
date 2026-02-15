@@ -32,6 +32,23 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
     setShowVictory(false);
     setRoundTimeLeft(ROUND_DURATION);
 
+    const timeUpAnnouncedRef = useRef<number | null>(null);
+
+    useEffect(() => {
+      if (gameState.status !== 'playing') {
+        timeUpAnnouncedRef.current = null;
+        return;
+      }
+
+      if (
+        roundTimeLeft === 0 &&
+        timeUpAnnouncedRef.current !== gameState.currentRound
+      ) {
+        timeUpAnnouncedRef.current = gameState.currentRound;
+        toast.message("Time's up — calculating winner...");
+      }
+    }, [gameState.status, gameState.currentRound, roundTimeLeft]);
+
     const intervalId = setInterval(() => {
       setRoundTimeLeft(prev => {
         if (prev === null) return prev;
