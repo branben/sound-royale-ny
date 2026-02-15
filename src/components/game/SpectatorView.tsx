@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, createRef } from 'react';
 import { useGame } from '@/context/GameContext';
 import { BingoBoard } from './BingoBoard';
 import { UploadDrawer } from './UploadDrawer';
@@ -13,8 +13,15 @@ export function SpectatorView() {
 
   const players = Object.values(gameState.players);
 
+  const boardRefs = useMemo(() => {
+    return players.reduce((acc, player) => {
+      acc[player.id] = createRef<HTMLDivElement>();
+      return acc;
+    }, {} as Record<string, React.RefObject<HTMLDivElement>>);
+  }, [players]);
+
   const leaderboard = useMemo(() => {
-    return players.map(player => {
+    return Object.values(gameState.players).map(player => {
       const totalTiles = player.board.tiles.length;
       const completeTiles = player.board.tiles.filter(t => t.status === 'complete').length;
       const pendingTiles = player.board.tiles.filter(t => t.status === 'pending').length;
@@ -26,7 +33,7 @@ export function SpectatorView() {
         progress
       };
     }).sort((a, b) => b.progress - a.progress);
-  }, [players]);
+  }, [gameState.players]);
 
   const getGamePhase = () => {
     switch (gameState.status) {
@@ -158,7 +165,7 @@ export function SpectatorView() {
               key={player.id}
               onClick={() => {
                 setSelectedPlayerId(player.id);
-                document.getElementById(`board-${player.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                boardRefs[player.id]?.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
               }}
               className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                 selectedPlayerId === player.id 
@@ -180,7 +187,7 @@ export function SpectatorView() {
 
           <div className="grid gap-6 md:grid-cols-2 md:gap-8 lg:gap-12">
             {players.map((player) => (
-              <div id={`board-${player.id}`} key={player.id} className={selectedPlayerId === player.id ? 'ring-2 ring-primary rounded-lg' : ''}>
+              <div ref={boardRefs[player.id]} key={player.id} className={selectedPlayerId === player.id ? 'ring-2 ring-primary rounded-lg' : ''}>
                 <BingoBoard
                   playerId={player.id}
                   playerName={player.name}

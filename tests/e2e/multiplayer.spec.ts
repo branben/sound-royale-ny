@@ -11,14 +11,8 @@ test.describe('Multi-Player Game Scenarios', () => {
     await page1.goto('/room/test-room');
     await page2.goto('/room/test-room');
 
-    await page1.waitForTimeout(2000);
-    await page2.waitForTimeout(2000);
-
-    const playerCount1 = await page1.locator('text=/\\d+ Players/').count();
-    const playerCount2 = await page2.locator('text=/\\d+ Players/').count();
-
-    expect(playerCount1).toBeGreaterThan(0);
-    expect(playerCount2).toBeGreaterThan(0);
+    await expect(page1.locator('text=/\\d+ Players/')).toBeVisible();
+    await expect(page2.locator('text=/\\d+ Players/')).toBeVisible();
 
     await context1.close();
     await context2.close();
@@ -34,11 +28,14 @@ test.describe('Multi-Player Game Scenarios', () => {
     await page1.goto('/room/test-room');
     await page2.goto('/room/test-room');
 
-    await page1.waitForTimeout(2000);
-    await page2.waitForTimeout(2000);
+    const round1Locator = page1.locator('text=/Round \\d+/').first();
+    const round2Locator = page2.locator('text=/Round \\d+/').first();
 
-    const round1 = await page1.locator('text=/Round \\d+/').first().textContent();
-    const round2 = await page2.locator('text=/Round \\d+/').first().textContent();
+    await expect(round1Locator).toBeVisible();
+    await expect(round2Locator).toBeVisible();
+
+    const round1 = await round1Locator.textContent();
+    const round2 = await round2Locator.textContent();
 
     expect(round1).toBe(round2);
 
@@ -49,7 +46,7 @@ test.describe('Multi-Player Game Scenarios', () => {
   test('should handle host migration when host leaves', async ({ page }) => {
     await page.goto('/room/test-room');
 
-    await page.waitForTimeout(2000);
+    await expect(page.locator('header')).toBeVisible();
 
     const hasHostIndicator = await page.locator('text=/Host|host/').count() > 0 ||
                             await page.locator('[data-testid="host-badge"]').count() > 0;
@@ -60,7 +57,7 @@ test.describe('Multi-Player Game Scenarios', () => {
   test('should display connected player status', async ({ page }) => {
     await page.goto('/room/test-room');
 
-    await page.waitForTimeout(2000);
+    await expect(page.locator('header')).toBeVisible();
 
     const hasConnectionStatus = await page.locator('text=/connected|disconnected|offline|online/').count() > 0;
 
@@ -69,8 +66,6 @@ test.describe('Multi-Player Game Scenarios', () => {
 
   test('should handle round transitions', async ({ page }) => {
     await page.goto('/room/test-room');
-
-    await page.waitForTimeout(3000);
 
     const hasRoundDisplay = await page.locator('text=/Round \\d+/').count() > 0;
 
