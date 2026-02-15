@@ -62,6 +62,20 @@ gaia-polecat (Python orchestrator)
 | `.beads/issues.jsonl` | Public symbolic memory (git-tracked) |
 | `.gaia_private/` | Private polecat state (git-ignored) |
 | `gaia-polecat` | Python orchestrator script |
+| `.gaia_skills/` | AI development skills & PR error test suite |
+
+### GAIA Skills Framework
+
+| Skill | Description |
+|-------|-------------|
+| `systematic-debugging` | Root cause analysis before fixing bugs |
+| `test-driven-development` | Red-green-refactor methodology |
+| `verification-before-completion` | Evidence-based completion claims |
+| `rating-system` | Evaluating GAIA's contribution (294/300 Gold Polecat) |
+
+**PR Error Test Suite** - 6 common patterns from Gas Town issues:
+- Missing return types, state mutation, error handlers
+- Secret exposure, missing imports, race conditions
 
 ### Usage (with Codex + Serena MCP)
 
