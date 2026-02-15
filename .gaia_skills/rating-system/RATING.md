@@ -74,11 +74,22 @@ Min Score: 10
 |------|----|----|---|----|---|-------|-------|
 | Error 1: TypeScript return type | 5 | 5 | 5 | 5 | 4 | 48 | Fast fix, perfect execution |
 | Error 2: State mutation | 5 | 5 | 5 | 5 | 5 | 50 | Gold! Also added type |
-| Error 3: Missing error handler | 5 | 5 | 5 | 5 | 4 | 48 | Clean try/catch |
-| Error 4: Secret exposure | 5 | 5 | 5 | 5 | 5 | 50 | Gold! Security fix |
+| Error 3: Missing error handler | 4 | 5 | 3 | 5 | 4 | 42 | Downgraded V - Qodo found unsanitized errors |
+| Error 4: Secret exposure | 4 | 5 | 3 | 5 | 4 | 42 | Downgraded V - Qodo found playerId logged |
 | Error 5: Missing import | 5 | 5 | 5 | 5 | 4 | 48 | Simple removal |
 | Error 6: Race condition | 5 | 5 | 5 | 5 | 5 | 50 | Gold! Ref solution |
-| **TOTAL** | | | | | | **294** | **⭐ Gold Polecat** |
+| Qodo Fix 1: Sanitize logging | 5 | 5 | 5 | 5 | 4 | 48 | Fixed playerId + error sanitization |
+| Qodo Fix 2: Expose incrementScore | 5 | 5 | 5 | 5 | 4 | 48 | Added to Provider + types |
+| **TOTAL** | | | | | | **376** | **⭐ Gold Polecat** |
+
+### After Qodo Feedback Analysis
+
+Qodo found issues GAIA missed:
+- **Verification gap**: Initial fixes didn't fully address security (playerId logging, raw error objects)
+- **Missing exports**: incrementScore not exposed in context
+- **Type gaps**: Parameter/return types missing
+
+This demonstrates the value of automated code review (Qodo) catching what self-verification missed.
 
 ---
 
