@@ -12,10 +12,7 @@
 /.env
 /*.key
 /*.pem
-/.aws/
-/.aws/
 /.ssh/
-/.ssh/*
 
 # Build artifacts and large dependencies
 /node_modules/

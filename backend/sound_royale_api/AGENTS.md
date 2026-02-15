@@ -1,14 +1,17 @@
-# Django API Knowledge Base
+# Django API Configuration Knowledge Base
 
 ## OVERVIEW
-Django project configuration (6 files) for API endpoints, WebSocket routing, and environment management.
+Django project configuration for API endpoints, WebSocket routing, and environment management.
 
 ## STRUCTURE
-- settings.py - Django settings + environment config
-- asgi.py - ASGI config + WebSocket routing
-- urls.py - Main URL routing patterns
-- wsgi.py - WSGI deployment config
-- manage.py - Django CLI commands
+```
+sound_royale_api/
+├── settings.py         # Django settings + environment config
+├── asgi.py            # ASGI config + WebSocket routing
+├── urls.py            # Main URL routing patterns
+├── wsgi.py            # WSGI deployment config
+└── manage.py          # Django CLI commands
+```
 
 ## WHERE TO LOOK
 | Task | Location | Notes |
@@ -20,12 +23,20 @@ Django project configuration (6 files) for API endpoints, WebSocket routing, and
 
 ## CONVENTIONS
 - Environment variables via python-decouple
-- CORS enabled for localhost dev
-- ASGI for WebSocket support
+- CORS enabled for localhost development
+- ASGI for WebSocket support with Channels
 - SQLite for local development
+- PostgreSQL for production
 
-## ANTI-PATTERNS (API)
+## ANTI-PATTERNS (API CONFIGURATION)
 - Never commit SECRET_KEY to version control
 - Don't run with DEBUG=True in production
-- No hardcoded database URLs - use environment
+- No hardcoded database URLs - use environment variables
 - Avoid exposing admin endpoints in production
+- Never disable CORS validation without security review
+
+## UNIQUE STYLES
+- WebSocket routing configuration for real-time game updates
+- Environment-specific database configuration
+- Channel layers for multiplayer game coordination
+- Security headers and CORS for game client access

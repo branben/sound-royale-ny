@@ -97,6 +97,25 @@ function ProducerContent() {
 }
 
 export default function Producer() {
+  const isE2E = import.meta.env.VITE_E2E_TESTING === 'true';
+  const navigate = useNavigate();
+
+  if (!isE2E) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="text-center space-y-4">
+          <h1 className="text-xl font-semibold text-foreground">Producer view is E2E-only</h1>
+          <p className="text-sm text-muted-foreground">
+            Join a room from the Lobby to play as a producer.
+          </p>
+          <Button onClick={() => navigate('/')} variant="outline">
+            Back to Lobby
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <GameProvider>
       <ProducerContent />

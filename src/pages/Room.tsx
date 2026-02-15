@@ -11,14 +11,16 @@ import { PlayerView } from '@/components/game/PlayerView';
 import { GameInfo } from '@/components/game/GameInfo';
 import { useGame, useGameRefresh, useGameRefreshEffect, useWebSocketConnection } from '@/context/GameContext';
 import { useUser } from '@/context/UserContext';
-import type { Room, Player } from '@/types/game';
+import type { RoomResponse, Player } from '@/types/game';
 
 export default function Room() {
   const { id: roomId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [room, setRoom] = useState<Room | null>(null);
+  const [room, setRoom] = useState<RoomResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
   const { userSession, setPlayerName, setPlayerCredentials, setSpectatorMode, clearSession, isHost: isHostFunction } = useUser();
   const { setForceRefresh } = useGameRefresh();
   const { gameState, setGameState } = useGame();
@@ -91,17 +93,29 @@ export default function Room() {
   };
 
   const attemptRejoin = useCallback(async () => {
-    if (!roomId || !userSession.playerSecret) return;
+    if (!roomId || !userSession.playerSecret) return false;
 
+    setIsReconnecting(true);
     try {
       const playerData = await gameApi.rejoinRoom(roomId, userSession.playerSecret);
-      setPlayerCredentials(playerData.id, playerData.playerSecret);
-      setPlayerName(playerData.name);
-      setSpectatorMode(playerData.isSpectator);
-      toast.success(`Rejoined as ${playerData.name}!`);
-      return true;
-    } catch (err: unknown) {
+      if (playerData) {
+        setPlayerCredentials(playerData.id, playerData.playerSecret);
+        setPlayerName(playerData.name);
+        setSpectatorMode(playerData.isSpectator);
+        
+        localStorage.setItem('lastRoomCode', roomId);
+        
+        toast.success(`Rejoined as ${playerData.name}!`);
+        setIsReconnecting(false);
+        return true;
+      }
+      setIsReconnecting(false);
+      return false;
+    } catch (err) {
       console.log('Rejoin failed, will join as new player');
+      localStorage.removeItem('playerId');
+      localStorage.removeItem('playerSecret');
+      setIsReconnecting(false);
       return false;
     }
   }, [roomId, userSession.playerSecret, setPlayerCredentials, setPlayerName, setSpectatorMode]);
@@ -113,14 +127,19 @@ export default function Room() {
       return;
     }
 
+    if (hasLoaded && !error) {
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
       const roomData = await roomApi.getRoom(roomId);
       setRoom(roomData);
+      setHasLoaded(true);
 
-const newGameState = {
-        gameId: roomData.id,
+      const newGameState = {
+        gameId: roomData.code,
         status: roomData.status,
         currentRound: roomData.current_round,
         players: roomData.players?.reduce((acc: Record<string, Player>, player: any) => {
@@ -151,13 +170,11 @@ const newGameState = {
     } finally {
       setLoading(false);
     }
-  }, [roomId, userSession.playerSecret, attemptRejoin, navigate, setGameState]);
+  }, [roomId, userSession.playerSecret, attemptRejoin, navigate, setGameState, hasLoaded, error]);
 
-  useGameRefreshEffect(() => {
-    fetchRoom();
-  });
+  useGameRefreshEffect(fetchRoom);
 
-  if (loading) {
+  if (loading || isReconnecting) {
     return (
       <div className="min-h-screen bg-background p-4">
         <header className="border-b border-border/30 bg-card/40 backdrop-blur-md">
@@ -176,7 +193,9 @@ const newGameState = {
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-              <p className="text-muted-foreground">Loading room...</p>
+              <p className="text-muted-foreground">
+                {isReconnecting ? 'Reconnecting to room...' : 'Loading room...'}
+              </p>
             </div>
           </div>
         </main>
@@ -262,7 +281,7 @@ const newGameState = {
                 </div>
               )}
               <div className="text-center text-sm text-muted-foreground">
-                <p>Room ID: {room.id}</p>
+                <p>Room Code: {room.code}</p>
                 <p>Round: {room.current_round}</p>
               </div>
             </CardContent>

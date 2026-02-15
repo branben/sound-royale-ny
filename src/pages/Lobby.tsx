@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,7 @@ interface Player {
   id: string;
   name: string;
   isHost: boolean;
+  isReady?: boolean;
 }
 
 export default function Lobby() {
@@ -23,6 +24,8 @@ export default function Lobby() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [roomData, setRoomData] = useState<RoomResponse | null>(null);
+  const [isReady, setIsReady] = useState(false);
+  const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
 
   // Fetch real room data when joined
   useEffect(() => {
@@ -41,9 +44,15 @@ export default function Lobby() {
           id: player.id,
           name: player.name,
           isHost: player.is_host,
+          isReady: player.is_ready ?? false,
         }));
         
         setPlayers(transformedPlayers);
+        
+        // Set current player ID (first player is the current user)
+        if (data.players.length > 0 && !currentPlayerId) {
+          setCurrentPlayerId(data.players[0].id);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to join room');
         console.error('Error joining room:', err);
@@ -69,6 +78,10 @@ export default function Lobby() {
   const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, '').slice(0, 4);
     setRoomCode(value);
+  };
+
+  const handleToggleReady = () => {
+    setIsReady(!isReady);
   };
 
   return (
@@ -163,11 +176,14 @@ export default function Lobby() {
                       <div className="flex-1">
                         <p className="font-medium text-[#E2E8F0]">{player.name}</p>
                         <p className="text-xs text-[#E2E8F0]/60">
-                          {player.isHost ? 'Host' : 'Ready'}
+                          {player.isHost ? 'Host' : player.isReady ? '✓ Ready' : 'Not Ready'}
                         </p>
                       </div>
                       {player.isHost && (
                         <Crown className="h-5 w-5 text-[#EAB308] crown-glow drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]" />
+                      )}
+                      {player.isReady && !player.isHost && (
+                        <div className="h-3 w-3 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.8)]" />
                       )}
                     </div>
                   ))}
@@ -185,6 +201,21 @@ export default function Lobby() {
                   </div>
                 ))}
               </div>
+              )}
+
+              {/* Ready toggle button - show for non-host players */}
+              {!isHost && players.length >= 1 && (
+                <Button
+                  onClick={handleToggleReady}
+                  className={`w-full h-12 text-lg font-semibold font-['Righteous'] tracking-wider uppercase transition-all duration-200 border-0 ${
+                    isReady
+                      ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:shadow-[0_6px_20px_rgba(34,197,94,0.5)]'
+                      : 'bg-gradient-to-r from-[#7C3AED] to-[#F43F5E] hover:shadow-[0_6px_20px_rgba(124,58,237,0.5)]'
+                  }`}
+                  size="lg"
+                >
+                  {isReady ? '✓ I\'m Ready!' : 'Click When Ready'}
+                </Button>
               )}
 
               {isHost && players.length >= 2 && (

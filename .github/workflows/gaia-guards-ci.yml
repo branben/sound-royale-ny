@@ -68,13 +68,11 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - name: Install frontend deps (no optional)
+      - name: Install frontend deps
         run: |
-          if [ -f package-lock.json ]; then
-            npm ci --no-audit --no-optional
-          else
-            npm install --no-audit --no-optional
-          fi
+          rm -rf node_modules
+          npm install --legacy-peer-deps
+          npm rebuild
 
       - name: TypeScript typecheck
         run: |
@@ -130,17 +128,17 @@ jobs:
           }
           
           # Limit to TS/TSX to reduce noise and speed up CI
-          TS_FILES="$(find src -type f \( -name '*.ts' -o -name '*.tsx' \))"
+          readarray -t TS_FILES < <(find src -type f \( -name '*.ts' -o -name '*.tsx' \))
           
           # Gate 4a: Check for playerSecret in console.log (logs) - suppress type/interface/comment-only
-          check_pattern 'console\.log[^\n]*playerSecret' "playerSecret in console.log (log exposure)" "$TS_FILES"
+          check_pattern 'console\.log[^\n]*playerSecret' "playerSecret in console.log (log exposure)" "${TS_FILES[@]}"
           
           # Gate 4b: Check for playerSecret in API responses - JSON object key and value exposure
-          check_pattern '(["\'']playerSecret["'\'']\s*:\s*["'\''][^"\'']+["'\''])' "playerSecret literal value in API objects" "$TS_FILES"
-          check_pattern 'playerSecret\s*:\s*[^,)}]+' "playerSecret field surface (non-literal)" "$TS_FILES"
+          check_pattern '(["\'']playerSecret["'\'']\s*:\s*["'\''][^"\'']+["'\''])' "playerSecret literal value in API objects" "${TS_FILES[@]}"
+          check_pattern 'playerSecret\s*:\s*[^,)}]+' "playerSecret field surface (non-literal)" "${TS_FILES[@]}"
           
           # Gate 4c: Check for playerSecret in error handling
-          check_pattern 'error[^\n]*playerSecret' "playerSecret in error context" "$TS_FILES"
+          check_pattern 'error[^\n]*playerSecret' "playerSecret in error context" "${TS_FILES[@]}"
           
           # Gate 4d: Check GameContext specifically (critical)
           check_pattern 'playerSecret' "playerSecret in GameContext" "src/context/GameContext.tsx"
