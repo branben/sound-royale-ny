@@ -20,6 +20,7 @@ export interface Player {
   isConnected?: boolean;
   isSpectator?: boolean;
   isReady?: boolean;
+  score?: number;
 }
 
 export interface GameState {

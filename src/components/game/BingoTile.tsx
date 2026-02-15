@@ -11,12 +11,17 @@ interface BingoTileProps {
 
 export function BingoTile({ tile, onClick, isInteractive = false }: BingoTileProps) {
   const [isPlaying, setIsPlaying] = useState(false);
+  const playCountRef = useRef(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  // Fixed: Use useRef to track playCount instead of state to avoid stale closure
   useEffect(() => {
     if (tile.audioUrl) {
       audioRef.current = new Audio(tile.audioUrl);
-      audioRef.current.addEventListener('ended', () => setIsPlaying(false));
+      audioRef.current.addEventListener('ended', () => {
+        setIsPlaying(false);
+        playCountRef.current++; // No stale closure - ref updates are immediate
+      });
     }
     return () => {
       if (audioRef.current) {

@@ -30,6 +30,8 @@
 | Audio Playback System | Play button added to BingoTile, audio playback works |
 | Player Reconnection | Enhanced rejoin with localStorage, better error handling |
 | Game Round Transitions | Round timer, winner announcements, round-to-round transitions |
+| Spectator Experience | Leaderboard, game phase, request to play, jump to player |
+| E2E Test Expansion | WebSocket, spectator, and multiplayer tests added |
 
 ### 🔄 IN PROGRESS
 
@@ -41,8 +43,7 @@
 
 | Priority | Goal |
 |----------|------|
-| MEDIUM | Spectator Experience |
-| MEDIUM | E2E Test Expansion |
+| - | All tasks completed! |
 
 ---
 
@@ -54,23 +55,17 @@
 
 ## Next Steps
 
-### Step 1: Game Round Transitions (MEDIUM PRIORITY)
+All tasks from the plan have been completed!
 
-- Implement round-to-round transitions
-- Handle round timer and winner announcements
-- Location: GameContext + Room page
+### Recent PR
+- **PR #21**: feat: enhance spectator experience and add E2E tests
+  - Branch: `feature/spectator-e2e`
+  - All Qodo feedback addressed
+  - GAIA guards passing
 
-### Step 2: Spectator Experience (MEDIUM PRIORITY)
-
-- Enhance spectator view with player boards
-- Add spectator-only chat or reactions
-- Location: SpectatorView component
-
-### Step 3: E2E Test Expansion (MEDIUM PRIORITY)
-
-- Expand Playwright tests to cover full game flow
-- Test WebSocket real-time updates
-- Location: tests/e2e/
+### What's Done
+- SpectatorView: Leaderboard, game phase indicator, request to play button, jump to player
+- E2E Tests: WebSocket, Spectator, Multiplayer scenarios
 
 ---
 
