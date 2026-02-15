@@ -1,0 +1,15 @@
+{
+  "type": "town-settings",
+  "version": 1,
+  "default_agent": "claude",
+  "agents": {
+    "gaia": {
+      "command": "opencode",
+      "args": []
+    },
+    "opencode": {
+      "command": "opencode",
+      "args": []
+    }
+  }
+}

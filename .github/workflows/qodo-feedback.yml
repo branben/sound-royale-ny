@@ -1,0 +1,58 @@
+name: Qodo Feedback Loop
+
+on:
+  pull_request_review:
+    types: [submitted, edited]
+  issue_comment:
+    types: [created, edited]
+  schedule:
+    # Check for Qodo feedback every 5 minutes
+    - cron: '*/5 * * * *'
+
+jobs:
+  qodo-feedback:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Qodo Feedback Loop
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        run: |
+          # For scheduled runs, check all open PRs
+          for pr in $(gh pr list --state open --json number --jq '.[].number'); do
+            ./scripts/qodo-feedback-loop.sh ${{ github.repository_owner }} ${{ github.event.repository.name }} $pr
+          done
+
+  qodo-feedback-on-review:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request_review' && github.event.action == 'submitted'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Qodo Feedback Loop
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        run: |
+          PR_NUM=${{ github.event.pull_request.number }}
+          ./scripts/qodo-feedback-loop.sh ${{ github.repository_owner }} ${{ github.event.repository.name }} $PR_NUM
+
+  qodo-feedback-on-comment:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'issue_comment' && github.event.issue.pull_request != null
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Qodo Feedback Loop
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        run: |
+          PR_NUM=${{ github.event.issue.number }}
+          ./scripts/qodo-feedback-loop.sh ${{ github.repository_owner }} ${{ github.event.repository.name }} $PR_NUM

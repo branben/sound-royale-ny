@@ -31,31 +31,22 @@ BEADS_DIR=".beads"
 REPO_DIR=$(pwd)
 RIG="sound_royale_ny"
 
-echo "🔍 Checking Qodo feedback on $OWNER/$REPO PR #$PR..."
+echo "🔍 Checking feedback on $OWNER/$REPO PR #$PR..."
 
-# Step 1: Get PR comments from qodo-bot (including review comments)
-COMMENTS=$(gh api "repos/$OWNER/$REPO/pulls/$PR/comments" \
+ALL_COMMENTS=$(gh api "repos/$OWNER/$REPO/issues/$PR/comments" \
     -H "Authorization: Bearer $GITHUB_TOKEN" \
-    --jq '.[] | select(.user.login == "'"$QODO_BOT"'") | {id, body, created_at, path, line}')
+    --jq '[.[] | {id, body, user: .user.login}]')
 
-if [ -z "$COMMENTS" ]; then
-    # Also check review comments
-    COMMENTS=$(gh api "repos/$OWNER/$REPO/pulls/$PR/reviews" \
-        -H "Authorization: Bearer $GITHUB_TOKEN" \
-        --jq '.[] | select(.user.login == "'"$QODO_BOT"'") | .body' | jq -s '.' | \
-        jq '.[] | {id: .?, body: ., created_at: .?, path: .?, line: .?}')
-    
-    if [ -z "$COMMENTS" ] || [ "$COMMENTS" = "[]" ]; then
-        echo "✅ No Qodo feedback found."
-        exit 0
-    fi
+ALL_BODY=$(echo "$ALL_COMMENTS" | jq -r '.[].body // empty')
+LINEAR_IDS=$(echo "$ALL_BODY" | grep -oE '[A-Z]+-[0-9]+' | sort -u)
+
+if [ -z "$LINEAR_IDS" ]; then
+    echo "✅ No Linear issue IDs found."
+    exit 0
 fi
 
-echo "📝 Found Qodo feedback, processing..."
-
-# Step 2: Extract relevant data
-# - Linear issue IDs (PROJ-123)
-LINEAR_IDS=$(echo "$COMMENTS" | grep -oE '[A-Z]+-[0-9]+' | sort -u)
+echo "📝 Found: $LINEAR_IDS"
+FEEDBACK_BODY="$ALL_BODY"
 
 # - File paths mentioned in comments
 FILE_PATHS=$(echo "$COMMENTS" | jq -r '.path // empty' | grep -v '^$' | sort -u)

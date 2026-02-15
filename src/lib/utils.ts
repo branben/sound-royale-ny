@@ -6,6 +6,6 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // PR ERROR 1: Missing return type - causes TypeScript build failure
-export function formatScore(score): string {
+export function formatScore(score: number): string {
   return `Score: ${score}`;
 }

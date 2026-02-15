@@ -10,6 +10,7 @@ interface GameContextType {
   updateTileStatus: (playerId: string, tileId: string, status: TileStatus) => void;
   setTileAudio: (playerId: string, tileId: string, audioUrl: string) => void;
   toggleReady: (playerId: string) => void;
+  incrementScore: (playerId: string, points: number) => void;
   isLoading: boolean;
   error: string | null;
   roomCode: string | null;
@@ -235,7 +236,7 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
   };
 
   return (
-    <GameContext.Provider value={{ gameState, setGameState, updateTileStatus, setTileAudio, toggleReady, isLoading, error, roomCode: roomCode || null }}>
+    <GameContext.Provider value={{ gameState, setGameState, updateTileStatus, setTileAudio, toggleReady, incrementScore, isLoading, error, roomCode: roomCode || null }}>
       {children}
     </GameContext.Provider>
   );
