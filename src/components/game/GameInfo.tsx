@@ -66,7 +66,8 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
     
     try {
       const result = await gameApi.resetGame(roomId, userSession.playerSecret);
-      const nextRound = result?.round ?? gameState.currentRound + 1;
+      const nextRound =
+        typeof result?.round === 'number' ? result.round : gameState.currentRound;
       toast.success(`Round ${nextRound} starting! Get ready!`);
     } catch (err: unknown) {
       const error = err as { response?: { data?: { error?: string } }; message?: string };
