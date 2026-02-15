@@ -32,7 +32,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run dev',
+    command: 'npm run dev:frontend',
     port: 8080,
     reuseExistingServer: true,
   },

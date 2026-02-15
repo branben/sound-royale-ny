@@ -212,7 +212,9 @@ python3 .opencode/skills/ui-ux-pro-max/scripts/search.py "multiplayer music bing
 # Agent Operations
 /new                     # Reset workflow (User runs this)
 goose-ledger             # GAIA: Synchronize symbols and beads to the ledger
+../goose-polecat        # GAIA: Spawn polecat with task (requires expect)
 bd sync                  # GAIA: Push symbolic memory to Gas Town (GitHub)
+python backend/gaia/integrity_scanner.py  # GAIA: Run security guards
 ```
 
 ## GAIA WORKFLOW (SYMBOLIC PERSISTENCE)
@@ -226,6 +228,25 @@ bd sync                  # GAIA: Push symbolic memory to Gas Town (GitHub)
 - New agent session starts context-free.
 - Agent reads **M-BEAD** (Master Bead) to restore mission state.
 - Agent uses `serena` to instantly jump to the relevant code symbols.
+
+### 3. Spawning a GAIA Polecat
+To delegate work to a GAIA polecat (autonomous worker):
+
+```bash
+# Using the helper script (requires expect)
+../goose-polecat "Add a player ready status indicator to the game lobby"
+
+# Direct goose-ledger (requires interactive TTY)
+goose-ledger "Your task description"
+```
+
+The polecat will:
+1. Load symbolic ledger instructions
+2. Use **Serena** to find and navigate code symbols
+3. Use **Beads** to store symbolic memory
+4. Use **Context7** for documentation lookup
+5. Create TODO lists and generate implementation plans
+6. Enforce path integrity guards (blocks `.env`, `*.key`, etc.)
 
 ## WORKFLOW INTEGRATION
 

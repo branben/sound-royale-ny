@@ -9,6 +9,9 @@ You are the Lead Engineer for Sound Royale. You prioritize state integrity in Re
 - Tests: `npm run test:e2e` (Playwright)
 - Typecheck: `npx tsc --noEmit`
 - Verify Symbols: `serena-slim`
+- GAIA Sync: `goose-ledger` (Sync symbols/beads)
+- GAIA Polecat: `../gaia-polecat` (Spawn GAIA with task - requires expect)
+- GAIA Remote: `bd sync` (Push memory to Gas Town)
 - Sequential Thinking: Use MCP sequential-thinking tool for complex problem decomposition
 
 ## 🎨 DESIGN SYSTEM COMMANDS (NEW)
@@ -48,6 +51,7 @@ python3 .opencode/skills/ui-ux-pro-max/scripts/search.py \
 - **Structural Search:** `sg --pattern '<pattern>' --lang tsx` (Use for components/hooks)
 - **File Mapping:** `fd . <path> -e tsx` (Use to map project structure instantly)
 - **JSON Parsing:** `jq` (Use for inspecting tool outputs or large state snapshots)
+- **Symbolic Memory:** `beads` (Manage task state pointers) / `serena` (Locate code symbols)
 - **Sequential Thinking:** Use for multi-step reasoning when planning complex changes or debugging multi-file issues
 
 ## ANTI-HALLUCINATION GUARDRAILS
@@ -56,6 +60,10 @@ python3 .opencode/skills/ui-ux-pro-max/scripts/search.py \
 - **TS/TSX DISTINCTION:** Always use `--lang tsx` for `src/` files and `--lang ts` for backend or config. If a search fails, retry with the alternate flag.
 - **PLAN FIRST:** For any task involving more than 2 files, you must output a `<plan>` block and wait for user confirmation.
 - **TESTING REQUIREMENT:** After any logic change in `backend/game_engine/`, you must propose a specific test command to verify the change.
+- **GAIA MEMORY GUARDRAILS:**
+  - **Path Integrity**: Only read/write files within the project root.
+  - **Secret Exclusion**: Never create beads for `.env`, `*.key`, or `*.pem` files.
+  - **Symbol Verification**: Always confirm a symbol exists via `serena` before referencing it in a plan.
 
 ## 🎨 UI/UX ANTI-PATTERNS (NEW)
 

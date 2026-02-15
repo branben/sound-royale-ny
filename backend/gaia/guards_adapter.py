@@ -25,8 +25,6 @@ SECRET_GLOBS = [
     "*.pfx",
     "*.asc",
     "id_*",
-    "id_rsa",
-    "id_dsa",
     ".ssh",
     ".ssh/*",
     ".aws",
@@ -122,7 +120,17 @@ def evaluate_path_request(
     Returns Decision with safe redacted_path and non-secret reason.
     """
     root = Path(repo_root).resolve()
-    raw_target = Path(target_path)
+    raw_target = Path(target_path).expanduser()
+
+    # Deny path traversal attempts before any resolution
+    target_parts = Path(target_path).parts
+    if ".." in target_parts:
+        return Decision(
+            allowed=False,
+            reason="DENY_OUTSIDE_ROOT",
+            redacted_path=_redact(Path(root / target_path), root),
+        )
+
     # Always anchor to repo root for relative inputs to avoid partial traversal before checks
     candidate = raw_target if raw_target.is_absolute() else (root / raw_target)
     # Normalize and resolve symlinks without requiring existence

@@ -16,10 +16,15 @@ export interface Player {
   name: string;
   avatar?: string;
   board: BoardData;
+  playerSecret?: string;
+  isConnected?: boolean;
+  isSpectator?: boolean;
+  isReady?: boolean;
 }
 
 export interface GameState {
   gameId: string;
+  roomCode?: string;
   status: 'lobby' | 'playing' | 'finished';
   players: Record<string, Player>;
   currentRound: number;
@@ -39,3 +44,30 @@ export const GENRES = [
 ] as const;
 
 export type Genre = typeof GENRES[number];
+
+export interface RoomResponse {
+  code: string;
+  status: 'lobby' | 'playing' | 'finished';
+  players: Array<{
+    id: string;
+    name: string;
+    avatar?: string;
+    tiles?: Array<{
+      id: string;
+      genre: string;
+      status: TileStatus;
+      audio_url?: string;
+    }>;
+    player_secret?: string;
+    is_connected?: boolean;
+    is_spectator?: boolean;
+  }>;
+  current_round: number;
+  winner?: string;
+}
+
+export interface CreateRoomResponse {
+  room_code: string;
+  player_id: string;
+  player_secret: string;
+}
