@@ -29,25 +29,30 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
       return;
     }
     
+    setShowVictory(false);
     setRoundTimeLeft(ROUND_DURATION);
     
-    const interval = setInterval(() => {
+    let interval: ReturnType<typeof setInterval> | null = null;
+    interval = setInterval(() => {
       setRoundTimeLeft(prev => {
         if (prev === null || prev <= 1) {
+          if (interval) clearInterval(interval);
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
     
-    return () => clearInterval(interval);
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, [gameState.status, gameState.currentRound]);
 
   useEffect(() => {
     if (gameState.status === 'finished' && gameState.winner && !showVictory) {
       setShowVictory(true);
     }
-  }, [gameState.status, gameState.winner]);
+  }, [gameState.status, gameState.winner, showVictory]);
 
   const isHost = useMemo(() => {
     if (!userSession.playerSecret || !gameState.players) return false;
@@ -61,7 +66,7 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
     
     try {
       const result = await gameApi.resetGame(roomId, userSession.playerSecret);
-      const nextRound = result.round || gameState.currentRound + 1;
+      const nextRound = result?.round ?? gameState.currentRound + 1;
       toast.success(`Round ${nextRound} starting! Get ready!`);
     } catch (err: unknown) {
       const error = err as { response?: { data?: { error?: string } }; message?: string };
