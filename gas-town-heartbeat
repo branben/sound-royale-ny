@@ -1,0 +1,279 @@
+#!/bin/bash
+
+# =============================================================================
+# GAS TOWN HEARTBEAT
+# =============================================================================
+# Watches GitHub for issues labeled 'GAIA' and spawns polecats to work on them
+# 
+# Usage: ./gas-town-heartbeat [--once] [--interval=60]
+#   --once      Run once instead of looping
+#   --interval  Seconds between checks (default: 60)
+# =============================================================================
+
+set -e
+
+# Configuration
+REPO_OWNER="branben"
+REPO_NAME="sound-royale-ny"
+POLL_INTERVAL=60
+RUN_ONCE=false
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --once)
+            RUN_ONCE=true
+            shift
+            ;;
+        --interval=*)
+            POLL_INTERVAL="${1#*=}"
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+log_info() {
+    echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1"
+}
+
+log_success() {
+    echo -e "${GREEN}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1"
+}
+
+log_warn() {
+    echo -e "${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1"
+}
+
+# Check for GitHub CLI
+check_gh() {
+    if ! command -v gh &> /dev/null; then
+        log_error "GitHub CLI (gh) not found. Install: brew install gh"
+        exit 1
+    fi
+}
+
+# Check authentication
+check_auth() {
+    if ! gh auth status &> /dev/null; then
+        log_error "Not authenticated with GitHub. Run: gh auth login"
+        exit 1
+    fi
+}
+
+# Get issues with GAIA label
+get_gaia_issues() {
+    gh issue list \
+        --repo "$REPO_OWNER/$REPO_NAME" \
+        --label "GAIA" \
+        --state "open" \
+        --json number,title,labels \
+        2>/dev/null || echo "[]"
+}
+
+# Process a single issue
+process_issue() {
+    local issue_number="$1"
+    local issue_title="$2"
+    
+    log_info "🎯 Processing GAIA issue #$issue_number: $issue_title"
+    
+    # Add in-progress label
+    gh issue edit "$issue_number" \
+        --repo "$REPO_OWNER/$REPO_NAME" \
+        --add-label "🏗️ in-progress" 2>/dev/null || true
+    
+    # Remove GAIA label to prevent reprocessing
+    gh issue edit "$issue_number" \
+        --repo "$REPO_OWNER/$REPO_NAME" \
+        --remove-label "GAIA" 2>/dev/null || true
+    
+    # Spawn polecat with the task
+    log_info "🚀 Spawning GAIA polecat..."
+    
+    # Update the ledger with VERY explicit instructions - make model actually CALL tools
+    cat > ~/.config/goose/symbolic_ledger_instructions.md << 'LEDGER'
+### GAIA POLECAT TASK EXECUTION
+
+**CRITICAL: You must ACTUALLY CALL the tools, not just describe them!**
+
+The tools are already available to you. You must invoke them using the tool calling mechanism - do NOT just print the JSON!
+
+**TASK IS IN ISSUE TITLE**
+
+**WORKFLOW - YOU MUST DO ALL 4 STEPS:**
+
+STEP 1: FIND FILE
+- IMMEDIATELY call: serena_find_file with the filename from the task
+- Do NOT describe it, actually call the function now!
+
+STEP 2: READ FILE  
+- IMMEDIATELY call: serena_read_file with the path
+- Do NOT wait, do it NOW!
+
+STEP 3: EDIT FILE
+- IMMEDIATELY call: serena_replace_content to make your edit
+- Do NOT describe, actually call the function!
+
+STEP 4: VERIFY
+- IMMEDIATELY call: serena_read_file again to confirm
+
+**EXAMPLE OF CORRECT BEHAVIOR:**
+Task: "Add // TEST to Lobby.tsx"
+
+CORRECT (what you should do):
+1. Call serena_find_file with file_mask="Lobby.tsx"
+2. Call serena_read_file with relative_path="src/pages/Lobby.tsx"  
+3. Call serena_replace_content with needle="^import" repl="// TEST\nimport"
+4. Call serena_read_file to verify
+
+WRONG (what you're doing now):
+- Just printing the JSON description of tools
+- Not actually calling them
+
+**DO THE ACTUAL TOOL CALLS NOW!**
+LEDGER
+
+    cd /Users/brandonbennett/pursuit/sound-royale-ny
+    
+    # Polecat Ralph Loop - keep spawning until task is done
+    local max_attempts=5
+    local attempt=1
+    local task_done=false
+    
+    # Extract the target file and expected content from issue title
+    local target_file=""
+    local expected_content=""
+    
+    # Parse file path from issue title (e.g., "Add // TEST to src/App.tsx")
+    if [[ "$issue_title" =~ to\ (src/[^\.]+\.tsx) ]]; then
+        target_file="${BASH_REMATCH[1]}"
+    elif [[ "$issue_title" =~ to\ (src/[^\.]+\.ts) ]]; then
+        target_file="${BASH_REMATCH[1]}"
+    fi
+    
+    # Extract expected content to verify (e.g., "// TOOL_SHIM_TEST")
+    if [[ "$issue_title" =~ Add\ (//\ +[A-Z_]+) ]]; then
+        expected_content="${BASH_REMATCH[1]}"
+    fi
+    
+    while [ $attempt -le $max_attempts ] && [ "$task_done" = "false" ]; do
+        log_info "🔄 Polecat attempt $attempt/$max_attempts"
+        
+        # Run polecat with the issue title as task
+        if /Users/brandonbennett/pursuit/gaia-polecat "$issue_title"; then
+            log_success "✅ Polecat completed (attempt $attempt)"
+            
+            # Verify task was actually done
+            if [ -n "$target_file" ] && [ -n "$expected_content" ]; then
+                if grep -q "$expected_content" "$target_file" 2>/dev/null; then
+                    log_success "✅ Verified: '$expected_content' found in $target_file"
+                    task_done=true
+                else
+                    log_warn "⚠️ Verification failed: '$expected_content' NOT found in $target_file"
+                    log_warn "   Retrying..."
+                    attempt=$((attempt + 1))
+                fi
+            else
+                # No verification possible - assume success
+                task_done=true
+            fi
+            
+        else
+            log_warn "⚠️ Polecat attempt $attempt failed, retrying..."
+            attempt=$((attempt + 1))
+            sleep 2
+        fi
+    done
+    
+    if [ "$task_done" = "true" ]; then
+        log_success "✅ Task completed after $attempt attempt(s)"
+        
+        # Add completed label
+        gh issue edit "$issue_number" \
+            --repo "$REPO_OWNER/$REPO_NAME" \
+            --add-label "✅ completed" \
+            --remove-label "🏗️ in-progress" 2>/dev/null || true
+            
+        # Comment on issue
+        gh issue comment "$issue_number" \
+            --repo "$REPO_OWNER/$REPO_NAME" \
+            --body "🤖 GAIA polecat completed this task after $attempt attempt(s)." 2>/dev/null || true
+    else
+        log_error "❌ Task failed after $max_attempts attempts"
+        
+        # Add failed label
+        gh issue edit "$issue_number" \
+            --repo "$REPO_OWNER/$REPO_NAME" \
+            --add-label "❌ failed" \
+            --remove-label "🏗️ in-progress" 2>/dev/null || true
+            
+        # Comment on issue
+        gh issue comment "$issue_number" \
+            --repo "$REPO_OWNER/$REPO_NAME" \
+            --body "🤖 GAIA polecat failed to complete this task after $max_attempts attempts." 2>/dev/null || true
+    fi
+}
+
+# Main heartbeat loop
+heartbeat() {
+    log_info "💓 Gas Town heartbeat starting..."
+    log_info "📂 Watching: $REPO_OWNER/$REPO_NAME"
+    log_info "🏷️ Label: GAIA"
+    log_info "⏱️  Interval: ${POLL_INTERVAL}s"
+    log_info ""
+    log_info "To create a GAIA task:"
+    echo "  1. Create GitHub issue"
+    echo "  2. Add 'GAIA' label"
+    echo "  3. Polecat will pick it up automatically"
+    echo ""
+    
+    # Initial check
+    LAST_PROCESSED=""
+    
+    while true; do
+        issues=$(get_gaia_issues)
+        
+        # Use jq for JSON parsing (more reliable)
+        if command -v jq &> /dev/null && [[ "$issues" != "[]" ]]; then
+            issue_count=$(echo "$issues" | jq 'length')
+            
+            for i in $(seq 0 $((issue_count - 1))); do
+                issue_num=$(echo "$issues" | jq -r ".[$i].number")
+                issue_title=$(echo "$issues" | jq -r ".[$i].title")
+                
+                # Skip if we just processed this
+                if [[ "$issue_num" != "$LAST_PROCESSED" ]] && [[ -n "$issue_title" ]]; then
+                    process_issue "$issue_num" "$issue_title"
+                    LAST_PROCESSED="$issue_num"
+                fi
+            done
+        fi
+        
+        if $RUN_ONCE; then
+            log_info "Single run complete. Exiting."
+            break
+        fi
+        
+        sleep "$POLL_INTERVAL"
+    done
+}
+
+# Run
+check_gh
+check_auth
+heartbeat

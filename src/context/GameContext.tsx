@@ -1,12 +1,15 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { GameState, TileStatus, RoomResponse } from '@/types/game';
 import { mockGameState } from '@/data/mockGameState';
 import { roomApi } from '@/services/api';
+import gameSocket, { GameSocketMessage } from '@/services/gameSocket';
 
 interface GameContextType {
   gameState: GameState;
+  setGameState: React.Dispatch<React.SetStateAction<GameState>>;
   updateTileStatus: (playerId: string, tileId: string, status: TileStatus) => void;
   setTileAudio: (playerId: string, tileId: string, audioUrl: string) => void;
+  toggleReady: (playerId: string) => void;
   isLoading: boolean;
   error: string | null;
   roomCode: string | null;
@@ -14,16 +17,32 @@ interface GameContextType {
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
 
+// Baseline state to keep UI stable before room data loads.
+const emptyGameState: GameState = {
+  gameId: '',
+  roomCode: '',
+  status: 'lobby',
+  players: {},
+  currentRound: 0,
+};
+
 export function GameProvider({ children, roomCode }: { children: ReactNode; roomCode?: string }) {
   const isE2E = import.meta.env.VITE_E2E_TESTING === 'true';
-  const [gameState, setGameState] = useState<GameState>(mockGameState);
+  const [gameState, setGameState] = useState<GameState>(isE2E ? mockGameState : emptyGameState);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Fetch real data from backend when not in E2E mode and roomCode is provided
   useEffect(() => {
-    if (isE2E || !roomCode) {
-      return; // Use mock data in E2E mode or when no room code
+    if (isE2E) {
+      return; // Use mock data in E2E mode only
+    }
+
+    if (!roomCode) {
+      setError('Room code is required');
+      setIsLoading(false);
+      setGameState(emptyGameState);
+      return;
     }
 
     const fetchRoomData = async () => {
@@ -54,6 +73,7 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
         });
 
         setGameState({
+          gameId: roomData.code,
           roomCode: roomData.code,
           status: roomData.status,
           players,
@@ -69,6 +89,82 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
     };
 
     fetchRoomData();
+  }, [roomCode, isE2E]);
+
+  useEffect(() => {
+    if (isE2E || !roomCode) {
+      return;
+    }
+
+    const stored = localStorage.getItem('userSession');
+    let playerId: string | undefined;
+    
+    if (stored) {
+      try {
+        const session = JSON.parse(stored);
+        playerId = session.playerId;
+      } catch {
+      }
+    }
+
+    const handleMessage = (message: GameSocketMessage) => {
+      switch (message.type) {
+        case 'game_state_update': {
+          const newState = message.payload;
+          // Transform backend data to GameState format
+          const players: GameState['players'] = {};
+          if (newState.players) {
+            Object.entries(newState.players).forEach(([id, player]: [string, any]) => {
+              players[id] = {
+                id,
+                name: player.name,
+                avatar: player.avatar,
+                board: {
+                  tiles: player.board?.tiles?.map((tile: any) => ({
+                    id: tile.id,
+                    genre: tile.genre,
+                    status: tile.status,
+                    audioUrl: tile.audioUrl,
+                  })) || []
+                },
+                isConnected: player.isConnected,
+                isSpectator: player.isSpectator,
+              };
+            });
+          }
+          setGameState({
+            gameId: newState.gameId || roomCode,
+            roomCode: newState.roomCode || roomCode,
+            status: newState.status,
+            players,
+            currentRound: newState.currentRound,
+            winner: newState.winner,
+          });
+          break;
+        }
+        case 'bingo_achievement':
+          console.log('[GameContext] Bingo achievement:', message.payload);
+          // Could trigger UI notification here
+          break;
+        case 'victory_celebration':
+          console.log('[GameContext] Victory:', message.payload);
+          // Could trigger celebration UI here
+          break;
+      }
+    };
+
+    gameSocket.connect({
+      gameId: roomCode,
+      playerId,
+      onMessage: handleMessage,
+      onConnect: () => console.log('[GameContext] WebSocket connected'),
+      onDisconnect: (reason) => console.log('[GameContext] WebSocket disconnected:', reason),
+      onError: (error) => console.error('[GameContext] WebSocket error:', error),
+    });
+
+    return () => {
+      gameSocket.disconnect();
+    };
   }, [roomCode, isE2E]);
 
   const updateTileStatus = (playerId: string, tileId: string, status: TileStatus) => {
@@ -107,8 +203,21 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
     }));
   };
 
+  const toggleReady = (playerId: string) => {
+    setGameState(prev => ({
+      ...prev,
+      players: {
+        ...prev.players,
+        [playerId]: {
+          ...prev.players[playerId],
+          isReady: !prev.players[playerId]?.isReady
+        }
+      }
+    }));
+  };
+
   return (
-    <GameContext.Provider value={{ gameState, updateTileStatus, setTileAudio, isLoading, error, roomCode: roomCode || null }}>
+    <GameContext.Provider value={{ gameState, setGameState, updateTileStatus, setTileAudio, toggleReady, isLoading, error, roomCode: roomCode || null }}>
       {children}
     </GameContext.Provider>
   );

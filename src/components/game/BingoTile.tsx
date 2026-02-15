@@ -1,6 +1,7 @@
+import { useState, useRef, useEffect } from 'react';
 import { Tile } from '@/types/game';
 import { cn } from '@/lib/utils';
-import { Music, Loader2, Check } from 'lucide-react';
+import { Music, Loader2, Check, Play, Pause } from 'lucide-react';
 
 interface BingoTileProps {
   tile: Tile;
@@ -9,6 +10,36 @@ interface BingoTileProps {
 }
 
 export function BingoTile({ tile, onClick, isInteractive = false }: BingoTileProps) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (tile.audioUrl) {
+      audioRef.current = new Audio(tile.audioUrl);
+      audioRef.current.addEventListener('ended', () => setIsPlaying(false));
+    }
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, [tile.audioUrl]);
+
+  const handlePlayClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!audioRef.current || !tile.audioUrl) return;
+
+    if (isPlaying) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      setIsPlaying(false);
+    } else {
+      audioRef.current.play().catch(console.error);
+      setIsPlaying(true);
+    }
+  };
+
   const statusStyles = {
     empty: 'bg-[#334155]/30 border-[#64748B]/30 hover:border-[#7C3AED]/50 hover:shadow-[0_0_15px_rgba(124,58,237,0.2)]',
     pending: 'bg-[#F43F5E]/10 border-[#F43F5E]/60 shadow-[0_0_20px_rgba(244,63,94,0.4)] animate-pulse',
@@ -49,6 +80,23 @@ export function BingoTile({ tile, onClick, isInteractive = false }: BingoTilePro
           <Check className={cn('h-5 w-5', iconStyles.complete)} />
         )}
       </div>
+
+      {tile.audioUrl && (
+        <button
+          onClick={handlePlayClick}
+          className={cn(
+            'absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full',
+            'bg-primary/80 hover:bg-primary transition-colors',
+            isPlaying && 'animate-pulse'
+          )}
+        >
+          {isPlaying ? (
+            <Pause className="h-3 w-3 text-white" />
+          ) : (
+            <Play className="h-3 w-3 text-white" />
+          )}
+        </button>
+      )}
 
       <span className={cn(
         'text-xs font-semibold uppercase tracking-wider font-["Poppins"]',
