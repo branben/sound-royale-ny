@@ -34,6 +34,7 @@ export default defineConfig({
   // servers started manually in CI
   // webServer: { command: 'npm run dev:frontend', port: 5173, reuseExistingServer: true, timeout: 120000 },
   use: {
+    baseURL: 'http://localhost:8080',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
