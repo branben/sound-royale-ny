@@ -11,10 +11,23 @@ const mockScoreRoomResponse = {
       id: 'player1',
       name: 'TestPlayer',
       avatar: undefined,
+      board: {
+        tiles: [
+          { id: 'tile0', genre: 'Hip Hop', status: 'complete', position: 0, audioUrl: 'https://example.com/audio1.mp3' },
+          { id: 'tile1', genre: 'Jazz', status: 'complete', position: 1, audioUrl: 'https://example.com/audio2.mp3' },
+          { id: 'tile2', genre: 'Rock', status: 'complete', position: 2, audioUrl: 'https://example.com/audio3.mp3' },
+          { id: 'tile3', genre: 'Pop', status: 'empty', position: 3 },
+          { id: 'tile4', genre: 'Electronic', status: 'empty', position: 4 },
+          { id: 'tile5', genre: 'Classical', status: 'empty', position: 5 },
+          { id: 'tile6', genre: 'R&B', status: 'empty', position: 6 },
+          { id: 'tile7', genre: 'Country', status: 'empty', position: 7 },
+          { id: 'tile8', genre: 'Metal', status: 'empty', position: 8 }
+        ]
+      },
       tiles: [
-        { id: 'tile0', genre: 'Hip Hop', status: 'complete', position: 0 },
-        { id: 'tile1', genre: 'Jazz', status: 'complete', position: 1 },
-        { id: 'tile2', genre: 'Rock', status: 'complete', position: 2 },
+        { id: 'tile0', genre: 'Hip Hop', status: 'complete', position: 0, audioUrl: 'https://example.com/audio1.mp3' },
+        { id: 'tile1', genre: 'Jazz', status: 'complete', position: 1, audioUrl: 'https://example.com/audio2.mp3' },
+        { id: 'tile2', genre: 'Rock', status: 'complete', position: 2, audioUrl: 'https://example.com/audio3.mp3' },
         { id: 'tile3', genre: 'Pop', status: 'empty', position: 3 },
         { id: 'tile4', genre: 'Electronic', status: 'empty', position: 4 },
         { id: 'tile5', genre: 'Classical', status: 'empty', position: 5 },
@@ -24,7 +37,15 @@ const mockScoreRoomResponse = {
       ],
       player_secret: 'test-secret',
       is_connected: true,
-      is_spectator: false
+      is_spectator: false,
+      scoreInfo: {
+        score: 300,
+        base_score: 300,
+        bonuses: [],
+        lines: [
+          { type: 'row', positions: [0, 1, 2] }
+        ]
+      }
     }
   ]
 };
