@@ -20,35 +20,41 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
   const { userSession } = useUser();
   const [showVictory, setShowVictory] = useState(false);
   const [roundTimeLeft, setRoundTimeLeft] = useState<number | null>(null);
+  const timeUpAnnouncedRef = useRef<number | null>(null);
   
   const ROUND_DURATION = 300;
   
   useEffect(() => {
     if (gameState.status !== 'playing') {
       setRoundTimeLeft(null);
+      timeUpAnnouncedRef.current = null;
       return;
     }
     
     setShowVictory(false);
     setRoundTimeLeft(ROUND_DURATION);
+    timeUpAnnouncedRef.current = null;
+  }, [gameState.status, gameState.currentRound]);
 
-    const timeUpAnnouncedRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (gameState.status !== 'playing') {
+      return;
+    }
 
-    useEffect(() => {
-      if (gameState.status !== 'playing') {
-        timeUpAnnouncedRef.current = null;
-        return;
-      }
+    if (
+      roundTimeLeft === 0 &&
+      timeUpAnnouncedRef.current !== gameState.currentRound
+    ) {
+      timeUpAnnouncedRef.current = gameState.currentRound;
+      toast.message("Time's up — calculating winner...");
+    }
+  }, [gameState.status, gameState.currentRound, roundTimeLeft]);
 
-      if (
-        roundTimeLeft === 0 &&
-        timeUpAnnouncedRef.current !== gameState.currentRound
-      ) {
-        timeUpAnnouncedRef.current = gameState.currentRound;
-        toast.message("Time's up — calculating winner...");
-      }
-    }, [gameState.status, gameState.currentRound, roundTimeLeft]);
-
+  useEffect(() => {
+    if (gameState.status !== 'playing') {
+      return;
+    }
+    
     const intervalId = setInterval(() => {
       setRoundTimeLeft(prev => {
         if (prev === null) return prev;
@@ -64,7 +70,7 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
     return () => {
       clearInterval(intervalId);
     };
-  }, [gameState.status, gameState.currentRound]);
+  }, [gameState.status]);
 
   useEffect(() => {
     if (gameState.status === 'finished' && gameState.winner) {
