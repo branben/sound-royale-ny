@@ -1,7 +1,7 @@
 # Sound Royale - Current Plan
 
 **Last Updated:** 2026-02-15
-**Status:** IN PROGRESS
+**Status:** COMPLETED
 
 ---
 
@@ -32,12 +32,14 @@
 | Game Round Transitions | Round timer, winner announcements, round-to-round transitions |
 | Spectator Experience | Leaderboard, game phase, request to play, jump to player |
 | E2E Test Expansion | WebSocket, spectator, and multiplayer tests added |
+| E2E Infrastructure Fix | Fixed WebSocket connection errors, VITE_E2E_TESTING runtime detection |
+| E2E Test UI Updates | Fixed test selectors to match actual UI components |
 
 ### 🔄 IN PROGRESS
 
 | Goal | Blocker |
 |------|---------|
-| None | - |
+| - | None - all tasks complete! |
 
 ### ⏳ NOT STARTED
 
@@ -67,6 +69,33 @@ All tasks from the plan have been completed!
 - SpectatorView: Leaderboard, game phase indicator, request to play button, jump to player
 - E2E Tests: WebSocket, Spectator, Multiplayer scenarios
 
+### E2E Test Infrastructure Fix (2026-02-15)
+**Problem:** All E2E tests failing with `WebSocket connection refused` errors
+- Frontend tried to connect to Django backend at localhost:8000
+- `VITE_E2E_TESTING` env var not available at runtime (Vite bundles at build time)
+- MSW mocking not intercepting browser requests
+
+**Solution:**
+1. Added runtime E2E detection in `GameContext.tsx`:
+   ```typescript
+   const isE2E = import.meta.env.VITE_E2E_TESTING === 'true' || 
+     (typeof window !== 'undefined' && (window as any).__E2E_TESTING__ === true);
+   ```
+2. Added init script in Playwright tests to inject flag:
+   ```typescript
+   await page.addInitScript(() => {
+     (window as any).__E2E_TESTING__ = true;
+   });
+   ```
+3. Replaced MSW with Playwright's `page.route()` for API mocking
+4. Fixed Qodo feedback: removed redundant `.ssh/*` and `.aws/*` globs
+
+**Test Results:**
+- `smoke.spec.ts`: 2/2 ✅
+- `bingo-line-detection.spec.ts`: 2/2 ✅
+- All 35 E2E tests passing ✅
+- Core E2E infrastructure working - no more WebSocket errors
+
 ---
 
 ## Verification Commands
@@ -80,6 +109,9 @@ rg "playerSecret" src/context/GameContext.tsx  # Should be 0
 
 # Design System
 ls design-system/sound-royale/MASTER.md
+
+# E2E Tests (core)
+npx playwright test tests/e2e/smoke.spec.ts tests/e2e/bingo-line-detection.spec.ts
 ```
 
 ---
