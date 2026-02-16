@@ -71,6 +71,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: false
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -123,12 +125,8 @@ jobs:
         run: |
           set -euo pipefail
           
-          # CI Gate #4: Comprehensive secret detection
-          # Checks for playerSecret exposure per AGENTS.md security policy
-          
           VIOLATIONS=0
           
-          # Helper function to check patterns
           check_pattern() {
             local pattern="$1"
             local description="$2"
@@ -156,23 +154,17 @@ jobs:
             fi
           }
           
-          # Limit to TS/TSX to reduce noise and speed up CI
           readarray -t TS_FILES < <(find src -type f \( -name '*.ts' -o -name '*.tsx' \))
           
-          # Gate 4a: Check for playerSecret in console.log (logs) - suppress type/interface/comment-only
           check_pattern 'console\.log[^\n]*playerSecret' "playerSecret in console.log (log exposure)" "${TS_FILES[@]}"
           
-          # Gate 4b: Check for playerSecret in API responses - JSON object key and value exposure
           check_pattern '(["\'']playerSecret["'\'']\s*:\s*["'\''][^"\'']+["'\''])' "playerSecret literal value in API objects" "${TS_FILES[@]}"
           check_pattern 'playerSecret\s*:\s*[^,)}]+' "playerSecret field surface (non-literal)" "${TS_FILES[@]}"
           
-          # Gate 4c: Check for playerSecret in error handling
           check_pattern 'error[^\n]*playerSecret' "playerSecret in error context" "${TS_FILES[@]}"
           
-          # Gate 4d: Check GameContext specifically (critical)
           check_pattern 'playerSecret' "playerSecret in GameContext" "src/context/GameContext.tsx"
           
-          # Final verdict
           echo ""
           echo "========================================="
           if [ $VIOLATIONS -gt 0 ]; then
@@ -213,7 +205,7 @@ jobs:
             --certificate-identity "${COSIGN_VERIFY_SUBJECT}" \
             "${COSIGN_VERIFY_IMAGE}"
 
-  e2e-tests:
+  playwright-tests:
     name: Playwright E2E Tests
     runs-on: ubuntu-latest
     steps:
