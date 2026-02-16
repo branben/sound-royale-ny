@@ -1,6 +1,6 @@
 # Sound Royale - Agent Quick Ref
 
-**Generated:** 2026-02-15 | **Branch:** main
+**Generated:** 2026-02-16 | **Branch:** main
 
 ---
 
@@ -13,6 +13,29 @@
 | Never run blocking ops in WebSocket consumers | Performance |
 | Never use `as any`, `@ts-ignore` | Type safety |
 | Never skip E2E for gameplay features | Trust but verify |
+
+---
+
+## TESTING REQUIREMENTS (CRITICAL - DO NOT SKIP)
+
+### Django Backend Tests
+- **Status:** 0 Django tests currently exist (empty `backend/game_engine/tests.py`)
+- **Why this is a problem:** CI runs `python backend/manage.py test` which returns exit 0 with 0 tests
+- **pytest tests exist:** 4 tests in `backend/gaia/tests/test_scanner_adapter_edgecases.py`
+- **The fix:** Use `pytest` instead of Django test runner, OR add real Django tests
+
+### Before ANY PR Merge - Verify Test Count
+```bash
+# Check Django test count (must be > 0 for main apps)
+python backend/manage.py test --verbosity=2 2>&1 | grep -E "Ran [0-9]+ test"
+
+# If 0 tests found, CI SHOULD FAIL - add this check to gaia-guards-ci.yml
+```
+
+### E2E Tests
+- Location: `tests/e2e/`
+- Run: `npm run test:e2e`
+- Required for any gameplay feature changes
 
 ---
 

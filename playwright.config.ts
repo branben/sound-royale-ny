@@ -31,12 +31,8 @@ export default defineConfig({
       },
     },
   ],
-  webServer: {
-    command: 'npm run dev:frontend',
-    port: 5173,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120000,
-  },
+  // servers started manually in CI
+  // webServer: { command: 'npm run dev:frontend', port: 5173, reuseExistingServer: true, timeout: 120000 },
   use: {
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
