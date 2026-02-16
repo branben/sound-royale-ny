@@ -49,10 +49,10 @@ echo "📝 Found: $LINEAR_IDS"
 FEEDBACK_BODY="$ALL_BODY"
 
 # - File paths mentioned in comments
-FILE_PATHS=$(echo "$COMMENTS" | jq -r '.path // empty' | grep -v '^$' | sort -u)
+FILE_PATHS=$(echo "$ALL_COMMENTS" | jq -r '.path // empty' | grep -v '^$' | sort -u)
 
 # - Raw feedback body for bead
-FEEDBACK_BODY=$(echo "$COMMENTS" | jq -r '.body' 2>/dev/null | head -c 5000)
+FEEDBACK_BODY=$(echo "$ALL_COMMENTS" | jq -r '.body' 2>/dev/null | head -c 5000)
 
 # Step 3: Build symbols array for bead
 SYMBOLS_JSON="[]"
