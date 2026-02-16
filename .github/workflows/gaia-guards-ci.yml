@@ -17,6 +17,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: false
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -36,6 +38,33 @@ jobs:
         run: |
           pytest -q tests/gaia/test_gaia_guards.py
 
+  django-tests:
+    name: Django Backend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Run Django tests
+        env:
+          PYTHONPATH: .
+          DJANGO_SETTINGS_MODULE: sound_royale_api.settings
+        run: |
+          python backend/manage.py test
+
   security-integrity:
     name: GAIA Integrity & Signing Check
     runs-on: ubuntu-latest
@@ -52,7 +81,7 @@ jobs:
         id: scan
         run: |
           set -euo pipefail
-          python backend/gaia/integrity_scanner.py --ci --json > integrity_report.json
+          python backend/gaia/integrity_scanner.py --ci --json --scan-beads > integrity_report.json
           echo "generated_report=integrity_report.json" >> $GITHUB_OUTPUT
 
       - name: Upload integrity scan report
@@ -171,7 +200,6 @@ jobs:
           COSIGN_VERIFY_IMAGE: ${{ secrets.COSIGN_VERIFY_IMAGE }}
         run: |
           set -euo pipefail
-          # Skip if cosign is not installed
           if ! command -v cosign >/dev/null 2>&1; then
             echo "Cosign verify skipped: cosign not installed"
             exit 0
@@ -184,3 +212,30 @@ jobs:
             --certificate-oidc-issuer https://token.actions.githubusercontent.com \
             --certificate-identity "${COSIGN_VERIFY_SUBJECT}" \
             "${COSIGN_VERIFY_IMAGE}"
+
+  e2e-tests:
+    name: Playwright E2E Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci --legacy-peer-deps
+
+      - name: Install Playwright browsers
+        run: |
+          npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        run: |
+          npx playwright test --project=chromium --reporter=line
