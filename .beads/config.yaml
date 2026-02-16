@@ -67,3 +67,5 @@
 # - github.repo
 
 repos.private: ".gaia_private"
+
+routing.mode: "explicit"

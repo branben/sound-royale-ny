@@ -34,3 +34,14 @@ node_modules/
 # OS files
 .DS_Store
 Thumbs.db
+
+# =============================================================================
+# Gas Town (GT) - Runtime state
+# =============================================================================
+daemon/
+.events.jsonl
+.feed.jsonl
+**/state.json
+**/*.lock
+**/registry.json
+.runtime/
