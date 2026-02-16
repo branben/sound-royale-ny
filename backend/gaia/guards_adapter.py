@@ -26,9 +26,7 @@ SECRET_GLOBS = [
     "*.asc",
     "id_*",
     ".ssh",
-    ".ssh/*",
     ".aws",
-    ".aws/*",
     ".gaia_private",
     ".gaia_private/*",
 ]
