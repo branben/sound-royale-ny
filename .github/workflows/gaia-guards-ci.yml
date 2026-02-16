@@ -220,13 +220,28 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - name: Install dependencies
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install frontend dependencies
         run: |
           npm ci --legacy-peer-deps
+
+      - name: Install backend dependencies
+        run: |
+          pip install -r backend/requirements.txt
 
       - name: Install Playwright browsers
         run: |
           npx playwright install --with-deps chromium
+
+      - name: Start backend server
+        run: |
+          cd backend && python manage.py runserver 8000 &
+          echo "Backend started on port 8000"
 
       - name: Run E2E tests
         run: |

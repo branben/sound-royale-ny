@@ -33,8 +33,9 @@ export default defineConfig({
   ],
   webServer: {
     command: 'npm run dev:frontend',
-    port: 8080,
-    reuseExistingServer: true,
+    port: 5173,
+    reuseExistingServer: !process.env.CI,
+    timeout: 120000,
   },
   use: {
     trace: 'on-first-retry',
