@@ -140,12 +140,8 @@ SECRET_GLOBS = [
     "*.pfx",
     "*.asc",
     "id_*",
-    "id_rsa",
-    "id_dsa",
     ".ssh",
-    ".ssh/*",
     ".aws",
-    ".aws/*",
     ".gaia_private",
     ".gaia_private/*",
 ]

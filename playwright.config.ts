@@ -38,11 +38,6 @@ export default defineConfig({
   },
   use: {
     trace: 'on-first-retry',
-    launchOptions: {
-      env: {
-        VITE_E2E_TESTING: 'true',
-      },
-    },
     screenshot: 'only-on-failure',
   },
   reporter: 'html',

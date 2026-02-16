@@ -2,6 +2,9 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Basic User Flow', () => {
   test('homepage loads with correct title', async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as any).__E2E_TESTING__ = true;
+    });
     page.on('console', msg => console.log('CONSOLE:', msg.type(), msg.text()));
     page.on('pageerror', err => console.log('PAGE ERROR:', err.message));
     await page.goto('/');
@@ -9,6 +12,9 @@ test.describe('Basic User Flow', () => {
   });
 
   test('page renders content', async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as any).__E2E_TESTING__ = true;
+    });
     page.on('console', msg => console.log('CONSOLE:', msg.type(), msg.text()));
     page.on('pageerror', err => console.log('PAGE ERROR:', err.message));
     await page.goto('/');
