@@ -1,3 +1,6 @@
 from django.test import TestCase
 
-# Create your tests here.
+
+class GameEngineBasicTestCase(TestCase):
+    def test_django_test_framework_works(self):
+        self.assertTrue(True)
