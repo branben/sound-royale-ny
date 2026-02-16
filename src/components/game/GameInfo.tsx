@@ -5,7 +5,7 @@ import { Player } from '@/types/game';
 import { cn } from '@/lib/utils';
 import { useGame } from '@/context/GameContext';
 import { useUser } from '@/context/UserContext';
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { gameApi } from '@/services/api';
 import { VictoryCelebration } from '@/components/game/VictoryCelebration';
