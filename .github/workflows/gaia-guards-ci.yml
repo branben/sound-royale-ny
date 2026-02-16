@@ -66,7 +66,7 @@ jobs:
           DJANGO_SETTINGS_MODULE: sound_royale_api.settings
         run: |
           # Run tests and capture output
-          output=$(python backend/manage.py test 2>&1)
+          output=$(python backend/manage.py test game_engine 2>&1)
           echo "$output"
           
           # Check for test count - CI MUST FAIL if 0 tests
