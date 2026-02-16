@@ -53,6 +53,12 @@ def scan_integrity(argv: List[str]) -> int:
         action="store_true",
         help="CI mode: fail on any denied path",
     )
+    parser.add_argument(
+        "--scan-beads",
+        dest="scan_beads",
+        action="store_true",
+        help="Scan .beads directory for integrity violations",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -60,6 +66,19 @@ def scan_integrity(argv: List[str]) -> int:
         beadsignore = repo_root / ".beadsignore"
 
         test_paths = args.paths if args.paths else _default_test_paths(repo_root)
+
+        # If --scan-beads is specified, scan the .beads directory
+        if args.scan_beads:
+            beads_dir = repo_root / ".beads"
+            if beads_dir.exists():
+                # Get all files in .beads recursively
+                test_paths = [
+                    str(p.relative_to(repo_root))
+                    for p in beads_dir.rglob("*")
+                    if p.is_file() and not p.name.startswith(".")
+                ]
+            else:
+                test_paths = []
 
         violations = 0
         results: List[Dict[str, Any]] = []
