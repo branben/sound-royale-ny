@@ -5,7 +5,7 @@ import { Player } from '@/types/game';
 import { cn } from '@/lib/utils';
 import { useGame } from '@/context/GameContext';
 import { useUser } from '@/context/UserContext';
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { gameApi } from '@/services/api';
 import { VictoryCelebration } from '@/components/game/VictoryCelebration';
@@ -22,7 +22,9 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
   const [roundTimeLeft, setRoundTimeLeft] = useState<number | null>(null);
   
   const ROUND_DURATION = 300;
+  const timeUpAnnouncedRef = useRef<number | null>(null);
   
+  // Timer effect - runs when game is playing
   useEffect(() => {
     if (gameState.status !== 'playing') {
       setRoundTimeLeft(null);
@@ -31,23 +33,7 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
     
     setShowVictory(false);
     setRoundTimeLeft(ROUND_DURATION);
-
-    const timeUpAnnouncedRef = useRef<number | null>(null);
-
-    useEffect(() => {
-      if (gameState.status !== 'playing') {
-        timeUpAnnouncedRef.current = null;
-        return;
-      }
-
-      if (
-        roundTimeLeft === 0 &&
-        timeUpAnnouncedRef.current !== gameState.currentRound
-      ) {
-        timeUpAnnouncedRef.current = gameState.currentRound;
-        toast.message("Time's up — calculating winner...");
-      }
-    }, [gameState.status, gameState.currentRound, roundTimeLeft]);
+    timeUpAnnouncedRef.current = null;
 
     const intervalId = setInterval(() => {
       setRoundTimeLeft(prev => {
@@ -64,7 +50,23 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
     return () => {
       clearInterval(intervalId);
     };
-  }, [gameState.status, gameState.currentRound]);
+  }, [gameState.status]);
+
+  // Check for time's up announcement
+  useEffect(() => {
+    if (gameState.status !== 'playing') {
+      timeUpAnnouncedRef.current = null;
+      return;
+    }
+
+    if (
+      roundTimeLeft === 0 &&
+      timeUpAnnouncedRef.current !== gameState.currentRound
+    ) {
+      timeUpAnnouncedRef.current = gameState.currentRound;
+      toast.message("Time's up — calculating winner...");
+    }
+  }, [gameState.status, gameState.currentRound, roundTimeLeft]);
 
   useEffect(() => {
     if (gameState.status === 'finished' && gameState.winner) {
