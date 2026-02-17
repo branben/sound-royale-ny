@@ -68,17 +68,17 @@ def scan_integrity(argv: List[str]) -> int:
         test_paths = args.paths if args.paths else _default_test_paths(repo_root)
 
         # If --scan-beads is specified, scan the .beads directory
+        # Use extend() to ADD to existing paths rather than replacing them
         if args.scan_beads:
             beads_dir = repo_root / ".beads"
             if beads_dir.exists():
-                # Get all files in .beads recursively
-                test_paths = [
+                # Get all files in .beads recursively and ADD to existing paths
+                bead_files = [
                     str(p.relative_to(repo_root))
                     for p in beads_dir.rglob("*")
                     if p.is_file() and not p.name.startswith(".")
                 ]
-            else:
-                test_paths = []
+                test_paths.extend(bead_files)
 
         violations = 0
         results: List[Dict[str, Any]] = []

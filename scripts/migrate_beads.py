@@ -18,12 +18,50 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
+import re
+
+
+def sanitize_for_logging(bead: dict) -> dict:
+    """Remove or redact PII from bead for safe logging.
+    
+    Prevents accidental PII exposure in dry-run logs.
+    """
+    sensitive_fields = ["owner", "email", "contact", "phone"]
+    pii_patterns = [
+        r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",  # Email
+        r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b",  # Phone
+    ]
+    
+    sanitized = dict(bead)
+    
+    # Redact sensitive fields that might contain PII
+    for field in sensitive_fields:
+        if field in sanitized:
+            value = str(sanitized[field])
+            # Check if it looks like PII
+            if "@" in value or re.search(r"\d{3}[-.]?\d{3}[-.]?\d{4}", value):
+                sanitized[field] = "[REDACTED]"
+    
+    # Redact any PII patterns in string values
+    for key, value in sanitized.items():
+        if isinstance(value, str):
+            for pattern in pii_patterns:
+                if re.search(pattern, value):
+                    sanitized[key] = "[REDACTED]"
+                    break
+    
+    return sanitized
 
 
 def add_owner_field(bead: dict) -> dict:
-    """Add owner field to bead if missing (for Gas Town integration)."""
+    """Add owner field to bead if missing (for Gas Town integration).
+    
+    Uses role-based identifier (sound_royale_ny/mayor) instead of personal email.
+    See .gaia_skills/pii-prevention/SKILL.md for PII prevention guidelines.
+    """
     if "owner" not in bead:
-        bead["owner"] = "brandonbennett@Pursuits-Air.lan"
+        # Use role-based identifier to prevent PII exposure
+        bead["owner"] = "sound_royale_ny/mayor"
     return bead
 
 
@@ -68,13 +106,17 @@ def main():
         print(f"Error: Input file not found: {input_path}")
         sys.exit(1)
 
-    # Read beads
+    # Read beads with error handling for malformed JSONL
     beads = []
     with open(input_path, "r", encoding="utf-8") as f:
-        for line in f:
+        for line_num, line in enumerate(f, start=1):
             line = line.strip()
             if line:
-                beads.append(json.loads(line))
+                try:
+                    beads.append(json.loads(line))
+                except json.JSONDecodeError as e:
+                    print(f"Warning: Skipping malformed JSON at line {line_num}: {e}")
+                    continue
 
     print(f"Loaded {len(beads)} beads from {input_path}")
 
@@ -88,8 +130,9 @@ def main():
         for i, (orig, trans) in enumerate(zip(beads, transformed)):
             if orig != trans:
                 print(f"\nBead {i}: {orig.get('id', 'unknown')}")
-                print(f"  Before: {json.dumps(orig, indent=2)[:200]}...")
-                print(f"  After:  {json.dumps(trans, indent=2)[:200]}...")
+                # Use sanitized output to prevent PII exposure in logs
+                print(f"  Before: {json.dumps(sanitize_for_logging(orig), indent=2)[:200]}...")
+                print(f"  After:  {json.dumps(sanitize_for_logging(trans), indent=2)[:200]}...")
         print("\n--- End dry run ---")
         return
 
