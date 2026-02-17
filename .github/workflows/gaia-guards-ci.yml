@@ -260,9 +260,9 @@ jobs:
           # Start Vite frontend in background  
           npm run dev:frontend &
           
-          # Wait for both servers to be ready using wait-on (not arbitrary sleep)
+          # Wait for Vite frontend to be ready (Django returns 404 for / so we only check Vite)
           # wait-on is more reliable than sleep - it checks actual server availability
-          npx wait-on http://localhost:8000 http://localhost:5173 --timeout 120000
+          npx wait-on http://localhost:8080 --timeout 120000
           
           # Run E2E tests
           npx playwright test --project=chromium --reporter=line
