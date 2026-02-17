@@ -24,37 +24,21 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
   
   const ROUND_DURATION = 300;
   
+  // Consolidated timer effect: handles reset, countdown, and announcement
   useEffect(() => {
+    // Handle game status changes
     if (gameState.status !== 'playing') {
       setRoundTimeLeft(null);
       timeUpAnnouncedRef.current = null;
       return;
     }
-    
+
+    // Reset timer for new round
     setShowVictory(false);
     setRoundTimeLeft(ROUND_DURATION);
     timeUpAnnouncedRef.current = null;
-  }, [gameState.status, gameState.currentRound]);
 
-  useEffect(() => {
-    if (gameState.status !== 'playing') {
-      return;
-    }
-
-    if (
-      roundTimeLeft === 0 &&
-      timeUpAnnouncedRef.current !== gameState.currentRound
-    ) {
-      timeUpAnnouncedRef.current = gameState.currentRound;
-      toast.message("Time's up — calculating winner...");
-    }
-  }, [gameState.status, gameState.currentRound, roundTimeLeft]);
-
-  useEffect(() => {
-    if (gameState.status !== 'playing') {
-      return;
-    }
-    
+    // Set up countdown interval
     const intervalId = setInterval(() => {
       setRoundTimeLeft(prev => {
         if (prev === null) return prev;
@@ -70,8 +54,24 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
     return () => {
       clearInterval(intervalId);
     };
-  }, [gameState.status]);
+  }, [gameState.status, gameState.currentRound]);
 
+  // Timer announcement effect
+  useEffect(() => {
+    if (gameState.status !== 'playing') {
+      return;
+    }
+
+    if (
+      roundTimeLeft === 0 &&
+      timeUpAnnouncedRef.current !== gameState.currentRound
+    ) {
+      timeUpAnnouncedRef.current = gameState.currentRound;
+      toast.message("Time's up — calculating winner...");
+    }
+  }, [gameState.status, gameState.currentRound, roundTimeLeft]);
+
+  // Victory effect
   useEffect(() => {
     if (gameState.status === 'finished' && gameState.winner) {
       setShowVictory(true);

@@ -36,7 +36,7 @@ jobs:
         env:
           PYTHONPATH: .
         run: |
-          pytest -q tests/gaia/test_gaia_guards.py || true
+          pytest -q tests/gaia/test_gaia_guards.py
           # Also run pytest tests in backend/gaia/
           pytest -q backend/gaia/tests/ || echo "Note: backend/gaia/ tests require full setup"
 
@@ -254,11 +254,15 @@ jobs:
 
       - name: Start servers and run E2E tests
         run: |
+          # Start Django backend in background
           cd backend && python manage.py runserver 8000 &
-          sleep 3
+          
+          # Start Vite frontend in background  
           npm run dev:frontend &
-          sleep 10
-          # Wait for servers to start (Django returns 404 for root, so just check Vite is up)
-          sleep 15
-          npx wait-on http://localhost:8080 --timeout 60000 || true
+          
+          # Wait for Vite frontend to be ready (Django returns 404 for / so we only check Vite)
+          # wait-on is more reliable than sleep - it checks actual server availability
+          npx wait-on http://localhost:8080 --timeout 120000
+          
+          # Run E2E tests
           npx playwright test --project=chromium --reporter=line
