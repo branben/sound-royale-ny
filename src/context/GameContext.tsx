@@ -14,6 +14,7 @@ interface GameContextType {
   isLoading: boolean;
   error: string | null;
   roomCode: string | null;
+  timeRemaining: number | null;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -36,6 +37,7 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
   const [gameState, setGameState] = useState<GameState>(isE2E ? mockGameState : emptyGameState);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
 
   // Fetch real data from backend when not in E2E mode and roomCode is provided
   useEffect(() => {
@@ -116,7 +118,6 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
       switch (message.type) {
         case 'game_state_update': {
           const newState = message.payload;
-          // Transform backend data to GameState format
           const players: GameState['players'] = {};
           if (newState.players) {
             Object.entries(newState.players).forEach(([id, player]: [string, any]) => {
@@ -134,6 +135,10 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
                 },
                 isConnected: player.isConnected,
                 isSpectator: player.isSpectator,
+                eloRating: player.eloRating,
+                eloWins: player.eloWins,
+                eloLosses: player.eloLosses,
+                eloMatches: player.eloMatches,
               };
             });
           }
@@ -144,16 +149,31 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
             players,
             currentRound: newState.currentRound,
             winner: newState.winner,
+            roundState: newState.roundState,
+            spectatorCount: newState.spectatorCount,
           });
           break;
         }
         case 'bingo_achievement':
           console.log('[GameContext] Bingo achievement:', message.payload);
-          // Could trigger UI notification here
           break;
         case 'victory_celebration':
           console.log('[GameContext] Victory:', message.payload);
-          // Could trigger celebration UI here
+          break;
+        case 'vote_submitted':
+          console.log('[GameContext] Vote submitted:', message.payload);
+          break;
+        case 'timer_tick':
+          setTimeRemaining(message.payload.timeRemaining);
+          break;
+        case 'turn_change':
+          console.log('[GameContext] Turn change:', message.payload);
+          break;
+        case 'player_joined':
+          console.log('[GameContext] Player joined:', message.payload);
+          break;
+        case 'player_left':
+          console.log('[GameContext] Player left:', message.payload);
           break;
       }
     };
@@ -236,7 +256,7 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
   };
 
   return (
-    <GameContext.Provider value={{ gameState, setGameState, updateTileStatus, setTileAudio, toggleReady, incrementScore, isLoading, error, roomCode: roomCode || null }}>
+    <GameContext.Provider value={{ gameState, setGameState, updateTileStatus, setTileAudio, toggleReady, incrementScore, isLoading, error, roomCode: roomCode || null, timeRemaining }}>
       {children}
     </GameContext.Provider>
   );

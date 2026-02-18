@@ -5,12 +5,15 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from django.db import transaction, IntegrityError
 from django.db.models import Prefetch
+from django.utils import timezone
 from itertools import groupby
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 import random
+import threading
+import json
 
-from .models import Room, Player, Tile
+from .models import Room, Player, Tile, Round, Vote
 from .serializers import (
     RoomSerializer,
     RoomDetailSerializer,
@@ -19,6 +22,8 @@ from .serializers import (
     PlayerSerializer,
     PlayerCreateSerializer,
     GameStateSerializer,
+    VoteSerializer,
+    RoundSerializer,
 )
 from .bingo_utils import check_bingo_lines, calculate_bingo_score, check_tie_breaker
 
@@ -32,6 +37,72 @@ def broadcast_game_update(room):
     async_to_sync(channel_layer.group_send)(
         f"game_{room.id}", {"type": "game_state_update", "payload": serializer.data}
     )
+
+
+def broadcast_timer_tick(room):
+    """
+    Broadcast a timer_tick message to the room's channel group.
+    """
+    channel_layer = get_channel_layer()
+    current_round = Round.objects.filter(room=room).first()
+    if not current_round or not current_round.timer_ends_at:
+        return
+
+    now = timezone.now()
+    if current_round.timer_ends_at <= now:
+        time_remaining = 0
+    else:
+        time_remaining = int((current_round.timer_ends_at - now).total_seconds())
+
+    async_to_sync(channel_layer.group_send)(
+        f"game_{room.id}",
+        {"type": "timer_tick", "payload": {"timeRemaining": time_remaining}},
+    )
+
+
+_active_timers = {}
+
+
+def start_timer_broadcast(room_id, duration):
+    """
+    Start broadcasting timer ticks every second for the given room.
+    Uses a daemon thread that stops when the process exits.
+    """
+    if room_id in _active_timers:
+        return
+
+    def run_timer():
+        from .models import Room
+
+        try:
+            room = Room.objects.get(id=room_id)
+            while True:
+                import time
+
+                time.sleep(1)
+                if room.status != "playing":
+                    break
+                current_round = Round.objects.filter(room=room).first()
+                if not current_round or not current_round.timer_ends_at:
+                    break
+                now = timezone.now()
+                if current_round.timer_ends_at <= now:
+                    broadcast_timer_tick(room)
+                    spectator_count = room.players.filter(is_spectator=True).count()
+                    if spectator_count >= 3 and not current_round.voting_open:
+                        current_round.voting_open = True
+                        current_round.save()
+                        broadcast_game_update(room)
+                    break
+                broadcast_timer_tick(room)
+        except Exception:
+            pass
+        finally:
+            _active_timers.pop(room_id, None)
+
+    thread = threading.Thread(target=run_timer, daemon=True)
+    thread.start()
+    _active_timers[room_id] = thread
 
 
 class RoomViewSet(viewsets.ModelViewSet):
@@ -100,48 +171,57 @@ class RoomViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        existing_names = set()
         try:
-            # Handle spectator naming with auto-increment
-            data = request.data.copy()
-            if data.get("is_spectator", False):
-                existing_names = set(
-                    Player.objects.filter(room=room).values_list("name", flat=True)
-                )
-                spectator_num = 1
-                while f"Spectator {spectator_num}" in existing_names:
-                    spectator_num += 1
-                data["player_name"] = f"Spectator {spectator_num}"
-            else:
-                existing_names = set(
-                    Player.objects.filter(room=room).values_list("name", flat=True)
-                )
+            with transaction.atomic():
+                data = request.data.copy()
 
-            serializer = PlayerCreateSerializer(data=data, context={"room": room})
-            if serializer.is_valid():
-                player = serializer.save()
-
-                # Create tiles immediately for non-spectators
-                if not player.is_spectator:
-                    all_genres = list(Tile.Genre.values)
-                    random.shuffle(all_genres)
-                    genres = all_genres[:9]
-
-                    for position in range(9):  # 3x3 grid, positions 0-8
-                        tile = Tile.objects.create(
-                            player=player,
-                            position=position,
-                            genre=genres.pop(),  # Random genre from shuffled list
-                            room=room,
+                spectator_count = room.players.filter(is_spectator=True).count()
+                if data.get("is_spectator", False):
+                    if spectator_count >= 10:
+                        return Response(
+                            {"error": "Spectator limit reached (max 10)"},
+                            status=status.HTTP_400_BAD_REQUEST,
                         )
 
-                # Broadcast update
-                broadcast_game_update(room)
+                if data.get("is_spectator", False):
+                    existing_names = set(
+                        Player.objects.filter(room=room).values_list("name", flat=True)
+                    )
+                    spectator_num = 1
+                    while f"Spectator {spectator_num}" in existing_names:
+                        spectator_num += 1
+                    data["player_name"] = f"Spectator {spectator_num}"
+                else:
+                    existing_names = set(
+                        Player.objects.filter(room=room).values_list("name", flat=True)
+                    )
 
-                # Return updated room state
-                room_serializer = RoomDetailSerializer(room)
-                return Response(room_serializer.data, status=status.HTTP_201_CREATED)
+                serializer = PlayerCreateSerializer(data=data, context={"room": room})
+                if serializer.is_valid():
+                    player = serializer.save()
 
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                    if not player.is_spectator:
+                        all_genres = list(Tile.Genre.values)
+                        random.shuffle(all_genres)
+                        genres = all_genres[:9]
+
+                        for position in range(9):
+                            tile = Tile.objects.create(
+                                player=player,
+                                position=position,
+                                genre=genres.pop(),
+                                room=room,
+                            )
+
+                    broadcast_game_update(room)
+
+                    room_serializer = RoomDetailSerializer(room)
+                    return Response(
+                        room_serializer.data, status=status.HTTP_201_CREATED
+                    )
+
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except IntegrityError as e:
             conflicting_name = data.get("name", "Unknown")
             existing_conflicts = [
@@ -200,10 +280,41 @@ class RoomViewSet(viewsets.ModelViewSet):
 
             # Tiles are now created when players join, not when game starts
 
-            # Broadcast update
-            broadcast_game_update(room)
+            # Create the first round with a random genre
+            used_genres = set(
+                Round.objects.filter(room=room).values_list(
+                    "current_tile_genre", flat=True
+                )
+            )
+            available_genres = [g for g in Tile.Genre.values if g not in used_genres]
+            if not available_genres:
+                available_genres = list(Tile.Genre.values)
 
-        return Response({"status": "Game started"}, status=status.HTTP_200_OK)
+            first_genre = random.choice(available_genres)
+
+            timer_started = timezone.now()
+            timer_ends = timer_started + timezone.timedelta(seconds=60)
+
+            first_round = Round.objects.create(
+                room=room,
+                round_number=1,
+                current_tile_genre=first_genre,
+                timer_duration=60,
+                timer_started_at=timer_started,
+                timer_ends_at=timer_ends,
+            )
+
+            broadcast_game_update(room)
+            broadcast_timer_tick(room)
+            start_timer_broadcast(room.id, 60)
+
+        return Response(
+            {
+                "status": "Game started",
+                "first_round": RoundSerializer(first_round).data,
+            },
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=True, methods=["get"])
     def game_state(self, request, pk=None):
@@ -346,6 +457,402 @@ class RoomViewSet(viewsets.ModelViewSet):
                 {"error": f"Failed to kick player: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+    @action(detail=True, methods=["post"])
+    def vote(self, request, **kwargs):
+        """
+        Cast a vote for a producer in the current round.
+        Only spectators can vote, and only when voting is open.
+        """
+        room = self.get_object()
+
+        player_secret = request.data.get("player_secret")
+        voted_for_player_id = request.data.get("voted_for_player_id")
+
+        if not player_secret or not voted_for_player_id:
+            return Response(
+                {"error": "player_secret and voted_for_player_id are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            voter = Player.objects.get(room=room, player_secret=player_secret)
+        except Player.DoesNotExist:
+            return Response(
+                {"error": "Player not found with this secret"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if not voter.is_spectator:
+            return Response(
+                {"error": "Only spectators can vote"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            voted_for_player = room.players.get(id=voted_for_player_id)
+            if voted_for_player.is_spectator:
+                return Response(
+                    {"error": "Cannot vote for a spectator"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        except Player.DoesNotExist:
+            return Response(
+                {"error": "Player being voted for not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        current_round = Round.objects.filter(room=room).first()
+        if not current_round:
+            return Response(
+                {"error": "No active round in this room"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not current_round.voting_open:
+            return Response(
+                {"error": "Voting is not open for this round"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        spectator_count = room.players.filter(is_spectator=True).count()
+        if spectator_count < 3:
+            return Response(
+                {"error": "Need at least 3 spectators for voting"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        existing_vote = Vote.objects.filter(round=current_round, voter=voter).first()
+        if existing_vote:
+            return Response(
+                {"error": "You have already voted in this round"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            vote = Vote.objects.create(
+                round=current_round,
+                voter=voter,
+                voted_for=voted_for_player,
+            )
+            current_round.votes_recorded += 1
+            current_round.save()
+
+        broadcast_game_update(room)
+
+        if current_round.votes_recorded >= spectator_count:
+            return self._auto_advance_turn(room, current_round, spectator_count)
+
+        return Response(
+            VoteSerializer(vote).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=["post"])
+    def next_turn(self, request, pk=None):
+        """
+        Advance to the next round/tile after voting is complete.
+        Only host can trigger this.
+        """
+        room = self.get_object()
+
+        requester_secret = request.data.get("player_secret")
+        if not requester_secret:
+            return Response(
+                {"error": "player_secret is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            host = room.players.filter(is_spectator=False).first()
+            if not host or str(host.player_secret) != requester_secret:
+                return Response(
+                    {"error": "Only host can advance the turn"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+        except Player.DoesNotExist:
+            return Response(
+                {"error": "Host not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        current_round = Round.objects.filter(room=room).first()
+        if not current_round:
+            return Response(
+                {"error": "No active round in this room"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        spectator_count = room.players.filter(is_spectator=True).count()
+        is_ranked = spectator_count >= 3
+
+        if is_ranked and current_round.voting_open:
+            if current_round.votes_recorded < spectator_count:
+                return Response(
+                    {"error": "Waiting for all spectators to vote"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            votes_for = {}
+            for vote in current_round.votes.all():
+                voted_for_id = str(vote.voted_for.id)
+                votes_for[voted_for_id] = votes_for.get(voted_for_id, 0) + 1
+
+            if not votes_for:
+                return Response(
+                    {"error": "No votes recorded"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            max_votes = max(votes_for.values())
+            winners = [pid for pid, count in votes_for.items() if count == max_votes]
+
+            if len(winners) > 1:
+                return Response(
+                    {"error": "Tie vote - re-voting required"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            winner_id = winners[0]
+            winner = Player.objects.get(id=winner_id)
+
+            current_round.winner = winner
+            current_round.voting_open = False
+            current_round.save()
+
+            producer_count = room.players.filter(is_spectator=False).count()
+            if producer_count >= 2:
+                base_gain = 25
+                vote_margin = max_votes - (spectator_count - max_votes)
+                if vote_margin == 1:
+                    multiplier = 1.5
+                elif vote_margin == spectator_count:
+                    multiplier = 2.0
+                else:
+                    multiplier = 1.0
+
+                elo_gain = int(base_gain * multiplier)
+                winner.elo_rating += elo_gain
+                winner.elo_wins += 1
+                winner.elo_matches += 1
+                loser = (
+                    room.players.filter(is_spectator=False)
+                    .exclude(id=winner_id)
+                    .first()
+                )
+                if loser:
+                    loser.elo_rating = max(100, loser.elo_rating - elo_gain)
+                    loser.elo_losses += 1
+                    loser.elo_matches += 1
+                winner.save()
+                if loser:
+                    loser.save()
+
+        producers = room.players.filter(is_spectator=False)
+        if producers.count() < 2:
+            return Response(
+                {"error": "Need at least 2 producers to continue"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        used_genres = set(
+            Round.objects.filter(room=room).values_list("current_tile_genre", flat=True)
+        )
+        available_genres = [g for g in Tile.Genre.values if g not in used_genres]
+        if not available_genres:
+            available_genres = list(Tile.Genre.values)
+
+        next_genre = random.choice(available_genres)
+        next_round_number = room.current_round + 1
+
+        timer_started = timezone.now()
+        timer_ends = timer_started + timezone.timedelta(seconds=60)
+
+        with transaction.atomic():
+            new_round = Round.objects.create(
+                room=room,
+                round_number=next_round_number,
+                current_tile_genre=next_genre,
+                timer_duration=60,
+                timer_started_at=timer_started,
+                timer_ends_at=timer_ends,
+            )
+            room.current_round = next_round_number
+            room.save()
+
+        broadcast_game_update(room)
+        broadcast_timer_tick(room)
+        start_timer_broadcast(room.id, 60)
+
+        return Response(
+            {
+                "status": "Advanced to next round",
+                "new_round": RoundSerializer(new_round).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=["post"])
+    def open_voting(self, request, **kwargs):
+        """
+        Open voting for spectators after timer ends.
+        """
+        room = self.get_object()
+
+        requester_secret = request.data.get("player_secret")
+        if not requester_secret:
+            return Response(
+                {"error": "player_secret is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            host = room.players.filter(is_spectator=False).first()
+            if not host or str(host.player_secret) != requester_secret:
+                return Response(
+                    {"error": "Only host can open voting"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+        except Player.DoesNotExist:
+            return Response(
+                {"error": "Host not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        current_round = Round.objects.filter(room=room).first()
+        if not current_round:
+            return Response(
+                {"error": "No active round in this room"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if current_round.voting_open:
+            return Response(
+                {"error": "Voting is already open"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        spectator_count = room.players.filter(is_spectator=True).count()
+        if spectator_count < 3:
+            return Response(
+                {
+                    "error": "Need at least 3 spectators for voting (casual mode - no voting)"
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            current_round.voting_open = True
+            current_round.save()
+
+        broadcast_game_update(room)
+
+        return Response(
+            {
+                "status": "Voting opened",
+                "round": RoundSerializer(current_round).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def _auto_advance_turn(self, room, current_round, spectator_count):
+        """
+        Automatically advance to next turn when all spectators have voted.
+        Determines winner and advances the round.
+        """
+        votes_for = {}
+        for vote in current_round.votes.all():
+            voted_for_id = str(vote.voted_for.id)
+            votes_for[voted_for_id] = votes_for.get(voted_for_id, 0) + 1
+
+        if not votes_for:
+            return Response(
+                {"error": "No votes recorded"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        max_votes = max(votes_for.values())
+        winners = [pid for pid, count in votes_for.items() if count == max_votes]
+
+        if len(winners) > 1:
+            current_round.votes_recorded = 0
+            Vote.objects.filter(round=current_round).delete()
+            current_round.save()
+            broadcast_game_update(room)
+            return Response(
+                {"error": "Tie vote - re-voting required", "tie": True},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        winner_id = winners[0]
+        winner = Player.objects.get(id=winner_id)
+
+        current_round.winner = winner
+        current_round.voting_open = False
+        current_round.save()
+
+        producer_count = room.players.filter(is_spectator=False).count()
+        if producer_count >= 2:
+            base_gain = 25
+            vote_margin = max_votes - (spectator_count - max_votes)
+            if vote_margin == 1:
+                multiplier = 1.5
+            elif vote_margin == spectator_count:
+                multiplier = 2.0
+            else:
+                multiplier = 1.0
+
+            elo_gain = int(base_gain * multiplier)
+            winner.elo_rating += elo_gain
+            winner.elo_wins += 1
+            winner.elo_matches += 1
+            loser = (
+                room.players.filter(is_spectator=False).exclude(id=winner_id).first()
+            )
+            if loser:
+                loser.elo_rating = max(100, loser.elo_rating - elo_gain)
+                loser.elo_losses += 1
+                loser.elo_matches += 1
+            winner.save()
+            if loser:
+                loser.save()
+
+        used_genres = set(
+            Round.objects.filter(room=room).values_list("current_tile_genre", flat=True)
+        )
+        available_genres = [g for g in Tile.Genre.values if g not in used_genres]
+        if not available_genres:
+            available_genres = list(Tile.Genre.values)
+
+        next_genre = random.choice(available_genres)
+        next_round_number = room.current_round + 1
+
+        timer_started = timezone.now()
+        timer_ends = timer_started + timezone.timedelta(seconds=60)
+
+        new_round = Round.objects.create(
+            room=room,
+            round_number=next_round_number,
+            current_tile_genre=next_genre,
+            timer_duration=60,
+            timer_started_at=timer_started,
+            timer_ends_at=timer_ends,
+        )
+        room.current_round = next_round_number
+        room.save()
+
+        broadcast_game_update(room)
+        broadcast_timer_tick(room)
+        start_timer_broadcast(room.id, 60)
+
+        return Response(
+            {
+                "status": "Advanced to next round",
+                "new_round": RoundSerializer(new_round).data,
+                "winner": winner.name,
+                "elo_gained": elo_gain if producer_count >= 2 else 0,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class PlayerViewSet(viewsets.ModelViewSet):
