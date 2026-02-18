@@ -74,7 +74,9 @@ class GameSocketService {
     }
 
     const wsUrl = this.getWsUrl();
-    console.log('[GameSocket] Connecting to', wsUrl);
+    // Redact secret from URL for logging to prevent PII exposure
+    const safeWsUrl = wsUrl.replace(/secret=[^&]*/, 'secret=***');
+    console.log('[GameSocket] Connecting to', safeWsUrl);
 
     try {
       this.ws = new WebSocket(wsUrl);

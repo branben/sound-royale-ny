@@ -170,7 +170,6 @@ class PlayerCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         """Create a new player"""
-        print(f"DEBUG PlayerCreateSerializer validated_data: {validated_data}")  # Debug
         room = self.context.get("room")
         if not room:
             raise serializers.ValidationError("Room context is required")
