@@ -16,35 +16,60 @@ interface GameInfoProps {
 }
 
 export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
-  const { gameState, timeRemaining } = useGame();
+  const { gameState } = useGame();
   const { userSession } = useUser();
   const [showVictory, setShowVictory] = useState(false);
+  const [roundTimeLeft, setRoundTimeLeft] = useState<number | null>(null);
   const timeUpAnnouncedRef = useRef<number | null>(null);
-  const prevTimeRemainingRef = useRef<number | null>(null);
-
-  // Reset announcement ref when new round starts (time jumps from 0 to high)
+  
+  const ROUND_DURATION = 300;
+  
+  // Consolidated timer effect: handles reset, countdown, and announcement
   useEffect(() => {
-    if (timeRemaining !== null && prevTimeRemainingRef.current === 0 && timeRemaining > 30) {
+    // Handle game status changes
+    if (gameState.status !== 'playing') {
+      setRoundTimeLeft(null);
       timeUpAnnouncedRef.current = null;
-      setShowVictory(false);
+      return;
     }
-    prevTimeRemainingRef.current = timeRemaining;
-  }, [timeRemaining]);
 
-  // Timer announcement effect - uses server-synced timeRemaining
+    // Reset timer for new round
+    setShowVictory(false);
+    setRoundTimeLeft(ROUND_DURATION);
+    timeUpAnnouncedRef.current = null;
+
+    // Set up countdown interval
+    const intervalId = setInterval(() => {
+      setRoundTimeLeft(prev => {
+        if (prev === null) return prev;
+        const next = prev - 1;
+        if (next <= 0) {
+          clearInterval(intervalId);
+          return 0;
+        }
+        return next;
+      });
+    }, 1000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [gameState.status, gameState.currentRound]);
+
+  // Timer announcement effect
   useEffect(() => {
     if (gameState.status !== 'playing') {
       return;
     }
 
     if (
-      timeRemaining === 0 &&
+      roundTimeLeft === 0 &&
       timeUpAnnouncedRef.current !== gameState.currentRound
     ) {
       timeUpAnnouncedRef.current = gameState.currentRound;
       toast.message("Time's up — calculating winner...");
     }
-  }, [gameState.status, gameState.currentRound, timeRemaining]);
+  }, [gameState.status, gameState.currentRound, roundTimeLeft]);
 
   // Victory effect
   useEffect(() => {
@@ -215,14 +240,14 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
             <div className="text-sm text-muted-foreground">
               <div className="flex items-center gap-2">
                 <span>Round: {gameState.currentRound}</span>
-                {timeRemaining !== null && gameState.status === 'playing' && (
+                {roundTimeLeft !== null && gameState.status === 'playing' && (
                   <span className={cn(
                     "flex items-center gap-1 ml-2 px-2 py-0.5 rounded-full text-xs font-mono",
-                    timeRemaining <= 30 && "bg-red-500/20 text-red-400 animate-pulse",
-                    timeRemaining > 30 && "bg-[#7C3AED]/20 text-[#7C3AED]"
+                    roundTimeLeft <= 30 && "bg-red-500/20 text-red-400 animate-pulse",
+                    roundTimeLeft > 30 && "bg-[#7C3AED]/20 text-[#7C3AED]"
                   )}>
                     <Clock className="h-3 w-3" />
-                    {formatTime(timeRemaining)}
+                    {formatTime(roundTimeLeft)}
                   </span>
                 )}
               </div>
