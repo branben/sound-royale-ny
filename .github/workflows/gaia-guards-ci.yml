@@ -70,16 +70,12 @@ jobs:
 
       - name: Run Django tests
         env:
-          PYTHONPATH: .
+          PYTHONPATH: ./backend
           DJANGO_SETTINGS_MODULE: sound_royale_api.settings
         run: |
           # First, verify Django can find the app
           echo "Checking Django app configuration..."
           python backend/manage.py check
-          
-          # Show what tests Django discovers
-          echo "Discovering tests..."
-          python backend/manage.py test game_engine --verbosity=2 --dry-run 2>&1 || true
           
           # Run tests and capture output
           echo "Running tests..."
@@ -274,6 +270,12 @@ jobs:
 
       - name: Start servers and run E2E tests
         run: |
+          # Run migrations first to ensure database is ready
+          echo "Running Django migrations..."
+          cd backend
+          python manage.py migrate
+          cd ..
+          
           # Start Django backend in background
           cd backend && python manage.py runserver 8000 &
           
