@@ -48,23 +48,60 @@ class GameConsumer(AsyncWebsocketConsumer):
         message_type = text_data_json.get("type")
 
         if message_type == "game_update":
-            # Handle game state updates
             await self.channel_layer.group_send(
                 self.game_group_name,
                 {"type": "game_state_update", "payload": text_data_json.get("payload")},
             )
         elif message_type == "bingo_achievement":
-            # Handle bingo line completion
             await self.channel_layer.group_send(
                 self.game_group_name,
                 {"type": "bingo_achievement", "payload": text_data_json.get("payload")},
             )
         elif message_type == "victory_celebration":
-            # Handle game victory
             await self.channel_layer.group_send(
                 self.game_group_name,
                 {
                     "type": "victory_celebration",
+                    "payload": text_data_json.get("payload"),
+                },
+            )
+        elif message_type == "vote_submitted":
+            await self.channel_layer.group_send(
+                self.game_group_name,
+                {
+                    "type": "vote_submitted",
+                    "payload": text_data_json.get("payload"),
+                },
+            )
+        elif message_type == "timer_tick":
+            await self.channel_layer.group_send(
+                self.game_group_name,
+                {
+                    "type": "timer_tick",
+                    "payload": text_data_json.get("payload"),
+                },
+            )
+        elif message_type == "turn_change":
+            await self.channel_layer.group_send(
+                self.game_group_name,
+                {
+                    "type": "turn_change",
+                    "payload": text_data_json.get("payload"),
+                },
+            )
+        elif message_type == "player_joined":
+            await self.channel_layer.group_send(
+                self.game_group_name,
+                {
+                    "type": "player_joined",
+                    "payload": text_data_json.get("payload"),
+                },
+            )
+        elif message_type == "player_left":
+            await self.channel_layer.group_send(
+                self.game_group_name,
+                {
+                    "type": "player_left",
                     "payload": text_data_json.get("payload"),
                 },
             )
@@ -114,3 +151,30 @@ class GameConsumer(AsyncWebsocketConsumer):
                 self.game_group_name,
                 {"type": "game_state_update", "payload": game_state},
             )
+
+    async def vote_submitted(self, event):
+        await self.send(
+            text_data=json.dumps(
+                {"type": "vote_submitted", "payload": event["payload"]}
+            )
+        )
+
+    async def timer_tick(self, event):
+        await self.send(
+            text_data=json.dumps({"type": "timer_tick", "payload": event["payload"]})
+        )
+
+    async def turn_change(self, event):
+        await self.send(
+            text_data=json.dumps({"type": "turn_change", "payload": event["payload"]})
+        )
+
+    async def player_joined(self, event):
+        await self.send(
+            text_data=json.dumps({"type": "player_joined", "payload": event["payload"]})
+        )
+
+    async def player_left(self, event):
+        await self.send(
+            text_data=json.dumps({"type": "player_left", "payload": event["payload"]})
+        )

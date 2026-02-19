@@ -98,6 +98,28 @@ export const gameApi = {
     });
     return response.data;
   },
+
+  castVote: async (roomId: string, playerSecret: string, votedForPlayerId: string): Promise<any> => {
+    const response = await api.post(`/rooms/${roomId}/vote/`, {
+      player_secret: playerSecret,
+      voted_for_player_id: votedForPlayerId,
+    });
+    return response.data;
+  },
+
+  nextTurn: async (roomId: string, playerSecret: string): Promise<any> => {
+    const response = await api.post(`/rooms/${roomId}/next_turn/`, {
+      player_secret: playerSecret,
+    });
+    return response.data;
+  },
+
+  openVoting: async (roomId: string, playerSecret: string): Promise<any> => {
+    const response = await api.post(`/rooms/${roomId}/open_voting/`, {
+      player_secret: playerSecret,
+    });
+    return response.data;
+  },
 };
 
 function transformPlayer(backendPlayer: RoomResponse['players'][0]): Player {

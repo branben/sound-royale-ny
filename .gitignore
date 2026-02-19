@@ -45,3 +45,5 @@ daemon/
 **/*.lock
 **/registry.json
 .runtime/
+test-results/
+.DS_Store

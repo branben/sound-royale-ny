@@ -78,6 +78,12 @@ class Player(models.Model):
     is_connected = models.BooleanField(default=False)  # Presence tracking
     joined_at = models.DateTimeField(auto_now_add=True)
 
+    # ELO Rating fields
+    elo_rating = models.PositiveIntegerField(default=1200)  # Starting ELO
+    elo_wins = models.PositiveIntegerField(default=0)
+    elo_losses = models.PositiveIntegerField(default=0)
+    elo_matches = models.PositiveIntegerField(default=0)
+
     class Meta:
         ordering = ["joined_at"]
         unique_together = ["room", "name"]  # Prevent duplicate names in same room
@@ -133,3 +139,67 @@ class Tile(models.Model):
 
     def __str__(self):
         return f"{self.player.name}'s {self.genre} tile ({self.status})"
+
+
+class Round(models.Model):
+    """Tracks the current round/turn state for a room."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name="rounds")
+    round_number = models.PositiveIntegerField(default=1)
+
+    # Current tile being contested
+    current_tile_genre = models.CharField(max_length=20, choices=Tile.Genre.choices)
+
+    # Timer state (server-authoritative)
+    timer_duration = models.PositiveIntegerField(default=60)  # seconds
+    timer_started_at = models.DateTimeField(null=True, blank=True)
+    timer_ends_at = models.DateTimeField(null=True, blank=True)
+
+    # Voting state
+    voting_open = models.BooleanField(default=False)
+    votes_recorded = models.PositiveIntegerField(default=0)
+
+    # Winner of this round
+    winner = models.ForeignKey(
+        Player,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="won_rounds",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-round_number"]
+        unique_together = ["room", "round_number"]
+
+    def __str__(self):
+        return (
+            f"Round {self.round_number} in {self.room.code} ({self.current_tile_genre})"
+        )
+
+
+class Vote(models.Model):
+    """Tracks spectator votes for a producer's tile in a round."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    round = models.ForeignKey(Round, on_delete=models.CASCADE, related_name="votes")
+    voter = models.ForeignKey(
+        Player, on_delete=models.CASCADE, related_name="votes_cast"
+    )
+
+    # The producer being voted for
+    voted_for = models.ForeignKey(
+        Player, on_delete=models.CASCADE, related_name="votes_received"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ["round", "voter"]  # One vote per round per spectator
+
+    def __str__(self):
+        return f"{self.voter.name} voted for {self.voted_for.name} in Round {self.round.round_number}"

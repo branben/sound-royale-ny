@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Room, Player, Tile
+from .models import Room, Player, Tile, Round, Vote
 
 
 class TileSerializer(serializers.ModelSerializer):
@@ -9,6 +9,54 @@ class TileSerializer(serializers.ModelSerializer):
         model = Tile
         fields = ["id", "genre", "status", "audio_url", "position"]
         read_only_fields = ["id"]
+
+
+class VoteSerializer(serializers.ModelSerializer):
+    """Serializer for Vote model"""
+
+    voter_name = serializers.CharField(source="voter.name", read_only=True)
+    voted_for_name = serializers.CharField(source="voted_for.name", read_only=True)
+
+    class Meta:
+        model = Vote
+        fields = [
+            "id",
+            "round",
+            "voter",
+            "voter_name",
+            "voted_for",
+            "voted_for_name",
+            "created_at",
+        ]
+        read_only_fields = ["id", "created_at"]
+
+
+class RoundSerializer(serializers.ModelSerializer):
+    """Serializer for Round model"""
+
+    votes = VoteSerializer(many=True, read_only=True)
+    winner_name = serializers.CharField(
+        source="winner.name", read_only=True, allow_null=True
+    )
+
+    class Meta:
+        model = Round
+        fields = [
+            "id",
+            "room",
+            "round_number",
+            "current_tile_genre",
+            "timer_duration",
+            "timer_started_at",
+            "timer_ends_at",
+            "voting_open",
+            "votes_recorded",
+            "winner",
+            "winner_name",
+            "votes",
+            "created_at",
+        ]
+        read_only_fields = ["id", "created_at"]
 
 
 class PlayerSerializer(serializers.ModelSerializer):
@@ -28,8 +76,19 @@ class PlayerSerializer(serializers.ModelSerializer):
             "is_connected",
             "joined_at",
             "tiles",
+            "elo_rating",
+            "elo_wins",
+            "elo_losses",
+            "elo_matches",
         ]
-        read_only_fields = ["id", "joined_at", "is_connected"]
+        read_only_fields = [
+            "id",
+            "joined_at",
+            "is_connected",
+            "elo_wins",
+            "elo_losses",
+            "elo_matches",
+        ]
 
 
 class RoomSerializer(serializers.ModelSerializer):
@@ -111,7 +170,6 @@ class PlayerCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         """Create a new player"""
-        print(f"DEBUG PlayerCreateSerializer validated_data: {validated_data}")  # Debug
         room = self.context.get("room")
         if not room:
             raise serializers.ValidationError("Room context is required")
@@ -129,6 +187,10 @@ class GameStateSerializer(serializers.ModelSerializer):
     players = serializers.SerializerMethodField()
     # Get winner ID for frontend
     winner = serializers.CharField(source="winner.id", allow_null=True, read_only=True)
+    # Include current round state
+    round_state = serializers.SerializerMethodField()
+    # Include spectator count
+    spectator_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Room
@@ -138,8 +200,45 @@ class GameStateSerializer(serializers.ModelSerializer):
             "current_round",
             "winner",
             "players",
+            "round_state",
+            "spectator_count",
         ]
         read_only_fields = ["id"]
+
+    def get_round_state(self, obj):
+        """Get the current round state for the room"""
+        current_round = Round.objects.filter(room=obj).first()
+        if not current_round:
+            return None
+
+        votes_list = []
+        for vote in current_round.votes.all():
+            votes_list.append(
+                {
+                    "id": str(vote.id),
+                    "voter": str(vote.voter.id),
+                    "voterName": vote.voter.name,
+                    "votedFor": str(vote.voted_for.id),
+                    "votedForName": vote.voted_for.name,
+                }
+            )
+
+        return {
+            "roundNumber": current_round.round_number,
+            "currentTileGenre": current_round.current_tile_genre,
+            "timerDuration": current_round.timer_duration,
+            "timerEndsAt": current_round.timer_ends_at.isoformat()
+            if current_round.timer_ends_at
+            else None,
+            "votingOpen": current_round.voting_open,
+            "votesRecorded": current_round.votes_recorded,
+            "votes": votes_list,
+            "winner": str(current_round.winner.id) if current_round.winner else None,
+        }
+
+    def get_spectator_count(self, obj):
+        """Get the count of spectators in the room"""
+        return obj.players.filter(is_spectator=True).count()
 
     def get_players(self, obj):
         """Convert players queryset to Record<string, Player> format expected by React"""
@@ -192,4 +291,8 @@ class GameStateSerializer(serializers.ModelSerializer):
         data["gameId"] = data.pop("id")
         # Rename 'current_round' to 'currentRound'
         data["currentRound"] = data.pop("current_round")
+        # Rename 'round_state' to 'roundState'
+        data["roundState"] = data.pop("round_state")
+        # Rename 'spectator_count' to 'spectatorCount'
+        data["spectatorCount"] = data.pop("spectator_count")
         return data
