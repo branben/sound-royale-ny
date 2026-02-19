@@ -21,6 +21,29 @@ export interface Player {
   isSpectator?: boolean;
   isReady?: boolean;
   score?: number;
+  eloRating?: number;
+  eloWins?: number;
+  eloLosses?: number;
+  eloMatches?: number;
+}
+
+export interface Vote {
+  id: string;
+  voter: string;
+  voterName: string;
+  votedFor: string;
+  votedForName: string;
+}
+
+export interface RoundState {
+  roundNumber: number;
+  currentTileGenre: string;
+  timerDuration: number;
+  timerEndsAt?: string;
+  votingOpen: boolean;
+  votesRecorded: number;
+  votes?: Vote[];
+  winner?: string;
 }
 
 export interface GameState {
@@ -30,6 +53,8 @@ export interface GameState {
   players: Record<string, Player>;
   currentRound: number;
   winner?: string;
+  roundState?: RoundState;
+  spectatorCount?: number;
 }
 
 export const GENRES = [

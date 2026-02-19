@@ -89,6 +89,8 @@ Refer to these skills to prevent regressions:
 | Qodo PR Feedback | PR #5 fixes applied (.beadsignore, gaia-guards-ci.yml, guards_adapter.py) |
 | PII Prevention | PR #26 added skill, fixed issues.jsonl, created migrate_beads.py |
 | PR #26 CI Fixes | Django tests, Playwright E2E, --scan-beads flag |
+| Voting System | Implemented complete voting flow with spectator voting |
+| PII Secret Fix | PR #29 fixed console.log and print() exposing secrets |
 
 ---
 

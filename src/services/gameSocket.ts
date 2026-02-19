@@ -1,9 +1,14 @@
-import { GameState } from '@/types/game';
+import { GameState, RoundState } from '@/types/game';
 
 export type GameSocketMessage =
   | { type: 'game_state_update'; payload: GameState }
   | { type: 'bingo_achievement'; payload: { playerId: string; tiles: string[] } }
-  | { type: 'victory_celebration'; payload: { winnerId: string } };
+  | { type: 'victory_celebration'; payload: { winnerId: string } }
+  | { type: 'vote_submitted'; payload: { voterId: string; votedForId: string; votesRecorded: number } }
+  | { type: 'timer_tick'; payload: { timeRemaining: number } }
+  | { type: 'turn_change'; payload: { round: RoundState } }
+  | { type: 'player_joined'; payload: { playerId: string; playerName: string; isSpectator: boolean } }
+  | { type: 'player_left'; payload: { playerId: string; playerName: string } };
 
 export type MessageHandler = (message: GameSocketMessage) => void;
 
@@ -69,7 +74,9 @@ class GameSocketService {
     }
 
     const wsUrl = this.getWsUrl();
-    console.log('[GameSocket] Connecting to', wsUrl);
+    // Redact secret from URL for logging to prevent PII exposure
+    const safeWsUrl = wsUrl.replace(/secret=[^&]*/, 'secret=***');
+    console.log('[GameSocket] Connecting to', safeWsUrl);
 
     try {
       this.ws = new WebSocket(wsUrl);

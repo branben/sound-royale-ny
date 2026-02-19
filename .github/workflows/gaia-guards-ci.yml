@@ -178,6 +178,9 @@ jobs:
           check_pattern 'error[^\n]*playerSecret' "playerSecret in error context" "${TS_FILES[@]}"
           
           check_pattern 'playerSecret' "playerSecret in GameContext" "src/context/GameContext.tsx"
+          check_pattern 'print.*player_secret' "print() exposing player_secret" "backend/**/*.py"
+          check_pattern 'print.*playerSecret' "print() exposing playerSecret" "backend/**/*.py"
+          check_pattern 'logger.*player_secret' "logger exposing player_secret" "backend/**/*.py"
           
           echo ""
           echo "========================================="
