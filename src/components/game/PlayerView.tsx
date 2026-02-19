@@ -140,7 +140,7 @@ export function PlayerView({ roomId, playerName }: PlayerViewProps) {
 
         {/* Score Display */}
         <ScoreDisplay
-          scoreInfo={null}
+          scoreInfo={playerData.scoreInfo || null}
           playerName={playerData.name}
           isCurrentPlayer={true}
           hasWon={gameState.status === 'finished' && gameState.winner === playerData.id}

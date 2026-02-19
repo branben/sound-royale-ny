@@ -11,6 +11,19 @@ export interface BoardData {
   tiles: Tile[];
 }
 
+export interface ScoreInfo {
+  score: number;
+  base_score: number;
+  bonuses: Array<{
+    type: string;
+    points: number;
+  }>;
+  lines: Array<{
+    type: string;
+    positions: number[];
+  }>;
+}
+
 export interface Player {
   id: string;
   name: string;
@@ -25,6 +38,7 @@ export interface Player {
   eloWins?: number;
   eloLosses?: number;
   eloMatches?: number;
+  scoreInfo?: ScoreInfo;
 }
 
 export interface Vote {

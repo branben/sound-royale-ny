@@ -1,5 +1,7 @@
 from django.test import TestCase
+from django.test import override_settings
 from rest_framework.test import APIClient
+from unittest.mock import patch, MagicMock
 from .models import Room, Player, Round, Vote
 
 
@@ -8,6 +10,14 @@ class GameEngineBasicTestCase(TestCase):
         self.assertTrue(True)
 
 
+@override_settings(
+    CHANNEL_LAYERS={
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+            "CONFIG": {},
+        }
+    }
+)
 class VotingAPITestCase(TestCase):
     def setUp(self):
         self.client = APIClient()
