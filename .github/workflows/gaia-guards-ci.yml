@@ -69,17 +69,17 @@ jobs:
           ls -la backend/game_engine/migrations/
 
       - name: Run Django tests
+        working-directory: ./backend
         env:
-          PYTHONPATH: ./backend
           DJANGO_SETTINGS_MODULE: sound_royale_api.settings
         run: |
           # First, verify Django can find the app
           echo "Checking Django app configuration..."
-          python backend/manage.py check
-          
+          python manage.py check
+
           # Run tests directly (output visible for debugging)
           echo "Running tests..."
-          python backend/manage.py test game_engine --verbosity=2
+          python manage.py test game_engine --verbosity=2
 
   security-integrity:
     name: GAIA Integrity & Signing Check

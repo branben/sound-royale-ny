@@ -15,8 +15,8 @@
     "lint": "npx tsc --noEmit && eslint .",
     "preview": "vite preview",
     "test:e2e": "playwright test",
-    "test:backend": "python backend/manage.py test",
-    "db:migrate": "python manage.py makemigrations && python manage.py migrate"
+    "test:backend": "cd backend && python manage.py test",
+    "db:migrate": "cd backend && python manage.py makemigrations && python manage.py migrate"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
