@@ -1,17 +1,23 @@
 import { useState, useMemo, useRef, createRef } from 'react';
 import { useGame } from '@/context/GameContext';
+import { useUser } from '@/context/UserContext';
 import { BingoBoard } from './BingoBoard';
 import { UploadDrawer } from './UploadDrawer';
+import { VotingPanel } from './VotingPanel';
 import { Tile } from '@/types/game';
 import { Crown, Zap, Users, Trophy, ArrowUpCircle, Clock, PlayCircle } from 'lucide-react';
 
 export function SpectatorView() {
   const { gameState, setTileAudio, updateTileStatus } = useGame();
+  const { userSession } = useUser();
   const [selectedTile, setSelectedTile] = useState<{ playerId: string; tile: Tile } | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
 
   const players = Object.values(gameState.players);
+  const producers = players.filter(p => !p.isSpectator);
+  const spectators = players.filter(p => p.isSpectator);
+  const isCurrentUserSpectator = spectators.some(p => p.id === userSession.playerId);
 
   const boardRefs = useMemo(() => {
     return players.reduce((acc, player) => {
@@ -157,6 +163,21 @@ export function SpectatorView() {
             ))}
           </div>
         </div>
+
+        {/* Voting Panel - Only show for spectators */}
+        {isCurrentUserSpectator && userSession.playerSecret && gameState.roundState && (
+          <div className="mb-6">
+            <VotingPanel
+              roomId={gameState.roomCode || gameState.gameId}
+              playerSecret={userSession.playerSecret}
+              producers={producers}
+              currentGenre={gameState.roundState.currentTileGenre || 'Unknown'}
+              votingOpen={gameState.roundState.votingOpen || false}
+              votesRecorded={gameState.roundState.votesRecorded || 0}
+              spectatorCount={gameState.spectatorCount || spectators.length}
+            />
+          </div>
+        )}
 
         <div className="mb-4 flex items-center gap-2 overflow-x-auto pb-2">
           <span className="text-sm text-muted-foreground shrink-0">Jump to:</span>

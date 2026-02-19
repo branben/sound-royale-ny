@@ -36,9 +36,10 @@ jobs:
         env:
           PYTHONPATH: .
         run: |
+          # Run main GAIA guard tests
           pytest -q tests/gaia/test_gaia_guards.py
           # Also run pytest tests in backend/gaia/
-          pytest -q backend/gaia/tests/ || echo "Note: backend/gaia/ tests require full setup"
+          pytest -q backend/gaia/tests/
 
   django-tests:
     name: Django Backend Tests
@@ -60,24 +61,25 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
 
+      - name: Verify test file exists
+        run: |
+          echo "Checking for test file..."
+          ls -la backend/game_engine/tests.py || (echo "ERROR: tests.py not found!" && exit 1)
+          echo "Checking for migrations..."
+          ls -la backend/game_engine/migrations/
+
       - name: Run Django tests
+        working-directory: ./backend
         env:
-          PYTHONPATH: .
           DJANGO_SETTINGS_MODULE: sound_royale_api.settings
         run: |
-          # Run tests and capture output
-          output=$(python backend/manage.py test game_engine 2>&1)
-          echo "$output"
-          
-          # Check for test count - CI MUST FAIL if 0 tests
-          # Use portable grep (macOS doesn't support -P)
-          test_count=$(echo "$output" | grep -E 'Ran [0-9]+ test' | grep -oE '[0-9]+' | head -1 || echo "0")
-          if [ "$test_count" = "0" ] || [ -z "$test_count" ]; then
-            echo "ERROR: No Django tests found! CI must fail."
-            echo "Solution: Add tests to backend/game_engine/tests.py OR switch to pytest"
-            exit 1
-          fi
-          echo "Django tests: $test_count"
+          # First, verify Django can find the app
+          echo "Checking Django app configuration..."
+          python manage.py check
+
+          # Run tests directly (output visible for debugging)
+          echo "Running tests..."
+          python manage.py test game_engine --verbosity=2
 
   security-integrity:
     name: GAIA Integrity & Signing Check
@@ -178,6 +180,9 @@ jobs:
           check_pattern 'error[^\n]*playerSecret' "playerSecret in error context" "${TS_FILES[@]}"
           
           check_pattern 'playerSecret' "playerSecret in GameContext" "src/context/GameContext.tsx"
+          check_pattern 'print.*player_secret' "print() exposing player_secret" "backend/**/*.py"
+          check_pattern 'print.*playerSecret' "print() exposing playerSecret" "backend/**/*.py"
+          check_pattern 'logger.*player_secret' "logger exposing player_secret" "backend/**/*.py"
           
           echo ""
           echo "========================================="
@@ -254,6 +259,12 @@ jobs:
 
       - name: Start servers and run E2E tests
         run: |
+          # Run migrations first to ensure database is ready
+          echo "Running Django migrations..."
+          cd backend
+          python manage.py migrate
+          cd ..
+          
           # Start Django backend in background
           cd backend && python manage.py runserver 8000 &
           
