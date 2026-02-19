@@ -1,7 +1,165 @@
 # Sound Royale - Current Plan
 
-**Last Updated:** 2026-02-17
-**Status:** ✅ COMPLETED
+**Last Updated:** 2026-02-18
+**Status:** 🔄 IN PROGRESS - CI Workflow Fixes for PR #30
+
+---
+
+## 🎯 Active Mission: Fix CI Workflow for PR #30 - IN PROGRESS
+
+**Context:** PR #30 has 2 failing CI checks:
+1. Django Backend Tests - 0 tests found (but tests exist!)
+2. Playwright E2E Tests - timeout after 4m
+
+**Changes Made:**
+1. Line 73: `PYTHONPATH: .` → `PYTHONPATH: ./backend` (fix Django app discovery)
+2. Line 82: Removed broken `--dry-run 2>&1 || true` (flag doesn't exist in Django)
+3. Lines 273-277: Added migrations step before E2E tests
+
+**Priority:** High (blocks PR merge)
+
+---
+
+## 📋 Evidence Collection Checklist (Verification Before Completion)
+
+Per `.gaia_skills/verification-before-completion/SKILL.md` - NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE.
+
+### Local Verification (COMPLETED)
+
+| # | Check | Command | Evidence Required | Status |
+|---|-------|---------|-------------------|--------|
+| 1 | Django test discovery | `cd backend && DJANGO_SETTINGS_MODULE=sound_royale_api.settings PYTHONPATH=./backend python manage.py test game_engine --verbosity=2` | Output showing "Ran 9 tests" | ✅ PASS |
+| 2 | Workflow YAML valid | `python -c "import yaml; yaml.safe_load(open('.github/workflows/gaia-guards-ci.yml'))"` | No errors | ✅ PASS |
+| 3 | Migrations check | `cd backend && python manage.py migrate --check` | No pending migrations | ✅ PASS |
+| 4 | Migrations run successfully | `cd backend && python manage.py migrate` | Success message | ✅ PASS (via test run) |
+
+### Local Evidence Captured
+
+```
+✅ Evidence #1
+   Command: DJANGO_SETTINGS_MODULE=sound_royale_api.settings PYTHONPATH=./backend python manage.py test game_engine --verbosity=2
+   Exit Code: 0
+   Result: Found 9 test(s). Ran 9 tests in 0.100s OK
+   Status: PASS
+
+✅ Evidence #2
+   Command: python -c "import yaml; yaml.safe_load(open('.github/workflows/gaia-guards-ci.yml'))"
+   Exit Code: 0
+   Result: YAML syntax valid
+   Status: PASS
+
+✅ Evidence #3
+   Command: python manage.py migrate --check
+   Exit Code: 0
+   Result: (no output = no pending migrations)
+   Status: PASS
+```
+
+### CI Verification (COMPLETED - PARTIAL SUCCESS)
+
+| # | Check | Evidence Required | Status |
+|---|-------|-------------------|--------|
+| 5 | GAIA guard unit tests | Pass with pytest | ✅ PASS (25s) |
+| 6 | GAIA Integrity & Signing | Pass all checks | ✅ PASS (1m1s) |
+| 7 | Django tests in CI | GitHub Actions log showing "Ran 9 tests" | ❌ FAIL (23s) |
+| 8 | E2E tests start | Migrations run before server start | ❌ FAIL (4m2s) |
+
+### CI Evidence Captured
+
+```
+✅ Evidence #5 - GAIA guard unit tests
+   Status: PASS
+   Duration: 25s
+   Job ID: 64094781566
+
+✅ Evidence #6 - GAIA Integrity & Signing Check  
+   Status: PASS
+   Duration: 1m1s
+   Job ID: 64094781581
+   Details: All checks passed including TypeScript typecheck, build, and secret grep
+
+❌ Evidence #7 - Django Backend Tests
+   Status: FAIL
+   Duration: 23s
+   Job ID: 64094781595
+   URL: https://github.com/branben/sound-royale-ny/actions/runs/22166501388/job/64094781595
+   Error: Process exits with code 1 immediately after "Running tests..."
+   Root Cause: Script captures output in variable but exits before echoing when test fails
+   Test Output: NOT VISIBLE (output capture hides error details)
+
+✅/❌ Evidence #8 - Playwright E2E Tests
+   Status: PARTIAL (31 passed, 5 failed)
+   Duration: 2.2m + cleanup
+   Job ID: 64094781591
+   URL: https://github.com/branben/sound-royale-ny/actions/runs/22166501388/job/64094781591
+   Migrations: ✅ Working ("Applying game_engine.0006_voting_system... OK")
+   Servers: ✅ Starting correctly (Django on 8000, Vite on 8080)
+   Test Results: 31 passed, 5 failed
+   Failures: All in score-display.spec.ts (missing [data-testid="score-display"] element)
+```
+
+### Summary
+
+**2 of 4 CI jobs passing, 1 partial, 1 failing** 
+
+| Job | Status | Details |
+|-----|--------|---------|
+| GAIA guard unit tests | ✅ PASS | pytest working correctly |
+| GAIA Integrity & Signing | ✅ PASS | All checks pass |
+| Django Backend Tests | ❌ FAIL | Exit code 1, output hidden |
+| Playwright E2E Tests | ⚠️ PARTIAL | 31/36 tests passed |
+
+### Root Cause Analysis
+
+**Django Tests Failure:**
+The test command captures output: `output=$(python backend/manage.py test game_engine --verbosity=2 2>&1)`
+When the test command fails (exit code 1), the script immediately exits due to GitHub Actions' errexit behavior, BEFORE echoing the captured output.
+
+**Fix:** Remove output capture and let tests output directly, or add `set +e` before the test command.
+
+**E2E Test Failures:**
+- Migrations ARE working (0006_voting_system applied successfully)
+- Servers ARE starting (Django on 8000, Vite on 8080)
+- 31/36 tests passing
+- 5 tests failing in score-display.spec.ts (UI element not found)
+
+These failures are likely due to missing ScoreDisplay component implementation, not CI issues.
+
+### Changes Applied
+
+1. ✅ **Fixed Django test output capture** (commit 41ece4d2)
+   - Removed output variable capture that was hiding errors
+   - Tests now run directly with visible output
+   - Pushed to trigger new CI run
+
+2. ✅ **Applied Option B: Fixed working-directory** (commit 573eee1a)
+   - Added `working-directory: ./backend` to Django test step
+   - Removed `PYTHONPATH: ./backend` workaround
+   - Updated `package.json` scripts for consistency:
+     - `test:backend`: `cd backend && python manage.py test`
+     - `db:migrate`: `cd backend && python manage.py migrate`
+   - Verified locally: `npm run test:backend` → Ran 9 tests OK
+   - **Pushed to trigger new CI run**
+
+### Next Steps
+
+1. **Monitor CI** for Django test results (should now pass)
+2. **If Django tests pass**: Address E2E test failures (ScoreDisplay component)
+3. **If Django tests still fail**: Review CI output for new errors
+
+### Evidence Format (Copy-Paste Template)
+
+```
+✅ Evidence #[number]
+   Command: [exact command run]
+   Exit Code: [0 or error]
+   Result: [key output lines]
+   "Status: [PASS/FAIL]"
+```
+
+---
+
+## ✅ COMPLETED (Previous Mission)
 
 ---
 
