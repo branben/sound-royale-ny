@@ -42,8 +42,13 @@ export function VotingPanel({
       await gameApi.castVote(roomId, playerSecret, producerId);
       setHasVoted(true);
       toast.success('Vote submitted!');
-    } catch (error) {
-      console.error('Vote error:', error);
+    } catch (error: unknown) {
+      const message = error instanceof Error 
+        ? error.message 
+        : typeof error === 'object' && error !== null && 'message' in error
+          ? String((error as { message: unknown }).message)
+          : 'Unknown error';
+      console.error('Vote error:', message);
       toast.error('Failed to submit vote. Please try again.');
     } finally {
       setIsVoting(false);

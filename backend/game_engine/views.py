@@ -12,6 +12,9 @@ from asgiref.sync import async_to_sync
 import random
 import threading
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 from .models import Room, Player, Tile, Round, Vote
 from .serializers import (
@@ -95,8 +98,10 @@ def start_timer_broadcast(room_id, duration):
                         broadcast_game_update(room)
                     break
                 broadcast_timer_tick(room)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(
+                f"Error in timer thread for room {room_id}: {e}", exc_info=True
+            )
         finally:
             _active_timers.pop(room_id, None)
 
@@ -594,7 +599,7 @@ class RoomViewSet(viewsets.ModelViewSet):
                 )
 
             votes_for = {}
-            for vote in current_round.votes.all():
+            for vote in current_round.votes.select_related("voted_for").all():
                 voted_for_id = str(vote.voted_for.id)
                 votes_for[voted_for_id] = votes_for.get(voted_for_id, 0) + 1
 
@@ -761,7 +766,7 @@ class RoomViewSet(viewsets.ModelViewSet):
         Determines winner and advances the round.
         """
         votes_for = {}
-        for vote in current_round.votes.all():
+        for vote in current_round.votes.select_related("voted_for").all():
             voted_for_id = str(vote.voted_for.id)
             votes_for[voted_for_id] = votes_for.get(voted_for_id, 0) + 1
 
