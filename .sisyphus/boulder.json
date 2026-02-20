@@ -1,7 +1,10 @@
 {
   "active_plan": "/Users/brandonbennett/pursuit/sound-royale-ny/docs/CURRENT_PLAN.md",
   "started_at": "2026-02-03T15:06:02.851Z",
-  "session_ids": ["ses_3dbf5f932ffeEzWPQjPJ2S2W95"],
+  "session_ids": [
+    "ses_3dbf5f932ffeEzWPQjPJ2S2W95",
+    "ses_388cb374dffeabTPDRxjRsFmt5"
+  ],
   "plan_name": "security-fixes-and-ui-ux-improvements",
   "status": "completed",
   "completed_at": "2026-02-03T16:45:00.000Z"

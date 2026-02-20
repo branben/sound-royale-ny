@@ -85,6 +85,7 @@ class PlayerSerializer(serializers.ModelSerializer):
             "id",
             "joined_at",
             "is_connected",
+            "elo_rating",
             "elo_wins",
             "elo_losses",
             "elo_matches",
@@ -212,7 +213,7 @@ class GameStateSerializer(serializers.ModelSerializer):
             return None
 
         votes_list = []
-        for vote in current_round.votes.all():
+        for vote in current_round.votes.select_related("voter", "voted_for").all():
             votes_list.append(
                 {
                     "id": str(vote.id),
