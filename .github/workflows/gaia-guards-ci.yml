@@ -73,7 +73,7 @@ jobs:
         working-directory: ./backend
         env:
           DJANGO_SETTINGS_MODULE: sound_royale_api.settings
-          PYTHONPATH: ./backend
+          PYTHONPATH: .
         run: |
           echo "Running pytest tests..."
           TEST_OUTPUT=$(pytest gaia/tests/ -v --tb=short 2>&1) || true
