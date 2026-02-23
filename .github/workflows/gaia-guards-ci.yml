@@ -76,15 +76,22 @@ jobs:
           PYTHONPATH: .
         run: |
           echo "Running pytest tests..."
-          TEST_OUTPUT=$(pytest gaia/tests/ -v --tb=short 2>&1) || true
+          set +e
+          TEST_OUTPUT=$(pytest gaia/tests/ -v --tb=short 2>&1)
+          PYTEST_EXIT=$?
+          set -e
           echo "$TEST_OUTPUT"
-          
-          # Verify tests ran (at least 1 test must pass)
-          if echo "$TEST_OUTPUT" | grep -qE "passed"; then
-            echo "Tests executed successfully"
-          else
-            echo "ERROR: No tests were executed!"
+
+          # Verify tests were collected/executed (avoid false-green on 0 tests)
+          if ! echo "$TEST_OUTPUT" | grep -qE "collected [1-9][0-9]* items"; then
+            echo "ERROR: No tests were collected!"
             exit 1
+          fi
+
+          # Fail CI if pytest failed
+          if [ "$PYTEST_EXIT" -ne 0 ]; then
+            echo "ERROR: Pytest failed!"
+            exit "$PYTEST_EXIT"
           fi
 
   security-integrity:
