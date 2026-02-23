@@ -27,7 +27,11 @@ class VotingAPITestCase(TestCase):
         )
 
         self.producer1 = Player.objects.create(
-            room=self.room, name="Producer1", is_spectator=False, elo_rating=1200
+            room=self.room,
+            name="Producer1",
+            is_spectator=False,
+            elo_rating=1200,
+            is_host=True,
         )
 
         self.producer2 = Player.objects.create(
