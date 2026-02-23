@@ -48,15 +48,23 @@ test.describe('Producer Flow', () => {
       });
 
       // Set up session for producer
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'Player1',
-          playerId: Object.keys(lobbyState.players)[1],
-          playerSecret: 'producer-secret',
-          isSpectator: false,
-          isHost: false
-        }));
-      });
+      const playerId = Object.keys(lobbyState.players)[1];
+
+      await page.addInitScript(
+        ({ playerId }) => {
+          localStorage.setItem(
+            'userSession',
+            JSON.stringify({
+              playerName: 'Player1',
+              playerId,
+              playerSecret: 'producer-secret',
+              isSpectator: false,
+              isHost: false,
+            })
+          );
+        },
+        { playerId }
+      );
 
       await page.goto(`/room/${lobbyState.id}`);
 
