@@ -30,6 +30,7 @@ interface PlayerData {
   avatar?: string;
   isSpectator: boolean;
   isConnected: boolean;
+  isHost: boolean;
   board: {
     tiles: TileData[];
   };
