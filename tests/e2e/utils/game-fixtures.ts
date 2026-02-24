@@ -337,7 +337,7 @@ export function createMockLobbyState(
   });
 
   return createMockGameState({
-    status: 'waiting',
+    status: 'lobby',
     players,
     roundState: null,
   });
@@ -637,4 +637,32 @@ export function updateELORatings(
   });
 
   return { ...state, players: updatedPlayers };
+}
+
+/**
+ * Convert GameStateData (fixtures format) to RoomResponse (API format)
+ * This is needed because the frontend expects API format but tests provide fixture format
+ */
+export function toRoomResponse(gameState: GameStateData): Record<string, unknown> {
+  return {
+    code: gameState.id,
+    status: gameState.status,
+    current_round: gameState.currentRound,
+    winner: gameState.winner,
+    players: Object.values(gameState.players).map(player => ({
+      id: player.id,
+      name: player.name,
+      avatar: player.avatar,
+      // Only include tiles for non-spectators
+      tiles: (!player.isSpectator && player.board?.tiles) ? player.board.tiles.map(tile => ({
+        id: tile.id,
+        genre: tile.genre,
+        status: tile.status,
+        // Include audio_url only if present
+        ...(tile.audioUrl && { audio_url: tile.audioUrl }),
+      })) : [],
+      is_connected: player.isConnected,
+      is_spectator: player.isSpectator,
+    })),
+  };
 }

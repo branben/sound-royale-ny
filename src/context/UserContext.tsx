@@ -58,12 +58,23 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const playerName = safeLocalStorage.getItem('playerName');
     const playerId = safeLocalStorage.getItem('playerId');
     const playerSecret = safeLocalStorage.getItem('playerSecret');
+    // Also check for isSpectator in localStorage (set by E2E tests)
+    const stored = safeLocalStorage.getItem('userSession');
+    let isSpectator = false;
+    if (stored) {
+      try {
+        const session = JSON.parse(stored);
+        isSpectator = session.isSpectator ?? false;
+      } catch {
+        // ignore parse errors
+      }
+    }
     
     return {
       playerName,
       playerId,
       playerSecret,
-      isSpectator: false,
+      isSpectator,
       isAuthenticated: !!(playerId && playerSecret),
     };
   });
@@ -93,7 +104,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }, [userSession.playerSecret]);
 
   const setPlayerName = (name: string) => {
-    setUserSession(prev => ({ ...prev, playerName: name.trim() }));
+    setUserSession(prev => ({ ...prev, playerName: name?.trim() || null }));
   };
 
   const setPlayerCredentials = (id: string, secret: string) => {

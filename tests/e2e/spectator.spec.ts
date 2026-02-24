@@ -9,6 +9,7 @@ import {
   createMockSpectator,
   createMockVote,
   createMockBoard,
+  toRoomResponse,
 } from './utils/game-fixtures';
 
 const API_BASE_URL = 'http://localhost:8000/api';
@@ -137,10 +138,15 @@ test.describe('Spectator Voting', () => {
   });
 
   test('should see voting panel when voting is open', async ({ page }) => {
+    // Capture console messages
+    page.on('console', msg => console.log('Browser console:', msg.type(), msg.text()));
+    page.on('pageerror', err => console.log('Browser error:', err));
     const producer1 = createMockProducer('Producer1', { eloRating: 1200 });
     const producer2 = createMockProducer('Producer2', { eloRating: 1300 });
     const spectator = createMockSpectator('TestSpectator');
     
+    // Use a static room code like the working tests do
+    const roomCode = 'test-room';
     const gameState = createMockVotingState(
       {
         [producer1.id]: producer1,
@@ -150,26 +156,57 @@ test.describe('Spectator Voting', () => {
       1,
       []
     );
+    gameState.id = roomCode;
+    gameState.gameId = roomCode;
 
+    // Handle different API endpoints correctly
+    const spectatorId = spectator.id; // Store for rejoin handler
     await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: gameState });
+      const url = route.request().url();
+      
+      if (url.includes('/rejoin_game/')) {
+        // Rejoin returns Player data for the current user
+        const player = Object.values(gameState.players).find(p => p.id === spectatorId);
+        if (player) {
+          // Transform to Player format expected by frontend
+          const playerResponse = {
+            id: player.id,
+            name: player.name,
+            avatar: player.avatar,
+            board: { tiles: player.board?.tiles || [] },
+            playerSecret: 'spectator-secret',
+            isConnected: player.isConnected,
+            isSpectator: player.isSpectator,
+          };
+          await route.fulfill({ json: playerResponse });
+        } else {
+          await route.fulfill({ status: 404, json: null });
+        }
+      } else if (url.includes('/rooms/')) {
+        // Transform to RoomResponse format expected by frontend
+        await route.fulfill({ json: toRoomResponse(gameState) });
       } else {
         await route.continue();
       }
     });
 
-    await page.addInitScript(() => {
+    // Pass values to browser context via addInitScript parameter
+    await page.addInitScript((spectatorId) => {
+      // Set individual keys for UserContext
+      localStorage.setItem('playerName', 'TestSpectator');
+      localStorage.setItem('playerId', spectatorId);
+      localStorage.setItem('playerSecret', 'spectator-secret');
+      // Also set userSession JSON for GameContext
       localStorage.setItem('userSession', JSON.stringify({
         playerName: 'TestSpectator',
-        playerId: spectator.id,
+        playerId: spectatorId,
         playerSecret: 'spectator-secret',
         isSpectator: true,
         isHost: false
       }));
-    });
+    }, spectator.id);
 
-    await page.goto(`/room/${gameState.id}?spectator=true`);
+    await page.goto(`/room/${roomCode}?spectator=true`);
 
     // Should see voting panel
     await expect(page.locator('[data-testid="voting-panel"]')).toBeVisible({ timeout: 10000 });
@@ -186,25 +223,54 @@ test.describe('Spectator Voting', () => {
       [spectator.id]: spectator,
     });
 
+    // Handle different API endpoints correctly
+    const spectatorId = spectator.id; // Store for rejoin handler
     await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: gameState });
+      const url = route.request().url();
+      
+      if (url.includes('/rejoin_game/')) {
+        // Rejoin returns Player data for the current user
+        const player = Object.values(gameState.players).find(p => p.id === spectatorId);
+        if (player) {
+          // Transform to Player format expected by frontend
+          const playerResponse = {
+            id: player.id,
+            name: player.name,
+            avatar: player.avatar,
+            board: { tiles: player.board?.tiles || [] },
+            playerSecret: 'spectator-secret',
+            isConnected: player.isConnected,
+            isSpectator: player.isSpectator,
+          };
+          await route.fulfill({ json: playerResponse });
+        } else {
+          await route.fulfill({ status: 404, json: null });
+        }
+      } else if (url.includes('/rooms/')) {
+        // Transform to RoomResponse format expected by frontend
+        await route.fulfill({ json: toRoomResponse(gameState) });
       } else {
         await route.continue();
       }
     });
 
-    await page.addInitScript(() => {
+    // Pass values to browser context via addInitScript parameter
+    await page.addInitScript((spectatorId) => {
+      // Set individual keys for UserContext
+      localStorage.setItem('playerName', 'TestSpectator');
+      localStorage.setItem('playerId', spectatorId);
+      localStorage.setItem('playerSecret', 'spectator-secret');
+      // Also set userSession JSON for GameContext
       localStorage.setItem('userSession', JSON.stringify({
         playerName: 'TestSpectator',
-        playerId: spectator.id,
+        playerId: spectatorId,
         playerSecret: 'spectator-secret',
         isSpectator: true,
         isHost: false
       }));
-    });
+    }, spectator.id);
 
-    await page.goto(`/room/${gameState.id}?spectator=true`);
+    await page.goto(`/room/${roomCode}?spectator=true`);
 
     // Should see both producers as voting options
     await expect(page.locator('text=Producer1')).toBeVisible();
@@ -227,7 +293,7 @@ test.describe('Spectator Voting', () => {
     await page.route('**/api/**', async (route) => {
       const url = route.request().url();
       if (url.includes('/rooms/') && !url.includes('/vote')) {
-        await route.fulfill({ json: gameState });
+        await route.fulfill({ json: toRoomResponse(gameState) });
       } else if (url.includes('/vote')) {
         voteSubmitted = true;
         await route.fulfill({ status: 200, json: { success: true } });
@@ -236,17 +302,23 @@ test.describe('Spectator Voting', () => {
       }
     });
 
-    await page.addInitScript(() => {
+    // Pass values to browser context via addInitScript parameter
+    await page.addInitScript((spectatorId) => {
+      // Set individual keys for UserContext
+      localStorage.setItem('playerName', 'TestSpectator');
+      localStorage.setItem('playerId', spectatorId);
+      localStorage.setItem('playerSecret', 'spectator-secret');
+      // Also set userSession JSON for GameContext
       localStorage.setItem('userSession', JSON.stringify({
         playerName: 'TestSpectator',
-        playerId: spectator.id,
+        playerId: spectatorId,
         playerSecret: 'spectator-secret',
         isSpectator: true,
         isHost: false
       }));
-    });
+    }, spectator.id);
 
-    await page.goto(`/room/${gameState.id}?spectator=true`);
+    await page.goto(`/room/${roomCode}?spectator=true`);
 
     // Click vote button for Producer1
     const voteButton = page.locator(`button:has-text("Vote"), [data-vote-for="${producer1.id}"]`).first();
@@ -268,25 +340,54 @@ test.describe('Spectator Voting', () => {
       [spectator.id]: spectator,
     });
 
+    // Handle different API endpoints correctly
+    const spectatorId = spectator.id; // Store for rejoin handler
     await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: gameState });
+      const url = route.request().url();
+      
+      if (url.includes('/rejoin_game/')) {
+        // Rejoin returns Player data for the current user
+        const player = Object.values(gameState.players).find(p => p.id === spectatorId);
+        if (player) {
+          // Transform to Player format expected by frontend
+          const playerResponse = {
+            id: player.id,
+            name: player.name,
+            avatar: player.avatar,
+            board: { tiles: player.board?.tiles || [] },
+            playerSecret: 'spectator-secret',
+            isConnected: player.isConnected,
+            isSpectator: player.isSpectator,
+          };
+          await route.fulfill({ json: playerResponse });
+        } else {
+          await route.fulfill({ status: 404, json: null });
+        }
+      } else if (url.includes('/rooms/')) {
+        // Transform to RoomResponse format expected by frontend
+        await route.fulfill({ json: toRoomResponse(gameState) });
       } else {
         await route.continue();
       }
     });
 
-    await page.addInitScript(() => {
+    // Pass values to browser context via addInitScript parameter
+    await page.addInitScript((spectatorId) => {
+      // Set individual keys for UserContext
+      localStorage.setItem('playerName', 'TestSpectator');
+      localStorage.setItem('playerId', spectatorId);
+      localStorage.setItem('playerSecret', 'spectator-secret');
+      // Also set userSession JSON for GameContext
       localStorage.setItem('userSession', JSON.stringify({
         playerName: 'TestSpectator',
-        playerId: spectator.id,
+        playerId: spectatorId,
         playerSecret: 'spectator-secret',
         isSpectator: true,
         isHost: false
       }));
-    });
+    }, spectator.id);
 
-    await page.goto(`/room/${gameState.id}?spectator=true`);
+    await page.goto(`/room/${roomCode}?spectator=true`);
 
     // Should NOT see spectator as voting option (they have no board)
     await expect(page.locator('text=TestSpectator')).not.toBeVisible();
@@ -310,25 +411,54 @@ test.describe('Spectator Real-time Updates', () => {
       [spectator.id]: spectator,
     });
 
+    // Handle different API endpoints correctly
+    const spectatorId = spectator.id; // Store for rejoin handler
     await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: gameState });
+      const url = route.request().url();
+      
+      if (url.includes('/rejoin_game/')) {
+        // Rejoin returns Player data for the current user
+        const player = Object.values(gameState.players).find(p => p.id === spectatorId);
+        if (player) {
+          // Transform to Player format expected by frontend
+          const playerResponse = {
+            id: player.id,
+            name: player.name,
+            avatar: player.avatar,
+            board: { tiles: player.board?.tiles || [] },
+            playerSecret: 'spectator-secret',
+            isConnected: player.isConnected,
+            isSpectator: player.isSpectator,
+          };
+          await route.fulfill({ json: playerResponse });
+        } else {
+          await route.fulfill({ status: 404, json: null });
+        }
+      } else if (url.includes('/rooms/')) {
+        // Transform to RoomResponse format expected by frontend
+        await route.fulfill({ json: toRoomResponse(gameState) });
       } else {
         await route.continue();
       }
     });
 
-    await page.addInitScript(() => {
+    // Pass values to browser context via addInitScript parameter
+    await page.addInitScript((spectatorId) => {
+      // Set individual keys for UserContext
+      localStorage.setItem('playerName', 'TestSpectator');
+      localStorage.setItem('playerId', spectatorId);
+      localStorage.setItem('playerSecret', 'spectator-secret');
+      // Also set userSession JSON for GameContext
       localStorage.setItem('userSession', JSON.stringify({
         playerName: 'TestSpectator',
-        playerId: spectator.id,
+        playerId: spectatorId,
         playerSecret: 'spectator-secret',
         isSpectator: true,
         isHost: false
       }));
-    });
+    }, spectator.id);
 
-    await page.goto(`/room/${gameState.id}?spectator=true`);
+    await page.goto(`/room/${roomCode}?spectator=true`);
 
     // Should see producer's board
     await expect(page.locator('[data-testid="game-board"]')).toBeVisible();
@@ -349,9 +479,32 @@ test.describe('Spectator Real-time Updates', () => {
       [spectator2.id]: spectator2,
     }, 1, [vote]);
 
+    // Handle different API endpoints correctly
+    const spectatorId = spectator.id; // Store for rejoin handler
     await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: gameState });
+      const url = route.request().url();
+      
+      if (url.includes('/rejoin_game/')) {
+        // Rejoin returns Player data for the current user
+        const player = Object.values(gameState.players).find(p => p.id === spectatorId);
+        if (player) {
+          // Transform to Player format expected by frontend
+          const playerResponse = {
+            id: player.id,
+            name: player.name,
+            avatar: player.avatar,
+            board: { tiles: player.board?.tiles || [] },
+            playerSecret: 'spectator-secret',
+            isConnected: player.isConnected,
+            isSpectator: player.isSpectator,
+          };
+          await route.fulfill({ json: playerResponse });
+        } else {
+          await route.fulfill({ status: 404, json: null });
+        }
+      } else if (url.includes('/rooms/')) {
+        // Transform to RoomResponse format expected by frontend
+        await route.fulfill({ json: toRoomResponse(gameState) });
       } else {
         await route.continue();
       }
@@ -367,10 +520,10 @@ test.describe('Spectator Real-time Updates', () => {
       }));
     });
 
-    await page.goto(`/room/${gameState.id}?spectator=true`);
+    await page.goto(`/room/${roomCode}?spectator=true`);
 
-    // Should see vote count
-    await expect(page.locator('text=1 vote')).toBeVisible();
+    // Should see vote count (format: X/Y votes)
+    await expect(page.locator('text=1/2 votes')).toBeVisible();
   });
 
   test('should see round transitions', async ({ page }) => {
@@ -383,25 +536,54 @@ test.describe('Spectator Real-time Updates', () => {
       [spectator.id]: spectator,
     }, 1);
 
+    // Handle different API endpoints correctly
+    const spectatorId = spectator.id; // Store for rejoin handler
     await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: gameState });
+      const url = route.request().url();
+      
+      if (url.includes('/rejoin_game/')) {
+        // Rejoin returns Player data for the current user
+        const player = Object.values(gameState.players).find(p => p.id === spectatorId);
+        if (player) {
+          // Transform to Player format expected by frontend
+          const playerResponse = {
+            id: player.id,
+            name: player.name,
+            avatar: player.avatar,
+            board: { tiles: player.board?.tiles || [] },
+            playerSecret: 'spectator-secret',
+            isConnected: player.isConnected,
+            isSpectator: player.isSpectator,
+          };
+          await route.fulfill({ json: playerResponse });
+        } else {
+          await route.fulfill({ status: 404, json: null });
+        }
+      } else if (url.includes('/rooms/')) {
+        // Transform to RoomResponse format expected by frontend
+        await route.fulfill({ json: toRoomResponse(gameState) });
       } else {
         await route.continue();
       }
     });
 
-    await page.addInitScript(() => {
+    // Pass values to browser context via addInitScript parameter
+    await page.addInitScript((spectatorId) => {
+      // Set individual keys for UserContext
+      localStorage.setItem('playerName', 'TestSpectator');
+      localStorage.setItem('playerId', spectatorId);
+      localStorage.setItem('playerSecret', 'spectator-secret');
+      // Also set userSession JSON for GameContext
       localStorage.setItem('userSession', JSON.stringify({
         playerName: 'TestSpectator',
-        playerId: spectator.id,
+        playerId: spectatorId,
         playerSecret: 'spectator-secret',
         isSpectator: true,
         isHost: false
       }));
-    });
+    }, spectator.id);
 
-    await page.goto(`/room/${gameState.id}?spectator=true`);
+    await page.goto(`/room/${roomCode}?spectator=true`);
 
     // Should see round indicator
     await expect(page.locator('text=Round 1')).toBeVisible();
@@ -421,25 +603,54 @@ test.describe('Spectator Role Transition', () => {
     
     const gameState = createMockLobbyState('Producer1', [], ['TestSpectator']);
 
+    // Handle different API endpoints correctly
+    const spectatorId = spectator.id; // Store for rejoin handler
     await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: gameState });
+      const url = route.request().url();
+      
+      if (url.includes('/rejoin_game/')) {
+        // Rejoin returns Player data for the current user
+        const player = Object.values(gameState.players).find(p => p.id === spectatorId);
+        if (player) {
+          // Transform to Player format expected by frontend
+          const playerResponse = {
+            id: player.id,
+            name: player.name,
+            avatar: player.avatar,
+            board: { tiles: player.board?.tiles || [] },
+            playerSecret: 'spectator-secret',
+            isConnected: player.isConnected,
+            isSpectator: player.isSpectator,
+          };
+          await route.fulfill({ json: playerResponse });
+        } else {
+          await route.fulfill({ status: 404, json: null });
+        }
+      } else if (url.includes('/rooms/')) {
+        // Transform to RoomResponse format expected by frontend
+        await route.fulfill({ json: toRoomResponse(gameState) });
       } else {
         await route.continue();
       }
     });
 
-    await page.addInitScript(() => {
+    // Pass values to browser context via addInitScript parameter
+    await page.addInitScript((spectatorId) => {
+      // Set individual keys for UserContext
+      localStorage.setItem('playerName', 'TestSpectator');
+      localStorage.setItem('playerId', spectatorId);
+      localStorage.setItem('playerSecret', 'spectator-secret');
+      // Also set userSession JSON for GameContext
       localStorage.setItem('userSession', JSON.stringify({
         playerName: 'TestSpectator',
-        playerId: spectator.id,
+        playerId: spectatorId,
         playerSecret: 'spectator-secret',
         isSpectator: true,
         isHost: false
       }));
-    });
+    }, spectator.id);
 
-    await page.goto(`/room/${gameState.id}?spectator=true`);
+    await page.goto(`/room/${roomCode}?spectator=true`);
 
     // Should see request to play button
     await expect(page.locator('button:has-text("Request to Play"), [data-testid="request-to-play"]')).toBeVisible({ timeout: 10000 });
@@ -456,7 +667,7 @@ test.describe('Spectator Role Transition', () => {
     await page.route('**/api/**', async (route) => {
       const url = route.request().url();
       if (url.includes('/rooms/') && !url.includes('/join')) {
-        await route.fulfill({ json: gameState });
+        await route.fulfill({ json: toRoomResponse(gameState) });
       } else if (url.includes('/join')) {
         requestMade = true;
         await route.fulfill({ status: 200, json: { success: true, playerId: spectator.id } });
@@ -465,17 +676,23 @@ test.describe('Spectator Role Transition', () => {
       }
     });
 
-    await page.addInitScript(() => {
+    // Pass values to browser context via addInitScript parameter
+    await page.addInitScript((spectatorId) => {
+      // Set individual keys for UserContext
+      localStorage.setItem('playerName', 'TestSpectator');
+      localStorage.setItem('playerId', spectatorId);
+      localStorage.setItem('playerSecret', 'spectator-secret');
+      // Also set userSession JSON for GameContext
       localStorage.setItem('userSession', JSON.stringify({
         playerName: 'TestSpectator',
-        playerId: spectator.id,
+        playerId: spectatorId,
         playerSecret: 'spectator-secret',
         isSpectator: true,
         isHost: false
       }));
-    });
+    }, spectator.id);
 
-    await page.goto(`/room/${gameState.id}?spectator=true`);
+    await page.goto(`/room/${roomCode}?spectator=true`);
 
     // Click request to play button
     const requestButton = page.locator('button:has-text("Request to Play"), [data-testid="request-to-play"]').first();
