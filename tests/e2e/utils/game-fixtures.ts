@@ -64,7 +64,7 @@ interface RoundStateData {
 interface GameStateData {
   id: string;
   gameId: string;
-  status: 'waiting' | 'playing' | 'finished';
+  status: 'lobby' | 'playing' | 'finished';
   currentRound: number;
   winner: string | null;
   players: Record<string, PlayerData>;
@@ -193,6 +193,7 @@ export function createMockPlayer(
     name,
     avatar: undefined,
     isSpectator,
+    isHost,
     isConnected,
     board: isSpectator ? { tiles: [] } : board,
     scoreInfo,
@@ -230,7 +231,7 @@ export function createMockHostProducer(
   name: string = 'HostPlayer',
   options?: Partial<Omit<Parameters<typeof createMockPlayer>[1], 'isSpectator' | 'isHost'>>
 ): PlayerData {
-  return createMockProducer(name, { ...options });
+  return createMockProducer(name, { ...options, isHost: true });
 }
 
 /**
@@ -276,7 +277,7 @@ export function createMockRoundState(
 export function createMockGameState(
   options: {
     id?: string;
-    status?: 'waiting' | 'playing' | 'finished';
+    status?: 'lobby' | 'playing' | 'finished';
     currentRound?: number;
     winner?: string | null;
     players?: Record<string, PlayerData>;
@@ -286,7 +287,7 @@ export function createMockGameState(
 ): GameStateData {
   const {
     id = `room-${randomUUID().slice(0, 8)}`,
-    status = 'waiting',
+    status = 'lobby',
     currentRound = 1,
     winner = null,
     players = {},
