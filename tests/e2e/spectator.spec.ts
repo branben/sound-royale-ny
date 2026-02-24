@@ -63,20 +63,51 @@ const mockSpectatorRoomResponse = {
 
 test.describe('Spectator Mode Experience', () => {
   test.beforeEach(async ({ page }) => {
+    // Create mock producers and spectator
+    const producer1 = createMockProducer('HostPlayer', { eloRating: 1200 });
+    const producer2 = createMockProducer('ChallengerPlayer', { eloRating: 1300 });
+    const spectator = createMockSpectator('TestSpectator');
+    
+    // Create playing state
+    const gameState = createMockPlayingState({
+      [producer1.id]: producer1,
+      [producer2.id]: producer2,
+      [spectator.id]: spectator,
+    });
+    gameState.id = 'test-room';
+    gameState.gameId = 'test-room';
+
     await page.addInitScript(() => {
       (window as any).__E2E_TESTING__ = true;
+    });
+
+    // Set localStorage with individual keys (required by UserContext)
+    await page.addInitScript((spectatorId) => {
+      localStorage.setItem('playerName', 'TestSpectator');
+      localStorage.setItem('playerId', spectatorId);
+      localStorage.setItem('playerSecret', 'spectator-secret');
       localStorage.setItem('userSession', JSON.stringify({
-        playerName: 'Spectator',
-        playerId: 'spectator1',
+        playerName: 'TestSpectator',
+        playerId: spectatorId,
         playerSecret: 'spectator-secret',
         isSpectator: true,
         isHost: false
       }));
-    });
+    }, spectator.id);
 
+    // Mock API with proper RoomResponse format
     await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: mockSpectatorRoomResponse });
+      const url = route.request().url();
+      if (url.includes('/rooms/')) {
+        // Use toRoomResponse for proper format
+        await route.fulfill({ json: toRoomResponse(gameState) });
+      } else if (url.includes('/rejoin_game/')) {
+        const player = Object.values(gameState.players).find(p => p.id === spectator.id);
+        if (player) {
+          await route.fulfill({ json: { id: player.id, name: player.name, playerSecret: 'spectator-secret', isSpectator: true } });
+        } else {
+          await route.fulfill({ status: 404, json: null });
+        }
       } else {
         await route.continue();
       }
@@ -134,6 +165,20 @@ test.describe('Spectator Voting', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
       (window as any).__E2E_TESTING__ = true;
+    });
+
+    // Set spectator mode in localStorage before any navigation
+    await page.addInitScript(() => {
+      localStorage.setItem('playerName', 'TestSpectator');
+      localStorage.setItem('playerId', 'spectator-1');
+      localStorage.setItem('playerSecret', 'spectator-secret');
+      localStorage.setItem('userSession', JSON.stringify({
+        playerName: 'TestSpectator',
+        playerId: 'spectator-1',
+        playerSecret: 'spectator-secret',
+        isSpectator: true,
+        isHost: false
+      }));
     });
   });
 
@@ -208,6 +253,9 @@ test.describe('Spectator Voting', () => {
 
     await page.goto(`/room/${roomCode}?spectator=true`);
 
+    // Wait for page to fully load
+    await page.waitForLoadState('networkidle');
+
     // Should see voting panel
     await expect(page.locator('[data-testid="voting-panel"]')).toBeVisible({ timeout: 10000 });
   });
@@ -272,6 +320,9 @@ test.describe('Spectator Voting', () => {
 
     await page.goto(`/room/${roomCode}?spectator=true`);
 
+    // Wait for page to fully load
+    await page.waitForLoadState('networkidle');
+
     // Should see both producers as voting options
     await expect(page.locator('text=Producer1')).toBeVisible();
     await expect(page.locator('text=Producer2')).toBeVisible();
@@ -319,6 +370,9 @@ test.describe('Spectator Voting', () => {
     }, spectator.id);
 
     await page.goto(`/room/${roomCode}?spectator=true`);
+
+    // Wait for page to fully load
+    await page.waitForLoadState('networkidle');
 
     // Click vote button for Producer1
     const voteButton = page.locator(`button:has-text("Vote"), [data-vote-for="${producer1.id}"]`).first();
@@ -389,6 +443,9 @@ test.describe('Spectator Voting', () => {
 
     await page.goto(`/room/${roomCode}?spectator=true`);
 
+    // Wait for page to fully load
+    await page.waitForLoadState('networkidle');
+
     // Should NOT see spectator as voting option (they have no board)
     await expect(page.locator('text=TestSpectator')).not.toBeVisible();
   });
@@ -398,6 +455,20 @@ test.describe('Spectator Real-time Updates', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
       (window as any).__E2E_TESTING__ = true;
+    });
+
+    // Set spectator mode in localStorage before any navigation
+    await page.addInitScript(() => {
+      localStorage.setItem('playerName', 'TestSpectator');
+      localStorage.setItem('playerId', 'spectator-1');
+      localStorage.setItem('playerSecret', 'spectator-secret');
+      localStorage.setItem('userSession', JSON.stringify({
+        playerName: 'TestSpectator',
+        playerId: 'spectator-1',
+        playerSecret: 'spectator-secret',
+        isSpectator: true,
+        isHost: false
+      }));
     });
   });
 
@@ -459,6 +530,9 @@ test.describe('Spectator Real-time Updates', () => {
     }, spectator.id);
 
     await page.goto(`/room/${roomCode}?spectator=true`);
+
+    // Wait for page to fully load
+    await page.waitForLoadState('networkidle');
 
     // Should see producer's board
     await expect(page.locator('[data-testid="game-board"]')).toBeVisible();
@@ -522,11 +596,15 @@ test.describe('Spectator Real-time Updates', () => {
 
     await page.goto(`/room/${roomCode}?spectator=true`);
 
+    // Wait for page to fully load
+    await page.waitForLoadState('networkidle');
+
     // Should see vote count (format: X/Y votes)
     await expect(page.locator('text=1/2 votes')).toBeVisible();
   });
 
   test('should see round transitions', async ({ page }) => {
+    const roomCode = 'test-room';
     const producer = createMockProducer('Producer1');
     const spectator = createMockSpectator('TestSpectator');
     
@@ -585,8 +663,15 @@ test.describe('Spectator Real-time Updates', () => {
 
     await page.goto(`/room/${roomCode}?spectator=true`);
 
-    // Should see round indicator
-    await expect(page.locator('text=Round 1')).toBeVisible();
+    // Wait for page to fully load
+    await page.waitForLoadState('networkidle');
+
+    // Wait for page to fully load and render
+    await page.waitForLoadState('networkidle');
+
+    // Should see round indicator (SpectatorView shows "Round X", PlayerView shows "Round: X")
+    // Using regex to match both formats
+    await expect(page.locator('text=/Round:?\\s*1/')).toBeVisible();
   });
 });
 
@@ -595,9 +680,24 @@ test.describe('Spectator Role Transition', () => {
     await page.addInitScript(() => {
       (window as any).__E2E_TESTING__ = true;
     });
+
+    // Set spectator mode in localStorage before any navigation
+    await page.addInitScript(() => {
+      localStorage.setItem('playerName', 'TestSpectator');
+      localStorage.setItem('playerId', 'spectator-1');
+      localStorage.setItem('playerSecret', 'spectator-secret');
+      localStorage.setItem('userSession', JSON.stringify({
+        playerName: 'TestSpectator',
+        playerId: 'spectator-1',
+        playerSecret: 'spectator-secret',
+        isSpectator: true,
+        isHost: false
+      }));
+    });
   });
 
   test('should see "Request to Play" button', async ({ page }) => {
+    const roomCode = 'test-room';
     const producer = createMockProducer('Producer1');
     const spectator = createMockSpectator('TestSpectator');
     
@@ -652,11 +752,15 @@ test.describe('Spectator Role Transition', () => {
 
     await page.goto(`/room/${roomCode}?spectator=true`);
 
+    // Wait for page to fully load
+    await page.waitForLoadState('networkidle');
+
     // Should see request to play button
     await expect(page.locator('button:has-text("Request to Play"), [data-testid="request-to-play"]')).toBeVisible({ timeout: 10000 });
   });
 
   test('should be able to request to become producer', async ({ page }) => {
+    const roomCode = 'test-room';
     const producer = createMockProducer('Producer1');
     const spectator = createMockSpectator('TestSpectator');
     
@@ -693,6 +797,9 @@ test.describe('Spectator Role Transition', () => {
     }, spectator.id);
 
     await page.goto(`/room/${roomCode}?spectator=true`);
+
+    // Wait for page to fully load
+    await page.waitForLoadState('networkidle');
 
     // Click request to play button
     const requestButton = page.locator('button:has-text("Request to Play"), [data-testid="request-to-play"]').first();
