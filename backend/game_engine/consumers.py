@@ -1,12 +1,26 @@
 import json
+import logging
 from urllib.parse import parse_qs
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from .models import Room, Player
 from .serializers import GameStateSerializer
 
+# Audit logger for security-relevant events
+audit_logger = logging.getLogger("game_audit")
+
 
 class GameConsumer(AsyncWebsocketConsumer):
+    # Only allow these message types from authenticated clients
+    ALLOWED_CLIENT_TYPES = {"vote_submitted", "bingo_achievement"}
+    # Server-initiated types that clients MUST NOT send
+    FORBIDDEN_CLIENT_TYPES = {
+        "timer_tick",
+        "turn_change",
+        "victory_celebration",
+        "game_update",
+    }
+
     async def connect(self):
         self.game_id = self.scope["url_route"]["kwargs"]["game_id"]
         self.game_group_name = f"game_{self.game_id}"
@@ -47,63 +61,62 @@ class GameConsumer(AsyncWebsocketConsumer):
         text_data_json = json.loads(text_data)
         message_type = text_data_json.get("type")
 
-        if message_type == "game_update":
-            await self.channel_layer.group_send(
-                self.game_group_name,
-                {"type": "game_state_update", "payload": text_data_json.get("payload")},
+        # Security: Reject forbidden message types that should only come from server
+        if message_type in self.FORBIDDEN_CLIENT_TYPES:
+            audit_logger.warning(
+                "forbidden_message_type_attempt",
+                extra={
+                    "room_id": self.game_id,
+                    "player_id": self.player_id,
+                    "message_type": message_type,
+                    "action": "reject",
+                },
             )
-        elif message_type == "bingo_achievement":
+            return  # Reject spoofed server messages
+
+        # Security: Only allow specific client-initiated events from authenticated players
+        if message_type in self.ALLOWED_CLIENT_TYPES:
+            if not self.player_id:
+                # Unauthenticated client trying to send privileged message
+                audit_logger.warning(
+                    "unauthenticated_client_message",
+                    extra={
+                        "room_id": self.game_id,
+                        "message_type": message_type,
+                        "action": "reject",
+                    },
+                )
+                return  # Reject unauthenticated messages
+            # Log legitimate client actions for audit
+            audit_logger.info(
+                "client_message_accepted",
+                extra={
+                    "room_id": self.game_id,
+                    "player_id": self.player_id,
+                    "message_type": message_type,
+                },
+            )
+
+        # Broadcast the message to all clients in the room
+        if message_type == "bingo_achievement":
             await self.channel_layer.group_send(
                 self.game_group_name,
                 {"type": "bingo_achievement", "payload": text_data_json.get("payload")},
             )
-        elif message_type == "victory_celebration":
-            await self.channel_layer.group_send(
-                self.game_group_name,
-                {
-                    "type": "victory_celebration",
-                    "payload": text_data_json.get("payload"),
-                },
-            )
         elif message_type == "vote_submitted":
             await self.channel_layer.group_send(
                 self.game_group_name,
-                {
-                    "type": "vote_submitted",
-                    "payload": text_data_json.get("payload"),
-                },
-            )
-        elif message_type == "timer_tick":
-            await self.channel_layer.group_send(
-                self.game_group_name,
-                {
-                    "type": "timer_tick",
-                    "payload": text_data_json.get("payload"),
-                },
-            )
-        elif message_type == "turn_change":
-            await self.channel_layer.group_send(
-                self.game_group_name,
-                {
-                    "type": "turn_change",
-                    "payload": text_data_json.get("payload"),
-                },
+                {"type": "vote_submitted", "payload": text_data_json.get("payload")},
             )
         elif message_type == "player_joined":
             await self.channel_layer.group_send(
                 self.game_group_name,
-                {
-                    "type": "player_joined",
-                    "payload": text_data_json.get("payload"),
-                },
+                {"type": "player_joined", "payload": text_data_json.get("payload")},
             )
         elif message_type == "player_left":
             await self.channel_layer.group_send(
                 self.game_group_name,
-                {
-                    "type": "player_left",
-                    "payload": text_data_json.get("payload"),
-                },
+                {"type": "player_left", "payload": text_data_json.get("payload")},
             )
 
     async def game_state_update(self, event):

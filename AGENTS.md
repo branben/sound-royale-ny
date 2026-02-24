@@ -85,11 +85,21 @@ python backend/manage.py test
 
 ---
 
+## Tools
+
+| Tool | When to Use |
+|------|-------------|
+| `sequentialthinking` | Complex multi-step problems, architectural decisions, debugging deadends (built-in, use ad-hoc) |
+| Seria MCP | Symbolic code navigation (`serena.find_symbol`, `serena_replace_symbol_body`) |
+
+---
+
 ## Session Start
 
 1. Read `current-session` memory
 2. Check notepad: `.sisyphus/notepads/*/`
-3. Proceed with work
+3. Check Gas Town mail: `gt mail inbox gastown/crew/sisyphus`
+4. Proceed with work
 
 ---
 

@@ -12,6 +12,10 @@ from asgiref.sync import async_to_sync
 import random
 import threading
 import json
+import logging
+
+logger = logging.getLogger(__name__)
+audit_logger = logging.getLogger("game_audit")
 
 from .models import Room, Player, Tile, Round, Vote
 from .serializers import (
@@ -95,8 +99,10 @@ def start_timer_broadcast(room_id, duration):
                         broadcast_game_update(room)
                     break
                 broadcast_timer_tick(room)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(
+                f"Error in timer thread for room {room_id}: {e}", exc_info=True
+            )
         finally:
             _active_timers.pop(room_id, None)
 
@@ -147,7 +153,9 @@ class RoomViewSet(viewsets.ModelViewSet):
                 break
 
         player_name = serializer.validated_data.get("player_name", "Host")
-        player = Player.objects.create(room=room, name=player_name, is_spectator=False)
+        player = Player.objects.create(
+            room=room, name=player_name, is_spectator=False, is_host=True
+        )
 
         all_genres = list(Tile.Genre.values)
         random.shuffle(all_genres)
@@ -242,10 +250,12 @@ class RoomViewSet(viewsets.ModelViewSet):
             else:
                 raise
         except Exception as e:
+            logger.exception(
+                f"Failed to join room in room {room.code if 'room' in locals() else 'unknown'}"
+            )
             return Response(
                 {
-                    "error": f"Failed to join room: {str(e)}",
-                    "details": str(e),
+                    "error": "Failed to join room. Please try again.",
                     "existing_names_in_room": list(existing_names)
                     if "existing_names" in locals()
                     else [],
@@ -304,9 +314,22 @@ class RoomViewSet(viewsets.ModelViewSet):
                 timer_ends_at=timer_ends,
             )
 
-            broadcast_game_update(room)
-            broadcast_timer_tick(room)
-            start_timer_broadcast(room.id, 60)
+        broadcast_game_update(room)
+        broadcast_timer_tick(room)
+        start_timer_broadcast(room.id, 60)
+
+        audit_logger.info(
+            "turn_advanced",
+            extra={
+                "room_code": room.code,
+                "from_round": room.current_round - 1,
+                "to_round": next_round_number,
+                "next_genre": next_genre,
+                "timestamp": timezone.now().isoformat(),
+                "action": "next_turn",
+                "outcome": "success",
+            },
+        )
 
         return Response(
             {
@@ -372,7 +395,7 @@ class RoomViewSet(viewsets.ModelViewSet):
             )
 
         try:
-            host = room.players.filter(is_spectator=False).first()
+            host = room.host
             if not host or str(host.player_secret) != requester_secret:
                 return Response(
                     {"error": "Only host can reset game"},
@@ -405,8 +428,9 @@ class RoomViewSet(viewsets.ModelViewSet):
             )
 
         except Exception as e:
+            logger.exception(f"Failed to reset game in room {room.code}")
             return Response(
-                {"error": f"Failed to reset game: {str(e)}"},
+                {"error": "Failed to reset game. Please try again."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -423,7 +447,7 @@ class RoomViewSet(viewsets.ModelViewSet):
             )
 
         try:
-            host = room.players.filter(is_spectator=False).first()
+            host = room.host
             if not host or str(host.player_secret) != requester_secret:
                 return Response(
                     {"error": "Only host can kick players"},
@@ -453,8 +477,9 @@ class RoomViewSet(viewsets.ModelViewSet):
                 )
 
         except Exception as e:
+            logger.exception(f"Failed to kick player in room {room.code}")
             return Response(
-                {"error": f"Failed to kick player: {str(e)}"},
+                {"error": "Failed to kick player. Please try again."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -538,6 +563,21 @@ class RoomViewSet(viewsets.ModelViewSet):
             current_round.votes_recorded += 1
             current_round.save()
 
+        audit_logger.info(
+            "vote_cast",
+            extra={
+                "room_code": room.code,
+                "voter_id": str(voter.id),
+                "voter_name": voter.name,
+                "voted_for_id": str(voted_for_player.id),
+                "voted_for_name": voted_for_player.name,
+                "round_number": current_round.round_number,
+                "timestamp": timezone.now().isoformat(),
+                "action": "vote_cast",
+                "outcome": "success",
+            },
+        )
+
         broadcast_game_update(room)
 
         if current_round.votes_recorded >= spectator_count:
@@ -564,7 +604,7 @@ class RoomViewSet(viewsets.ModelViewSet):
             )
 
         try:
-            host = room.players.filter(is_spectator=False).first()
+            host = room.host
             if not host or str(host.player_secret) != requester_secret:
                 return Response(
                     {"error": "Only host can advance the turn"},
@@ -594,7 +634,7 @@ class RoomViewSet(viewsets.ModelViewSet):
                 )
 
             votes_for = {}
-            for vote in current_round.votes.all():
+            for vote in current_round.votes.select_related("voted_for").all():
                 voted_for_id = str(vote.voted_for.id)
                 votes_for[voted_for_id] = votes_for.get(voted_for_id, 0) + 1
 
@@ -608,8 +648,13 @@ class RoomViewSet(viewsets.ModelViewSet):
             winners = [pid for pid, count in votes_for.items() if count == max_votes]
 
             if len(winners) > 1:
+                current_round.voting_open = True
+                current_round.votes_recorded = 0
+                Vote.objects.filter(round=current_round).delete()
+                current_round.save()
+                broadcast_game_update(room)
                 return Response(
-                    {"error": "Tie vote - re-voting required"},
+                    {"error": "Tie vote - re-voting required", "tie": True},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -647,6 +692,24 @@ class RoomViewSet(viewsets.ModelViewSet):
                 winner.save()
                 if loser:
                     loser.save()
+
+                audit_logger.info(
+                    "elo_updated",
+                    extra={
+                        "room_code": room.code,
+                        "round_number": current_round.round_number,
+                        "winner_id": str(winner.id),
+                        "winner_name": winner.name,
+                        "winner_new_rating": winner.elo_rating,
+                        "elo_gained": elo_gain,
+                        "loser_id": str(loser.id) if loser else None,
+                        "loser_name": loser.name if loser else None,
+                        "loser_new_rating": loser.elo_rating if loser else None,
+                        "timestamp": timezone.now().isoformat(),
+                        "action": "elo_update",
+                        "outcome": "success",
+                    },
+                )
 
         producers = room.players.filter(is_spectator=False)
         if producers.count() < 2:
@@ -707,7 +770,7 @@ class RoomViewSet(viewsets.ModelViewSet):
             )
 
         try:
-            host = room.players.filter(is_spectator=False).first()
+            host = room.host
             if not host or str(host.player_secret) != requester_secret:
                 return Response(
                     {"error": "Only host can open voting"},
@@ -745,6 +808,18 @@ class RoomViewSet(viewsets.ModelViewSet):
             current_round.voting_open = True
             current_round.save()
 
+        audit_logger.info(
+            "voting_opened",
+            extra={
+                "room_code": room.code,
+                "round_number": current_round.round_number,
+                "spectator_count": spectator_count,
+                "timestamp": timezone.now().isoformat(),
+                "action": "open_voting",
+                "outcome": "success",
+            },
+        )
+
         broadcast_game_update(room)
 
         return Response(
@@ -761,7 +836,7 @@ class RoomViewSet(viewsets.ModelViewSet):
         Determines winner and advances the round.
         """
         votes_for = {}
-        for vote in current_round.votes.all():
+        for vote in current_round.votes.select_related("voted_for").all():
             voted_for_id = str(vote.voted_for.id)
             votes_for[voted_for_id] = votes_for.get(voted_for_id, 0) + 1
 
@@ -774,6 +849,7 @@ class RoomViewSet(viewsets.ModelViewSet):
         winners = [pid for pid, count in votes_for.items() if count == max_votes]
 
         if len(winners) > 1:
+            current_round.voting_open = True
             current_round.votes_recorded = 0
             Vote.objects.filter(round=current_round).delete()
             current_round.save()

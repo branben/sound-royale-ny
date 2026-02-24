@@ -73,6 +73,7 @@ class PlayerSerializer(serializers.ModelSerializer):
             "avatar",
             "room",
             "is_spectator",
+            "is_host",
             "is_connected",
             "joined_at",
             "tiles",
@@ -85,6 +86,7 @@ class PlayerSerializer(serializers.ModelSerializer):
             "id",
             "joined_at",
             "is_connected",
+            "elo_rating",
             "elo_wins",
             "elo_losses",
             "elo_matches",
@@ -212,7 +214,7 @@ class GameStateSerializer(serializers.ModelSerializer):
             return None
 
         votes_list = []
-        for vote in current_round.votes.all():
+        for vote in current_round.votes.select_related("voter", "voted_for").all():
             votes_list.append(
                 {
                     "id": str(vote.id),
@@ -277,6 +279,7 @@ class GameStateSerializer(serializers.ModelSerializer):
                 "name": player.name,
                 "avatar": player.avatar,
                 "isSpectator": player.is_spectator,
+                "isHost": player.is_host,
                 "isConnected": player.is_connected,
                 "board": {"tiles": board_tiles},
                 "scoreInfo": score_info,
