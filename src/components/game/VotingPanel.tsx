@@ -42,8 +42,13 @@ export function VotingPanel({
       await gameApi.castVote(roomId, playerSecret, producerId);
       setHasVoted(true);
       toast.success('Vote submitted!');
-    } catch (error) {
-      console.error('Vote error:', error);
+    } catch (error: unknown) {
+      const message = error instanceof Error 
+        ? error.message 
+        : typeof error === 'object' && error !== null && 'message' in error
+          ? String((error as { message: unknown }).message)
+          : 'Unknown error';
+      console.error('Vote error:', message);
       toast.error('Failed to submit vote. Please try again.');
     } finally {
       setIsVoting(false);
@@ -53,7 +58,7 @@ export function VotingPanel({
 
   if (!votingOpen) {
     return (
-      <div className={cn('rounded-xl border border-border/30 bg-card/50 p-4 backdrop-blur-sm', className)}>
+      <div data-testid="voting-panel" className={cn('rounded-xl border border-border/30 bg-card/50 p-4 backdrop-blur-sm', className)}>
         <div className="flex items-center gap-2 mb-3">
           <Vote className="h-5 w-5 text-muted-foreground" />
           <h3 className="font-semibold text-foreground">Voting</h3>
@@ -68,7 +73,7 @@ export function VotingPanel({
   }
 
   return (
-    <div className={cn('rounded-xl border border-primary/30 bg-card/50 p-4 backdrop-blur-sm', className)}>
+    <div data-testid="voting-panel" className={cn('rounded-xl border border-primary/30 bg-card/50 p-4 backdrop-blur-sm', className)}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Vote className="h-5 w-5 text-primary" />

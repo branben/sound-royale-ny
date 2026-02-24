@@ -65,6 +65,10 @@ class Room(models.Model):
     def __str__(self):
         return f"Room {self.code or self.id} ({self.status})"
 
+    @property
+    def host(self):
+        return self.players.filter(is_host=True, is_spectator=False).first()
+
 
 class Player(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -75,6 +79,7 @@ class Player(models.Model):
     avatar = models.URLField(blank=True, null=True)
     room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name="players")
     is_spectator = models.BooleanField(default=False)
+    is_host = models.BooleanField(default=False)
     is_connected = models.BooleanField(default=False)  # Presence tracking
     joined_at = models.DateTimeField(auto_now_add=True)
 

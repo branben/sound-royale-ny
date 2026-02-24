@@ -114,7 +114,7 @@ export function SpectatorView() {
             <h2 className="text-2xl font-bold text-foreground md:text-3xl">Battle Arena</h2>
             <p className="text-muted-foreground">Watch the producers compete in real-time</p>
           </div>
-          <button className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
+          <button data-testid="request-to-play" className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
             <PlayCircle className="h-4 w-4" />
             Request to Play
           </button>

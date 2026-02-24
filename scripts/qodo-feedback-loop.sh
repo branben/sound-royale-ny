@@ -25,6 +25,10 @@ fi
 
 # Config
 GITHUB_TOKEN="${GITHUB_TOKEN:-$GITHUB_PAT}"
+# Fallback to gh auth token if not set
+if [ -z "$GITHUB_TOKEN" ]; then
+    GITHUB_TOKEN=$(gh auth token 2>/dev/null || echo "")
+fi
 LINEAR_API_KEY="${LINEAR_API_KEY:-}"
 QODO_BOT="qodo-code-review[bot]"
 BEADS_DIR=".beads"
@@ -33,26 +37,37 @@ RIG="sound_royale_ny"
 
 echo "🔍 Checking feedback on $OWNER/$REPO PR #$PR..."
 
-ALL_COMMENTS=$(gh api "repos/$OWNER/$REPO/issues/$PR/comments" \
+# Get comment authors and bodies separately
+COMMENT_AUTHORS=$(gh api "repos/$OWNER/$REPO/issues/$PR/comments" \
     -H "Authorization: Bearer $GITHUB_TOKEN" \
-    --jq '[.[] | {id, body, user: .user.login}]')
+    --jq '[.[] | .user.login]')
 
-ALL_BODY=$(echo "$ALL_COMMENTS" | jq -r '.[].body // empty')
-LINEAR_IDS=$(echo "$ALL_BODY" | grep -oE '[A-Z]+-[0-9]+' | sort -u)
+# Get first comment body
+COMMENT_BODY=$(gh api "repos/$OWNER/$REPO/issues/$PR/comments" \
+    -H "Authorization: Bearer $GITHUB_TOKEN" \
+    --jq '.body' | head -1)
 
-if [ -z "$LINEAR_IDS" ]; then
-    echo "✅ No Linear issue IDs found."
+# Check for Linear IDs in comment bodies
+LINEAR_IDS=$(echo "$COMMENT_BODY" | grep -oE '[A-Z]+-[0-9]+' | sort -u || true)
+
+# Check if any comments contain "qodo" (Qodo bot)
+HAS_QODO=$(echo "$COMMENT_AUTHORS" | grep -c "qodo" 2>/dev/null || echo "0")
+
+if [ -z "$LINEAR_IDS" ] && [ "$HAS_QODO" -eq 0 ]; then
+    echo "✅ No Linear issue IDs or Qodo comments found."
     exit 0
 fi
 
-echo "📝 Found: $LINEAR_IDS"
-FEEDBACK_BODY="$ALL_BODY"
+if [ -z "$LINEAR_IDS" ]; then
+    echo "📝 No Linear IDs found, but Qodo comments present - processing anyway"
+else
+    echo "📝 Found: $LINEAR_IDS"
+fi
 
-# - File paths mentioned in comments
-FILE_PATHS=$(echo "$COMMENTS" | jq -r '.path // empty' | grep -v '^$' | sort -u)
+FEEDBACK_BODY="$COMMENT_BODY"
 
-# - Raw feedback body for bead
-FEEDBACK_BODY=$(echo "$COMMENTS" | jq -r '.body' 2>/dev/null | head -c 5000)
+# Extract file paths from comment bodies (look for patterns like "backend/game_engine/views.py")
+FILE_PATHS=$(echo "$COMMENT_BODY" | grep -oE '[a-zA-Z0-9_/-]+\.(py|ts|tsx|js|jsx|yml|yaml)' | sort -u)
 
 # Step 3: Build symbols array for bead
 SYMBOLS_JSON="[]"

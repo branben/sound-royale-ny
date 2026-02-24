@@ -32,6 +32,7 @@ export interface Player {
   playerSecret?: string;
   isConnected?: boolean;
   isSpectator?: boolean;
+  isHost?: boolean;
   isReady?: boolean;
   score?: number;
   eloRating?: number;

@@ -80,10 +80,10 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
 
   const isHost = useMemo(() => {
     if (!userSession.playerSecret || !gameState.players) return false;
-    const players = Object.values(gameState.players).filter(p => !p.isSpectator);
-    const host = players[0];
-    return host?.id === userSession.playerId;
-  }, [gameState.players, userSession]);
+    const players = Object.values(gameState.players);
+    const currentPlayer = players.find(p => p.id === userSession.playerId);
+    return currentPlayer?.isHost ?? false;
+  }, [gameState.players, userSession.playerId, userSession.playerSecret]);
 
   const handleResetGame = async () => {
     if (!userSession.playerSecret) return;
