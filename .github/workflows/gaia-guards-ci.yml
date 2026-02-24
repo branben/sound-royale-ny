@@ -73,7 +73,7 @@ jobs:
         working-directory: ./backend
         env:
           DJANGO_SETTINGS_MODULE: sound_royale_api.settings
-          PYTHONPATH: .
+          PYTHONPATH: ..
         run: |
           echo "Running pytest tests..."
           set +e
