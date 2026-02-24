@@ -77,7 +77,7 @@ jobs:
         run: |
           echo "Running pytest tests..."
           set +e
-          TEST_OUTPUT=$(pytest backend/gaia/tests/ -v --tb=short 2>&1)
+          TEST_OUTPUT=$(pytest game_engine/tests.py -v --tb=short 2>&1)
           PYTEST_EXIT=$?
           set -e
           echo "$TEST_OUTPUT"
