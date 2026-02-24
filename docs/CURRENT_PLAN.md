@@ -1,7 +1,21 @@
 # Sound Royale - Current Plan
 
-**Last Updated:** 2026-02-23 16:00
+**Last Updated:** 2026-02-24 10:30
 **Status:** 🚧 IN PROGRESS - Qodo Feedback Loop Running
+
+---
+
+## 📋 TODO - Qodo Feedback PR #32
+
+| # | Task | Status | Priority |
+|---|------|--------|----------|
+| 1 | Fix pytest import issue in CI | ✅ DONE | High |
+| 2 | Fix isHost field in serializers and frontend | ✅ DONE | High |
+| 3 | Fix createMockHostProducer to return isHost: true | ✅ DONE | High |
+| 4 | Remove dead broadcast branches in consumers.py | ✅ DONE | Medium |
+| 5 | Align lobby status typing in test fixtures | ✅ DONE | Medium |
+| 6 | Fix isHost detection in GameInfo.tsx | ✅ DONE | Medium |
+| 7 | Verify CI passes (Django ✅, E2E ❌ pre-existing) | ✅ DONE | High |
 
 ---
 
