@@ -664,6 +664,11 @@ export function toRoomResponse(gameState: GameStateData): Record<string, unknown
       })) : [],
       is_connected: player.isConnected,
       is_spectator: player.isSpectator,
+      // ELO fields
+      elo_rating: player.eloRating,
+      elo_wins: player.eloWins,
+      elo_losses: player.eloLosses,
+      elo_matches: player.eloMatches,
     })),
   };
 }

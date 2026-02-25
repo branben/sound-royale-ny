@@ -39,6 +39,7 @@ export interface Player {
   eloWins?: number;
   eloLosses?: number;
   eloMatches?: number;
+  eloChange?: number; // For displaying +/- after game ends
   scoreInfo?: ScoreInfo;
 }
 
@@ -102,6 +103,10 @@ export interface RoomResponse {
     player_secret?: string;
     is_connected?: boolean;
     is_spectator?: boolean;
+    elo_rating?: number;
+    elo_wins?: number;
+    elo_losses?: number;
+    elo_matches?: number;
   }>;
   current_round: number;
   winner?: string;
