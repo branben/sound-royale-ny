@@ -103,6 +103,22 @@ jobs:
         with:
           submodules: false
 
+      - name: "Guardrails: forbid tracked beads + absolute file URLs"
+        run: |
+          set -euo pipefail
+
+          if git ls-files .beads | grep -q .; then
+            echo "ERROR: .beads is tracked by git. Beads must be local/private and gitignored."
+            git ls-files .beads
+            exit 1
+          fi
+
+          if git grep -n "file:///Users/" -- . ':!package-lock.json' ':!package.json' >/dev/null 2>&1; then
+            echo "ERROR: Found absolute file URLs (file:///Users/...) committed to repo. Use repo-relative paths."
+            git grep -n "file:///Users/" -- . ':!package-lock.json' ':!package.json' || true
+            exit 1
+          fi
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
