@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Trophy, Crown, Sparkles } from 'lucide-react';
-import { useGame } from '@/context/GameContext';
+import { useGame } from '@/context/useGame';
 
 interface VictoryCelebrationProps {
   winnerName: string;
@@ -13,7 +13,6 @@ export function VictoryCelebration({ winnerName, isVisible, onComplete }: Victor
 
   useEffect(() => {
     if (isVisible) {
-      showVictoryCelebration(winnerName);
       onComplete();
     }
   }, [isVisible, winnerName, onComplete]);

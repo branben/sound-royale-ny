@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, createRef } from 'react';
-import { useGame } from '@/context/GameContext';
+import { useGame } from '@/context/useGame';
 import { useUser } from '@/context/UserContext';
 import { BingoBoard } from './BingoBoard';
 import { UploadDrawer } from './UploadDrawer';
