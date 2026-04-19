@@ -59,10 +59,18 @@ gaia-polecat (Python orchestrator)
 |-----------|------|
 | [Gas Town](https://github.com/steveyegge/gastown) | Multi-agent orchestration patterns |
 | [Serena MCP](https://github.com/oraios/serena) | Symbolic code navigation via LSP |
-| `.beads/issues.jsonl` | Public symbolic memory (git-tracked) |
-| `.gaia_private/` | Private polecat state (git-ignored) |
+| `.beads/` | Legacy bead location (no longer committed; treated as local/private) |
+| `.gaia_private/` | Private polecat state + bead outputs (git-ignored) |
 | `gaia-polecat` | Python orchestrator script |
 | `.gaia_skills/` | AI development skills & PR error test suite |
+
+### Quick note on Beads + privacy
+
+In earlier iterations, we experimented with committing bead artifacts to git. In practice, that’s too risky:
+- PR comments, logs, and stack traces can accidentally include PII/secrets.
+- Absolute paths like `file:///Users/...` can leak local usernames.
+
+**Current approach:** beads are treated as **local/private** by default (stored under `.gaia_private/`). CI also enforces that `.beads/` is not tracked.
 
 ### GAIA Skills Framework
 
@@ -166,12 +174,20 @@ The key new capability is **automated code review response**:
    ↓
 2. qodo-feedback-loop.sh detects comment
    ↓
-3. Creates bead with file/line refs (PR #5 example)
+3. Creates a *symbolic* bead (PR/comment links + file paths; no raw comment bodies)
    ↓
 4. Optional: Spawns polecat to fix
    ↓
 5. Fix applied, committed to git
+
 ```
+
+### Runtime note (WebSockets + E2E)
+
+This project uses Django Channels for realtime game updates. In most environments that means:
+- **WebSockets require Redis** (channel layer)
+
+If Redis isn’t running (common in fresh dev setups or misconfigured CI), the backend can’t broadcast game updates and E2E tests that wait on realtime UI changes will time out.
 
 **Recent fixes from Qodo feedback (PR #5):**
 - `.beadsignore`: Removed duplicate `.aws/`, redundant `.ssh/*`
