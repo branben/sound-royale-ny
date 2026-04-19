@@ -1,12 +1,12 @@
 #!/bin/bash
-# qodo-feedback-loop.sh - Bridge Qodo PR feedback to Beads + GAIA Polecat
+# qodo-feedback-loop.sh - Bridge Qodo PR feedback to GAIA queue (+ optional Linear)
 # Usage: ./qodo-feedback-loop.sh <owner> <repo> <pr_number> [spawn_polecat]
 # 
 # What it does:
 # 1. Fetches PR comments from qodo-code-review[bot]
 # 2. Extracts file paths, line numbers, and Linear issue IDs
-# 3. Creates beads with symbolic references
-# 4. Optionally spawns polecat to fix the feedback
+# 3. Enqueues GAIA tasks (repo-local runner) aligned to docs/E2E_TASK_LIST.md
+# 4. Optionally comments on Linear issues when resolvable
 #
 # Set SPAWN_POLECAT=1 or pass "spawn" as 4th arg to auto-spawn polecat
 
@@ -15,7 +15,7 @@ set -e
 OWNER="${1:-}"
 REPO="${2:-}"
 PR="${3:-}"
-SPAWN="${4:-${SPAWN_POLECAT:-1}}"
+SPAWN="${4:-${SPAWN_POLECAT:-0}}"
 
 if [ -z "$OWNER" ] || [ -z "$REPO" ] || [ -z "$PR" ]; then
     echo "Usage: $0 <owner> <repo> <pr_number> [spawn]"
@@ -32,8 +32,18 @@ fi
 LINEAR_API_KEY="${LINEAR_API_KEY:-}"
 QODO_BOT="qodo-code-review[bot]"
 BEADS_DIR="${BEADS_DIR:-.gaia_private/beads}"
+WRITE_BEADS="${WRITE_BEADS:-0}"
 REPO_DIR=$(pwd)
 RIG="sound_royale_ny"
+
+if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+    SPAWN="0"
+fi
+
+if ! command -v jq &> /dev/null; then
+    echo "❌ jq is required" >&2
+    exit 1
+fi
 
 echo "🔍 Checking feedback on $OWNER/$REPO PR #$PR..."
 
@@ -46,6 +56,8 @@ QODO_COMMENT_URLS=$(echo "$COMMENTS_JSON" | jq -r --arg bot "$QODO_BOT" '.[] | s
 
 # Combine only Qodo bot comment bodies for extraction (do not persist bodies)
 QODO_BODIES=$(echo "$COMMENTS_JSON" | jq -r --arg bot "$QODO_BOT" '.[] | select(.user.login == $bot) | .body')
+
+QODO_BODIES_COMBINED=$(echo "$QODO_BODIES" | sed '/^$/d' | head -n 200)
 
 # Extract Linear IDs from Qodo bodies (if any)
 LINEAR_IDS=$(echo "$QODO_BODIES" | grep -oE '[A-Z]+-[0-9]+' | sort -u || true)
@@ -67,7 +79,21 @@ fi
 # Extract file paths from Qodo comment bodies (look for patterns like "backend/game_engine/views.py")
 FILE_PATHS=$(echo "$QODO_BODIES" | grep -oE '[a-zA-Z0-9_/-]+\.(py|ts|tsx|js|jsx|yml|yaml)' | sort -u)
 
-# Step 3: Build symbols array for bead
+PHASE="Phase 2"
+if echo "$QODO_BODIES" | grep -qiE 'e2e|playwright|selector|flake|harness|fixture|test-results'; then
+    PHASE="Phase 0"
+fi
+if echo "$QODO_BODIES" | grep -qiE 'smoke|lobby|join room|room code'; then
+    PHASE="Phase 1"
+fi
+
+SUCCESS="See docs/E2E_TASK_LIST.md success criteria for ${PHASE}"
+VERIFY="npx playwright test tests/e2e/smoke.spec.ts --reporter=line"
+if [ "$PHASE" != "Phase 1" ]; then
+    VERIFY="npx playwright test tests/e2e --reporter=line"
+fi
+
+# Step 3 (optional): Build symbols array for bead
 SYMBOLS_JSON="[]"
 if [ -n "$FILE_PATHS" ]; then
     SYMBOLS_JSON=$(echo "$FILE_PATHS" | jq -R -s 'split("\n") | map(select(length > 0)) | map({
@@ -77,7 +103,7 @@ if [ -n "$FILE_PATHS" ]; then
     })')
 fi
 
-# Step 4: Generate bead ID and create bead
+# Step 4: Generate bead ID
 BEAD_ID="${REPO}-qodo-$(date +%Y%m%d%H%M%S)"
 
 # Determine title
@@ -103,7 +129,7 @@ $(echo "$FILE_PATHS" | grep -v '^$' | sed 's/^/- /')
 Review Qodo feedback and address any issues flagged.
 "
 
-# Create bead JSON
+# Create bead JSON (optional)
 BEAD_JSON=$(jq -n \
     --arg id "$BEAD_ID" \
     --arg title "$BEAD_TITLE" \
@@ -123,38 +149,73 @@ BEAD_JSON=$(jq -n \
         symbols: $symbols
     }')
 
-# Write bead
-mkdir -p "$BEADS_DIR"
-echo "$BEAD_JSON" >> "$BEADS_DIR/issues.jsonl"
+if [ "$WRITE_BEADS" = "1" ]; then
+    mkdir -p "$BEADS_DIR"
+    echo "$BEAD_JSON" >> "$BEADS_DIR/issues.jsonl"
+    echo "📿 Created bead: $BEAD_ID"
+    echo "   Title: $BEAD_TITLE"
+fi
 
-echo "📿 Created bead: $BEAD_ID"
-echo "   Title: $BEAD_TITLE"
+# Step 5: Enqueue GAIA task
+GAIA_TASK="${PHASE}
+Goal: Address Qodo feedback for PR #${PR}
+Success: ${SUCCESS}
+Verification: ${VERIFY}
 
-# Step 5: Extract Linear issue IDs and update Linear
+Source PR: https://github.com/${OWNER}/${REPO}/pull/${PR}
+Qodo comment links:
+$(echo "$QODO_COMMENT_URLS" | grep -v '^$' | sed 's/^/- /')
+
+Files:
+$(echo "$FILE_PATHS" | grep -v '^$' | sed 's/^/- /')
+
+Notes:
+${QODO_BODIES_COMBINED}"
+
+TASK_ID=$(python3 scripts/gaia-polecat.py --queue --priority 2 "$GAIA_TASK" | tail -n 1 | tr -d '\n' || true)
+echo "✅ Enqueued GAIA task: ${TASK_ID:-<unknown>}"
+
+# Step 6: Extract Linear issue IDs and update Linear
 if [ -n "$LINEAR_IDS" ]; then
     for ISSUE_ID in $LINEAR_IDS; do
         echo "📋 Updating Linear issue $ISSUE_ID..."
         
         if [ -n "$LINEAR_API_KEY" ]; then
-            COMMENT_BODY="🤖 Qodo PR Feedback
+            # Resolve human keys (ABC-123) to UUID via issueSearch; if already UUID, use as-is.
+            LINEAR_UUID="$ISSUE_ID"
+            if ! echo "$ISSUE_ID" | grep -qiE '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'; then
+                SEARCH_QUERY=$(jq -n --arg term "$ISSUE_ID" '{query:"query($term:String!){issueSearch(term:$term){nodes{id identifier}}}",variables:{term:$term}}')
+                SEARCH_RES=$(curl -s -X POST https://api.linear.app/graphql \
+                    -H "Authorization: $LINEAR_API_KEY" \
+                    -H "Content-Type: application/json" \
+                    -d "$SEARCH_QUERY" || true)
+                LINEAR_UUID=$(echo "$SEARCH_RES" | jq -r '.data.issueSearch.nodes[0].id // empty')
+            fi
 
-$FEEDBACK_BODY
+            if [ -z "$LINEAR_UUID" ]; then
+                echo "   ⚠️ Could not resolve $ISSUE_ID to Linear UUID; skipping comment"
+                continue
+            fi
 
----
-Source: $OWNER/$REPO/pull/$PR
-Bead: $BEAD_ID"
+            COMMENT_BODY=$(jq -n --arg owner "$OWNER" --arg repo "$REPO" --arg pr "$PR" --arg task_id "$TASK_ID" --arg phase "$PHASE" \
+                '"🤖 Qodo → GAIA\n\n" +
+                "Phase: " + $phase + "\n" +
+                "PR: https://github.com/" + $owner + "/" + $repo + "/pull/" + $pr + "\n" +
+                "GAIA task: " + $task_id')
+
+            MUTATION=$(jq -n --arg id "$LINEAR_UUID" --arg body "$COMMENT_BODY" '{query:"mutation($id:String!,$body:String!){issueCommentCreate(input:{issueId:$id,body:$body}){success}}",variables:{id:$id,body:$body}}')
 
             curl -s -X POST https://api.linear.app/graphql \
                 -H "Authorization: $LINEAR_API_KEY" \
                 -H "Content-Type: application/json" \
-                -d '{"query":"mutation { issueCommentCreate(input: {issueId: \"'"$ISSUE_ID"'\", body: \""$COMMENT_BODY"\" }) { success } }"}' > /dev/null
-            
+                -d "$MUTATION" > /dev/null
+
             echo "   ✅ Added comment to $ISSUE_ID"
         fi
     done
 fi
 
-# Step 6: Spawn polecat or notify mayor
+# Step 7: Spawn polecat or notify mayor (local only)
 if [ "$SPAWN" = "spawn" ] || [ "$SPAWN" = "1" ]; then
     echo "🚀 Spawning polecat for Qodo feedback..."
     
@@ -163,19 +224,19 @@ if [ "$SPAWN" = "spawn" ] || [ "$SPAWN" = "1" ]; then
 PR: $OWNER/$REPO/pull/$PR
 Bead: $BEAD_ID
 
-Feedback:
-$FEEDBACK_BODY"
+Feedback (truncated):
+$QODO_BODIES_COMBINED"
     gt mail send $RIG/mayor -s "Qodo: Spawn polecat for $BEAD_ID" -m "$BODY" 2>/dev/null || true
     
-    # Spawn polecat with bead context
+    # Spawn polecat with task context
     cd "$REPO_DIR"
     if [ -f "../gaia-polecat" ]; then
-        echo "🐱 Spawning polecat: Fix Qodo feedback $BEAD_ID"
-        ../gaia-polecat "Fix Qodo feedback from bead $BEAD_ID" 2>/dev/null || \
+        echo "🐱 Spawning polecat: Fix Qodo feedback (GAIA task ${TASK_ID:-unknown})"
+        ../gaia-polecat "Fix Qodo feedback from GAIA task ${TASK_ID:-unknown}" 2>/dev/null || \
         echo "⚠️ Polecat spawn failed"
     elif command -v gt &> /dev/null; then
         echo "🐱 Spawning polecat via gt..."
-        gt polecat spawn "Fix Qodo feedback" --bead "$BEAD_ID" 2>/dev/null || \
+        gt polecat spawn "Fix Qodo feedback" 2>/dev/null || \
         echo "⚠️ gt polecat spawn failed"
     else
         echo "⚠️ No polecat tooling available"
@@ -184,27 +245,18 @@ else
     # Just notify mayor without spawning
     BODY="Source: Qodo PR Feedback
 PR: $OWNER/$REPO/pull/$PR
-Bead: $BEAD_ID
+GAIA task: ${TASK_ID:-unknown}
 
-Feedback:
-$FEEDBACK_BODY"
+Feedback (truncated):
+$QODO_BODIES_COMBINED"
     gt mail send $RIG/mayor -s "Qodo feedback: $BEAD_ID" -m "$BODY" 2>/dev/null || \
         echo "📬 (gt mail not available)"
 fi
 
-# Step 7: Commit bead to git
-if git rev-parse --git-dir > /dev/null 2>&1; then
-    git add "$BEADS_DIR/issues.jsonl" 2>/dev/null
-    if git diff --cached --quiet; then
-        echo "✅ Bead already committed"
-    else
-        git commit -m "bead: $BEAD_TITLE" 2>/dev/null && \
-        echo "✅ Bead committed" || \
-        echo "⚠️ Bead not committed"
-    fi
-fi
-
 echo ""
 echo "✅ Qodo feedback loop complete!"
-echo "   Bead: $BEAD_ID"
-echo "   To spawn polecat: ./scripts/qodo-feedback-loop.sh $OWNER $REPO $PR spawn"
+if [ "$WRITE_BEADS" = "1" ]; then
+    echo "   Bead: $BEAD_ID"
+fi
+echo "   GAIA task: ${TASK_ID:-<unknown>}"
+echo "   To spawn polecat (local): ./scripts/qodo-feedback-loop.sh $OWNER $REPO $PR spawn"
