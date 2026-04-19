@@ -657,6 +657,69 @@ def run_codex(repo_root: Path, prompt: str) -> int:
     return result.returncode
 
 
+def _git_changed_paths(repo_root: Path) -> list[str]:
+    result = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=repo_root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return []
+
+    paths: list[str] = []
+    for line in result.stdout.splitlines():
+        line = line.rstrip("\n")
+        if not line:
+            continue
+
+        entry = line[3:].strip()
+        if " -> " in entry:
+            entry = entry.split(" -> ", 1)[1].strip()
+
+        if entry:
+            paths.append(entry)
+
+    return paths
+
+
+def _restore_paths(repo_root: Path, paths: list[str]) -> None:
+    if not paths:
+        return
+
+    subprocess.run(
+        ["git", "restore", "--"] + paths,
+        cwd=repo_root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    subprocess.run(
+        ["git", "clean", "-fd", "--"] + paths,
+        cwd=repo_root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+
+def detect_forbidden_changes(repo_root: Path, forbidden_prefixes: list[str]) -> list[str]:
+    if not forbidden_prefixes:
+        return []
+
+    changed = _git_changed_paths(repo_root)
+    forbidden: list[str] = []
+    for p in changed:
+        for pref in forbidden_prefixes:
+            if p == pref or p.startswith(pref):
+                forbidden.append(p)
+                break
+
+    return sorted(set(forbidden))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="GAIA Polecat (repo-local runner)")
     parser.add_argument("task", nargs="?", help="Task description")
@@ -719,6 +782,24 @@ def main() -> None:
         help="Base seconds for exponential backoff on failure (default: 30)",
     )
 
+    parser.add_argument(
+        "--forbid-paths",
+        default=os.environ.get(
+            "GAIA_FORBID_PATHS",
+            "dist/,.serena/,test-results/,scripts/gaia-polecat.py",
+        ),
+        help=(
+            "Comma-separated path prefixes that must not be modified by runs "
+            "(default: dist/,.serena/,test-results/,scripts/gaia-polecat.py)"
+        ),
+    )
+    parser.add_argument(
+        "--allow-forbidden-diff",
+        action="store_true",
+        default=False,
+        help="Do not fail the run if forbidden paths changed (they will still be reverted)",
+    )
+
     args = parser.parse_args()
 
     repo_root = get_repo_root()
@@ -726,6 +807,7 @@ def main() -> None:
     warn_if_legacy_beads_exist(repo_root)
 
     skill_allowlist = [s.strip() for s in str(args.skills).split(",") if s.strip()]
+    forbidden_prefixes = [p.strip() for p in str(args.forbid_paths).split(",") if p.strip()]
 
     if args.list_queue:
         queue = load_queue(repo_root)
@@ -790,6 +872,18 @@ def main() -> None:
                     exit_code = run_ollama(repo_root, prompt, args.model or DEFAULT_OLLAMA_MODEL)
                 else:
                     exit_code = run_codex(repo_root, prompt)
+
+                forbidden = detect_forbidden_changes(repo_root, forbidden_prefixes)
+                if forbidden:
+                    _restore_paths(repo_root, forbidden)
+                    if not args.allow_forbidden_diff:
+                        exit_code = 1
+                        save_checkpoint(
+                            repo_root,
+                            task_id,
+                            0,
+                            "Forbidden paths changed and reverted: " + ", ".join(forbidden),
+                        )
 
                 if exit_code == 0:
                     update_task_status(repo_root, task_id, "completed")
@@ -865,12 +959,20 @@ def main() -> None:
     )
 
     if args.provider == "opencode":
-        raise SystemExit(run_opencode(repo_root, prompt, args.model or DEFAULT_OPENCODE_MODEL))
+        exit_code = run_opencode(repo_root, prompt, args.model or DEFAULT_OPENCODE_MODEL)
+    elif args.provider == "ollama":
+        exit_code = run_ollama(repo_root, prompt, args.model or DEFAULT_OLLAMA_MODEL)
+    else:
+        exit_code = run_codex(repo_root, prompt)
 
-    if args.provider == "ollama":
-        raise SystemExit(run_ollama(repo_root, prompt, args.model or DEFAULT_OLLAMA_MODEL))
+    forbidden = detect_forbidden_changes(repo_root, forbidden_prefixes)
+    if forbidden:
+        _restore_paths(repo_root, forbidden)
+        if not args.allow_forbidden_diff:
+            exit_code = 1
+            print("Forbidden paths changed and reverted: " + ", ".join(forbidden), file=sys.stderr)
 
-    raise SystemExit(run_codex(repo_root, prompt))
+    raise SystemExit(exit_code)
 
 
 if __name__ == "__main__":
