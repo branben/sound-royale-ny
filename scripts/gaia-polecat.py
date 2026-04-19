@@ -20,8 +20,10 @@ import argparse
 import json
 import os
 import re
+import random
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +35,7 @@ DEFAULT_PRIVATE_DIR = Path(".gaia_private") / "gaia"
 DEFAULT_QUEUE_FILE = DEFAULT_PRIVATE_DIR / "task_queue.jsonl"
 DEFAULT_CHECKPOINT_DIR = DEFAULT_PRIVATE_DIR / "checkpoints"
 DEFAULT_MEMORY_FILE = DEFAULT_PRIVATE_DIR / "memory.jsonl"
+DEFAULT_LOCKS_DIR = DEFAULT_PRIVATE_DIR / "locks"
 
 SKILLS_DIR = Path(".gaia_skills")
 
@@ -76,6 +79,7 @@ def ensure_private_dirs(repo_root: Path) -> None:
     private_dir = repo_root / DEFAULT_PRIVATE_DIR
     private_dir.mkdir(parents=True, exist_ok=True)
     (repo_root / DEFAULT_CHECKPOINT_DIR).mkdir(parents=True, exist_ok=True)
+    (repo_root / DEFAULT_LOCKS_DIR).mkdir(parents=True, exist_ok=True)
 
 
 def warn_if_legacy_beads_exist(repo_root: Path) -> None:
@@ -115,14 +119,15 @@ def save_queue(repo_root: Path, queue: list[dict[str, Any]]) -> None:
 
 
 def add_to_queue(repo_root: Path, task: str, priority: int = 5) -> str:
-    import time
-
     task_id = f"task-{int(time.time())}"
     queue_item = {
         "id": task_id,
         "task": task,
         "priority": priority,
         "status": "pending",
+        "attempts": 0,
+        "next_run_at": None,
+        "last_error": None,
         "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
 
@@ -135,11 +140,28 @@ def add_to_queue(repo_root: Path, task: str, priority: int = 5) -> str:
 
 def get_next_task(repo_root: Path) -> dict[str, Any] | None:
     queue = load_queue(repo_root)
-    pending = [t for t in queue if t.get("status") == "pending"]
+    now = time.time()
+
+    pending: list[dict[str, Any]] = []
+    for t in queue:
+        if t.get("status") != "pending":
+            continue
+
+        nra = t.get("next_run_at")
+        if nra is None:
+            pending.append(t)
+            continue
+
+        try:
+            if float(nra) <= now:
+                pending.append(t)
+        except (TypeError, ValueError):
+            pending.append(t)
+
     if not pending:
         return None
 
-    pending.sort(key=lambda x: x.get("priority", 5))
+    pending.sort(key=lambda x: (x.get("priority", 5), x.get("created_at", "")))
     return pending[0]
 
 
@@ -148,6 +170,17 @@ def update_task_status(repo_root: Path, task_id: str, status: str) -> None:
     for item in queue:
         if item.get("id") == task_id:
             item["status"] = status
+            item["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    save_queue(repo_root, queue)
+
+
+def update_task_fields(repo_root: Path, task_id: str, fields: dict[str, Any]) -> None:
+    queue = load_queue(repo_root)
+    for item in queue:
+        if item.get("id") == task_id:
+            for k, v in fields.items():
+                item[k] = v
+            item["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
     save_queue(repo_root, queue)
 
 
@@ -206,6 +239,31 @@ def load_skill_text(repo_root: Path, allowlist: list[str]) -> str:
         return ""
 
     return "\n\n".join(blocks)
+
+
+def acquire_task_lock(repo_root: Path, task_id: str) -> Path | None:
+    locks_dir = repo_root / DEFAULT_LOCKS_DIR
+    locks_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = locks_dir / f"{task_id}.lock"
+
+    try:
+        fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(f"pid={os.getpid()}\n")
+            f.write(f"created_at={time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+    except FileExistsError:
+        return None
+
+    return lock_path
+
+
+def release_task_lock(lock_path: Path | None) -> None:
+    if not lock_path:
+        return
+    try:
+        lock_path.unlink(missing_ok=True)
+    except Exception:
+        return
 
 
 SUPERPOWERS_PROMPT = """
@@ -426,6 +484,156 @@ def build_prompt(repo_root: Path, task: str, skill_allowlist: list[str]) -> str:
     return "\n".join([p for p in prompt_parts if p is not None])
 
 
+def _extract_first_json_object(text: str) -> str | None:
+    start = text.find("{")
+    if start == -1:
+        return None
+
+    depth = 0
+    in_str = False
+    escape = False
+    for i in range(start, len(text)):
+        ch = text[i]
+        if in_str:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_str = False
+            continue
+
+        if ch == '"':
+            in_str = True
+            continue
+
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : i + 1]
+
+    return None
+
+
+def compile_task_contract_lmstudio(
+    task: str,
+    skill_allowlist: list[str],
+    base_url: str,
+    model: str,
+    max_tokens: int,
+) -> dict[str, Any]:
+    url = base_url.rstrip("/") + "/chat/completions"
+
+    system = (
+        "You are GAIA-Compiler. Output STRICT JSON only. "
+        "No prose, no markdown, no trailing text. "
+        "Keep strings short."
+    )
+
+    allowed = ", ".join(skill_allowlist)
+    user = (
+        "Return JSON with keys: goal, scope, skills_to_inject, stop_conditions, provider_recommendation. "
+        f"skills_to_inject must be a subset of: [{allowed}]. "
+        "provider_recommendation must be one of: local, opencode. "
+        "skills_to_inject max length 3. stop_conditions max length 3.\n\n"
+        f"Task: {task}"
+    )
+
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "temperature": 0.1,
+        "max_tokens": max_tokens,
+    }
+
+    cmd = [
+        "curl",
+        "-sS",
+        url,
+        "-H",
+        "Content-Type: application/json",
+        "-d",
+        json.dumps(payload, ensure_ascii=False),
+    ]
+
+    result = subprocess.run(cmd, text=True, capture_output=True, check=False)
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or f"LM Studio curl failed: {result.returncode}")
+
+    try:
+        data = json.loads(result.stdout)
+        content = data["choices"][0]["message"]["content"]
+    except Exception as e:
+        raise RuntimeError(f"LM Studio response parse failed: {e}")
+
+    # Try strict parse first
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        extracted = _extract_first_json_object(content)
+        if extracted:
+            try:
+                return json.loads(extracted)
+            except json.JSONDecodeError:
+                pass
+
+    # Fallback: minimal safe contract
+    return {
+        "goal": task[:160],
+        "scope": "",
+        "skills_to_inject": skill_allowlist[:3],
+        "stop_conditions": ["Provide verification evidence"],
+        "provider_recommendation": "opencode",
+    }
+
+
+def build_executor_prompt(
+    repo_root: Path,
+    task: str,
+    contract: dict[str, Any],
+    skill_allowlist: list[str],
+) -> str:
+    requested_skills = contract.get("skills_to_inject")
+    if not isinstance(requested_skills, list):
+        requested_skills = []
+
+    selected = [s for s in requested_skills if isinstance(s, str) and s in skill_allowlist]
+    if not selected:
+        selected = skill_allowlist[:3]
+
+    skills_text = load_skill_text(repo_root, selected)
+    contract_json = json.dumps(contract, indent=2, ensure_ascii=False)
+
+    prompt_parts = [
+        f"You are an executor agent working in the sound-royale-ny project at {repo_root}.",
+        "You MUST follow the task contract exactly; do not broaden scope.",
+        "",
+        f"Original task: {task}",
+        "",
+        "## TASK CONTRACT (authoritative)",
+        contract_json,
+        "",
+        SUPERPOWERS_PROMPT,
+        "",
+    ]
+
+    if skills_text:
+        prompt_parts.append("## PROJECT SKILLS (selected)\n")
+        prompt_parts.append(skills_text)
+
+    prompt_parts.append(
+        "Use Serena MCP tools (find_symbol/read_file/replace_content/etc.) for navigation and edits when available."
+    )
+    prompt_parts.append("After completing the task, show VERIFICATION EVIDENCE (command output).")
+
+    return "\n".join([p for p in prompt_parts if p is not None])
+
+
 def run_opencode(repo_root: Path, prompt: str, model: str) -> int:
     cmd = ["opencode", "run", "--dir", str(repo_root), "--model", model, prompt]
     result = subprocess.run(cmd, cwd=repo_root, text=True)
@@ -470,6 +678,47 @@ def main() -> None:
         help="Comma-separated skill names to inject (default: curated allowlist)",
     )
 
+    parser.add_argument(
+        "--compiler-provider",
+        choices=["none", "lmstudio"],
+        default="none",
+        help="Optional local compiler stage to produce a minimal task contract (default: none)",
+    )
+    parser.add_argument(
+        "--compiler-model",
+        default=os.environ.get("GAIA_COMPILER_MODEL", "qwen3.5-0.8b"),
+        help="Compiler model id (default: qwen3.5-0.8b)",
+    )
+    parser.add_argument(
+        "--lmstudio-base-url",
+        default=os.environ.get("LMSTUDIO_BASE_URL", "http://localhost:1234/v1"),
+        help="LM Studio OpenAI-compatible base URL (default: http://localhost:1234/v1)",
+    )
+    parser.add_argument(
+        "--compiler-max-tokens",
+        type=int,
+        default=220,
+        help="Max tokens for compiler output (default: 220)",
+    )
+    parser.add_argument(
+        "--compile-only",
+        action="store_true",
+        help="Only compile and print the task contract (no provider execution)",
+    )
+
+    parser.add_argument(
+        "--max-attempts",
+        type=int,
+        default=3,
+        help="Max attempts per queued task before marking failed (default: 3)",
+    )
+    parser.add_argument(
+        "--backoff-base-seconds",
+        type=int,
+        default=30,
+        help="Base seconds for exponential backoff on failure (default: 30)",
+    )
+
     args = parser.parse_args()
 
     repo_root = get_repo_root()
@@ -496,29 +745,95 @@ def main() -> None:
         while True:
             next_task = get_next_task(repo_root)
             if not next_task:
-                print("Queue empty")
-                return
+                queue = load_queue(repo_root)
+                pending = [t for t in queue if t.get("status") == "pending"]
+                if not pending:
+                    print("Queue empty")
+                    return
+
+                # Pending tasks exist but are not yet due.
+                time.sleep(5)
+                continue
 
             task_id = str(next_task["id"])
             task = str(next_task["task"])
 
-            update_task_status(repo_root, task_id, "running")
-            prompt = build_prompt(repo_root, task, skill_allowlist)
+            lock_path = acquire_task_lock(repo_root, task_id)
+            if not lock_path:
+                # Another worker is already processing this task.
+                time.sleep(1)
+                continue
 
-            exit_code = 1
-            if args.provider == "opencode":
-                exit_code = run_opencode(repo_root, prompt, args.model or DEFAULT_OPENCODE_MODEL)
-            elif args.provider == "ollama":
-                exit_code = run_ollama(repo_root, prompt, args.model or DEFAULT_OLLAMA_MODEL)
-            else:
-                exit_code = run_codex(repo_root, prompt)
+            try:
+                update_task_status(repo_root, task_id, "running")
 
-            if exit_code == 0:
-                update_task_status(repo_root, task_id, "completed")
-                clear_checkpoint(repo_root, task_id)
-            else:
-                update_task_status(repo_root, task_id, "failed")
-                save_checkpoint(repo_root, task_id, 0, f"Exit: {exit_code}")
+                contract: dict[str, Any] | None = None
+                if args.compiler_provider == "lmstudio":
+                    contract = compile_task_contract_lmstudio(
+                        task=task,
+                        skill_allowlist=skill_allowlist,
+                        base_url=str(args.lmstudio_base_url),
+                        model=str(args.compiler_model),
+                        max_tokens=int(args.compiler_max_tokens),
+                    )
+
+                prompt = (
+                    build_executor_prompt(repo_root, task, contract, skill_allowlist)
+                    if contract is not None
+                    else build_prompt(repo_root, task, skill_allowlist)
+                )
+
+                exit_code = 1
+                if args.provider == "opencode":
+                    exit_code = run_opencode(repo_root, prompt, args.model or DEFAULT_OPENCODE_MODEL)
+                elif args.provider == "ollama":
+                    exit_code = run_ollama(repo_root, prompt, args.model or DEFAULT_OLLAMA_MODEL)
+                else:
+                    exit_code = run_codex(repo_root, prompt)
+
+                if exit_code == 0:
+                    update_task_status(repo_root, task_id, "completed")
+                    update_task_fields(
+                        repo_root,
+                        task_id,
+                        {"next_run_at": None, "last_error": None},
+                    )
+                    clear_checkpoint(repo_root, task_id)
+                    continue
+
+                attempts = int(next_task.get("attempts") or 0) + 1
+                if attempts >= int(args.max_attempts):
+                    update_task_status(repo_root, task_id, "failed")
+                    update_task_fields(
+                        repo_root,
+                        task_id,
+                        {
+                            "attempts": attempts,
+                            "last_error": f"Exit: {exit_code}",
+                            "next_run_at": None,
+                        },
+                    )
+                    save_checkpoint(repo_root, task_id, 0, f"Exit: {exit_code}")
+                    continue
+
+                # Exponential backoff with jitter
+                base = int(args.backoff_base_seconds)
+                delay = base * (2 ** (attempts - 1))
+                delay = int(delay + random.randint(0, max(3, int(delay * 0.2))))
+                update_task_status(repo_root, task_id, "pending")
+                update_task_fields(
+                    repo_root,
+                    task_id,
+                    {
+                        "attempts": attempts,
+                        "last_error": f"Exit: {exit_code}",
+                        "next_run_at": time.time() + delay,
+                    },
+                )
+                save_checkpoint(repo_root, task_id, 0, f"Exit: {exit_code}; retry in {delay}s")
+
+            finally:
+                release_task_lock(lock_path)
 
     if not args.task:
         parser.print_help()
@@ -529,7 +844,25 @@ def main() -> None:
         print(f"✅ Added to queue: {task_id}")
         return
 
-    prompt = build_prompt(repo_root, args.task, skill_allowlist)
+    contract: dict[str, Any] | None = None
+    if args.compiler_provider == "lmstudio":
+        contract = compile_task_contract_lmstudio(
+            task=str(args.task),
+            skill_allowlist=skill_allowlist,
+            base_url=str(args.lmstudio_base_url),
+            model=str(args.compiler_model),
+            max_tokens=int(args.compiler_max_tokens),
+        )
+
+    if args.compile_only:
+        print(json.dumps(contract or {}, indent=2, ensure_ascii=False))
+        return
+
+    prompt = (
+        build_executor_prompt(repo_root, str(args.task), contract, skill_allowlist)
+        if contract is not None
+        else build_prompt(repo_root, str(args.task), skill_allowlist)
+    )
 
     if args.provider == "opencode":
         raise SystemExit(run_opencode(repo_root, prompt, args.model or DEFAULT_OPENCODE_MODEL))
