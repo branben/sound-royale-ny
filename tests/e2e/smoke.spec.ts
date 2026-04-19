@@ -1,16 +1,5 @@
-import { test, expect, Page } from '@playwright/test';
-
-declare global {
-  interface Window {
-    __E2E_TESTING__?: boolean;
-  }
-}
-
-async function enableE2EMode(page: Page) {
-  await page.addInitScript(() => {
-    window.__E2E_TESTING__ = true;
-  });
-}
+import { test, expect } from '@playwright/test';
+import { enableE2EMode } from './helpers';
 
 test.describe('Smoke', () => {
   test.beforeEach(async ({ page }) => {
