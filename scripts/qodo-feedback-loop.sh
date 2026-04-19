@@ -31,24 +31,24 @@ if [ -z "$GITHUB_TOKEN" ]; then
 fi
 LINEAR_API_KEY="${LINEAR_API_KEY:-}"
 QODO_BOT="qodo-code-review[bot]"
-BEADS_DIR=".beads"
+BEADS_DIR="${BEADS_DIR:-.gaia_private/beads}"
 REPO_DIR=$(pwd)
 RIG="sound_royale_ny"
 
 echo "🔍 Checking feedback on $OWNER/$REPO PR #$PR..."
 
-# Get comment authors and bodies separately
-COMMENT_AUTHORS=$(gh api "repos/$OWNER/$REPO/issues/$PR/comments" \
-    -H "Authorization: Bearer $GITHUB_TOKEN" \
-    --jq '[.[] | .user.login]')
+COMMENTS_JSON=$(gh api "repos/$OWNER/$REPO/issues/$PR/comments" \
+    -H "Authorization: Bearer $GITHUB_TOKEN")
 
-# Get first comment body
-COMMENT_BODY=$(gh api "repos/$OWNER/$REPO/issues/$PR/comments" \
-    -H "Authorization: Bearer $GITHUB_TOKEN" \
-    --jq '.body' | head -1)
+COMMENT_AUTHORS=$(echo "$COMMENTS_JSON" | jq '[.[] | .user.login]')
 
-# Check for Linear IDs in comment bodies
-LINEAR_IDS=$(echo "$COMMENT_BODY" | grep -oE '[A-Z]+-[0-9]+' | sort -u || true)
+QODO_COMMENT_URLS=$(echo "$COMMENTS_JSON" | jq -r --arg bot "$QODO_BOT" '.[] | select(.user.login == $bot) | .html_url' | sort -u)
+
+# Combine only Qodo bot comment bodies for extraction (do not persist bodies)
+QODO_BODIES=$(echo "$COMMENTS_JSON" | jq -r --arg bot "$QODO_BOT" '.[] | select(.user.login == $bot) | .body')
+
+# Extract Linear IDs from Qodo bodies (if any)
+LINEAR_IDS=$(echo "$QODO_BODIES" | grep -oE '[A-Z]+-[0-9]+' | sort -u || true)
 
 # Check if any comments contain "qodo" (Qodo bot)
 HAS_QODO=$(echo "$COMMENT_AUTHORS" | grep -c "qodo" 2>/dev/null || echo "0")
@@ -64,10 +64,8 @@ else
     echo "📝 Found: $LINEAR_IDS"
 fi
 
-FEEDBACK_BODY="$COMMENT_BODY"
-
-# Extract file paths from comment bodies (look for patterns like "backend/game_engine/views.py")
-FILE_PATHS=$(echo "$COMMENT_BODY" | grep -oE '[a-zA-Z0-9_/-]+\.(py|ts|tsx|js|jsx|yml|yaml)' | sort -u)
+# Extract file paths from Qodo comment bodies (look for patterns like "backend/game_engine/views.py")
+FILE_PATHS=$(echo "$QODO_BODIES" | grep -oE '[a-zA-Z0-9_/-]+\.(py|ts|tsx|js|jsx|yml|yaml)' | sort -u)
 
 # Step 3: Build symbols array for bead
 SYMBOLS_JSON="[]"
@@ -92,8 +90,11 @@ fi
 # Build full description
 BEAD_DESCRIPTION="Qodo PR Feedback from $OWNER/$REPO PR #$PR
 
-## Feedback
-$FEEDBACK_BODY
+## Source
+- PR: https://github.com/$OWNER/$REPO/pull/$PR
+
+## Qodo Comment Links
+$(echo "$QODO_COMMENT_URLS" | grep -v '^$' | sed 's/^/- /')
 
 ## Files to Review
 $(echo "$FILE_PATHS" | grep -v '^$' | sed 's/^/- /')

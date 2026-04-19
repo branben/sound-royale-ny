@@ -7,6 +7,9 @@ env/
 .gaia_private/
 .env.*
 
+# Beads / Gastown symbolic memory (treat as local-private; do not commit)
+.beads/
+
 # Logs
 logs/
 *.log
@@ -46,4 +49,5 @@ daemon/
 **/registry.json
 .runtime/
 test-results/
+dist/
 .DS_Store
