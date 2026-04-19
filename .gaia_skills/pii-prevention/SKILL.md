@@ -14,27 +14,21 @@ When editing `.beads/issues.jsonl`, email addresses can accidentally be committe
 
 ## Prevention Checklist
 
-Before committing beads changes:
+Before committing any changes:
 
-- [ ] Search for `@` in `.beads/issues.jsonl` - should return 0 matches
-- [ ] Verify no email patterns: `brandonbennett@`, `@gmail.com`, etc.
-- [ ] Use role-based IDs: `sound_royale_ny/mayor`, `sound_royale_ny/deacon`
-- [ ] Disable daemon before commits: `bd config set auto-start-daemon false`
-- [ ] Or temporarily rename `.git/hooks/pre-commit` to prevent auto-sync during commit
+- [ ] Avoid committing bead artifacts entirely (current policy: beads are local/private)
+- [ ] Verify `.beads/` is not tracked: `git ls-files .beads` should return nothing
+- [ ] Verify no email patterns: `@gmail.com`, `@users.noreply.github.com`, etc.
+- [ ] Avoid absolute paths like `file:///Users/...`
 
 ## Quick Fix Commands
 
 ```bash
-# Check for PII
-rg "brandonbennett@" .beads/issues.jsonl | wc -l  # Should be 0
+# Check for PII patterns in the repo
+rg "@" . || true
 
-# Fix PII
-sed -i '' 's/brandonbennett@Pursuits-Air\.lan/sound_royale_ny\/mayor/g' .beads/issues.jsonl
-
-# Force commit when daemon keeps restoring file
-git update-index --index-info <<EOF
-100644 \$(git hash-object -w .beads/issues.jsonl) 0\t.beads/issues.jsonl
-EOF
+# Check for absolute local file URLs
+rg "file:///Users/" . || true
 ```
 
 ## Beads Config Best Practices
@@ -45,21 +39,11 @@ auto-start-daemon: false  # Prevents auto-sync during development
 sync-branch: "beads-sync"   # Use dedicated sync branch
 ```
 
+Note: `.beads/` is treated as legacy/local in this repo; prefer writing any bead outputs under `.gaia_private/`.
+
 ## Git Integration
 
-The beads pre-commit hook (`~/.git/hooks/pre-commit`) syncs beads before each commit. This can restore corrupted beads. To bypass:
-
-```bash
-# Temporarily disable
-mv .git/hooks/pre-commit .git/hooks/pre-commit.bak
-
-# Make your commit
-git add .beads/issues.jsonl
-git commit -m "Fix PII"
-
-# Restore
-mv .git/hooks/pre-commit.bak .git/hooks/pre-commit
-```
+If you have local tooling that tries to sync beads during commits, ensure it does not stage `.beads/` (current repo policy is to keep beads untracked).
 
 ## CI Guard
 
