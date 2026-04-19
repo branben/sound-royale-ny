@@ -172,7 +172,7 @@ $(echo "$FILE_PATHS" | grep -v '^$' | sed 's/^/- /')
 Notes:
 ${QODO_BODIES_COMBINED}"
 
-TASK_ID=$(python3 scripts/gaia-polecat.py --queue --priority 2 "$GAIA_TASK" | tail -n 1 | tr -d '\n' || true)
+TASK_ID=$(python3 scripts/gaia-polecat.py --queue --priority 2 "$GAIA_TASK" 2>/dev/null | grep -oE 'task-[0-9]+' | tail -n 1 || true)
 echo "✅ Enqueued GAIA task: ${TASK_ID:-<unknown>}"
 
 # Step 6: Extract Linear issue IDs and update Linear
@@ -181,15 +181,20 @@ if [ -n "$LINEAR_IDS" ]; then
         echo "📋 Updating Linear issue $ISSUE_ID..."
         
         if [ -n "$LINEAR_API_KEY" ]; then
-            # Resolve human keys (ABC-123) to UUID via issueSearch; if already UUID, use as-is.
+            # Resolve human keys (SR-42) to UUID via issues(filter) query.
+            # If it already looks like a UUID, skip resolution.
             LINEAR_UUID="$ISSUE_ID"
             if ! echo "$ISSUE_ID" | grep -qiE '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'; then
-                SEARCH_QUERY=$(jq -n --arg term "$ISSUE_ID" '{query:"query($term:String!){issueSearch(term:$term){nodes{id identifier}}}",variables:{term:$term}}')
+                SEARCH_QUERY=$(jq -n --arg term "$ISSUE_ID" \
+                    '{query:"query IssueByKey($term:String!){issues(filter:{identifier:{eq:$term}}){nodes{id identifier}}}",variables:{term:$term}}')
                 SEARCH_RES=$(curl -s -X POST https://api.linear.app/graphql \
                     -H "Authorization: $LINEAR_API_KEY" \
                     -H "Content-Type: application/json" \
                     -d "$SEARCH_QUERY" || true)
-                LINEAR_UUID=$(echo "$SEARCH_RES" | jq -r '.data.issueSearch.nodes[0].id // empty')
+                LINEAR_UUID=$(echo "$SEARCH_RES" | jq -r '.data.issues.nodes[0].id // empty')
+                if [ -z "$LINEAR_UUID" ]; then
+                    echo "   ⚠️ Resolution failed for $ISSUE_ID. API response: $(echo "$SEARCH_RES" | jq -c '.errors // .error // "unknown"')"
+                fi
             fi
 
             if [ -z "$LINEAR_UUID" ]; then
@@ -203,14 +208,26 @@ if [ -n "$LINEAR_IDS" ]; then
                 "PR: https://github.com/" + $owner + "/" + $repo + "/pull/" + $pr + "\n" +
                 "GAIA task: " + $task_id')
 
-            MUTATION=$(jq -n --arg id "$LINEAR_UUID" --arg body "$COMMENT_BODY" '{query:"mutation($id:String!,$body:String!){issueCommentCreate(input:{issueId:$id,body:$body}){success}}",variables:{id:$id,body:$body}}')
+            MUTATION=$(jq -n --arg id "$LINEAR_UUID" --arg body "$COMMENT_BODY" \
+                '{query:"mutation AddComment($id:String!,$body:String!){issueCommentCreate(input:{issueId:$id,body:$body}){success comment{id}}}",variables:{id:$id,body:$body}}')
 
-            curl -s -X POST https://api.linear.app/graphql \
+            MUTATION_RES=$(curl -s -X POST https://api.linear.app/graphql \
                 -H "Authorization: $LINEAR_API_KEY" \
                 -H "Content-Type: application/json" \
-                -d "$MUTATION" > /dev/null
+                -d "$MUTATION" || true)
 
-            echo "   ✅ Added comment to $ISSUE_ID"
+            MUTATION_OK=$(echo "$MUTATION_RES" | jq -r '.data.issueCommentCreate.success // false')
+            if [ "$MUTATION_OK" = "true" ]; then
+                echo "   ✅ Posted comment to Linear $ISSUE_ID ($LINEAR_UUID)"
+            else
+                echo "   ❌ Linear comment failed for $ISSUE_ID: $(echo "$MUTATION_RES" | jq -c '.errors // .error // "unknown"')"
+            fi
+        else
+            echo "   ℹ️ LINEAR_API_KEY not set; posting GAIA task ID to PR instead"
+            gh api "repos/$OWNER/$REPO/issues/$PR/comments" \
+                -X POST \
+                -F "body=🤖 **Qodo → GAIA** (no Linear key)\n\nPhase: $PHASE\nGAIA task: ${TASK_ID:-unknown}\nPR: https://github.com/$OWNER/$REPO/pull/$PR" \
+                > /dev/null 2>&1 || echo "   ⚠️ PR comment also failed (gh not authed?)"
         fi
     done
 fi
