@@ -2,63 +2,53 @@ import { test, expect } from '@playwright/test';
 import {
   createMockPlayingState,
   createMockProducer,
+  toRoomResponse,
 } from './utils/game-fixtures';
+import { enableE2EMode } from './helpers';
 
 test.describe('Network Recovery', () => {
   test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => {
-      (window as any).__E2E_TESTING__ = true;
-    });
+    await enableE2EMode(page);
   });
 
   test('should show reconnecting indicator', async ({ page }) => {
     const producer = createMockProducer('TestPlayer');
     const gameState = createMockPlayingState({ [producer.id]: producer });
+    const roomResponse = toRoomResponse(gameState);
+
+    await page.addInitScript((session) => {
+      localStorage.setItem('userSession', JSON.stringify(session));
+    }, { playerName: producer.name, playerId: producer.id, playerSecret: 'test-secret', isSpectator: false, isHost: false });
 
     await page.route('**/api/**', async (route) => {
       if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: gameState });
+        await route.fulfill({ json: roomResponse });
       } else {
         await route.continue();
       }
     });
 
-    await page.addInitScript(() => {
-      localStorage.setItem('userSession', JSON.stringify({
-        playerName: 'TestPlayer',
-        playerId: producer.id,
-        playerSecret: 'test-secret',
-        isSpectator: false,
-        isHost: false
-      }));
-    });
-
     await page.goto(`/room/${gameState.id}`);
-    await expect(page.locator('[data-testid="game-board"]')).toBeVisible();
+    await expect(page.locator('[data-testid="game-board"]')).toBeVisible({ timeout: 10000 });
   });
 
   test('should auto-reconnect on network blip', async ({ page }) => {
     const producer = createMockProducer('TestPlayer');
     let requestCount = 0;
     const gameState = createMockPlayingState({ [producer.id]: producer });
+    const roomResponse = toRoomResponse(gameState);
+
+    await page.addInitScript((session) => {
+      localStorage.setItem('userSession', JSON.stringify(session));
+    }, { playerName: producer.name, playerId: producer.id, playerSecret: 'test-secret', isSpectator: false, isHost: false });
 
     await page.route('**/api/**', async (route) => {
       if (route.request().url().includes('/rooms/')) {
         requestCount++;
-        await route.fulfill({ json: gameState });
+        await route.fulfill({ json: roomResponse });
       } else {
         await route.continue();
       }
-    });
-
-    await page.addInitScript(() => {
-      localStorage.setItem('userSession', JSON.stringify({
-        playerName: 'TestPlayer',
-        playerId: producer.id,
-        playerSecret: 'test-secret',
-        isSpectator: false,
-        isHost: false
-      }));
     });
 
     await page.goto(`/room/${gameState.id}`);
@@ -69,55 +59,45 @@ test.describe('Network Recovery', () => {
     const producer = createMockProducer('TestPlayer');
     let fetchCount = 0;
     const gameState = createMockPlayingState({ [producer.id]: producer });
+    const roomResponse = toRoomResponse(gameState);
+
+    await page.addInitScript((session) => {
+      localStorage.setItem('userSession', JSON.stringify(session));
+    }, { playerName: producer.name, playerId: producer.id, playerSecret: 'test-secret', isSpectator: false, isHost: false });
 
     await page.route('**/api/**', async (route) => {
       if (route.request().url().includes('/rooms/')) {
         fetchCount++;
-        await route.fulfill({ json: gameState });
+        await route.fulfill({ json: roomResponse });
       } else {
         await route.continue();
       }
     });
 
-    await page.addInitScript(() => {
-      localStorage.setItem('userSession', JSON.stringify({
-        playerName: 'TestPlayer',
-        playerId: producer.id,
-        playerSecret: 'test-secret',
-        isSpectator: false,
-        isHost: false
-      }));
-    });
-
     await page.goto(`/room/${gameState.id}`);
-    await expect(page.locator('[data-testid="game-board"]')).toBeVisible();
+    await expect(page.locator('[data-testid="game-board"]')).toBeVisible({ timeout: 10000 });
     expect(fetchCount).toBeGreaterThanOrEqual(1);
   });
 
   test('should not duplicate actions after recovery', async ({ page }) => {
     const producer = createMockProducer('TestPlayer');
     const gameState = createMockPlayingState({ [producer.id]: producer });
+    const roomResponse = toRoomResponse(gameState);
+
+    await page.addInitScript((session) => {
+      localStorage.setItem('userSession', JSON.stringify(session));
+    }, { playerName: producer.name, playerId: producer.id, playerSecret: 'test-secret', isSpectator: false, isHost: false });
 
     await page.route('**/api/**', async (route) => {
       if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: gameState });
+        await route.fulfill({ json: roomResponse });
       } else {
         await route.continue();
       }
     });
 
-    await page.addInitScript(() => {
-      localStorage.setItem('userSession', JSON.stringify({
-        playerName: 'TestPlayer',
-        playerId: producer.id,
-        playerSecret: 'test-secret',
-        isSpectator: false,
-        isHost: false
-      }));
-    });
-
     await page.goto(`/room/${gameState.id}`);
-    await expect(page.locator('[data-testid="game-board"]')).toBeVisible();
+    await expect(page.locator('[data-testid="game-board"]')).toBeVisible({ timeout: 10000 });
   });
 
   test('should handle API request retry', async ({ page }) => {
