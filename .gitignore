@@ -10,6 +10,9 @@ env/
 # Beads / Gastown symbolic memory (treat as local-private; do not commit)
 .beads/
 
+# Local agent runtime state
+.opencode/
+
 # Logs
 logs/
 *.log
