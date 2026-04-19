@@ -138,3 +138,60 @@ This document defines a phased, red-green-refactor approach to building reliable
 - The LM Studio compiler stage should output:
   - `phase`, `goal`, `files`, `skills_to_inject`, `stop_conditions`
   - and a strict “do not touch” path list (`dist/`, `.serena/`, `test-results/`).
+
+---
+
+## Keyword → Phase mapping
+
+Used by `scripts/qodo-feedback-loop.sh` to classify Qodo feedback into the correct phase.
+Update this table when new phases or keywords are added.
+
+| Priority | Keywords (case-insensitive) | Phase | Verify command |
+|---|---|---|---|
+| 1 | `e2e`, `playwright`, `selector`, `flake`, `harness`, `fixture`, `test-results`, `baseurl`, `config` | Phase 0 | `npx playwright test tests/e2e/smoke.spec.ts --reporter=line` |
+| 2 | `smoke`, `lobby shell`, `join room`, `room code`, `enableE2EMode` | Phase 1 | `npx playwright test tests/e2e/smoke.spec.ts --reporter=line` |
+| 3 | `lobby`, `join`, `create room`, `room list`, `room entry` | Phase 2 | `npx playwright test tests/e2e/lobby.spec.ts --reporter=line` |
+| 4 | `battle`, `gameplay`, `match`, `round`, `websocket`, `ws`, `game start` | Phase 3 | `npx playwright test tests/e2e/battle-flows.spec.ts --reporter=line` |
+| 5 | `score`, `elo`, `elo_change`, `rating`, `points`, `leaderboard` | Phase 4 | `npx playwright test tests/e2e/scoring-elo.spec.ts --reporter=line` |
+| 6 | `reconnect`, `resilience`, `retry`, `disconnect`, `drop` | Phase 5 | `npx playwright test tests/e2e --reporter=line` |
+| default | _(no match)_ | Phase 2 | `npx playwright test tests/e2e --reporter=line` |
+
+**Rules:**
+- Higher priority wins — if a comment mentions both `smoke` and `elo`, assign Phase 1.
+- Unknown keywords → default Phase 2.
+
+---
+
+## GAIA task template
+
+Canonical shape every task enqueued by `qodo-feedback-loop.sh` must follow.
+The LM Studio compiler tier should validate and output this shape.
+
+```
+Phase: <Phase 0 | Phase 1 | Phase 2 | Phase 3 | Phase 4 | Phase 5>
+Goal: <one sentence>
+Success: <exact observable outcome — not "it works">
+Verification: <exact shell command>
+Files:
+- <relative/path/to/file.ts>
+Do not touch:
+- dist/
+- .serena/
+- test-results/
+- scripts/gaia-polecat.py
+Notes: <optional — Qodo excerpt, PR link, Linear ID>
+```
+
+**LM Studio compiler contract keys:**
+```json
+{
+  "phase": "Phase 1",
+  "goal": "...",
+  "success": "2 tests pass 3 consecutive runs with no waitForTimeout",
+  "verification": "npx playwright test tests/e2e/smoke.spec.ts --reporter=line",
+  "files": ["tests/e2e/smoke.spec.ts"],
+  "do_not_touch": ["dist/", ".serena/", "test-results/", "scripts/gaia-polecat.py"],
+  "skills_to_inject": ["systematic-debugging", "verification-before-completion"],
+  "stop_conditions": ["Provide verification evidence"],
+  "provider_recommendation": "opencode"
+}

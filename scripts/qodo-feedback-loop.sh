@@ -79,18 +79,35 @@ fi
 # Extract file paths from Qodo comment bodies (look for patterns like "backend/game_engine/views.py")
 FILE_PATHS=$(echo "$QODO_BODIES" | grep -oE '[a-zA-Z0-9_/-]+\.(py|ts|tsx|js|jsx|yml|yaml)' | sort -u)
 
+# Keyword → Phase classification (mirrors docs/E2E_TASK_LIST.md mapping table)
+# Higher priority number wins; check from lowest priority upward so highest overwrites.
 PHASE="Phase 2"
-if echo "$QODO_BODIES" | grep -qiE 'e2e|playwright|selector|flake|harness|fixture|test-results'; then
-    PHASE="Phase 0"
-fi
-if echo "$QODO_BODIES" | grep -qiE 'smoke|lobby|join room|room code'; then
-    PHASE="Phase 1"
-fi
+VERIFY="npx playwright test tests/e2e --reporter=line"
+SUCCESS="deterministic tests pass 3 consecutive runs with no waitForTimeout"
 
-SUCCESS="See docs/E2E_TASK_LIST.md success criteria for ${PHASE}"
-VERIFY="npx playwright test tests/e2e/smoke.spec.ts --reporter=line"
-if [ "$PHASE" != "Phase 1" ]; then
-    VERIFY="npx playwright test tests/e2e --reporter=line"
+if echo "$QODO_BODIES" | grep -qiE 'reconnect|resilience|retry|disconnect|drop'; then
+    PHASE="Phase 5"; VERIFY="npx playwright test tests/e2e --reporter=line"
+    SUCCESS="one reconnection scenario passes without flake"
+fi
+if echo "$QODO_BODIES" | grep -qiE 'score|elo|elo_change|rating|points|leaderboard'; then
+    PHASE="Phase 4"; VERIFY="npx playwright test tests/e2e/scoring-elo.spec.ts --reporter=line"
+    SUCCESS="ELO changes asserted end-to-end (UI + API), 3 consecutive passes"
+fi
+if echo "$QODO_BODIES" | grep -qiE 'battle|gameplay|match|round|websocket|\bws\b|game start'; then
+    PHASE="Phase 3"; VERIFY="npx playwright test tests/e2e/battle-flows.spec.ts --reporter=line"
+    SUCCESS="one full round flow covered with explicit state assertions"
+fi
+if echo "$QODO_BODIES" | grep -qiE 'lobby|join|create room|room list|room entry'; then
+    PHASE="Phase 2"; VERIFY="npx playwright test tests/e2e/lobby.spec.ts --reporter=line"
+    SUCCESS="deterministic navigation into room with stable assertions"
+fi
+if echo "$QODO_BODIES" | grep -qiE 'smoke|lobby shell|join room|room code|enableE2EMode'; then
+    PHASE="Phase 1"; VERIFY="npx playwright test tests/e2e/smoke.spec.ts --reporter=line"
+    SUCCESS="2 smoke tests pass 3 consecutive runs with no waitForTimeout"
+fi
+if echo "$QODO_BODIES" | grep -qiE 'e2e|playwright|selector|flake|harness|fixture|test-results|baseurl|config'; then
+    PHASE="Phase 0"; VERIFY="npx playwright test tests/e2e/smoke.spec.ts --reporter=line"
+    SUCCESS="smoke spec passes consistently and does not dirty the working tree"
 fi
 
 # Step 3 (optional): Build symbols array for bead
