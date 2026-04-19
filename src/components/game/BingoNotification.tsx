@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Trophy, Star } from 'lucide-react';
-import { useGame } from '@/context/GameContext';
+import { useGame } from '@/context/useGame';
 
 interface BingoNotificationProps {
   isVisible: boolean;

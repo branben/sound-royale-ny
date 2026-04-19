@@ -9,7 +9,7 @@ import { VictoryCelebration } from '@/components/game/VictoryCelebration';
 import { BingoNotification } from '@/components/game/BingoNotification';
 import { toast } from 'sonner';
 import { Tile } from '@/types/game';
-import { useGame } from '@/context/GameContext';
+import { useGame } from '@/context/useGame';
 import { gameApi } from '@/services/api';
 import { Wifi, WifiOff } from 'lucide-react';
 
@@ -85,20 +85,6 @@ export function PlayerView({ roomId, playerName }: PlayerViewProps) {
   const handleTimeUp = () => {
     toast.info('Time\'s up! Moving to next turn...');
   };
-
-  // Monitor bingo achievements for current player
-  useEffect(() => {
-    if (!playerData || !gameState.bingoAchievements) return;
-
-    const currentPlayerBingo = gameState.bingoAchievements.find(
-      achievement => achievement.playerId === playerData.id
-    );
-
-    if (currentPlayerBingo && !showBingoNotification) {
-      setIsDoubleBingo(currentPlayerBingo.isDoubleBingo);
-      setShowBingoNotification(true);
-    }
-  }, [gameState.bingoAchievements, playerData, showBingoNotification]);
 
   const handleBingoNotificationComplete = () => {
     setShowBingoNotification(false);

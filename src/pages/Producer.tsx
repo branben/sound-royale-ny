@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GameProvider, useGame } from '@/context/GameContext';
+import { GameProvider } from '@/context/GameContext';
+import { useGame } from '@/context/useGame';
 import { BingoBoard } from '@/components/game/BingoBoard';
 import { UploadDrawer } from '@/components/game/UploadDrawer';
 import { Button } from '@/components/ui/button';

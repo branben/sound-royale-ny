@@ -9,7 +9,7 @@ import { BingoBoard } from '@/components/game/BingoBoard';
 import { SpectatorView } from '@/components/game/SpectatorView';
 import { PlayerView } from '@/components/game/PlayerView';
 import { GameInfo } from '@/components/game/GameInfo';
-import { useGame, useGameRefresh, useGameRefreshEffect, useWebSocketConnection } from '@/context/GameContext';
+import { useGame, useGameRefresh, useGameRefreshEffect, useWebSocketConnection } from '@/context/useGame';
 import { useUser } from '@/context/UserContext';
 import type { RoomResponse, Player } from '@/types/game';
 

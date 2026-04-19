@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Users, Crown, X, Clock, Trophy } from 'lucide-react';
 import { Player } from '@/types/game';
 import { cn } from '@/lib/utils';
-import { useGame } from '@/context/GameContext';
+import { useGame } from '@/context/useGame';
 import { useUser } from '@/context/UserContext';
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { GameState, TileStatus, RoomResponse } from '@/types/game';
 import { mockGameState } from '@/data/mockGameState';
 import { roomApi } from '@/services/api';
@@ -17,7 +17,7 @@ interface GameContextType {
   timeRemaining: number | null;
 }
 
-const GameContext = createContext<GameContextType | undefined>(undefined);
+export const GameContext = createContext<GameContextType | undefined>(undefined);
 
 // Baseline state to keep UI stable before room data loads.
 const emptyGameState: GameState = {
@@ -262,16 +262,8 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
   );
 }
 
-export function useGame() {
-  const context = useContext(GameContext);
-  if (context === undefined) {
-    throw new Error('useGame must be used within a GameProvider');
-  }
-  return context;
-}
-
 // Refresh context for forcing game state updates
-const GameRefreshContext = createContext<{
+export const GameRefreshContext = createContext<{
   forceRefresh: number;
   setForceRefresh: (timestamp: number) => void;
 } | undefined>(undefined);
@@ -284,30 +276,4 @@ export function GameRefreshProvider({ children }: { children: ReactNode }) {
       {children}
     </GameRefreshContext.Provider>
   );
-}
-
-export function useGameRefresh() {
-  const context = useContext(GameRefreshContext);
-  if (context === undefined) {
-    throw new Error('useGameRefresh must be used within a GameRefreshProvider');
-  }
-  return context;
-}
-
-export function useGameRefreshEffect(callback: () => void) {
-  const { forceRefresh } = useGameRefresh();
-  
-  useEffect(() => {
-    callback();
-  }, [forceRefresh, callback]);
-}
-
-// WebSocket connection hook (placeholder for future implementation)
-export function useWebSocketConnection() {
-  // Placeholder - WebSocket implementation to be added later
-  // This prevents build errors while maintaining the API contract
-  useEffect(() => {
-    // WebSocket connection logic will be implemented here
-    // For now, this is a no-op to satisfy the import requirements
-  }, []);
 }

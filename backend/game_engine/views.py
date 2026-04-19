@@ -125,7 +125,7 @@ class RoomViewSet(viewsets.ModelViewSet):
         if self.kwargs.get(self.lookup_field):
             # Try to get by room code first
             try:
-                return Room.objects.get(code=self.kwargs[self.lookup_field])
+                return Room.objects.get(code=str(self.kwargs[self.lookup_field]))
             except Room.DoesNotExist:
                 # Fallback to UUID lookup if code lookup fails
                 pass
