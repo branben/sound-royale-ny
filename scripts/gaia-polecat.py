@@ -744,8 +744,8 @@ def main() -> None:
     parser.add_argument(
         "--compiler-provider",
         choices=["none", "lmstudio"],
-        default="none",
-        help="Optional local compiler stage to produce a minimal task contract (default: none)",
+        default=os.environ.get("GAIA_COMPILER_PROVIDER", "lmstudio"),
+        help="Local compiler stage to produce a minimal task contract (default: lmstudio)",
     )
     parser.add_argument(
         "--compiler-model",

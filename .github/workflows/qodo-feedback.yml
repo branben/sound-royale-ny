@@ -21,6 +21,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          SPAWN_POLECAT: "0"
+          WRITE_BEADS: "0"
         run: |
           # For scheduled runs, check all open PRs
           for pr in $(gh pr list --state open --json number --jq '.[].number'); do
@@ -38,6 +40,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          SPAWN_POLECAT: "0"
+          WRITE_BEADS: "0"
         run: |
           PR_NUM=${{ github.event.pull_request.number }}
           ./scripts/qodo-feedback-loop.sh ${{ github.repository_owner }} ${{ github.event.repository.name }} $PR_NUM
@@ -53,6 +57,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          SPAWN_POLECAT: "0"
+          WRITE_BEADS: "0"
         run: |
           PR_NUM=${{ github.event.issue.number }}
           ./scripts/qodo-feedback-loop.sh ${{ github.repository_owner }} ${{ github.event.repository.name }} $PR_NUM
