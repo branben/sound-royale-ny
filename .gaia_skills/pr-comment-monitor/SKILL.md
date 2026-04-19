@@ -25,6 +25,12 @@ After ANY PR operation, immediately check for new comments:
 gh pr view <PR_NUMBER> --json comments
 ```
 
+Note: for bot comment bodies (including Qodo), the most reliable API surface is the PR's issue comments:
+
+```bash
+gh api repos/<OWNER>/<REPO>/issues/<PR_NUMBER>/comments
+```
+
 ## Workflow
 
 ### After PR Creation
@@ -56,14 +62,15 @@ gh pr view <PR_NUMBER> --json comments
 
 ```bash
 # Filter for Qodo comments
-gh pr view 32 --json comments | jq '.comments[] | select(.author.login == "qodo-code-review")'
+gh api repos/<OWNER>/<REPO>/issues/32/comments \
+  --jq '.[] | select(.user.login == "qodo-code-review[bot]")'
 ```
 
 ### Check for Human Comments
 
 ```bash
 # Filter for non-bot comments
-gh pr view 32 --json comments | jq '.comments[] | select(.author.login != "qodo-code-review")'
+gh pr view 32 --json comments | jq '.comments[] | select(.author.login != "qodo-code-review[bot]")'
 ```
 
 ### Check for CI Failures
