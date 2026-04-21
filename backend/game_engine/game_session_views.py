@@ -109,11 +109,12 @@ class GameSessionViewSet(viewsets.ModelViewSet):
         Alternative detail route using UUID lookup
         URL: /api/game-sessions/{code}/by-uuid/{room_uuid}/
         """
+        from django.core.exceptions import ValidationError
         try:
             room = get_object_or_404(Room, id=room_uuid)
             serializer = self.get_serializer(room)
             return Response(serializer.data)
-        except ValueError as e:
+        except (ValueError, ValidationError) as e:
             return Response(
                 {"error": str(e)},
                 status=status.HTTP_400_BAD_REQUEST

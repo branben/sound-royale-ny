@@ -15,6 +15,10 @@ class TileSerializer(serializers.ModelSerializer):
 class TileCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating tiles with comprehensive validation"""
 
+    room = serializers.PrimaryKeyRelatedField(
+        queryset=Room.objects.all(), required=False
+    )
+
     class Meta:
         model = Tile
         fields = ["genre", "position", "player", "room"]
@@ -27,6 +31,7 @@ class TileCreateSerializer(serializers.ModelSerializer):
         position = attrs['position']
         genre = attrs['genre']
         room = attrs.get('room', player.room)  # Use room from attrs or fallback to player.room
+        attrs['room'] = room  # Ensure room is in attrs for model creation
         
         # Validation 1: Position must be within valid range (0-8)
         if not 0 <= position <= 8:

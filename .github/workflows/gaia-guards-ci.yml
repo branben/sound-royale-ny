@@ -37,9 +37,9 @@ jobs:
           PYTHONPATH: .
         run: |
           # Run main GAIA guard tests
-          pytest -q tests/gaia/test_gaia_guards.py
+          pytest -v tests/gaia/test_gaia_guards.py
           # Also run pytest tests in backend/gaia/
-          pytest -q backend/gaia/tests/
+          pytest -v backend/gaia/tests/
 
   django-tests:
     name: Django Backend Tests
@@ -122,9 +122,16 @@ jobs:
             exit 1
           fi
 
-          if git grep -n "file:///Users/" -- . ':!package-lock.json' ':!package.json' >/dev/null 2>&1; then
+          # Exclude docs/skills that legitimately explain the policy
+          if git grep -n "file:///Users/" -- . \
+              ':!package-lock.json' ':!package.json' \
+              ':!.gaia_skills/' ':!README.md' \
+              ':!.github/workflows/gaia-guards-ci.yml' >/dev/null 2>&1; then
             echo "ERROR: Found absolute file URLs (file:///Users/...) committed to repo. Use repo-relative paths."
-            git grep -n "file:///Users/" -- . ':!package-lock.json' ':!package.json' || true
+            git grep -n "file:///Users/" -- . \
+              ':!package-lock.json' ':!package.json' \
+              ':!.gaia_skills/' ':!README.md' \
+              ':!.github/workflows/gaia-guards-ci.yml' || true
             exit 1
           fi
 
