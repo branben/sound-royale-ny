@@ -41,11 +41,17 @@ jobs:
       - name: Run GAIA Queue
         env:
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          LMSTUDIO_BASE_URL: ${{ vars.LMSTUDIO_BASE_URL }}
         run: |
           # Process up to 3 tasks per run (avoid long jobs)
           for i in 1 2 3; do
             echo "=== GAIA run $i ==="
-            python scripts/gaia-polecat.py --run-queue --max-attempts 2 --allow-forbidden-diff || break
+            if [ -n "${LMSTUDIO_BASE_URL:-}" ]; then
+              echo "Using LM Studio at: $LMSTUDIO_BASE_URL"
+              python scripts/gaia-polecat.py --run-queue --max-attempts 2 --allow-forbidden-diff --compiler-provider lmstudio --lmstudio-base-url "$LMSTUDIO_BASE_URL" || break
+            else
+              python scripts/gaia-polecat.py --run-queue --max-attempts 2 --allow-forbidden-diff || break
+            fi
           done
 
       - name: Notify Linear of Completed Tasks
