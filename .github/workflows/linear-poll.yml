@@ -1,0 +1,62 @@
+name: Linear → GAIA Scheduled Poll
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: linear-poll
+  cancel-in-progress: false
+
+jobs:
+  poll-and-notify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Poll Linear for New Issues
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          LINEAR_TEAM: ${{ vars.LINEAR_TEAM }}
+        run: |
+          # LINEAR_TEAM is optional - script auto-detects if not set
+          export LINEAR_TEAM="${LINEAR_TEAM:-}"
+          python .linear/coding-tools/linear-to-gaia.py
+          echo "---"
+          python scripts/gaia-polecat.py --list-queue || true
+
+      - name: Run GAIA Queue
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        run: |
+          # Process up to 3 tasks per run (avoid long jobs)
+          for i in 1 2 3; do
+            echo "=== GAIA run $i ==="
+            python scripts/gaia-polecat.py --run-queue --max-attempts 2 --allow-forbidden-diff || break
+          done
+
+      - name: Notify Linear of Completed Tasks
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        run: |
+          python .linear/coding-tools/notify-linear.py
+
+      - name: Commit Any Changes
+        run: |
+          git config user.name "GAIA Bot"
+          git config user.email "107384180+branben@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || (git commit -m "gaia: implement Linear tasks [skip ci]" && git push)

@@ -47,12 +47,45 @@ def linear_graphql_query(query: str, variables: dict, api_key: str) -> dict:
         sys.exit(1)
 
 
+def fetch_teams(api_key: str) -> list[dict]:
+    """Fetch all teams from Linear."""
+    query = """
+    query Teams {
+        teams {
+            nodes {
+                id
+                name
+                key
+            }
+        }
+    }
+    """
+    result = linear_graphql_query(query, {}, api_key)
+    return result.get("data", {}).get("teams", {}).get("nodes", [])
+
+
 def fetch_open_issues(api_key: str, team_key: str | None = None) -> list[dict]:
     """Fetch open Linear issues (Todo, In Progress, Backlog)."""
+    # If no team key specified, try to auto-detect from available teams
+    if not team_key:
+        teams = fetch_teams(api_key)
+        if teams:
+            # Use the first team that matches common sound-royale prefixes
+            sound_teams = [t for t in teams if t.get("key", "").upper() in ("SR", "SOUND", "ROYALE")]
+            if sound_teams:
+                team_key = sound_teams[0]["key"]
+                print(f"  Auto-detected team: {sound_teams[0]['name']} ({team_key})")
+            else:
+                # Just use the first team
+                team_key = teams[0]["key"]
+                print(f"  Using first team: {teams[0]['name']} ({team_key})")
+        else:
+            print("  No teams found, querying all issues")
+
     # Build filter: optional team filter + open states
-    filter_parts = ['{ state: { name: { in: ["Todo", "In Progress", "Backlog"] } } }']
+    filter_parts = [{"state": {"name": {"in": ["Todo", "In Progress", "Backlog"]}}}]
     if team_key:
-        filter_parts.append(f'{{ team: {{ key: {{ eq: "{team_key}" }} }} }}')
+        filter_parts.append({"team": {"key": {"eq": team_key}}})
 
     query = """
     query Issues($filter: IssueFilter!) {
