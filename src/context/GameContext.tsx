@@ -86,6 +86,14 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
           players,
           currentRound: roomData.current_round,
           winner: roomData.winner,
+          eloDeltas: roomData.elo_deltas?.map(d => ({
+            playerId: d.player_id,
+            playerName: d.player_name,
+            previousElo: d.previous_elo,
+            newElo: d.new_elo,
+            delta: d.delta,
+            isWinner: d.is_winner,
+          })),
         });
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch room data');
@@ -151,6 +159,7 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
             winner: newState.winner,
             roundState: newState.roundState,
             spectatorCount: newState.spectatorCount,
+            eloDeltas: newState.eloDeltas,
           });
           break;
         }

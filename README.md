@@ -41,11 +41,12 @@ GAIA polecat uses **symbolic memory** - beads that store not just descriptions, 
 ```
 gaia-polecat (Python orchestrator)
     │
-    ├── Reads beads from .beads/issues.jsonl
-    ├── Finds relevant beads (keyword matching)
-    ├── Passes context to Codex (via codex exec)
+    ├── Stores local/private state in .gaia_private/gaia/
+    ├── Loads curated skills from .gaia_skills/**/SKILL.md
+    ├── Compiles a minimal task contract (local-first optional)
+    ├── Passes the contract to a provider (opencode/ollama/codex)
     │
-    └── Codex uses Serena MCP tools:
+    └── Provider uses Serena MCP tools:
         ├── serena.find_symbol()     → exact code location
         ├── serena.get_symbols_overview() → file structure
         ├── serena.replace_symbol_body() → safe edits
@@ -61,7 +62,7 @@ gaia-polecat (Python orchestrator)
 | [Serena MCP](https://github.com/oraios/serena) | Symbolic code navigation via LSP |
 | `.beads/` | Legacy bead location (no longer committed; treated as local/private) |
 | `.gaia_private/` | Private polecat state + bead outputs (git-ignored) |
-| `gaia-polecat` | Python orchestrator script |
+| `scripts/gaia-polecat.py` | Repo-local canonical runner |
 | `.gaia_skills/` | AI development skills & PR error test suite |
 
 ### Quick note on Beads + privacy
@@ -88,8 +89,11 @@ In earlier iterations, we experimented with committing bead artifacts to git. In
 ### Usage (with Codex + Serena MCP)
 
 ```bash
-# Run a task via GAIA polecat (uses Codex + Serena MCP)
-../gaia-polecat "Add a comment to GameContext.tsx"
+# Run a task via GAIA polecat (repo-local runner)
+python scripts/gaia-polecat.py "Add a comment to GameContext.tsx"
+
+# Optional convenience wrapper (recommended once installed)
+gaia-polecat "Add a comment to GameContext.tsx"
 
 # The polecat uses Codex with these MCP tools:
 # - Serena: Symbolic code navigation
@@ -102,9 +106,28 @@ In earlier iterations, we experimented with committing bead artifacts to git. In
 
 | Command | Description |
 |---------|-------------|
-| `../gaia-polecat "task"` | Run Codex to execute task |
+| `python scripts/gaia-polecat.py "task"` | Run GAIA task via repo-local runner |
+| `gaia-polecat "task"` | Run via convenience wrapper (forwards to repo-local runner) |
+| `gaia-polecat --list-queue` | Show queued tasks |
+| `gaia-polecat "task" --queue` | Add task to queue |
+| `gaia-polecat --run-queue` | Run queued tasks |
 | `gt mail send sound_royale_ny/mayor -s "Subject" -m "Body"` | Notify Gas Town mayor |
 | `codex exec --dangerously-bypass-approvals-and-sandbox "task"` | Direct Codex execution |
+
+### Cost control + autonomy (recommended operating mode)
+
+The goal is to keep GAIA autonomous while minimizing paid-token usage:
+- GAIA (this repo) acts as the **orchestrator** and **token budget governor**.
+- Providers (e.g. opencode) should be treated as **executors** that receive a minimal task contract.
+
+Practical defaults:
+- Prefer **single-worker queue execution** (avoid “spawn storms”).
+- On transient provider errors (e.g. rate limiting), use **exponential backoff** and respect `retry-after` when present.
+- Inject only the **minimum required skills** for the task.
+
+Local-first option (primarily free):
+- Use **LM Studio** as a local Tier-1 “compiler” model for triage/plan/contract generation.
+- Reserve opencode/Codex for code edits that require deeper reasoning/tool use.
 
 ### Prerequisites
 

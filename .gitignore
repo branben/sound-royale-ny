@@ -10,6 +10,9 @@ env/
 # Beads / Gastown symbolic memory (treat as local-private; do not commit)
 .beads/
 
+# Local agent runtime state
+.opencode/
+
 # Logs
 logs/
 *.log
@@ -50,4 +53,6 @@ daemon/
 .runtime/
 test-results/
 dist/
+playwright-report/
+.serena/
 .DS_Store

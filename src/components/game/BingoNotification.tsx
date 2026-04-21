@@ -26,7 +26,9 @@ export function BingoNotification({ isVisible, isDoubleBingo, onComplete }: Bing
   if (!isVisible) return null;
 
   return (
-    <div className={`fixed top-20 left-1/2 transform -translate-x-1/2 z-40 transition-all duration-500 ${
+    <div 
+      data-testid="bingo-notification"
+      className={`fixed top-20 left-1/2 transform -translate-x-1/2 z-40 transition-all duration-500 ${
       showAnimation ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
     }`}>
       <div className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-2 border-yellow-400/50 rounded-xl p-4 shadow-2xl backdrop-blur-md">

@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test';
-
-const API_BASE_URL = 'http://localhost:8000/api';
+import { enableE2EMode, mockApiRoutes, setupPlayerSession } from './helpers';
 
 const mockScoreRoomResponse = {
   code: 'test-room-id',
@@ -52,24 +51,9 @@ const mockScoreRoomResponse = {
 
 test.describe('Score Display', () => {
   test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => {
-      (window as any).__E2E_TESTING__ = true;
-      localStorage.setItem('userSession', JSON.stringify({
-        playerName: 'TestPlayer',
-        playerId: 'player1',
-        playerSecret: 'test-secret',
-        isSpectator: false,
-        isHost: true
-      }));
-    });
-
-    await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: mockScoreRoomResponse });
-      } else {
-        await route.continue();
-      }
-    });
+    await enableE2EMode(page);
+    await setupPlayerSession(page, { playerName: 'TestPlayer', playerId: 'player1', playerSecret: 'test-secret' });
+    await mockApiRoutes(page, { roomResponse: mockScoreRoomResponse });
   });
 
   test('should show base score calculation (100 points per line)', async ({ page }) => {

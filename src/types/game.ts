@@ -61,15 +61,26 @@ export interface RoundState {
   winner?: string;
 }
 
+export interface EloDelta {
+  playerId: string;
+  playerName: string;
+  previousElo: number;
+  newElo: number;
+  delta: number;
+  isWinner: boolean;
+}
+
 export interface GameState {
   gameId: string;
   roomCode?: string;
   status: 'lobby' | 'playing' | 'finished';
   players: Record<string, Player>;
   currentRound: number;
+  totalRounds?: number;
   winner?: string;
   roundState?: RoundState;
   spectatorCount?: number;
+  eloDeltas?: EloDelta[];
 }
 
 export const GENRES = [
@@ -102,9 +113,24 @@ export interface RoomResponse {
     player_secret?: string;
     is_connected?: boolean;
     is_spectator?: boolean;
+    is_host?: boolean;
+    is_ready?: boolean;
+    elo_rating?: number;
+    elo_wins?: number;
+    elo_losses?: number;
+    elo_matches?: number;
   }>;
   current_round: number;
+  total_rounds?: number;
   winner?: string;
+  elo_deltas?: Array<{
+    player_id: string;
+    player_name: string;
+    previous_elo: number;
+    new_elo: number;
+    delta: number;
+    is_winner: boolean;
+  }>;
 }
 
 export interface CreateRoomResponse {

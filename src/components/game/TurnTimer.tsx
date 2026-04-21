@@ -38,11 +38,13 @@ export function TurnTimer({ duration, isActive, onTimeUp, className }: TurnTimer
   };
 
   return (
-    <div className={cn(
-      'flex flex-col items-center gap-2 p-3 rounded-lg bg-card/80 border border-border/50',
-      'backdrop-blur-sm transition-all duration-300',
-      className
-    )}>
+    <div
+      data-testid="timer"
+      className={cn(
+        'flex flex-col items-center gap-2 p-3 rounded-lg bg-card/80 border border-border/50',
+        'backdrop-blur-sm transition-all duration-300',
+        className
+      )}>
       <div className="flex items-center gap-2">
         <div className={cn(
           'relative flex items-center gap-2',

@@ -2,57 +2,112 @@ name: Qodo Feedback Loop
 
 on:
   pull_request_review:
-    types: [submitted, edited]
+    types: [submitted]
   issue_comment:
-    types: [created, edited]
+    types: [created]
   schedule:
-    # Check for Qodo feedback every 5 minutes
-    - cron: '*/5 * * * *'
+    # Check open PRs every 30 minutes (was every 5 — 6x reduction)
+    - cron: '*/30 * * * *'
 
 jobs:
   qodo-feedback:
     runs-on: ubuntu-latest
-    if: github.event_name == 'schedule'
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+
+    # --- Event gates ---
+    # schedule: always run (scans all open PRs)
+    # pull_request_review: only if reviewer is qodo bot
+    # issue_comment: only if commenter is qodo bot and comment is on a PR
+    if: |
+      github.event_name == 'schedule' ||
+      (github.event_name == 'pull_request_review' &&
+       github.event.review.user.login == 'qodo-code-review[bot]') ||
+      (github.event_name == 'issue_comment' &&
+       github.event.comment.user.login == 'qodo-code-review[bot]' &&
+       github.event.issue.pull_request != null)
+
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+      SPAWN_POLECAT: "0"
+      WRITE_BEADS: "0"
+      GITHUB_ACTIONS: "true"
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Run Qodo Feedback Loop
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+      # --- Dependency check: fail fast with clear message ---
+      - name: Check required tools
         run: |
-          # For scheduled runs, check all open PRs
-          for pr in $(gh pr list --state open --json number --jq '.[].number'); do
-            ./scripts/qodo-feedback-loop.sh ${{ github.repository_owner }} ${{ github.event.repository.name }} $pr
+          MISSING=""
+          for tool in jq python3 curl; do
+            if ! command -v "$tool" &>/dev/null; then
+              MISSING="$MISSING $tool"
+            fi
           done
+          # gh CLI is pre-installed on ubuntu-latest but verify anyway
+          if ! command -v gh &>/dev/null; then
+            MISSING="$MISSING gh"
+          fi
+          if [ -n "$MISSING" ]; then
+            echo "❌ Missing required tools:$MISSING"
+            echo "   Install via: sudo apt-get install -y jq python3 curl"
+            echo "   gh: https://github.com/cli/cli/blob/trunk/docs/install_linux.md"
+            exit 1
+          fi
+          echo "✅ All required tools present: jq $(jq --version), python3 $(python3 --version), gh $(gh --version | head -1), curl $(curl --version | head -1)"
 
-  qodo-feedback-on-review:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request_review' && github.event.action == 'submitted'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Run Qodo Feedback Loop
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+      # --- Resolve PR number(s) based on trigger ---
+      - name: Resolve PR numbers and run loop
         run: |
-          PR_NUM=${{ github.event.pull_request.number }}
-          ./scripts/qodo-feedback-loop.sh ${{ github.repository_owner }} ${{ github.event.repository.name }} $PR_NUM
+          OWNER="${{ github.repository_owner }}"
+          REPO="${{ github.event.repository.name }}"
 
-  qodo-feedback-on-comment:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'issue_comment' && github.event.issue.pull_request != null
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+          run_for_pr() {
+            local pr="$1"
+            echo "▶ Processing PR #$pr"
+            bash scripts/qodo-feedback-loop.sh "$OWNER" "$REPO" "$pr" || {
+              echo "⚠️ Loop failed for PR #$pr (exit $?); continuing"
+            }
+          }
 
-      - name: Run Qodo Feedback Loop
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          case "${{ github.event_name }}" in
+            schedule)
+              echo "📅 Scheduled run — scanning all open PRs"
+              PRS=$(gh pr list --state open --json number --jq '.[].number' 2>/dev/null || true)
+              if [ -z "$PRS" ]; then
+                echo "✅ No open PRs found — nothing to do"
+                exit 0
+              fi
+              for pr in $PRS; do
+                run_for_pr "$pr"
+              done
+              ;;
+            pull_request_review)
+              run_for_pr "${{ github.event.pull_request.number }}"
+              ;;
+            issue_comment)
+              run_for_pr "${{ github.event.issue.number }}"
+              ;;
+          esac
+
+      # --- Repo hygiene guard: fail if script dirtied tracked files ---
+      - name: Verify repo hygiene
+        if: always()
         run: |
-          PR_NUM=${{ github.event.issue.number }}
-          ./scripts/qodo-feedback-loop.sh ${{ github.repository_owner }} ${{ github.event.repository.name }} $PR_NUM
+          DIRTY=$(git status --porcelain | grep -v '^\?\?' || true)
+          if [ -n "$DIRTY" ]; then
+            echo "❌ Script left tracked files dirty:"
+            echo "$DIRTY"
+            echo ""
+            echo "Forbidden paths check:"
+            echo "$DIRTY" | grep -E '^(M|A|D) +(dist/|\.serena/|test-results/)' && \
+              { echo "🚨 Forbidden path modified — reverting"; git checkout -- .; exit 1; } || true
+            echo "⚠️ Non-forbidden dirty files — inspect manually"
+            exit 1
+          fi
+          echo "✅ Repo hygiene: clean"
