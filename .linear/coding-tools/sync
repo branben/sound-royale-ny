@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Linear → GAIA sync wrapper
+# Usage: .linear/coding-tools/sync
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$REPO_ROOT"
+
+# Check for API key
+if [ -z "${LINEAR_API_KEY:-}" ]; then
+    echo "Error: LINEAR_API_KEY not set"
+    echo "Get your key: https://linear.app/settings/api"
+    echo "Then run: export LINEAR_API_KEY='lin_api_...'"
+    exit 1
+fi
+
+# Optional team filter
+if [ -n "${LINEAR_TEAM:-}" ]; then
+    echo "Syncing Linear team: $LINEAR_TEAM"
+else
+    echo "Syncing all teams (set LINEAR_TEAM to filter)"
+fi
+
+python3 .linear/coding-tools/linear-to-gaia.py
