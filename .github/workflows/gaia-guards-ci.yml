@@ -34,7 +34,7 @@ jobs:
 
       - name: Run GAIA guard tests (pytest)
         env:
-          PYTHONPATH: .
+          PYTHONPATH: ".:backend"
         run: |
           # Run main GAIA guard tests
           pytest -v tests/gaia/test_gaia_guards.py
