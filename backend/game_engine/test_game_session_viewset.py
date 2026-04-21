@@ -197,6 +197,7 @@ class GameSessionViewSetTestCase(APITestCase):
         viewset.format_kwarg = None
         
         request = MagicMock()
+        viewset.request = request
         response = viewset.session_stats(request)
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -223,6 +224,7 @@ class GameSessionViewSetTestCase(APITestCase):
         viewset.format_kwarg = None
         
         request = MagicMock()
+        viewset.request = request
         request.data = {'player_name': 'NewSpectator'}
         
         response = viewset.join_as_spectator(request)
@@ -246,6 +248,7 @@ class GameSessionViewSetTestCase(APITestCase):
         viewset.format_kwarg = None
         
         request = MagicMock()
+        viewset.request = request
         request.data = {'player_name': 'TestPlayer'}  # Already exists
         
         response = viewset.join_as_spectator(request)
@@ -261,6 +264,7 @@ class GameSessionViewSetTestCase(APITestCase):
         viewset.format_kwarg = None
         
         request = MagicMock()
+        viewset.request = request
         request.data = {}  # Missing player_name
         
         response = viewset.join_as_spectator(request)
@@ -276,6 +280,7 @@ class GameSessionViewSetTestCase(APITestCase):
         viewset.format_kwarg = None
         
         request = MagicMock()
+        viewset.request = request
         response = viewset.quick_status_check(request)
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -307,6 +312,7 @@ class GameSessionViewSetTestCase(APITestCase):
         viewset.format_kwarg = None
         
         request = MagicMock()
+        viewset.request = request
         response = viewset.active_sessions(request)
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -326,6 +332,7 @@ class GameSessionViewSetTestCase(APITestCase):
         viewset.format_kwarg = None
         
         request = MagicMock()
+        viewset.request = request
         request.data = {'admin_secret': 'DEBUG_ADMIN_SECRET'}
         
         initial_tile_count = Tile.objects.filter(room=self.room).count()
@@ -356,6 +363,7 @@ class GameSessionViewSetTestCase(APITestCase):
         viewset.format_kwarg = None
         
         request = MagicMock()
+        viewset.request = request
         request.data = {'admin_secret': 'WRONG_SECRET'}
         
         response = viewset.force_cleanup(request)
@@ -371,6 +379,7 @@ class GameSessionViewSetTestCase(APITestCase):
         viewset.format_kwarg = None
         
         request = MagicMock()
+        viewset.request = request
         
         # Test with valid UUID
         with patch.object(viewset, 'get_object', return_value=self.room):
@@ -380,7 +389,7 @@ class GameSessionViewSetTestCase(APITestCase):
         # Test with invalid UUID
         response = viewset.by_uuid(request, room_uuid='invalid-uuid')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('Invalid UUID format', response.data['error'])
+        self.assertIn('not a valid UUID', str(response.data['error']))
     
     def test_by_player_action(self):
         """Test by_player action with comprehensive player info"""
@@ -389,6 +398,7 @@ class GameSessionViewSetTestCase(APITestCase):
         viewset.format_kwarg = None
         
         request = MagicMock()
+        viewset.request = request
         
         # Mock get_object to return room
         with patch.object(viewset, 'get_object', return_value=self.room):
