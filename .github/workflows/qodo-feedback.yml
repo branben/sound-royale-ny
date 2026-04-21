@@ -12,6 +12,10 @@ on:
 jobs:
   qodo-feedback:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
 
     # --- Event gates ---
     # schedule: always run (scans all open PRs)

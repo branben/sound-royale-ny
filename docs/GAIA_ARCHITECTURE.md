@@ -103,8 +103,8 @@ graph TB
 **What it does:** Runs the AI agent with custom instructions and MCP tool access.
 
 **Your customization:**
-- [`goose-ledger`](file:///Users/brandonbennett/.local/bin/goose-ledger) script launches Goose with symbolic ledger protocol
-- [`symbolic_ledger_instructions.md`](file:///Users/brandonbennett/.config/goose/symbolic_ledger_instructions.md) defines GAIA's behavior
+- `goose-ledger` script at `~/.local/bin/goose-ledger` launches Goose with symbolic ledger protocol
+- `symbolic_ledger_instructions.md` at `~/.config/goose/symbolic_ledger_instructions.md` defines GAIA's behavior
 
 **Real-world example:**
 ```bash
@@ -125,7 +125,7 @@ goose-ledger "Add a new game mode"
 **What it does:** Provides semantic code search and symbol navigation.
 
 **Your customization:**
-- [`serena-mcp-guard.py`](file:///Users/brandonbennett/.local/bin/serena-mcp-guard.py) wraps Serena with security guards
+- `serena-mcp-guard.py` at `~/.local/bin/serena-mcp-guard.py` wraps Serena with security guards
 
 **Real-world example:**
 ```python
@@ -144,7 +144,7 @@ AI: "I have a bead pointing to GameContext.tsx at line 42"
 **What it does:** Stores symbolic memory as "beads" (issue-like records).
 
 **Your customization:**
-- [`beads-mcp-guard.py`](file:///Users/brandonbennett/.local/bin/beads-mcp-guard.py) wraps Beads with security guards
+- `beads-mcp-guard.py` at `~/.local/bin/beads-mcp-guard.py` wraps Beads with security guards
 - Multi-repo config routes to public (`.beads/`) or private (`.gaia_private/`) namespaces
 
 **Real-world example:**
@@ -159,7 +159,7 @@ bd create --private --title "Debug: Safari JWT Issue" \
 ```
 
 ### 4. Security Guards
-**Files:** [`guards_adapter.py`](file:///Users/brandonbennett/pursuit/sound-royale-ny/backend/gaia/guards_adapter.py), [`integrity_scanner.py`](file:///Users/brandonbennett/pursuit/sound-royale-ny/backend/gaia/integrity_scanner.py)
+**Files:** `backend/gaia/guards_adapter.py`, `backend/gaia/integrity_scanner.py`
 
 **What they do:**
 - **Path Integrity:** Block access outside repo root
@@ -312,5 +312,5 @@ goose-ledger "Fix WebSocket reconnection bug"
 - **Gastown/Beads:** [github.com/steveyegge/gastown](https://github.com/steveyegge/gastown)
 - **Goose:** [github.com/block/goose](https://github.com/block/goose)
 - **Serena:** [github.com/oraios/serena](https://github.com/oraios/serena)
-- **Security Policy:** [docs/sec/GAIA_SECURITY_POLICY.md](file:///Users/brandonbennett/pursuit/sound-royale-ny/docs/sec/GAIA_SECURITY_POLICY.md)
-- **Sandbox Guide:** [SANDBOX_GUIDE.md](file:///Users/brandonbennett/.config/goose/SANDBOX_GUIDE.md)
+- **Security Policy:** `docs/sec/GAIA_SECURITY_POLICY.md`
+- **Sandbox Guide:** `SANDBOX_GUIDE.md` at `~/.config/goose/SANDBOX_GUIDE.md`
