@@ -152,7 +152,7 @@ class GameSessionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
-            logger.error(f"Error retrieving session by player secret {player_secret}: {str(e)}")
+            logger.error(f"Error retrieving session by player secret [REDACTED]: {str(e)}")
             return Response(
                 {"error": "Failed to retrieve session"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
