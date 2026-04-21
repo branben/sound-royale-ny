@@ -3,7 +3,7 @@ from pathlib import Path
 import tempfile
 import pytest
 
-from backend.gaia.guards_adapter import evaluate_path_request, Decision
+from gaia.guards_adapter import evaluate_path_request, Decision
 
 
 @pytest.fixture()

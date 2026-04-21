@@ -1,378 +1,298 @@
-/**
- * Negative Scenario Tests - Disconnections
- * 
- * Tests disconnection scenarios:
- * - Player disconnects mid-round, reconnection restores state
- * - Player disconnect timeout triggers auto-forfeit
- * - WebSocket auto-reconnect on network blip
- * - Spectator disconnect does not affect game
- */
-
 import { test, expect } from '@playwright/test';
+import { enableE2EMode, mockApiRoutes, setupPlayerSession } from '../helpers';
 import {
-  createMockPlayingState,
-  createMockVotingState,
+  createMockPlayingStateWithoutGenre,
   createMockProducer,
   createMockSpectator,
+  toRoomResponse,
 } from '../utils/game-fixtures';
 
 test.describe('Player Disconnection', () => {
   test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => {
-      (window as any).__E2E_TESTING__ = true;
-    });
+    await enableE2EMode(page);
   });
 
-  test('should show disconnected indicator when player loses connection', async ({ page }) => {
+  test('shows the current player as offline when they disconnect', async ({ page }) => {
     const producer = createMockProducer('TestPlayer', { isConnected: false });
-    const gameState = createMockPlayingState({ [producer.id]: producer });
+    const gameState = createMockPlayingStateWithoutGenre({ [producer.id]: producer });
 
-    await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: gameState });
-      } else {
-        await route.continue();
-      }
+    await mockApiRoutes(page, {
+      roomResponse: toRoomResponse(gameState),
     });
 
-    await page.addInitScript(() => {
-      localStorage.setItem('userSession', JSON.stringify({
-        playerName: 'TestPlayer',
-        playerId: producer.id,
-        playerSecret: 'test-secret',
-        isSpectator: false,
-        isHost: false
-      }));
+    await setupPlayerSession(page, {
+      playerName: producer.name,
+      playerId: producer.id,
+      playerSecret: 'test-secret',
     });
 
     await page.goto(`/room/${gameState.id}`);
 
-    // Should show disconnected indicator
-    await expect(page.locator('text=/Disconnected|Reconnecting/, [data-testid="connection-status"]')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('connection-status')).toBeVisible();
+    await expect(page.getByText('Offline')).toBeVisible();
   });
 
-  test('should allow reconnection and state restore', async ({ page }) => {
-    const producer = createMockProducer('TestPlayer');
-    let connectionCount = 0;
-    
-    const gameState = createMockPlayingState({ [producer.id]: producer });
-
-    await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        connectionCount++;
-        await route.fulfill({ json: gameState });
-      } else {
-        await route.continue();
-      }
-    });
-
-    await page.addInitScript(() => {
-      localStorage.setItem('userSession', JSON.stringify({
-        playerName: 'TestPlayer',
-        playerId: producer.id,
-        playerSecret: 'test-secret',
-        isSpectator: false,
-        isHost: false
-      }));
-    });
-
-    await page.goto(`/room/${gameState.id}`);
-    
-    // Initial load
-    await expect(page.locator('[data-testid="game-board"]')).toBeVisible();
-    
-    // Should be able to reconnect
-    // Note: WebSocket reconnection logic would be tested here
-    expect(connectionCount).toBeGreaterThan(0);
-  });
-
-  test('should continue game when producer disconnects', async ({ page }) => {
+  test('keeps the board visible when another producer disconnects', async ({ page }) => {
     const producer1 = createMockProducer('Producer1');
     const producer2 = createMockProducer('Producer2', { isConnected: false });
-    
-    const gameState = createMockPlayingState({
+    const gameState = createMockPlayingStateWithoutGenre({
       [producer1.id]: producer1,
       [producer2.id]: producer2,
     });
 
-    await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: gameState });
-      } else {
-        await route.continue();
-      }
+    await mockApiRoutes(page, {
+      roomResponse: toRoomResponse(gameState),
+      rejoin: {
+        player: producer1,
+        playerSecret: 'producer1-secret',
+      },
     });
 
-    await page.addInitScript(() => {
-      localStorage.setItem('userSession', JSON.stringify({
-        playerName: 'Producer1',
-        playerId: producer1.id,
-        playerSecret: 'producer1-secret',
-        isSpectator: false,
-        isHost: false
-      }));
+    await setupPlayerSession(page, {
+      playerName: producer1.name,
+      playerId: producer1.id,
+      playerSecret: 'producer1-secret',
     });
 
     await page.goto(`/room/${gameState.id}`);
 
-    // Game should continue with remaining producer
-    await expect(page.locator('[data-testid="game-board"]')).toBeVisible();
+    await expect(page.getByTestId('game-board')).toBeVisible();
+    await expect(page.getByText('Live')).toBeVisible();
   });
 
-  test('should show disconnected player to other users', async ({ page }) => {
+  test('shows a disconnected indicator for other players', async ({ page }) => {
     const producer1 = createMockProducer('Producer1');
     const producer2 = createMockProducer('Producer2', { isConnected: false });
-    
-    const gameState = createMockPlayingState({
+    const gameState = createMockPlayingStateWithoutGenre({
       [producer1.id]: producer1,
       [producer2.id]: producer2,
     });
 
-    await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: gameState });
-      } else {
-        await route.continue();
-      }
+    await mockApiRoutes(page, {
+      roomResponse: toRoomResponse(gameState),
+      rejoin: {
+        player: producer1,
+        playerSecret: 'producer1-secret',
+      },
     });
 
-    await page.addInitScript(() => {
-      localStorage.setItem('userSession', JSON.stringify({
-        playerName: 'Producer1',
-        playerId: producer1.id,
-        playerSecret: 'producer1-secret',
-        isSpectator: false,
-        isHost: true
-      }));
+    await setupPlayerSession(page, {
+      playerName: producer1.name,
+      playerId: producer1.id,
+      playerSecret: 'producer1-secret',
     });
 
     await page.goto(`/room/${gameState.id}`);
 
-    // Should see disconnected status for Producer2
-    await expect(page.locator('text=Producer2')).toBeVisible();
+    await expect(page.getByTestId(`player-name-${producer2.name}`)).toBeVisible();
+    await expect(page.getByTestId('disconnected-indicator')).toBeVisible();
   });
 });
 
 test.describe('Spectator Disconnection', () => {
   test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => {
-      (window as any).__E2E_TESTING__ = true;
-    });
+    await enableE2EMode(page);
   });
 
-  test('should not affect game when spectator disconnects', async ({ page }) => {
+  test('does not interrupt the live state when a spectator disconnects', async ({ page }) => {
     const producer = createMockProducer('Producer1');
     const spectator = createMockSpectator('Spectator', { isConnected: false });
-    
-    const gameState = createMockPlayingState({
+    const gameState = createMockPlayingStateWithoutGenre({
       [producer.id]: producer,
       [spectator.id]: spectator,
     });
 
-    await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: gameState });
-      } else {
-        await route.continue();
-      }
+    await mockApiRoutes(page, {
+      roomResponse: toRoomResponse(gameState),
+      rejoin: {
+        player: producer,
+        playerSecret: 'producer-secret',
+      },
     });
 
-    await page.addInitScript(() => {
-      localStorage.setItem('userSession', JSON.stringify({
-        playerName: 'Producer1',
-        playerId: producer.id,
-        playerSecret: 'producer-secret',
-        isSpectator: false,
-        isHost: true
-      }));
+    await setupPlayerSession(page, {
+      playerName: producer.name,
+      playerId: producer.id,
+      playerSecret: 'producer-secret',
     });
 
     await page.goto(`/room/${gameState.id}`);
 
-    // Game should continue unaffected
-    await expect(page.locator('[data-testid="game-board"]')).toBeVisible();
-    
-    // Should still see game running
-    await expect(page.locator('text=playing')).toBeVisible();
+    await expect(page.getByTestId('game-board')).toBeVisible();
+    await expect(page.getByText('Live')).toBeVisible();
   });
 
-  test('should allow spectator to reconnect', async ({ page }) => {
+  test('restores the spectator dashboard after a reload-style reconnect', async ({ page }) => {
     const producer = createMockProducer('Producer1');
     const spectator = createMockSpectator('Spectator');
-    
-    const gameState = createMockPlayingState({
+    const gameState = createMockPlayingStateWithoutGenre({
       [producer.id]: producer,
       [spectator.id]: spectator,
     });
 
-    await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: gameState });
-      } else {
-        await route.continue();
-      }
-    });
-
-    await page.addInitScript(() => {
-      localStorage.setItem('userSession', JSON.stringify({
-        playerName: 'Spectator',
-        playerId: spectator.id,
+    await mockApiRoutes(page, {
+      roomResponse: toRoomResponse(gameState),
+      rejoin: {
+        player: spectator,
         playerSecret: 'spectator-secret',
-        isSpectator: true,
-        isHost: false
-      }));
+      },
     });
 
-    await page.goto(`/room/${gameState.id}?spectator=true`);
+    await setupPlayerSession(page, {
+      playerName: spectator.name,
+      playerId: spectator.id,
+      playerSecret: 'spectator-secret',
+    });
 
-    // Should be able to reconnect and see game
-    await expect(page.locator('[data-testid="game-board"]')).toBeVisible();
+    await page.goto(`/room/${gameState.id}`);
+    await expect(page.getByTestId('request-to-play')).toBeVisible();
+
+    await page.reload();
+
+    await expect(page.getByTestId('request-to-play')).toBeVisible();
   });
 });
 
-test.describe('WebSocket Reconnection', () => {
+test.describe('Room Reload Recovery', () => {
   test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => {
-      (window as any).__E2E_TESTING__ = true;
-    });
+    await enableE2EMode(page);
   });
 
-  test('should show reconnecting indicator on WebSocket disconnect', async ({ page }) => {
+  test('keeps the room accessible across repeated fetches', async ({ page }) => {
     const producer = createMockProducer('TestPlayer');
-    const gameState = createMockPlayingState({ [producer.id]: producer });
+    const gameState = createMockPlayingStateWithoutGenre({ [producer.id]: producer });
+    let roomRequests = 0;
 
-    await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: gameState });
-      } else {
-        await route.continue();
-      }
+    await mockApiRoutes(page, {
+      roomResponse: toRoomResponse(gameState),
+      rejoin: {
+        player: producer,
+        playerSecret: 'test-secret',
+      },
     });
 
-    await page.addInitScript(() => {
-      localStorage.setItem('userSession', JSON.stringify({
-        playerName: 'TestPlayer',
-        playerId: producer.id,
-        playerSecret: 'test-secret',
-        isSpectator: false,
-        isHost: false
-      }));
+    await page.route('**/api/rooms/*/', async (route) => {
+      roomRequests += 1;
+      await route.fulfill({ status: 200, json: toRoomResponse(gameState) });
+    });
+
+    await setupPlayerSession(page, {
+      playerName: producer.name,
+      playerId: producer.id,
+      playerSecret: 'test-secret',
     });
 
     await page.goto(`/room/${gameState.id}`);
-    await expect(page.locator('[data-testid="game-board"]')).toBeVisible();
+    await page.reload();
 
-    // Simulate WebSocket disconnect by intercepting
-    // Note: In real test, you'd use CDP to force WebSocket close
-    
-    // Should show reconnecting message
-    // await expect(page.locator('text=/Reconnecting.../')).toBeVisible();
+    await expect(page.getByTestId('game-board')).toBeVisible();
+    expect(roomRequests).toBeGreaterThan(0);
   });
 
-  test('should auto-reconnect within timeout', async ({ page }) => {
-    const producer = createMockProducer('TestPlayer');
-    let reconnectAttempts = 0;
-    
-    const gameState = createMockPlayingState({ [producer.id]: producer });
+  test('updates the side panel after a reload with changed connection state', async ({ page }) => {
+    const producer = createMockProducer('Producer1');
+    const challenger = createMockProducer('Producer2');
+    const initialState = createMockPlayingStateWithoutGenre({
+      [producer.id]: producer,
+      [challenger.id]: challenger,
+    });
+    const disconnectedState = createMockPlayingStateWithoutGenre({
+      [producer.id]: producer,
+      [challenger.id]: createMockProducer('Producer2', {
+        board: challenger.board,
+        isConnected: false,
+      }),
+    });
+    let useDisconnectedState = false;
 
+    // This test needs a stateful mock: the room response changes after reload.
     await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        reconnectAttempts++;
-        await route.fulfill({ json: gameState });
-      } else {
-        await route.continue();
+      const url = route.request().url();
+
+      if (url.includes('/rejoin_game/')) {
+        await route.fulfill({
+          status: 200,
+          json: {
+            id: producer.id,
+            name: producer.name,
+            avatar: producer.avatar,
+            tiles: producer.board.tiles,
+            player_secret: 'producer-secret',
+            is_connected: true,
+            is_spectator: false,
+            is_host: false,
+          },
+        });
+        return;
       }
+
+      if (url.includes('/rooms/')) {
+        await route.fulfill({
+          status: 200,
+          json: toRoomResponse(useDisconnectedState ? disconnectedState : initialState),
+        });
+        return;
+      }
+
+      await route.continue();
     });
 
-    await page.addInitScript(() => {
-      localStorage.setItem('userSession', JSON.stringify({
-        playerName: 'TestPlayer',
-        playerId: producer.id,
-        playerSecret: 'test-secret',
-        isSpectator: false,
-        isHost: false
-      }));
+    await setupPlayerSession(page, {
+      playerName: producer.name,
+      playerId: producer.id,
+      playerSecret: 'producer-secret',
     });
 
-    await page.goto(`/room/${gameState.id}`);
-    
-    // Should have at least one successful connection
-    expect(reconnectAttempts).toBeGreaterThan(0);
+    await page.goto(`/room/${initialState.id}`);
+    await expect(page.getByTestId(`player-name-${challenger.name}`)).toBeVisible();
+
+    useDisconnectedState = true;
+    await page.reload();
+
+    await expect(page.getByTestId('disconnected-indicator')).toBeVisible();
   });
 
-  test('should sync state after reconnection', async ({ page }) => {
-    const producer = createMockProducer('TestPlayer');
-    const gameState = createMockPlayingState({ [producer.id]: producer });
+  test('shows the room error state when the request fails', async ({ page }) => {
+    const producer = createMockProducer('Producer1');
 
-    let requestCount = 0;
-    
+    // This test intentionally exercises the room-fetch error path.
     await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        requestCount++;
-        await route.fulfill({ json: gameState });
-      } else {
-        await route.continue();
+      const url = route.request().url();
+
+      if (url.includes('/rejoin_game/')) {
+        await route.fulfill({
+          status: 200,
+          json: {
+            id: producer.id,
+            name: producer.name,
+            avatar: producer.avatar,
+            tiles: producer.board.tiles,
+            player_secret: 'producer-secret',
+            is_connected: true,
+            is_spectator: false,
+            is_host: false,
+          },
+        });
+        return;
       }
-    });
 
-    await page.addInitScript(() => {
-      localStorage.setItem('userSession', JSON.stringify({
-        playerName: 'TestPlayer',
-        playerId: producer.id,
-        playerSecret: 'test-secret',
-        isSpectator: false,
-        isHost: false
-      }));
-    });
-
-    await page.goto(`/room/${gameState.id}`);
-    
-    // Wait for initial load
-    await expect(page.locator('[data-testid="game-board"]')).toBeVisible();
-    
-    // After reconnection, should fetch state again
-    // Note: In real scenario with WebSocket, would trigger state sync
-    expect(requestCount).toBeGreaterThanOrEqual(1);
-  });
-});
-
-test.describe('Network Timeout', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => {
-      (window as any).__E2E_TESTING__ = true;
-    });
-  });
-
-  test('should handle request timeout gracefully', async ({ page }) => {
-    const producer = createMockProducer('TestPlayer');
-    const gameState = createMockPlayingState({ [producer.id]: producer });
-
-    // Set up slow response
-    await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        // Delay response to simulate slow network
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        await route.fulfill({ json: gameState });
-      } else {
-        await route.continue();
+      if (url.includes('/rooms/')) {
+        await route.fulfill({ status: 500, json: { error: 'Request timed out' } });
+        return;
       }
+
+      await route.continue();
     });
 
-    await page.addInitScript(() => {
-      localStorage.setItem('userSession', JSON.stringify({
-        playerName: 'TestPlayer',
-        playerId: producer.id,
-        playerSecret: 'test-secret',
-        isSpectator: false,
-        isHost: false
-      }));
+    await setupPlayerSession(page, {
+      playerName: producer.name,
+      playerId: producer.id,
+      playerSecret: 'producer-secret',
     });
 
-    // Navigate and expect either loading state or timeout handling
-    const response = await page.goto(`/room/${gameState.id}`, { timeout: 15000 }).catch(() => null);
-    
-    // Should handle gracefully (either show loading or error)
-    const hasContent = await page.locator('[data-testid], body').count() > 0;
-    expect(hasContent).toBe(true);
+    await page.goto('/room/test-room');
+
+    await expect(page.getByText('Failed to load room').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('button', { name: 'Back to Lobby' })).toBeVisible({ timeout: 10000 });
   });
 });

@@ -75,9 +75,9 @@ jobs:
           DJANGO_SETTINGS_MODULE: sound_royale_api.settings
           PYTHONPATH: ..
         run: |
-          echo "Running pytest tests..."
+          echo "Running comprehensive Django test suite..."
           set +e
-          TEST_OUTPUT=$(pytest game_engine/tests.py -v --tb=short 2>&1)
+          TEST_OUTPUT=$(pytest -v --tb=short 2>&1)
           PYTEST_EXIT=$?
           set -e
           echo "$TEST_OUTPUT"
@@ -88,11 +88,20 @@ jobs:
             exit 1
           fi
 
+          # Verify minimum test count (should have > 70 tests total)
+          TEST_COUNT=$(echo "$TEST_OUTPUT" | grep -oE "collected [0-9]+ items" | grep -oE "[0-9]+")
+          if [ "$TEST_COUNT" -lt 70 ]; then
+            echo "ERROR: Insufficient test count: $TEST_COUNT (expected > 70)"
+            exit 1
+          fi
+
           # Fail CI if pytest failed
           if [ "$PYTEST_EXIT" -ne 0 ]; then
             echo "ERROR: Pytest failed!"
             exit "$PYTEST_EXIT"
           fi
+
+          echo "SUCCESS: $TEST_COUNT tests collected and executed"
 
   security-integrity:
     name: GAIA Integrity & Signing Check

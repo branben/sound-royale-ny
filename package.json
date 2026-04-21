@@ -15,6 +15,9 @@
     "lint": "npx tsc --noEmit && eslint .",
     "preview": "vite preview",
     "test:e2e": "playwright test",
+    "test:e2e:preflight": "./scripts/e2e-guard.sh preflight",
+    "test:e2e:guard": "./scripts/e2e-guard.sh check",
+    "test:e2e:clean": "./scripts/e2e-guard.sh clean",
     "test:backend": "cd backend && python manage.py test",
     "db:migrate": "cd backend && python manage.py makemigrations && python manage.py migrate"
   },

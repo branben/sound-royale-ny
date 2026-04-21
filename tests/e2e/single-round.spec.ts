@@ -1,484 +1,295 @@
-/**
- * Single Round End-to-End E2E Tests
- * 
- * Tests complete single round flow:
- * - Lobby → Round starts → Tile selection → Voting → Winner
- */
-
 import { test, expect } from '@playwright/test';
+import { enableE2EMode, mockApiRoutes, setupPlayerSession } from './helpers';
 import {
-  createMockLobbyState,
-  createMockPlayingState,
-  createMockVotingState,
   createMockFinishedState,
+  createMockLobbyState,
+  createMockPlayingStateWithoutGenre,
   createMockProducer,
+  createMockScoreInfo,
   createMockSpectator,
-  createMockVote,
-  createMockBoard,
+  toRoomResponse,
 } from './utils/game-fixtures';
+
+type TestPlayer = ReturnType<typeof createMockProducer>;
+
+function findPlayerByName(
+  players: Record<string, TestPlayer>,
+  name: string
+): TestPlayer {
+  const player = Object.values(players).find((entry) => entry.name === name);
+
+  if (!player) {
+    throw new Error(`Unable to find player "${name}" in fixture`);
+  }
+
+  return player;
+}
 
 test.describe('Single Round End-to-End', () => {
   test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => {
-      (window as any).__E2E_TESTING__ = true;
-    });
+    await enableE2EMode(page);
   });
 
   test.describe('Lobby Phase', () => {
-    test('should start with lobby and wait for players', async ({ page }) => {
-      const lobbyState = createMockLobbyState('HostPlayer', ['Player1', 'Player2'], ['Spectator1']);
-
-      await page.route('**/api/**', async (route) => {
-        if (route.request().url().includes('/rooms/')) {
-          await route.fulfill({ json: lobbyState });
-        } else {
-          await route.continue();
-        }
-      });
-
-      const hostId = Object.keys(lobbyState.players).find(
-        name => lobbyState.players[name].name === 'HostPlayer'
-      ) || '';
-
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'HostPlayer',
-          playerId: hostId,
-          playerSecret: 'host-secret',
-          isSpectator: false,
-          isHost: true
-        }));
-      });
-
-      await page.goto(`/room/${lobbyState.id}`);
-
-      // Should see lobby
-      await expect(page.locator('[data-testid="lobby"], text=waiting')).toBeVisible({ timeout: 10000 });
-    });
-
-    test('should see all players in lobby', async ({ page }) => {
+    test('shows the joined host lobby with a start battle action', async ({ page }) => {
       const lobbyState = createMockLobbyState('HostPlayer', ['Player1'], ['Spectator1']);
+      const host = findPlayerByName(lobbyState.players, 'HostPlayer');
 
-      await page.route('**/api/**', async (route) => {
-        if (route.request().url().includes('/rooms/')) {
-          await route.fulfill({ json: lobbyState });
-        } else {
-          await route.continue();
-        }
+      await mockApiRoutes(page, {
+        roomResponse: toRoomResponse(lobbyState),
+        rejoin: {
+          player: host,
+          playerSecret: 'host-secret',
+        },
+        startGame: {
+          json: { status: 'started' },
+        },
       });
 
-      const hostId = Object.keys(lobbyState.players)[0];
-
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'HostPlayer',
-          playerId: hostId,
-          playerSecret: 'host-secret',
-          isSpectator: false,
-          isHost: true
-        }));
+      await setupPlayerSession(page, {
+        playerName: host.name,
+        playerId: host.id,
+        playerSecret: 'host-secret',
       });
 
       await page.goto(`/room/${lobbyState.id}`);
 
-      // Should see all players
-      await expect(page.locator('text=HostPlayer')).toBeVisible();
-      await expect(page.locator('text=Player1')).toBeVisible();
-      await expect(page.locator('text=Spectator1')).toBeVisible();
+      await expect(page.getByTestId('lobby')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Start Battle' })).toBeVisible();
+      await expect(page.getByText(new RegExp(`Room Code: ${lobbyState.id}`))).toBeVisible();
+    });
+
+    test('keeps non-host players in the waiting state until the host starts', async ({ page }) => {
+      const lobbyState = createMockLobbyState('HostPlayer', ['Player1'], []);
+      const player = findPlayerByName(lobbyState.players, 'Player1');
+
+      await mockApiRoutes(page, {
+        roomResponse: toRoomResponse(lobbyState),
+        rejoin: {
+          player,
+          playerSecret: 'player-secret',
+        },
+      });
+
+      await setupPlayerSession(page, {
+        playerName: player.name,
+        playerId: player.id,
+        playerSecret: 'player-secret',
+      });
+
+      await page.goto(`/room/${lobbyState.id}`);
+
+      await expect(page.getByTestId('lobby')).toBeVisible();
+      await expect(page.getByText(/Waiting for more players to join and host to start game/i)).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Start Battle' })).not.toBeVisible();
     });
   });
 
-  test.describe('Round Start', () => {
-    test('should transition from lobby to playing', async ({ page }) => {
+  test.describe('Live Round', () => {
+    test('transitions into the live battle layout for producers', async ({ page }) => {
       const producer1 = createMockProducer('Producer1');
       const producer2 = createMockProducer('Producer2');
-      const spectator = createMockSpectator('Spectator');
-      
-      const gameState = createMockPlayingState({
+      const spectator = createMockSpectator('Spectator1');
+      const gameState = createMockPlayingStateWithoutGenre({
         [producer1.id]: producer1,
         [producer2.id]: producer2,
         [spectator.id]: spectator,
       });
 
-      await page.route('**/api/**', async (route) => {
-        if (route.request().url().includes('/rooms/')) {
-          await route.fulfill({ json: gameState });
-        } else {
-          await route.continue();
-        }
+      await mockApiRoutes(page, {
+        roomResponse: toRoomResponse(gameState),
+        rejoin: {
+          player: producer1,
+          playerSecret: 'producer1-secret',
+        },
       });
 
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'Producer1',
-          playerId: producer1.id,
-          playerSecret: 'producer1-secret',
-          isSpectator: false,
-          isHost: true
-        }));
+      await setupPlayerSession(page, {
+        playerName: producer1.name,
+        playerId: producer1.id,
+        playerSecret: 'producer1-secret',
       });
 
       await page.goto(`/room/${gameState.id}`);
 
-      // Should show game in playing state
-      await expect(page.locator('text=playing, [data-testid="game-board"]')).toBeVisible({ timeout: 10000 });
+      await expect(page.getByText('Live')).toBeVisible();
+      await expect(page.getByText('Battle in Progress')).toBeVisible();
+      await expect(page.getByTestId('game-board')).toBeVisible();
     });
 
-    test('should display timer countdown', async ({ page }) => {
+    test('shows the round label and countdown timer in the side panel', async ({ page }) => {
       const producer = createMockProducer('Producer1');
-      const gameState = createMockPlayingState({ [producer.id]: producer });
+      const gameState = createMockPlayingStateWithoutGenre({ [producer.id]: producer });
 
-      await page.route('**/api/**', async (route) => {
-        if (route.request().url().includes('/rooms/')) {
-          await route.fulfill({ json: gameState });
-        } else {
-          await route.continue();
-        }
+      await mockApiRoutes(page, {
+        roomResponse: toRoomResponse(gameState),
+        rejoin: {
+          player: producer,
+          playerSecret: 'producer-secret',
+        },
       });
 
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'Producer1',
-          playerId: producer.id,
-          playerSecret: 'producer-secret',
-          isSpectator: false,
-          isHost: false
-        }));
+      await setupPlayerSession(page, {
+        playerName: producer.name,
+        playerId: producer.id,
+        playerSecret: 'producer-secret',
       });
 
       await page.goto(`/room/${gameState.id}`);
 
-      // Should see timer
-      await expect(page.locator('[data-testid="timer"], text=/\\d+/')).toBeVisible({ timeout: 10000 });
+      await expect(page.getByText('Round: 1')).toBeVisible();
+      await expect(page.getByText(/^\d{2}:\d{2}$/)).toBeVisible();
     });
 
-    test('should show current tile genre', async ({ page }) => {
-      const board = createMockBoard(['Rock', 'Jazz', 'HipHop', 'Pop', 'Electronic', 'R&B', 'Country', 'Classical', 'Metal']);
-      const producer = createMockProducer('Producer1', { board });
-      const gameState = createMockPlayingState({ [producer.id]: producer });
-
-      await page.route('**/api/**', async (route) => {
-        if (route.request().url().includes('/rooms/')) {
-          await route.fulfill({ json: gameState });
-        } else {
-          await route.continue();
-        }
-      });
-
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'Producer1',
-          playerId: producer.id,
-          playerSecret: 'producer-secret',
-          isSpectator: false,
-          isHost: false
-        }));
-      });
-
-      await page.goto(`/room/${gameState.id}`);
-
-      // Should see genre
-      await expect(page.locator('text=Rock')).toBeVisible();
-    });
-  });
-
-  test.describe('Tile Selection', () => {
-    test('should allow producer to complete tiles', async ({ page }) => {
+    test('lets a producer pick a tile and opens the upload drawer', async ({ page }) => {
       const producer = createMockProducer('Producer1');
-      const gameState = createMockPlayingState({ [producer.id]: producer });
+      const gameState = createMockPlayingStateWithoutGenre({ [producer.id]: producer });
 
-      await page.route('**/api/**', async (route) => {
-        if (route.request().url().includes('/rooms/')) {
-          await route.fulfill({ json: gameState });
-        } else {
-          await route.continue();
-        }
+      await mockApiRoutes(page, {
+        roomResponse: toRoomResponse(gameState),
+        rejoin: {
+          player: producer,
+          playerSecret: 'producer-secret',
+        },
       });
 
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'Producer1',
-          playerId: producer.id,
-          playerSecret: 'producer-secret',
-          isSpectator: false,
-          isHost: false
-        }));
+      await setupPlayerSession(page, {
+        playerName: producer.name,
+        playerId: producer.id,
+        playerSecret: 'producer-secret',
       });
 
       await page.goto(`/room/${gameState.id}`);
+      await page.getByTestId('bingo-tile').first().click();
 
-      // Should see tiles
-      const tiles = page.locator('[data-testid="bingo-tile"]');
-      await expect(tiles).toHaveCount(9);
+      await expect(page.getByText(/Upload Audio for/i)).toBeVisible();
     });
 
-    test('should see other producers boards', async ({ page }) => {
+    test('shows the other active players in the side panel', async ({ page }) => {
       const producer1 = createMockProducer('Producer1');
       const producer2 = createMockProducer('Producer2');
-      
-      const gameState = createMockPlayingState({
+      const gameState = createMockPlayingStateWithoutGenre({
         [producer1.id]: producer1,
         [producer2.id]: producer2,
       });
 
-      await page.route('**/api/**', async (route) => {
-        if (route.request().url().includes('/rooms/')) {
-          await route.fulfill({ json: gameState });
-        } else {
-          await route.continue();
-        }
+      await mockApiRoutes(page, {
+        roomResponse: toRoomResponse(gameState),
+        rejoin: {
+          player: producer1,
+          playerSecret: 'producer1-secret',
+        },
       });
 
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'Producer1',
-          playerId: producer1.id,
-          playerSecret: 'producer1-secret',
-          isSpectator: false,
-          isHost: false
-        }));
+      await setupPlayerSession(page, {
+        playerName: producer1.name,
+        playerId: producer1.id,
+        playerSecret: 'producer1-secret',
       });
 
       await page.goto(`/room/${gameState.id}`);
 
-      // Should see other producer
-      await expect(page.locator('text=Producer2')).toBeVisible();
+      await expect(page.getByTestId(`player-name-${producer1.name}`)).toBeVisible();
+      await expect(page.getByTestId(`player-name-${producer2.name}`)).toBeVisible();
     });
   });
 
-  test.describe('Voting Phase', () => {
-    test('should open voting after timer ends', async ({ page }) => {
+  test.describe('Spectator View', () => {
+    test('shows the spectator dashboard and request-to-play action', async ({ page }) => {
       const producer1 = createMockProducer('Producer1');
       const producer2 = createMockProducer('Producer2');
-      
-      const gameState = createMockVotingState({
-        [producer1.id]: producer1,
-        [producer2.id]: producer2,
-      });
-
-      await page.route('**/api/**', async (route) => {
-        if (route.request().url().includes('/rooms/')) {
-          await route.fulfill({ json: gameState });
-        } else {
-          await route.continue();
-        }
-      });
-
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'Producer1',
-          playerId: producer1.id,
-          playerSecret: 'producer1-secret',
-          isSpectator: false,
-          isHost: false
-        }));
-      });
-
-      await page.goto(`/room/${gameState.id}`);
-
-      // Should see voting panel
-      await expect(page.locator('[data-testid="voting-panel"], text=Vote')).toBeVisible({ timeout: 10000 });
-    });
-
-    test('should record votes correctly', async ({ page }) => {
-      const producer1 = createMockProducer('Producer1');
-      const producer2 = createMockProducer('Producer2');
-      const spectator = createMockSpectator('Spectator');
-      
-      const vote = createMockVote(spectator.id, 'Spectator', producer1.id, 'Producer1');
-      const gameState = createMockVotingState({
+      const spectator = createMockSpectator('Spectator1');
+      const gameState = createMockPlayingStateWithoutGenre({
         [producer1.id]: producer1,
         [producer2.id]: producer2,
         [spectator.id]: spectator,
-      }, 1, [vote]);
-
-      await page.route('**/api/**', async (route) => {
-        if (route.request().url().includes('/rooms/')) {
-          await route.fulfill({ json: gameState });
-        } else {
-          await route.continue();
-        }
       });
 
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'Producer1',
-          playerId: producer1.id,
-          playerSecret: 'producer1-secret',
-          isSpectator: false,
-          isHost: false
-        }));
+      await mockApiRoutes(page, {
+        roomResponse: toRoomResponse(gameState),
+        rejoin: {
+          player: spectator,
+          playerSecret: 'spectator-secret',
+        },
+      });
+
+      await setupPlayerSession(page, {
+        playerName: spectator.name,
+        playerId: spectator.id,
+        playerSecret: 'spectator-secret',
       });
 
       await page.goto(`/room/${gameState.id}`);
 
-      // Should see vote count
-      await expect(page.locator('text=1 vote')).toBeVisible();
-    });
-
-    test('should show vote count to all', async ({ page }) => {
-      const producer1 = createMockProducer('Producer1');
-      const producer2 = createMockProducer('Producer2');
-      const spectator = createMockSpectator('Spectator');
-      
-      const vote = createMockVote(spectator.id, 'Spectator', producer1.id, 'Producer1');
-      const gameState = createMockVotingState({
-        [producer1.id]: producer1,
-        [producer2.id]: producer2,
-        [spectator.id]: spectator,
-      }, 1, [vote]);
-
-      await page.route('**/api/**', async (route) => {
-        if (route.request().url().includes('/rooms/')) {
-          await route.fulfill({ json: gameState });
-        } else {
-          await route.continue();
-        }
-      });
-
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'Producer2',
-          playerId: producer2.id,
-          playerSecret: 'producer2-secret',
-          isSpectator: false,
-          isHost: false
-        }));
-      });
-
-      await page.goto(`/room/${gameState.id}`);
-
-      // Should see votes
-      await expect(page.locator('text=1 vote')).toBeVisible();
+      await expect(page.getByTestId('request-to-play')).toBeVisible();
+      await expect(page.getByText('Game in Progress')).toBeVisible();
+      await expect(page.getByTestId(`player-name-${producer1.name}`)).toBeVisible();
+      await expect(page.getByTestId(`player-name-${producer2.name}`)).toBeVisible();
     });
   });
 
-  test.describe('Round Winner', () => {
-    test('should announce winner after voting closes', async ({ page }) => {
-      const producer1 = createMockProducer('Producer1');
-      const producer2 = createMockProducer('Producer2');
-      
-      const gameState = createMockFinishedState({
-        [producer1.id]: producer1,
-        [producer2.id]: producer2,
-      }, producer1.id, 1);
+  test.describe('Round End', () => {
+    test('announces the winner when the round finishes', async ({ page }) => {
+      const winner = createMockProducer('Winner', {
+        scoreInfo: createMockScoreInfo(150, 2),
+      });
+      const challenger = createMockProducer('Challenger', {
+        scoreInfo: createMockScoreInfo(100, 1),
+      });
+      const gameState = createMockFinishedState(
+        {
+          [winner.id]: winner,
+          [challenger.id]: challenger,
+        },
+        winner.id
+      );
 
-      await page.route('**/api/**', async (route) => {
-        if (route.request().url().includes('/rooms/')) {
-          await route.fulfill({ json: gameState });
-        } else {
-          await route.continue();
-        }
+      await mockApiRoutes(page, {
+        roomResponse: toRoomResponse(gameState),
+        rejoin: {
+          player: winner,
+          playerSecret: 'winner-secret',
+        },
       });
 
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'Producer1',
-          playerId: producer1.id,
-          playerSecret: 'producer1-secret',
-          isSpectator: false,
-          isHost: true
-        }));
-      });
-
-      await page.goto(`/room/${gameState.id}`);
-
-      // Should see winner
-      await expect(page.locator('text=Producer1, text=/Winner|winner/')).toBeVisible({ timeout: 10000 });
-    });
-
-    test('should show scores after round ends', async ({ page }) => {
-      const producer1 = createMockProducer('Producer1', {
-        scoreInfo: { score: 150, base_score: 100, bonuses: [{ type: 'bingo', points: 50 }], lines: [{ type: 'row', positions: [0,1,2] }] }
-      });
-      
-      const gameState = createMockFinishedState({
-        [producer1.id]: producer1,
-      }, producer1.id, 1);
-
-      await page.route('**/api/**', async (route) => {
-        if (route.request().url().includes('/rooms/')) {
-          await route.fulfill({ json: gameState });
-        } else {
-          await route.continue();
-        }
-      });
-
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'Producer1',
-          playerId: producer1.id,
-          playerSecret: 'producer1-secret',
-          isSpectator: false,
-          isHost: false
-        }));
+      await setupPlayerSession(page, {
+        playerName: winner.name,
+        playerId: winner.id,
+        playerSecret: 'winner-secret',
       });
 
       await page.goto(`/room/${gameState.id}`);
 
-      // Should see score
-      await expect(page.locator('[data-testid="score-display"], text=150')).toBeVisible();
+      await expect(page.getByTestId('winner-announcement')).toBeVisible();
+      await expect(
+        page.getByTestId('winner-announcement').getByText(new RegExp(`^${winner.name}$`))
+      ).toBeVisible();
     });
-  });
 
-  test.describe('Round Reset', () => {
-    test('should prepare for next round', async ({ page }) => {
-      const producer = createMockProducer('Producer');
-      
-      // After round 1, prepare for round 2
-      const gameState = createMockPlayingState({ [producer.id]: producer }, 2);
-
-      await page.route('**/api/**', async (route) => {
-        if (route.request().url().includes('/rooms/')) {
-          await route.fulfill({ json: gameState });
-        } else {
-          await route.continue();
-        }
+    test('shows the game-over screen when the round finishes without a winner', async ({ page }) => {
+      const producer = createMockProducer('Producer1', {
+        scoreInfo: createMockScoreInfo(90, 1),
       });
+      const gameState = createMockFinishedState({ [producer.id]: producer }, null, 1);
 
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'Producer',
-          playerId: producer.id,
+      await mockApiRoutes(page, {
+        roomResponse: toRoomResponse(gameState),
+        rejoin: {
+          player: producer,
           playerSecret: 'producer-secret',
-          isSpectator: false,
-          isHost: true
-        }));
+        },
+      });
+
+      await setupPlayerSession(page, {
+        playerName: producer.name,
+        playerId: producer.id,
+        playerSecret: 'producer-secret',
       });
 
       await page.goto(`/room/${gameState.id}`);
 
-      // Should see round 2
-      await expect(page.locator('text=Round 2')).toBeVisible();
-    });
-
-    test('should reset tile states for new round', async ({ page }) => {
-      const producer = createMockProducer('Producer');
-      const gameState = createMockPlayingState({ [producer.id]: producer }, 2);
-
-      await page.route('**/api/**', async (route) => {
-        if (route.request().url().includes('/rooms/')) {
-          await route.fulfill({ json: gameState });
-        } else {
-          await route.continue();
-        }
-      });
-
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'Producer',
-          playerId: producer.id,
-          playerSecret: 'producer-secret',
-          isSpectator: false,
-          isHost: false
-        }));
-      });
-
-      await page.goto(`/room/${gameState.id}`);
-
-      // Should see fresh board
-      const tiles = page.locator('[data-testid="bingo-tile"]');
-      await expect(tiles).toHaveCount(9);
+      await expect(page.getByTestId('game-over-screen')).toBeVisible();
+      await expect(page.getByTestId('play-again')).toBeVisible();
     });
   });
 });

@@ -1,5 +1,8 @@
 # GAIA Polecat Complex Tasks
 
+> **BACKLOG** — These are unstarted tasks for the GAIA polecat worker. None are in progress.
+> Before enqueuing, check `docs/E2E_TASK_LIST.md` for E2E-related work and `docs/MVP_SCOPE.md` for scope.
+
 This document defines high-value complex tasks for the GAIA polecat worker.
 
 ---

@@ -142,13 +142,40 @@ export default function Room() {
         gameId: roomData.code,
         status: roomData.status,
         currentRound: roomData.current_round,
+        winner: roomData.winner,
         players: roomData.players?.reduce((acc: Record<string, Player>, player: any) => {
           acc[player.id] = {
             ...player,
-            board: player.board ? player.board : undefined
+            isConnected: player.is_connected ?? player.isConnected,
+            isSpectator: player.is_spectator ?? player.isSpectator,
+            isHost: player.is_host ?? player.isHost,
+            eloRating: player.elo_rating ?? player.eloRating,
+            eloWins: player.elo_wins ?? player.eloWins,
+            eloLosses: player.elo_losses ?? player.eloLosses,
+            eloMatches: player.elo_matches ?? player.eloMatches,
+            board: player.board
+              ? player.board
+              : player.tiles
+              ? {
+                  tiles: player.tiles.map((tile: any) => ({
+                    id: tile.id,
+                    genre: tile.genre,
+                    status: tile.status,
+                    audioUrl: tile.audio_url ?? tile.audioUrl,
+                  })),
+                }
+              : undefined,
           };
           return acc;
-        }, {}) || {}
+        }, {}) || {},
+        eloDeltas: roomData.elo_deltas?.map((d: any) => ({
+          playerId: d.player_id,
+          playerName: d.player_name,
+          previousElo: d.previous_elo,
+          newElo: d.new_elo,
+          delta: d.delta,
+          isWinner: d.is_winner,
+        })),
       };
       
       console.log('Room: Setting game state:', newGameState);
@@ -245,7 +272,7 @@ export default function Room() {
 
       <main className="container mx-auto p-4 lg:p-6">
         {gameState.status === 'lobby' ? (
-          <Card className="border-border/30 bg-card/60 backdrop-blur-xl w-full max-w-4xl mx-auto">
+          <Card data-testid="lobby" className="border-border/30 bg-card/60 backdrop-blur-xl w-full max-w-4xl mx-auto">
             <CardHeader>
               <CardTitle>Join Battle</CardTitle>
             </CardHeader>

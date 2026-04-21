@@ -52,7 +52,7 @@ interface VoteData {
 
 interface RoundStateData {
   roundNumber: number;
-  currentTileGenre: string;
+  currentTileGenre?: string;
   timerDuration: number;
   timerEndsAt: string | null;
   votingOpen: boolean;
@@ -61,15 +61,26 @@ interface RoundStateData {
   winner: string | null;
 }
 
+interface EloDeltaData {
+  playerId: string;
+  playerName: string;
+  previousElo: number;
+  newElo: number;
+  delta: number;
+  isWinner: boolean;
+}
+
 interface GameStateData {
   id: string;
   gameId: string;
   status: 'lobby' | 'playing' | 'finished';
   currentRound: number;
+  totalRounds?: number;
   winner: string | null;
   players: Record<string, PlayerData>;
   roundState: RoundStateData | null;
   spectatorCount: number;
+  eloDeltas?: EloDeltaData[];
 }
 
 // ============================================
@@ -249,19 +260,17 @@ export function createMockRoundState(
     winner?: string | null;
   } = {}
 ): RoundStateData {
-  const {
-    currentTileGenre = 'Rock',
-    timerDuration = 60,
-    timerEndsAt = null,
-    votingOpen = false,
-    votesRecorded = 0,
-    votes = [],
-    winner = null,
-  } = options;
+  const hasCurrentTileGenre = Object.prototype.hasOwnProperty.call(options, 'currentTileGenre');
+  const timerDuration = options.timerDuration ?? 60;
+  const timerEndsAt = options.timerEndsAt ?? null;
+  const votingOpen = options.votingOpen ?? false;
+  const votesRecorded = options.votesRecorded ?? 0;
+  const votes = options.votes ?? [];
+  const winner = options.winner ?? null;
 
   return {
     roundNumber,
-    currentTileGenre,
+    currentTileGenre: hasCurrentTileGenre ? options.currentTileGenre : 'Rock',
     timerDuration,
     timerEndsAt,
     votingOpen,
@@ -279,24 +288,28 @@ export function createMockGameState(
     id?: string;
     status?: 'lobby' | 'playing' | 'finished';
     currentRound?: number;
+    totalRounds?: number;
     winner?: string | null;
     players?: Record<string, PlayerData>;
     roundState?: RoundStateData | null;
     spectatorCount?: number;
+    eloDeltas?: EloDeltaData[];
   } = {}
 ): GameStateData {
   const {
     id = `room-${randomUUID().slice(0, 8)}`,
     status = 'lobby',
     currentRound = 1,
+    totalRounds,
     winner = null,
     players = {},
     roundState = null,
     spectatorCount = 0,
+    eloDeltas,
   } = options;
 
   // Calculate spectator count if not provided
-  const calculatedSpectatorCount = spectatorCount || 
+  const calculatedSpectatorCount = spectatorCount ||
     Object.values(players).filter(p => p.isSpectator).length;
 
   return {
@@ -304,10 +317,12 @@ export function createMockGameState(
     gameId: id,
     status,
     currentRound,
+    totalRounds,
     winner,
     players,
     roundState,
     spectatorCount: calculatedSpectatorCount,
+    eloDeltas,
   };
 }
 
@@ -317,7 +332,8 @@ export function createMockGameState(
 export function createMockLobbyState(
   hostName: string = 'HostPlayer',
   playerNames: string[] = ['Player1', 'Player2'],
-  spectatorNames: string[] = ['Spectator1']
+  spectatorNames: string[] = ['Spectator1'],
+  totalRounds?: number
 ): GameStateData {
   const players: Record<string, PlayerData> = {};
   
@@ -341,6 +357,7 @@ export function createMockLobbyState(
     status: 'lobby',
     players,
     roundState: null,
+    totalRounds,
   });
 }
 
@@ -357,6 +374,21 @@ export function createMockPlayingState(
     currentRound: roundNumber,
     players,
     roundState: createMockRoundState(roundNumber, roundOptions),
+  });
+}
+
+/**
+ * Create a playing state without currentTileGenre (for testing bingo board)
+ */
+export function createMockPlayingStateWithoutGenre(
+  players: Record<string, PlayerData>,
+  roundNumber: number = 1
+): GameStateData {
+  return createMockGameState({
+    status: 'playing',
+    currentRound: roundNumber,
+    players,
+    roundState: createMockRoundState(roundNumber, { currentTileGenre: undefined }),
   });
 }
 
@@ -388,6 +420,26 @@ export function createMockFinishedState(
   winnerId: string | null = null,
   totalRounds: number = 3
 ): GameStateData {
+  // Compute ELO deltas for finished games with a winner
+  let eloDeltas: EloDeltaData[] | undefined;
+  if (winnerId) {
+    eloDeltas = Object.values(players)
+      .filter(p => !p.isSpectator)
+      .map(player => {
+        const isWinner = player.id === winnerId;
+        const delta = isWinner ? 25 : -15;
+        const previousElo = player.eloRating || 1200;
+        return {
+          playerId: player.id,
+          playerName: player.name,
+          previousElo,
+          newElo: previousElo + delta,
+          delta,
+          isWinner,
+        };
+      });
+  }
+
   return createMockGameState({
     status: 'finished',
     currentRound: totalRounds,
@@ -397,6 +449,7 @@ export function createMockFinishedState(
       votingOpen: false,
       winner: winnerId,
     }),
+    eloDeltas,
   });
 }
 
@@ -538,6 +591,7 @@ export const test = base.extend<TestFixtures>({
       board: { tiles: [] },
       isSpectator: false,
       isConnected: true,
+      isHost: false,
       scoreInfo: createMockScoreInfo()
     });
 
@@ -645,7 +699,7 @@ export function updateELORatings(
  * This is needed because the frontend expects API format but tests provide fixture format
  */
 export function toRoomResponse(gameState: GameStateData): Record<string, unknown> {
-  return {
+  const response: Record<string, unknown> = {
     code: gameState.id,
     status: gameState.status,
     current_round: gameState.currentRound,
@@ -659,11 +713,31 @@ export function toRoomResponse(gameState: GameStateData): Record<string, unknown
         id: tile.id,
         genre: tile.genre,
         status: tile.status,
+        position: tile.position,
         // Include audio_url only if present
         ...(tile.audioUrl && { audio_url: tile.audioUrl }),
       })) : [],
+      player_secret: `${player.id}-secret`,
       is_connected: player.isConnected,
       is_spectator: player.isSpectator,
+      is_host: player.isHost,
+      elo_rating: player.eloRating,
+      elo_wins: player.eloWins,
+      elo_losses: player.eloLosses,
+      elo_matches: player.eloMatches,
     })),
   };
+
+  if (gameState.eloDeltas && gameState.eloDeltas.length > 0) {
+    response.elo_deltas = gameState.eloDeltas.map(d => ({
+      player_id: d.playerId,
+      player_name: d.playerName,
+      previous_elo: d.previousElo,
+      new_elo: d.newElo,
+      delta: d.delta,
+      is_winner: d.isWinner,
+    }));
+  }
+
+  return response;
 }

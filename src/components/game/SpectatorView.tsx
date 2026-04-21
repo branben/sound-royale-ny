@@ -4,6 +4,9 @@ import { useUser } from '@/context/UserContext';
 import { BingoBoard } from './BingoBoard';
 import { UploadDrawer } from './UploadDrawer';
 import { VotingPanel } from './VotingPanel';
+import { WinnerAnnouncement } from './WinnerAnnouncement';
+import { RoundIndicator } from './RoundIndicator';
+import { GameOverScreen } from './GameOverScreen';
 import { Tile } from '@/types/game';
 import { Crown, Zap, Users, Trophy, ArrowUpCircle, Clock, PlayCircle } from 'lucide-react';
 
@@ -236,6 +239,34 @@ export function SpectatorView() {
         tile={selectedTile?.tile || null}
         onUpload={handleUpload}
       />
+
+      {/* Winner Announcement */}
+      {gameState.status === 'finished' && gameState.winner && (
+        <WinnerAnnouncement
+          winnerName={players.find(p => p.id === gameState.winner)?.name || 'Unknown'}
+          score={players.find(p => p.id === gameState.winner)?.scoreInfo?.score}
+          eloDeltas={gameState.eloDeltas}
+          isVisible={true}
+        />
+      )}
+
+      {/* Round Indicator */}
+      {gameState.status === 'playing' && (
+        <RoundIndicator
+          currentRound={gameState.currentRound || 1}
+          isPreparing={false}
+        />
+      )}
+
+      {/* Game Over Screen (shown only when finished without a winner) */}
+      {gameState.status === 'finished' && !gameState.winner && (
+        <GameOverScreen
+          isVisible={true}
+          onReturnToLobby={() => window.location.href = '/'}
+          onPlayAgain={() => window.location.href = '/'}
+          totalScore={players[0]?.scoreInfo?.score}
+        />
+      )}
     </div>
   );
 }
