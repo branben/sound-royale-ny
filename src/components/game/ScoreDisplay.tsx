@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trophy, Zap, Target, Star } from 'lucide-react';
+import { Trophy, Zap, Target, Star, TrendingUp } from 'lucide-react';
 
 interface ScoreInfo {
   score: number;
@@ -19,20 +19,34 @@ interface ScoreDisplayProps {
   playerName: string;
   isCurrentPlayer: boolean;
   hasWon?: boolean;
+  onPlayerClick?: () => void;
+  eloRating?: number;
+  eloDelta?: number;
 }
 
 export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
   scoreInfo,
   playerName,
   isCurrentPlayer,
-  hasWon = false
+  hasWon = false,
+  onPlayerClick,
+  eloRating,
+  eloDelta
 }) => {
+  const eloRatingDisplay = eloRating !== undefined ? (
+    <div className="flex items-center justify-center gap-2 mb-3 px-2 py-1 bg-[#7C3AED]/10 rounded border border-[#7C3AED]/30" data-testid="elo-rating">
+      <TrendingUp className="h-3 w-3 text-[#7C3AED]" />
+      <span className="text-sm font-semibold text-[#7C3AED]">ELO: {eloRating}</span>
+    </div>
+  ) : null;
+
   if (!scoreInfo) {
     return (
       <div className="bg-gray-800/50 backdrop-blur-sm rounded-lg p-4 border border-gray-700/50">
         <div className="text-center text-gray-400 font-medium">
           {playerName}
         </div>
+        {eloRatingDisplay}
         <div className="text-center text-sm text-gray-500">
           No score yet
         </div>
@@ -48,10 +62,12 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
       data-testid="score-display"
       {...(hasWon && {'data-testid': 'victory-celebration'})}
       className={`
-        bg-gray-800/50 backdrop-blur-sm rounded-lg p-4 border transition-all duration-300
+        bg-gray-800/50 backdrop-blur-sm rounded-lg p-4 border transition-all duration-300 cursor-pointer
         ${isCurrentPlayer ? 'border-blue-500/50 shadow-blue-500/20' : 'border-gray-700/50'}
         ${hasWon ? 'border-yellow-500/70 shadow-yellow-500/30 animate-pulse' : ''}
+        ${onPlayerClick ? 'hover:border-[#7C3AED]/50 hover:shadow-[#7C3AED]/20' : ''}
       `}
+      onClick={onPlayerClick}
     >
       {/* Player Name with Winner Badge */}
       <div className="flex items-center justify-between mb-3">
@@ -59,8 +75,10 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
           font-medium
           ${isCurrentPlayer ? 'text-blue-400' : 'text-gray-300'}
           ${hasWon ? 'text-yellow-400 font-bold' : ''}
+          ${onPlayerClick ? 'hover:text-[#7C3AED] transition-colors' : ''}
         `}>
           {playerName}
+          {onPlayerClick && <span className="text-xs text-gray-500 ml-1">→</span>}
         </div>
         {hasWon && (
           <div className="flex items-center gap-1 text-yellow-400">
@@ -69,6 +87,18 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
           </div>
         )}
       </div>
+
+      {/* ELO Rating Display (conditional) */}
+      {eloRatingDisplay}
+
+      {/* ELO Delta Badge (conditional) */}
+      {eloDelta !== undefined && hasWon && (
+        <div className="flex items-center justify-center gap-1 mb-3" data-testid="elo-delta">
+          <span className={`text-sm font-bold ${eloDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {eloDelta >= 0 ? '+' : ''}{eloDelta}
+          </span>
+        </div>
+      )}
 
       {/* Main Score */}
       <div className="text-center mb-4">

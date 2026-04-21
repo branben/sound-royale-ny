@@ -47,6 +47,10 @@ DEFAULT_SKILL_ALLOWLIST = [
     "pr-comment-monitor",
     "playwright",
     "pr-hardening",
+    "e2e-test-hygiene",
+    "react",
+    "test-driven-development",
+    "websocket",
 ]
 
 
@@ -786,11 +790,11 @@ def main() -> None:
         "--forbid-paths",
         default=os.environ.get(
             "GAIA_FORBID_PATHS",
-            "dist/,.serena/,test-results/,scripts/gaia-polecat.py",
+            "dist/,.serena/,test-results/,playwright-report/,scripts/gaia-polecat.py",
         ),
         help=(
             "Comma-separated path prefixes that must not be modified by runs "
-            "(default: dist/,.serena/,test-results/,scripts/gaia-polecat.py)"
+            "(default: dist/,.serena/,test-results/,playwright-report/,scripts/gaia-polecat.py)"
         ),
     )
     parser.add_argument(

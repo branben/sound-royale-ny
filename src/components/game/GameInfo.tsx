@@ -1,6 +1,6 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, Crown, X, Clock, Trophy } from 'lucide-react';
+import { Users, Crown, X, Clock, Trophy, WifiOff } from 'lucide-react';
 import { Player } from '@/types/game';
 import { cn } from '@/lib/utils';
 import { useGame } from '@/context/useGame';
@@ -9,6 +9,7 @@ import { useMemo, useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { gameApi } from '@/services/api';
 import { VictoryCelebration } from '@/components/game/VictoryCelebration';
+import { PlayerProfileModal } from '@/components/game/PlayerProfileModal';
 
 interface GameInfoProps {
   roomId: string;
@@ -21,6 +22,7 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
   const [showVictory, setShowVictory] = useState(false);
   const [roundTimeLeft, setRoundTimeLeft] = useState<number | null>(null);
   const timeUpAnnouncedRef = useRef<number | null>(null);
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   
   const ROUND_DURATION = 300;
   
@@ -115,11 +117,22 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
     }
   };
 
+  const handlePlayerClick = (player: Player) => {
+    setSelectedPlayer(player);
+  };
+
+  const handleCloseProfile = () => {
+    setSelectedPlayer(null);
+  };
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
+
+  const formatPlayerEloStats = (player: Player) =>
+    `ELO: ${player.eloRating} · ${player.eloWins ?? 0}W / ${player.eloLosses ?? 0}L / ${player.eloMatches ?? 0}M`;
 
   
 
@@ -134,8 +147,10 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
   }
 
   const players = Object.values(gameState.players);
-  const spectators = players.filter((p: Player) => p.name?.startsWith('Spectator '));
-  const activePlayers = players.filter((p: Player) => !p.name?.startsWith('Spectator '));
+  const isSpectatorPlayer = (player: Player) =>
+    player.isSpectator || player.name?.startsWith('Spectator ');
+  const spectators = players.filter(isSpectatorPlayer);
+  const activePlayers = players.filter((player: Player) => !isSpectatorPlayer(player));
 
   return (
     <Card className="border-[#7C3AED]/30 bg-[#0F0F23]/80 backdrop-blur-xl mb-6 shadow-[0_0_30px_rgba(124,58,237,0.15)]">
@@ -149,29 +164,61 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
             {activePlayers.map((player: Player) => (
               <div key={player.id} className={cn(
                 "flex items-center justify-between p-2 rounded-lg bg-[#0F0F23]/60 border border-[#7C3AED]/20 hover:border-[#7C3AED]/40 transition-all duration-200",
-                player.name === currentPlayerName && "ring-2 ring-[#7C3AED]/50 shadow-[0_0_15px_rgba(124,58,237,0.3)]"
+                player.name === currentPlayerName && "ring-2 ring-[#7C3AED]/50 shadow-[0_0_15px_rgba(124,58,237,0.3)]",
+                !player.isConnected && "border-red-500/30 opacity-70"
               )}>
-                <div className="flex items-center gap-2">
-                  <span className={cn(
-                    "text-sm font-['Poppins']",
-                    player.name === currentPlayerName && "font-semibold text-[#7C3AED] neon-text"
-                  )}>
-                    {player.name} {player.name === currentPlayerName && "(You)"}
-                  </span>
-                  {gameState.winner === player.id && (
-                    <Crown className="h-4 w-4 text-[#EAB308] crown-glow drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]" />
+                <div className="flex min-w-0 flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <button
+                      data-testid={`player-name-${player.name}`}
+                      onClick={() => handlePlayerClick(player)}
+                      className={cn(
+                        "text-sm font-['Poppins'] hover:text-[#7C3AED] transition-colors cursor-pointer",
+                        player.name === currentPlayerName && "font-semibold text-[#7C3AED] neon-text"
+                      )}
+                    >
+                      {player.name} {player.name === currentPlayerName && "(You)"}
+                    </button>
+                    {!player.isConnected && (
+                      <span
+                        data-testid="disconnected-indicator"
+                        className="inline-flex h-3 w-3 shrink-0 items-center justify-center text-red-500"
+                      >
+                        <WifiOff className="h-3 w-3" />
+                      </span>
+                    )}
+                    {gameState.winner === player.id && (
+                      <Crown className="h-4 w-4 text-[#EAB308] crown-glow drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]" />
+                    )}
+                  </div>
+                  {player.eloRating !== undefined && (
+                    <div
+                      data-testid={`player-elo-stats-${player.id}`}
+                      className="text-xs text-muted-foreground"
+                    >
+                      {formatPlayerEloStats(player)}
+                    </div>
                   )}
                 </div>
-                {isHost && player.id !== userSession.playerId && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleKickPlayer(player.id, player.name)}
-                    className="h-6 w-6 p-0 text-red-500 hover:text-red-600"
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                )}
+                <div className="flex items-center gap-2">
+                  {/* Vote count display */}
+                  {gameState.status === 'playing' && gameState.roundState?.votingOpen && (
+                    <span className="text-xs text-gray-400" data-testid="vote-count">
+                      {gameState.roundState.votesRecorded || 0}/{Object.values(gameState.players).filter(p => !p.isSpectator).length || 0} votes
+                    </span>
+                  )}
+                  {isHost && player.id !== userSession.playerId && (
+                    <Button
+                      data-testid="kick-player"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleKickPlayer(player.id, player.name)}
+                      className="h-6 w-6 p-0 text-red-500 hover:text-red-600"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -186,6 +233,7 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
                 <span>{spectator.name}</span>
                 {isHost && spectator.id !== userSession.playerId && (
                   <Button
+                    data-testid="kick-player"
                     size="sm"
                     variant="outline"
                     onClick={() => handleKickPlayer(spectator.id, spectator.name)}
@@ -287,6 +335,16 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
           </div>
         </div>
       </CardContent>
+
+      {/* Player Profile Modal */}
+      {selectedPlayer && (
+        <PlayerProfileModal
+          player={selectedPlayer}
+          isOpen={!!selectedPlayer}
+          onClose={handleCloseProfile}
+          scoreInfo={selectedPlayer.scoreInfo}
+        />
+      )}
     </Card>
   );
 }

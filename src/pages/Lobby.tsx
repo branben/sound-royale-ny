@@ -85,7 +85,7 @@ export default function Lobby() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
+    <div data-testid="lobby" className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
       <div className="fixed inset-0 pointer-events-none z-50 opacity-20 bg-[linear-gradient(0deg,transparent_50%,rgba(0,0,0,0.1)_50%)] bg-[length:100%_4px]" />
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#7C3AED]/10 rounded-full blur-3xl" />
@@ -110,6 +110,7 @@ export default function Lobby() {
             <>
               <div className="space-y-2">
                 <Input
+                  data-testid="room-code-input"
                   type="text"
                   inputMode="numeric"
                   placeholder="0000"
@@ -124,6 +125,7 @@ export default function Lobby() {
               </div>
 
               <Button
+                data-testid="join-room-button"
                 onClick={handleJoin}
                 disabled={roomCode.length !== 4 || isLoading}
                 className="w-full h-12 text-lg font-semibold"
@@ -220,6 +222,7 @@ export default function Lobby() {
 
               {isHost && players.length >= 2 && (
                 <Button
+                  data-testid="start-game"
                   onClick={handleStartMatch}
                   className="w-full h-12 text-lg font-semibold font-['Righteous'] tracking-wider uppercase bg-gradient-to-r from-[#7C3AED] to-[#F43F5E] hover:shadow-[0_6px_20px_rgba(124,58,237,0.5),0_0_40px_rgba(244,63,94,0.3)] shadow-[0_4px_15px_rgba(124,58,237,0.4),0_0_30px_rgba(244,63,94,0.2)] transition-all duration-200 border-0"
                   size="lg"

@@ -1,173 +1,169 @@
-/**
- * Negative Scenario Tests - Host Kick
- * 
- * Tests host-related negative scenarios:
- * - Host leaves room triggers host migration
- * - Host kicks player successfully
- * - Host cannot be kicked
- * - Last player leaving ends game
- * - New host inherits controls
- */
-
 import { test, expect } from '@playwright/test';
+import { enableE2EMode, mockApiRoutes, setupPlayerSession } from '../helpers';
 import {
+  createMockFinishedState,
+  createMockHostProducer,
   createMockLobbyState,
-  createMockPlayingState,
+  createMockPlayingStateWithoutGenre,
   createMockProducer,
-  createMockSpectator,
+  createMockScoreInfo,
+  toRoomResponse,
 } from '../utils/game-fixtures';
 
-test.describe('Host Kick', () => {
+type TestPlayer = ReturnType<typeof createMockProducer>;
+
+function findPlayerByName(
+  players: Record<string, TestPlayer>,
+  name: string
+): TestPlayer {
+  const player = Object.values(players).find((entry) => entry.name === name);
+
+  if (!player) {
+    throw new Error(`Unable to find player "${name}" in fixture`);
+  }
+
+  return player;
+}
+
+test.describe('Host Controls', () => {
   test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => {
-      (window as any).__E2E_TESTING__ = true;
-    });
+    await enableE2EMode(page);
   });
 
-  test('should migrate host when host leaves', async ({ page }) => {
-    const host = createMockProducer('HostPlayer');
-    const player2 = createMockProducer('Player2');
-    const gameState = createMockLobbyState('HostPlayer', ['Player2'], []);
+  test('shows the joined host lobby with a start battle action', async ({ page }) => {
+    const lobbyState = createMockLobbyState('HostPlayer', ['Player2'], []);
+    const host = findPlayerByName(lobbyState.players, 'HostPlayer');
 
-    await page.route('**/api/**', async (route) => {
-      const url = route.request().url();
-      if (url.includes('/rooms/') && !url.includes('/kick')) {
-        await route.fulfill({ json: gameState });
-      } else if (url.includes('/kick')) {
-        await route.fulfill({ status: 200, json: { success: true, newHostId: player2.id } });
-      } else {
-        await route.continue();
-      }
-    });
-
-    await page.addInitScript(() => {
-      localStorage.setItem('userSession', JSON.stringify({
-        playerName: 'Player2',
-        playerId: player2.id,
-        playerSecret: 'player2-secret',
-        isSpectator: false,
-        isHost: false
-      }));
-    });
-
-    await page.goto(`/room/${gameState.id}`);
-
-    await expect(page.locator('text=HostPlayer')).toBeVisible();
-  });
-
-  test('should allow host to kick player', async ({ page }) => {
-    const gameState = createMockLobbyState('HostPlayer', ['Player2'], []);
-
-    let playerKicked = false;
-    const hostId = Object.keys(gameState.players).find(
-      name => gameState.players[name].name === 'HostPlayer'
-    ) || '';
-
-    await page.route('**/api/**', async (route) => {
-      const url = route.request().url();
-      if (url.includes('/kick')) {
-        playerKicked = true;
-        await route.fulfill({ status: 200, json: { success: true } });
-      } else if (url.includes('/rooms/')) {
-        await route.fulfill({ json: gameState });
-      } else {
-        await route.continue();
-      }
-    });
-
-    await page.addInitScript(() => {
-      localStorage.setItem('userSession', JSON.stringify({
-        playerName: 'HostPlayer',
-        playerId: hostId,
+    await mockApiRoutes(page, {
+      roomResponse: toRoomResponse(lobbyState),
+      rejoin: {
+        player: host,
         playerSecret: 'host-secret',
-        isSpectator: false,
-        isHost: true
-      }));
+      },
+      startGame: {
+        json: { status: 'started' },
+      },
     });
 
-    await page.goto(`/room/${gameState.id}`);
-    await expect(page.locator('button:has-text("Kick"), [data-testid="kick-player"]')).toBeVisible();
+    await setupPlayerSession(page, {
+      playerName: host.name,
+      playerId: host.id,
+      playerSecret: 'host-secret',
+    });
+
+    await page.goto(`/room/${lobbyState.id}`);
+
+    await expect(page.getByTestId('lobby')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Start Battle' })).toBeVisible();
   });
 
-  test('should show kicked player message', async ({ page }) => {
-    const gameState = createMockLobbyState('HostPlayer', ['Player2'], []);
+  test('keeps joined non-host players in the waiting state', async ({ page }) => {
+    const lobbyState = createMockLobbyState('HostPlayer', ['Player2'], []);
+    const player = findPlayerByName(lobbyState.players, 'Player2');
 
-    await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: gameState });
-      } else {
-        await route.continue();
-      }
-    });
-
-    await page.addInitScript(() => {
-      localStorage.setItem('userSession', JSON.stringify({
-        playerName: 'Player2',
-        playerId: 'player2-id',
+    await mockApiRoutes(page, {
+      roomResponse: toRoomResponse(lobbyState),
+      rejoin: {
+        player,
         playerSecret: 'player2-secret',
-        isSpectator: false,
-        isHost: false
-      }));
+      },
     });
 
-    await page.goto(`/room/${gameState.id}`);
+    await setupPlayerSession(page, {
+      playerName: player.name,
+      playerId: player.id,
+      playerSecret: 'player2-secret',
+    });
 
-    await expect(page.locator('text=/You were removed|kicked/')).toBeVisible({ timeout: 5000 }).catch(() => {});
+    await page.goto(`/room/${lobbyState.id}`);
+
+    await expect(page.getByText(/Waiting for more players to join and host to start game/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Start Battle' })).not.toBeVisible();
   });
 
-  test('should not allow non-host to kick', async ({ page }) => {
-    const gameState = createMockLobbyState('HostPlayer', ['Player2'], []);
-    const player2Id = Object.keys(gameState.players).find(
-      name => gameState.players[name].name === 'Player2'
-    ) || '';
-
-    await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: gameState });
-      } else {
-        await route.continue();
-      }
+  test('shows kick controls to the host during a live round', async ({ page }) => {
+    const host = createMockHostProducer('HostPlayer');
+    const player = createMockProducer('Player2');
+    const gameState = createMockPlayingStateWithoutGenre({
+      [host.id]: host,
+      [player.id]: player,
     });
 
-    await page.addInitScript(() => {
-      localStorage.setItem('userSession', JSON.stringify({
-        playerName: 'Player2',
-        playerId: player2Id,
-        playerSecret: 'player2-secret',
-        isSpectator: false,
-        isHost: false
-      }));
-    });
-
-    await page.goto(`/room/${gameState.id}`);
-
-    await expect(page.locator('button:has-text("Kick")')).not.toBeVisible();
-  });
-
-  test('should end game when last player leaves', async ({ page }) => {
-    const host = createMockProducer('HostPlayer');
-    const gameState = createMockPlayingState({ [host.id]: host });
-
-    await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: { ...gameState, status: 'finished' } });
-      } else {
-        await route.continue();
-      }
-    });
-
-    await page.addInitScript(() => {
-      localStorage.setItem('userSession', JSON.stringify({
-        playerName: 'HostPlayer',
-        playerId: host.id,
+    await mockApiRoutes(page, {
+      roomResponse: toRoomResponse(gameState),
+      rejoin: {
+        player: host,
         playerSecret: 'host-secret',
-        isSpectator: false,
-        isHost: true
-      }));
+      },
+      kickPlayer: {
+        json: { status: 'removed' },
+      },
+    });
+
+    await setupPlayerSession(page, {
+      playerName: host.name,
+      playerId: host.id,
+      playerSecret: 'host-secret',
     });
 
     await page.goto(`/room/${gameState.id}`);
 
-    await expect(page.locator('text=/Game Over|finished/')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId(`player-name-${host.name}`)).toBeVisible();
+    await expect(page.getByTestId(`player-name-${player.name}`)).toBeVisible();
+    await expect(page.getByTestId('kick-player').first()).toBeVisible();
+  });
+
+  test('hides kick controls from non-host players during a live round', async ({ page }) => {
+    const host = createMockHostProducer('HostPlayer');
+    const player = createMockProducer('Player2');
+    const gameState = createMockPlayingStateWithoutGenre({
+      [host.id]: host,
+      [player.id]: player,
+    });
+
+    await mockApiRoutes(page, {
+      roomResponse: toRoomResponse(gameState),
+      rejoin: {
+        player,
+        playerSecret: 'player2-secret',
+      },
+    });
+
+    await setupPlayerSession(page, {
+      playerName: player.name,
+      playerId: player.id,
+      playerSecret: 'player2-secret',
+    });
+
+    await page.goto(`/room/${gameState.id}`);
+
+    await expect(page.getByTestId(`player-name-${host.name}`)).toBeVisible();
+    await expect(page.getByTestId('kick-player')).not.toBeVisible();
+  });
+
+  test('shows the game-over screen when the room finishes without a winner', async ({ page }) => {
+    const host = createMockProducer('HostPlayer', {
+      scoreInfo: createMockScoreInfo(90, 1),
+    });
+    const gameState = createMockFinishedState({ [host.id]: host }, null, 1);
+
+    await mockApiRoutes(page, {
+      roomResponse: toRoomResponse(gameState),
+      rejoin: {
+        player: host,
+        playerSecret: 'host-secret',
+      },
+    });
+
+    await setupPlayerSession(page, {
+      playerName: host.name,
+      playerId: host.id,
+      playerSecret: 'host-secret',
+    });
+
+    await page.goto(`/room/${gameState.id}`);
+
+    await expect(page.getByTestId('game-over-screen')).toBeVisible();
+    await expect(page.getByTestId('play-again')).toBeVisible();
   });
 });

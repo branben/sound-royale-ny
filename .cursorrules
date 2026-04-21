@@ -1,0 +1,32 @@
+# Cursor Rules - Sound Royale
+
+**Canonical rules live in `AGENTS.md` at the project root.**
+
+Read `AGENTS.md` at session start. It contains:
+- MANDATORY WORKFLOWS (file read discipline, data flow tracing, phase discipline, verification, root cause debugging)
+- Key anti-patterns (security, state management, type safety)
+- Testing requirements (Django, E2E)
+- Key files and commands
+- Architecture overview
+
+## Quick Start
+
+1. Read `AGENTS.md` for full context
+2. Check `.gaia_skills/` for domain-specific principles (e2e-test-hygiene, react, django, etc.)
+3. Before editing React context/components: trace data flow (helper → localStorage → context → component)
+4. Before marking complete: run `npx tsc --noEmit` and show output
+5. Max 2 reads of same file per task
+
+## Skills Available
+
+Domain skills at `.gaia_skills/`:
+- `e2e-test-hygiene` - Playwright test discipline
+- `systematic-debugging` - Root cause methodology
+- `verification-before-completion` - Evidence-based completion
+- `react` - State mutation patterns
+- `django` - Backend conventions
+- `playwright` - E2E testing
+- `pii-prevention` - Security
+- `pr-hardening` - PR quality
+
+Load via: `read_file(".gaia_skills/<skill>/SKILL.md")`

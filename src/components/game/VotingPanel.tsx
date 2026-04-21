@@ -8,22 +8,26 @@ import { cn } from '@/lib/utils';
 interface VotingPanelProps {
   roomId: string;
   playerSecret: string;
+  currentPlayerId?: string;
   producers: Player[];
   currentGenre: string;
   votingOpen: boolean;
   votesRecorded: number;
   spectatorCount: number;
+  isSpectator?: boolean;
   className?: string;
 }
 
 export function VotingPanel({
   roomId,
   playerSecret,
+  currentPlayerId,
   producers,
   currentGenre,
   votingOpen,
   votesRecorded,
   spectatorCount,
+  isSpectator = false,
   className,
 }: VotingPanelProps) {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
@@ -79,7 +83,7 @@ export function VotingPanel({
           <Vote className="h-5 w-5 text-primary" />
           <h3 className="font-semibold text-foreground">Vote for the Best Beat</h3>
         </div>
-        <div className="text-sm text-muted-foreground">
+        <div className="text-sm text-muted-foreground" data-testid="vote-count-display">
           {votesRecorded}/{spectatorCount} votes
         </div>
       </div>
@@ -95,7 +99,9 @@ export function VotingPanel({
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3">
-          {producers.map((producer) => (
+          {producers
+            .filter(producer => !(isSpectator && producer.id === currentPlayerId))
+            .map((producer) => (
             <button
               key={producer.id}
               onClick={() => handleVote(producer.id)}

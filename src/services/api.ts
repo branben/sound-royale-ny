@@ -133,6 +133,11 @@ function transformPlayer(backendPlayer: RoomResponse['players'][0]): Player {
     playerSecret: backendPlayer.player_secret,
     isConnected: backendPlayer.is_connected,
     isSpectator: backendPlayer.is_spectator,
+    isHost: backendPlayer.is_host,
+    eloRating: backendPlayer.elo_rating,
+    eloWins: backendPlayer.elo_wins,
+    eloLosses: backendPlayer.elo_losses,
+    eloMatches: backendPlayer.elo_matches,
   };
 }
 

@@ -21,8 +21,9 @@ test.describe('PII Prevention', () => {
     // Navigate to app (assumes dev server running)
     await page.goto('/');
 
-    // Wait for any async operations
-    await page.waitForTimeout(2000);
+    // Wait for the initial lobby shell so startup logs have already fired.
+    await expect(page.getByRole('heading', { name: 'Sound Royale' })).toBeVisible();
+    await expect(page.getByText('Enter a room code to join the battle')).toBeVisible();
 
     // Verify no PII was logged
     expect(piiViolations, `PII exposed in console: ${piiViolations.join('; ')}`).toHaveLength(0);

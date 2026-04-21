@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests/e2e',
+  testIgnore: ['**/_future/**'],
   fullyParallel: false,
   forbidOnly: undefined,
   retries: 2,
@@ -31,8 +32,8 @@ export default defineConfig({
       },
     },
   ],
-  // servers started manually in CI
-  // webServer: { command: 'npm run dev:frontend', port: 5173, reuseExistingServer: true, timeout: 120000 },
+  // The frontend must be running manually on localhost:8080 before E2E runs.
+  // Keep this aligned with tests/e2e/README.md and scripts/e2e-guard.sh preflight output.
   use: {
     baseURL: 'http://localhost:8080',
     trace: 'on-first-retry',

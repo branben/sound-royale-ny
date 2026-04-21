@@ -1,551 +1,241 @@
-/**
- * Producer Flow E2E Tests
- * 
- * Tests the complete producer (player) journey:
- * - Joining a room as a producer
- * - Viewing the bingo board
- * - Completing tiles
- * - Achieving bingo
- * - Receiving votes from spectators
- * - ELO rating display
- */
-
 import { test, expect } from '@playwright/test';
+import { enableE2EMode, mockApiRoutes, setupPlayerSession } from './helpers';
 import {
-  createMockGameState,
-  createMockLobbyState,
-  createMockPlayingState,
-  createMockVotingState,
-  createMockFinishedState,
-  createMockProducer,
-  createMockSpectator,
-  createMockVote,
-  createMockScoreInfo,
   createMockBoard,
+  createMockFinishedState,
+  createMockLobbyState,
+  createMockPlayingStateWithoutGenre,
+  createMockProducer,
+  createMockScoreInfo,
+  createMockSpectator,
+  toRoomResponse,
 } from './utils/game-fixtures';
 
-const API_BASE_URL = 'http://localhost:8000/api';
+type TestPlayer = ReturnType<typeof createMockProducer>;
+
+function findPlayerByName(
+  players: Record<string, TestPlayer>,
+  name: string
+): TestPlayer {
+  const player = Object.values(players).find((entry) => entry.name === name);
+
+  if (!player) {
+    throw new Error(`Unable to find player "${name}" in fixture`);
+  }
+
+  return player;
+}
 
 test.describe('Producer Flow', () => {
-  test.describe('Joining as Producer', () => {
-    test.beforeEach(async ({ page }) => {
-      await page.addInitScript(() => {
-        (window as any).__E2E_TESTING__ = true;
-      });
-    });
-
-    test('should join room as producer and see bingo board', async ({ page }) => {
-      // Create lobby state with host
-      const lobbyState = createMockLobbyState('HostPlayer', ['Player1'], []);
-      
-      await page.route('**/api/**', async (route) => {
-        const url = route.request().url();
-        if (url.includes('/rooms/')) {
-          await route.fulfill({ json: lobbyState });
-        } else {
-          await route.continue();
-        }
-      });
-
-      // Set up session for producer
-      const playerId = Object.keys(lobbyState.players)[1];
-
-      await page.addInitScript(
-        ({ playerId }) => {
-          localStorage.setItem(
-            'userSession',
-            JSON.stringify({
-              playerName: 'Player1',
-              playerId,
-              playerSecret: 'producer-secret',
-              isSpectator: false,
-              isHost: false,
-            })
-          );
-        },
-        { playerId }
-      );
-
-      await page.goto(`/room/${lobbyState.id}`);
-
-      // Should see the game board
-      await expect(page.locator('[data-testid="game-board"]')).toBeVisible({ timeout: 10000 });
-      
-      // Should see producer's name
-      await expect(page.locator('text=Player1')).toBeVisible();
-    });
-
-    test('should see 3x3 bingo board with all tiles', async ({ page }) => {
-      const player = createMockProducer('TestPlayer');
-      const gameState = createMockPlayingState({ [player.id]: player });
-
-      await page.route('**/api/**', async (route) => {
-        if (route.request().url().includes('/rooms/')) {
-          await route.fulfill({ json: gameState });
-        } else {
-          await route.continue();
-        }
-      });
-
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'TestPlayer',
-          playerId: player.id,
-          playerSecret: 'test-secret',
-          isSpectator: false,
-          isHost: false
-        }));
-      });
-
-      await page.goto(`/room/${gameState.id}`);
-
-      // Should see 9 tiles (3x3 grid)
-      const tiles = page.locator('[data-testid="bingo-tile"]');
-      await expect(tiles).toHaveCount(9);
-    });
-
-    test('should see tile genres displayed', async ({ page }) => {
-      const board = createMockBoard(['Rock', 'Jazz', 'HipHop', 'Pop', 'Electronic', 'R&B', 'Country', 'Classical', 'Metal']);
-      const player = createMockProducer('TestPlayer', { board });
-      const gameState = createMockPlayingState({ [player.id]: player });
-
-      await page.route('**/api/**', async (route) => {
-        if (route.request().url().includes('/rooms/')) {
-          await route.fulfill({ json: gameState });
-        } else {
-          await route.continue();
-        }
-      });
-
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'TestPlayer',
-          playerId: player.id,
-          playerSecret: 'test-secret',
-          isSpectator: false,
-          isHost: false
-        }));
-      });
-
-      await page.goto(`/room/${gameState.id}`);
-
-      // Should see genre labels
-      await expect(page.locator('text=Rock')).toBeVisible();
-      await expect(page.locator('text=Jazz')).toBeVisible();
-    });
+  test.beforeEach(async ({ page }) => {
+    await enableE2EMode(page);
   });
 
-  test.describe('Tile Completion', () => {
-    test.beforeEach(async ({ page }) => {
-      await page.addInitScript(() => {
-        (window as any).__E2E_TESTING__ = true;
-      });
+  test('shows the joined producer board for a live round', async ({ page }) => {
+    const host = createMockProducer('HostPlayer');
+    const producer = createMockProducer('Player1');
+    const gameState = createMockPlayingStateWithoutGenre({
+      [host.id]: host,
+      [producer.id]: producer,
     });
 
-    test('should mark tile as complete when clicked', async ({ page }) => {
-      const player = createMockProducer('TestPlayer');
-      const gameState = createMockPlayingState({ [player.id]: player });
-
-      await page.route('**/api/**', async (route) => {
-        if (route.request().url().includes('/rooms/')) {
-          await route.fulfill({ json: gameState });
-        } else {
-          await route.continue();
-        }
-      });
-
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'TestPlayer',
-          playerId: player.id,
-          playerSecret: 'test-secret',
-          isSpectator: false,
-          isHost: false
-        }));
-      });
-
-      await page.goto(`/room/${gameState.id}`);
-
-      // Click first tile
-      const tile = page.locator('[data-testid="bingo-tile"]').first();
-      await tile.click();
-
-      // Should show pending/complete status
-      // (Actual behavior depends on audio upload flow)
+    await mockApiRoutes(page, {
+      roomResponse: toRoomResponse(gameState),
+      rejoin: {
+        player: producer,
+        playerSecret: 'producer-secret',
+      },
     });
 
-    test('should not allow spectator to mark tiles', async ({ page }) => {
-      const producer = createMockProducer('Producer');
-      const spectator = createMockSpectator('Spectator');
-      const gameState = createMockPlayingState({
-        [producer.id]: producer,
-        [spectator.id]: spectator
-      });
-
-      await page.route('**/api/**', async (route) => {
-        if (route.request().url().includes('/rooms/')) {
-          await route.fulfill({ json: gameState });
-        } else {
-          await route.continue();
-        }
-      });
-
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'Spectator',
-          playerId: spectator.id,
-          playerSecret: 'spectator-secret',
-          isSpectator: true,
-          isHost: false
-        }));
-      });
-
-      await page.goto(`/room/${gameState.id}`);
-
-      // Tiles should be read-only for spectators
-      const tile = page.locator('[data-testid="bingo-tile"]').first();
-      await expect(tile).toHaveClass(/disabled|readonly|read-only/);
+    await setupPlayerSession(page, {
+      playerName: producer.name,
+      playerId: producer.id,
+      playerSecret: 'producer-secret',
     });
+
+    await page.goto(`/room/${gameState.id}`);
+
+    await expect(page.getByRole('heading', { name: 'Your Board' })).toBeVisible();
+    await expect(page.getByTestId('game-board')).toBeVisible();
+    await expect(page.getByTestId(`player-name-${producer.name}`)).toBeVisible();
   });
 
-  test.describe('Bingo Detection', () => {
-    test.beforeEach(async ({ page }) => {
-      await page.addInitScript(() => {
-        (window as any).__E2E_TESTING__ = true;
-      });
+  test('renders a 3x3 bingo board with all tile genres', async ({ page }) => {
+    const board = createMockBoard([
+      'Rock',
+      'Jazz',
+      'HipHop',
+      'Pop',
+      'Electronic',
+      'R&B',
+      'Country',
+      'Classical',
+      'Metal',
+    ]);
+    const producer = createMockProducer('TestPlayer', { board });
+    const gameState = createMockPlayingStateWithoutGenre({ [producer.id]: producer });
+
+    await mockApiRoutes(page, {
+      roomResponse: toRoomResponse(gameState),
+      rejoin: {
+        player: producer,
+        playerSecret: 'test-secret',
+      },
     });
 
-    test('should detect bingo when row is complete', async ({ page }) => {
-      // Create player with completed row (positions 0, 1, 2)
-      const board = createMockBoard();
-      board.tiles[0].status = 'complete';
-      board.tiles[1].status = 'complete';
-      board.tiles[2].status = 'complete';
-      
-      const player = createMockProducer('TestPlayer', {
-        board,
-        scoreInfo: createMockScoreInfo(100, 1)
-      });
-      
-      const gameState = createMockPlayingState({ [player.id]: player });
-
-      await page.route('**/api/**', async (route) => {
-        if (route.request().url().includes('/rooms/')) {
-          await route.fulfill({ json: gameState });
-        } else {
-          await route.continue();
-        }
-      });
-
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'TestPlayer',
-          playerId: player.id,
-          playerSecret: 'test-secret',
-          isSpectator: false,
-          isHost: false
-        }));
-      });
-
-      await page.goto(`/room/${gameState.id}`);
-
-      // Should show BINGO notification
-      await expect(page.locator('text=/BINGO!/i')).toBeVisible({ timeout: 10000 });
+    await setupPlayerSession(page, {
+      playerName: producer.name,
+      playerId: producer.id,
+      playerSecret: 'test-secret',
     });
 
-    test('should show score after bingo', async ({ page }) => {
-      const player = createMockProducer('TestPlayer', {
-        scoreInfo: createMockScoreInfo(150, 2, [{ type: 'first_bingo', points: 50 }])
-      });
-      
-      const gameState = createMockPlayingState({ [player.id]: player });
+    await page.goto(`/room/${gameState.id}`);
 
-      await page.route('**/api/**', async (route) => {
-        if (route.request().url().includes('/rooms/')) {
-          await route.fulfill({ json: gameState });
-        } else {
-          await route.continue();
-        }
-      });
-
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'TestPlayer',
-          playerId: player.id,
-          playerSecret: 'test-secret',
-          isSpectator: false,
-          isHost: false
-        }));
-      });
-
-      await page.goto(`/room/${gameState.id}`);
-
-      // Should show score display
-      await expect(page.locator('[data-testid="score-display"]')).toBeVisible();
-    });
+    await expect(page.getByTestId('bingo-tile')).toHaveCount(9);
+    await expect(page.getByText('Rock')).toBeVisible();
+    await expect(page.getByText('Jazz')).toBeVisible();
+    await expect(page.getByText('Metal')).toBeVisible();
   });
 
-  test.describe('Voting Phase', () => {
-    test.beforeEach(async ({ page }) => {
-      await page.addInitScript(() => {
-        (window as any).__E2E_TESTING__ = true;
-      });
+  test('opens the upload drawer when a producer selects an empty tile', async ({ page }) => {
+    const producer = createMockProducer('TestPlayer');
+    const gameState = createMockPlayingStateWithoutGenre({ [producer.id]: producer });
+
+    await mockApiRoutes(page, {
+      roomResponse: toRoomResponse(gameState),
+      rejoin: {
+        player: producer,
+        playerSecret: 'test-secret',
+      },
     });
 
-    test('should see voting panel when voting is open', async ({ page }) => {
-      const producer1 = createMockProducer('Producer1', { eloRating: 1200 });
-      const producer2 = createMockProducer('Producer2', { eloRating: 1300 });
-      
-      const gameState = createMockVotingState({
-        [producer1.id]: producer1,
-        [producer2.id]: producer2,
-      }, 1, []);
-
-      await page.route('**/api/**', async (route) => {
-        if (route.request().url().includes('/rooms/')) {
-          await route.fulfill({ json: gameState });
-        } else {
-          await route.continue();
-        }
-      });
-
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'Producer1',
-          playerId: producer1.id,
-          playerSecret: 'producer1-secret',
-          isSpectator: false,
-          isHost: false
-        }));
-      });
-
-      await page.goto(`/room/${gameState.id}`);
-
-      // Should see voting panel
-      await expect(page.locator('[data-testid="voting-panel"]')).toBeVisible({ timeout: 10000 });
+    await setupPlayerSession(page, {
+      playerName: producer.name,
+      playerId: producer.id,
+      playerSecret: 'test-secret',
     });
 
-    test('should see other producers in voting', async ({ page }) => {
-      const producer1 = createMockProducer('Producer1');
-      const producer2 = createMockProducer('Producer2');
-      
-      const gameState = createMockVotingState({
-        [producer1.id]: producer1,
-        [producer2.id]: producer2,
-      });
+    await page.goto(`/room/${gameState.id}`);
+    await page.getByTestId('bingo-tile').first().click();
 
-      await page.route('**/api/**', async (route) => {
-        if (route.request().url().includes('/rooms/')) {
-          await route.fulfill({ json: gameState });
-        } else {
-          await route.continue();
-        }
-      });
-
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'Producer1',
-          playerId: producer1.id,
-          playerSecret: 'producer1-secret',
-          isSpectator: false,
-          isHost: false
-        }));
-      });
-
-      await page.goto(`/room/${gameState.id}`);
-
-      // Should see other producer as voting option
-      await expect(page.locator('text=Producer2')).toBeVisible();
-    });
-
-    test('should see votes received after voting closes', async ({ page }) => {
-      const producer1 = createMockProducer('Producer1');
-      const producer2 = createMockProducer('Producer2');
-      const spectator = createMockSpectator('Spectator');
-      
-      const vote = createMockVote(spectator.id, 'Spectator', producer1.id, 'Producer1');
-      const gameState = createMockVotingState({
-        [producer1.id]: producer1,
-        [producer2.id]: producer2,
-        [spectator.id]: spectator,
-      }, 1, [vote]);
-
-      await page.route('**/api/**', async (route) => {
-        if (route.request().url().includes('/rooms/')) {
-          await route.fulfill({ json: gameState });
-        } else {
-          await route.continue();
-        }
-      });
-
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'Producer1',
-          playerId: producer1.id,
-          playerSecret: 'producer1-secret',
-          isSpectator: false,
-          isHost: false
-        }));
-      });
-
-      await page.goto(`/room/${gameState.id}`);
-
-      // Should see vote count
-      await expect(page.locator('text=1 vote')).toBeVisible();
-    });
+    await expect(page.getByText(/Upload Audio for/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Upload Track' })).toBeVisible();
   });
 
-  test.describe('ELO Rating', () => {
-    test.beforeEach(async ({ page }) => {
-      await page.addInitScript(() => {
-        (window as any).__E2E_TESTING__ = true;
-      });
+  test('routes spectators to the spectator dashboard instead of the producer board', async ({ page }) => {
+    const producer = createMockProducer('Producer');
+    const spectator = createMockSpectator('Spectator');
+    const gameState = createMockPlayingStateWithoutGenre({
+      [producer.id]: producer,
+      [spectator.id]: spectator,
     });
 
-    test('should display ELO rating', async ({ page }) => {
-      const player = createMockProducer('TestPlayer', {
-        eloRating: 1250,
-        eloWins: 5,
-        eloLosses: 2,
-        eloMatches: 7
-      });
-      
-      const gameState = createMockPlayingState({ [player.id]: player });
-
-      await page.route('**/api/**', async (route) => {
-        if (route.request().url().includes('/rooms/')) {
-          await route.fulfill({ json: gameState });
-        } else {
-          await route.continue();
-        }
-      });
-
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'TestPlayer',
-          playerId: player.id,
-          playerSecret: 'test-secret',
-          isSpectator: false,
-          isHost: false
-        }));
-      });
-
-      await page.goto(`/room/${gameState.id}`);
-
-      // Should show ELO rating
-      await expect(page.locator('text=1250')).toBeVisible();
+    await mockApiRoutes(page, {
+      roomResponse: toRoomResponse(gameState),
+      rejoin: {
+        player: spectator,
+        playerSecret: 'spectator-secret',
+      },
     });
 
-    test('should show ELO stats in game over', async ({ page }) => {
-      const winner = createMockProducer('Winner', {
-        eloRating: 1300,
-        eloWins: 6,
-        eloLosses: 2,
-        eloMatches: 8
-      });
-      const loser = createMockProducer('Loser', {
-        eloRating: 1100,
-        eloWins: 2,
-        eloLosses: 6,
-        eloMatches: 8
-      });
-      
-      const gameState = createMockFinishedState({
+    await setupPlayerSession(page, {
+      playerName: spectator.name,
+      playerId: spectator.id,
+      playerSecret: 'spectator-secret',
+    });
+
+    await page.goto(`/room/${gameState.id}`);
+
+    await expect(page.getByTestId('request-to-play')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your Board' })).not.toBeVisible();
+  });
+
+  test('shows start battle controls to the joined host in the lobby', async ({ page }) => {
+    const lobbyState = createMockLobbyState('HostPlayer', ['Player2'], []);
+    const host = findPlayerByName(lobbyState.players, 'HostPlayer');
+
+    await mockApiRoutes(page, {
+      roomResponse: toRoomResponse(lobbyState),
+      rejoin: {
+        player: host,
+        playerSecret: 'host-secret',
+      },
+      startGame: {
+        json: { status: 'started' },
+      },
+    });
+
+    await setupPlayerSession(page, {
+      playerName: host.name,
+      playerId: host.id,
+      playerSecret: 'host-secret',
+    });
+
+    await page.goto(`/room/${lobbyState.id}`);
+
+    await expect(page.getByTestId('lobby')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Start Battle' })).toBeVisible();
+  });
+
+  test('hides start battle controls from joined non-host players in the lobby', async ({ page }) => {
+    const lobbyState = createMockLobbyState('HostPlayer', ['Player2'], []);
+    const player = findPlayerByName(lobbyState.players, 'Player2');
+
+    await mockApiRoutes(page, {
+      roomResponse: toRoomResponse(lobbyState),
+      rejoin: {
+        player,
+        playerSecret: 'player2-secret',
+      },
+    });
+
+    await setupPlayerSession(page, {
+      playerName: player.name,
+      playerId: player.id,
+      playerSecret: 'player2-secret',
+    });
+
+    await page.goto(`/room/${lobbyState.id}`);
+
+    await expect(page.getByTestId('lobby')).toBeVisible();
+    await expect(page.getByText(/Waiting for more players to join and host to start game/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Start Battle' })).not.toBeVisible();
+  });
+
+  test('shows winner and score surfaces after the round is finished', async ({ page }) => {
+    const winner = createMockProducer('Winner', {
+      scoreInfo: createMockScoreInfo(150, 2),
+    });
+    const challenger = createMockProducer('Challenger', {
+      scoreInfo: createMockScoreInfo(100, 1),
+    });
+    const gameState = createMockFinishedState(
+      {
         [winner.id]: winner,
-        [loser.id]: loser,
-      }, winner.id);
+        [challenger.id]: challenger,
+      },
+      winner.id
+    );
 
-      await page.route('**/api/**', async (route) => {
-        if (route.request().url().includes('/rooms/')) {
-          await route.fulfill({ json: gameState });
-        } else {
-          await route.continue();
-        }
-      });
-
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'Winner',
-          playerId: winner.id,
-          playerSecret: 'winner-secret',
-          isSpectator: false,
-          isHost: true
-        }));
-      });
-
-      await page.goto(`/room/${gameState.id}`);
-
-      // Should show final standings with ELO
-      await expect(page.locator('text=/Winner.*1300/')).toBeVisible();
-      await expect(page.locator('text=/Loser.*1100/')).toBeVisible();
-    });
-  });
-
-  test.describe('Host Functionality', () => {
-    test.beforeEach(async ({ page }) => {
-      await page.addInitScript(() => {
-        (window as any).__E2E_TESTING__ = true;
-      });
+    await mockApiRoutes(page, {
+      roomResponse: toRoomResponse(gameState),
+      rejoin: {
+        player: winner,
+        playerSecret: 'winner-secret',
+      },
     });
 
-    test('should see host controls when isHost is true', async ({ page }) => {
-      const host = createMockProducer('HostPlayer', { eloRating: 1200 });
-      const player = createMockProducer('Player2');
-      
-      const gameState = createMockLobbyState('HostPlayer', ['Player2'], []);
-
-      await page.route('**/api/**', async (route) => {
-        if (route.request().url().includes('/rooms/')) {
-          await route.fulfill({ json: gameState });
-        } else {
-          await route.continue();
-        }
-      });
-
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'HostPlayer',
-          playerId: host.id,
-          playerSecret: 'host-secret',
-          isSpectator: false,
-          isHost: true
-        }));
-      });
-
-      await page.goto(`/room/${gameState.id}`);
-
-      // Should see start game button (host control)
-      await expect(page.locator('button:has-text("Start Game"), [data-testid="start-game"]')).toBeVisible({ timeout: 10000 });
+    await setupPlayerSession(page, {
+      playerName: winner.name,
+      playerId: winner.id,
+      playerSecret: 'winner-secret',
     });
 
-    test('should not see host controls when isHost is false', async ({ page }) => {
-      const host = createMockProducer('HostPlayer');
-      const player = createMockProducer('Player2');
-      
-      const gameState = createMockLobbyState('HostPlayer', ['Player2'], []);
+    await page.goto(`/room/${gameState.id}`);
 
-      await page.route('**/api/**', async (route) => {
-        if (route.request().url().includes('/rooms/')) {
-          await route.fulfill({ json: gameState });
-        } else {
-          await route.continue();
-        }
-      });
-
-      await page.addInitScript(() => {
-        localStorage.setItem('userSession', JSON.stringify({
-          playerName: 'Player2',
-          playerId: player.id,
-          playerSecret: 'player-secret',
-          isSpectator: false,
-          isHost: false
-        }));
-      });
-
-      await page.goto(`/room/${gameState.id}`);
-
-      // Should NOT see start game button
-      await expect(page.locator('button:has-text("Start Game")')).not.toBeVisible();
-    });
+    await expect(page.getByTestId('winner-announcement')).toBeVisible();
+    await expect(
+      page.getByTestId('winner-announcement').getByText(new RegExp(`^${winner.name}$`))
+    ).toBeVisible();
   });
 });

@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test';
-
-const API_BASE_URL = 'http://localhost:8000/api';
+import { enableE2EMode, mockApiRoutes, setupPlayerSession } from './helpers';
 
 const mockMultiplayerRoomResponse = {
   code: 'test-room',
@@ -50,24 +49,9 @@ const mockMultiplayerRoomResponse = {
 
 test.describe('Multi-Player Game Scenarios', () => {
   test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => {
-      (window as any).__E2E_TESTING__ = true;
-      localStorage.setItem('userSession', JSON.stringify({
-        playerName: 'PlayerOne',
-        playerId: 'player1',
-        playerSecret: 'secret1',
-        isSpectator: false,
-        isHost: true
-      }));
-    });
-
-    await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: mockMultiplayerRoomResponse });
-      } else {
-        await route.continue();
-      }
-    });
+    await enableE2EMode(page);
+    await setupPlayerSession(page, { playerName: 'PlayerOne', playerId: 'player1', playerSecret: 'secret1' });
+    await mockApiRoutes(page, { roomResponse: mockMultiplayerRoomResponse });
   });
 
   test('should handle multiple players joining', async ({ browser }) => {
@@ -77,41 +61,13 @@ test.describe('Multi-Player Game Scenarios', () => {
     const page1 = await context1.newPage();
     const page2 = await context2.newPage();
 
-    await page1.addInitScript(() => {
-      (window as any).__E2E_TESTING__ = true;
-      localStorage.setItem('userSession', JSON.stringify({
-        playerName: 'PlayerOne',
-        playerId: 'player1',
-        playerSecret: 'secret1',
-        isSpectator: false,
-        isHost: true
-      }));
-    });
-    await page2.addInitScript(() => {
-      (window as any).__E2E_TESTING__ = true;
-      localStorage.setItem('userSession', JSON.stringify({
-        playerName: 'PlayerTwo',
-        playerId: 'player2',
-        playerSecret: 'secret2',
-        isSpectator: false,
-        isHost: false
-      }));
-    });
+    await enableE2EMode(page1);
+    await setupPlayerSession(page1, { playerName: 'PlayerOne', playerId: 'player1', playerSecret: 'secret1' });
+    await enableE2EMode(page2);
+    await setupPlayerSession(page2, { playerName: 'PlayerTwo', playerId: 'player2', playerSecret: 'secret2' });
 
-    await page1.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: mockMultiplayerRoomResponse });
-      } else {
-        await route.continue();
-      }
-    });
-    await page2.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: mockMultiplayerRoomResponse });
-      } else {
-        await route.continue();
-      }
-    });
+    await mockApiRoutes(page1, { roomResponse: mockMultiplayerRoomResponse });
+    await mockApiRoutes(page2, { roomResponse: mockMultiplayerRoomResponse });
 
     await page1.goto('/room/test-room');
     await page2.goto('/room/test-room');
@@ -130,41 +86,13 @@ test.describe('Multi-Player Game Scenarios', () => {
     const page1 = await context1.newPage();
     const page2 = await context2.newPage();
 
-    await page1.addInitScript(() => {
-      (window as any).__E2E_TESTING__ = true;
-      localStorage.setItem('userSession', JSON.stringify({
-        playerName: 'PlayerOne',
-        playerId: 'player1',
-        playerSecret: 'secret1',
-        isSpectator: false,
-        isHost: true
-      }));
-    });
-    await page2.addInitScript(() => {
-      (window as any).__E2E_TESTING__ = true;
-      localStorage.setItem('userSession', JSON.stringify({
-        playerName: 'PlayerTwo',
-        playerId: 'player2',
-        playerSecret: 'secret2',
-        isSpectator: false,
-        isHost: false
-      }));
-    });
+    await enableE2EMode(page1);
+    await setupPlayerSession(page1, { playerName: 'PlayerOne', playerId: 'player1', playerSecret: 'secret1' });
+    await enableE2EMode(page2);
+    await setupPlayerSession(page2, { playerName: 'PlayerTwo', playerId: 'player2', playerSecret: 'secret2' });
 
-    await page1.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: mockMultiplayerRoomResponse });
-      } else {
-        await route.continue();
-      }
-    });
-    await page2.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: mockMultiplayerRoomResponse });
-      } else {
-        await route.continue();
-      }
-    });
+    await mockApiRoutes(page1, { roomResponse: mockMultiplayerRoomResponse });
+    await mockApiRoutes(page2, { roomResponse: mockMultiplayerRoomResponse });
 
     await page1.goto('/room/test-room');
     await page2.goto('/room/test-room');

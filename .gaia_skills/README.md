@@ -10,6 +10,7 @@ This repo includes a collection of skill docs under `.gaia_skills/`.
 |-------|-------------|
 | `agent-resilience` | Checkpoint-based recovery + safe retry patterns |
 | `django` | Django-specific conventions and guardrails |
+| `e2e-test-hygiene` | Fast debugging protocol and determinism rules for Playwright E2E work |
 | `gastown-070-integration` | Integration notes for GT 0.7.0 workflows |
 | `gt-mail` | Gas Town mail workflows |
 | `pii-prevention` | Prevent leaking PII/secrets into commits/artifacts |
@@ -29,6 +30,10 @@ This repo includes a collection of skill docs under `.gaia_skills/`.
 These skills are automatically injected into GAIA polecat tasks via `SUPERPOWERS_PROMPT` in `~/gaia-polecat`.
 
 Note: `~/gaia-polecat` is local tooling (outside this repo). The `.gaia_skills/` directory primarily serves as versioned documentation and reference.
+
+Local GAIA/polecat tasks can run from feature branches. They do not require `main`, but default-branch CI and branch protection checks still require workflows to exist on the default branch. Avoid running GAIA orchestration from a branch where `scripts/gaia-polecat.py` has unrelated dirty changes unless the task is specifically to validate the runner.
+
+Direct Codex sessions do not automatically inject these skills. Treat this directory as documentation unless the task is launched through `scripts/gaia-polecat.py` or the external `~/gaia-polecat` workflow.
 
 ## Adding Skills
 

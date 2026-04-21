@@ -1,3 +1,4 @@
+from django.db import IntegrityError
 from rest_framework import serializers
 from .models import Room, Player, Tile, Round, Vote
 
@@ -9,6 +10,106 @@ class TileSerializer(serializers.ModelSerializer):
         model = Tile
         fields = ["id", "genre", "status", "audio_url", "position"]
         read_only_fields = ["id"]
+
+
+class TileCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating tiles with comprehensive validation"""
+
+    class Meta:
+        model = Tile
+        fields = ["genre", "position", "player", "room"]
+    
+    def validate(self, attrs):
+        """
+        Comprehensive validation for tile creation
+        """
+        player = attrs['player']
+        position = attrs['position']
+        genre = attrs['genre']
+        room = attrs.get('room', player.room)  # Use room from attrs or fallback to player.room
+        
+        # Validation 1: Position must be within valid range (0-8)
+        if not 0 <= position <= 8:
+            raise serializers.ValidationError(
+                f"Position {position} is invalid. Must be between 0 and 8."
+            )
+        
+        # Validation 2: Check for duplicate position in same room
+        existing_tile = Tile.objects.filter(
+            player__room=room, 
+            position=position
+        ).first()
+        
+        if existing_tile:
+            raise serializers.ValidationError(
+                f"Position {position} is already occupied in this room by {existing_tile.player.name}."
+            )
+        
+        # Validation 3: Check genre uniqueness for this player
+        used_genres = Tile.objects.filter(
+            player=player
+        ).values_list('genre', flat=True)
+        
+        if genre in used_genres:
+            raise serializers.ValidationError(
+                f"Genre '{genre}' is already used by player {player.name}. Each player can only use each genre once."
+            )
+        
+        # Validation 4: Ensure genre is valid
+        valid_genres = [choice[0] for choice in Tile.Genre.choices]
+        if genre not in valid_genres:
+            raise serializers.ValidationError(
+                f"Invalid genre '{genre}'. Valid genres are: {', '.join(valid_genres)}."
+            )
+        
+        # Validation 5: Player must not be a spectator
+        if player.is_spectator:
+            raise serializers.ValidationError(
+                f"Spectators cannot have tiles. Player {player.name} is a spectator."
+            )
+        
+        # Validation 6: Room must be in appropriate state for tile creation
+        if room.status not in [Room.Status.LOBBY, Room.Status.PLAYING]:
+            raise serializers.ValidationError(
+                f"Cannot create tiles in room with status '{room.status}'. Room must be in LOBBY or PLAYING state."
+            )
+        
+        return attrs
+    
+    def create(self, validated_data):
+        """
+        Create tile with proper error handling
+        """
+        try:
+            tile = Tile.objects.create(**validated_data)
+            return tile
+        except IntegrityError as e:
+            if "NOT NULL constraint failed" in str(e):
+                # Check which required field is missing
+                required_fields = ['player', 'position', 'genre']
+                missing_fields = []
+                
+                for field in required_fields:
+                    if field not in validated_data or validated_data[field] is None:
+                        missing_fields.append(field)
+                
+                if missing_fields:
+                    raise serializers.ValidationError(
+                        f"Missing required fields: {', '.join(missing_fields)}"
+                    )
+                else:
+                    raise serializers.ValidationError(
+                        "Database constraint violation. Check all required fields."
+                    )
+            elif "UNIQUE constraint failed" in str(e):
+                raise serializers.ValidationError(
+                    "This tile already exists or violates uniqueness constraints."
+                )
+            else:
+                # Re-raise unknown database errors
+                raise serializers.ValidationError(
+                    "Failed to create tile due to database constraint violation."
+                )
 
 
 class VoteSerializer(serializers.ModelSerializer):

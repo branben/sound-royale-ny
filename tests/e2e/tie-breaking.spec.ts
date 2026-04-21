@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test';
-
-const API_BASE_URL = 'http://localhost:8000/api';
+import { enableE2EMode, mockApiRoutes, setupPlayerSession } from './helpers';
 
 const mockTieBreakerRoomResponse = {
   code: 'test-room-id',
@@ -51,24 +50,9 @@ const mockTieBreakerRoomResponse = {
 
 test.describe('Tie-Breaking Logic', () => {
   test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => {
-      (window as any).__E2E_TESTING__ = true;
-      localStorage.setItem('userSession', JSON.stringify({
-        playerName: 'PlayerA',
-        playerId: 'player1',
-        playerSecret: 'secret1',
-        isSpectator: false,
-        isHost: true
-      }));
-    });
-
-    await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: mockTieBreakerRoomResponse });
-      } else {
-        await route.continue();
-      }
-    });
+    await enableE2EMode(page);
+    await setupPlayerSession(page, { playerName: 'PlayerA', playerId: 'player1', playerSecret: 'secret1' });
+    await mockApiRoutes(page, { roomResponse: mockTieBreakerRoomResponse });
   });
 
   test('should declare player with most lines as winner', async ({ page }) => {

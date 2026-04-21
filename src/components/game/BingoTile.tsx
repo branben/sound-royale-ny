@@ -59,6 +59,7 @@ export function BingoTile({ tile, onClick, isInteractive = false }: BingoTilePro
 
   return (
     <button
+      data-testid="bingo-tile"
       onClick={onClick}
       disabled={!isInteractive && tile.status !== 'empty'}
       className={cn(

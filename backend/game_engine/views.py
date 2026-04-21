@@ -182,7 +182,14 @@ class RoomViewSet(viewsets.ModelViewSet):
         existing_names = set()
         try:
             with transaction.atomic():
-                data = request.data.copy()
+                # Handle JSON parsing errors
+                try:
+                    data = request.data.copy()
+                except Exception as e:
+                    return Response(
+                        {"error": "Invalid JSON format"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
                 spectator_count = room.players.filter(is_spectator=True).count()
                 if data.get("is_spectator", False):
@@ -264,7 +271,7 @@ class RoomViewSet(viewsets.ModelViewSet):
             )
 
     @action(detail=True, methods=["post"])
-    def start_game(self, request, pk=None):
+    def start_game(self, request, pk=None, code=None):
         """
         Start the game in a room.
         """
@@ -318,19 +325,6 @@ class RoomViewSet(viewsets.ModelViewSet):
         broadcast_timer_tick(room)
         start_timer_broadcast(room.id, 60)
 
-        audit_logger.info(
-            "turn_advanced",
-            extra={
-                "room_code": room.code,
-                "from_round": room.current_round - 1,
-                "to_round": next_round_number,
-                "next_genre": next_genre,
-                "timestamp": timezone.now().isoformat(),
-                "action": "next_turn",
-                "outcome": "success",
-            },
-        )
-
         return Response(
             {
                 "status": "Game started",
@@ -340,7 +334,7 @@ class RoomViewSet(viewsets.ModelViewSet):
         )
 
     @action(detail=True, methods=["get"])
-    def game_state(self, request, pk=None):
+    def game_state(self, request, pk=None, code=None):
         """
         Get the current game state.
         """
@@ -349,7 +343,7 @@ class RoomViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=True, methods=["post"])
-    def rejoin_game(self, request, pk=None):
+    def rejoin_game(self, request, pk=None, code=None):
         """
         Rejoin a game room using player_secret.
         Returns player data if secret matches, 404 if not found.
@@ -381,9 +375,10 @@ class RoomViewSet(viewsets.ModelViewSet):
             )
 
     @action(detail=True, methods=["post"])
-    def reset_game(self, request, pk=None):
+    def reset_game(self, request, pk=None, code=None):
         """
         Reset the game for a new round. Only host can reset.
+        Transaction-safe with proper rollback on any failure.
         """
         room = self.get_object()
         requester_secret = request.data.get("player_secret")
@@ -402,40 +397,128 @@ class RoomViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_403_FORBIDDEN,
                 )
 
+        except Exception as e:
+            return Response(
+                {"error": "Failed to verify host permissions"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        try:
             with transaction.atomic():
-                Tile.objects.filter(player__room=room).delete()
+                # Validate room state before starting transaction
+                if room.status == Room.Status.PLAYING:
+                    # Check if there are active tiles that shouldn't be deleted
+                    active_tiles = Tile.objects.filter(
+                        player__room=room, 
+                        status=Tile.Status.COMPLETE
+                    ).count()
+                    
+                    if active_tiles > 0:
+                        return Response(
+                            {
+                                "error": "Cannot reset game with completed tiles",
+                                "active_tiles": active_tiles
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                # Store original state for potential rollback logging
+                original_round = room.current_round
+                original_status = room.status
+                
+                # Step 1: Delete existing tiles (atomic operation)
+                deleted_count, _ = Tile.objects.filter(player__room=room).delete()
+                
+                # Step 2: Update room state
                 room.status = Room.Status.LOBBY
                 room.current_round += 1
                 room.winner = None
                 room.save()
-
+                
+                # Step 3: Get players and validate
                 players = room.players.filter(is_spectator=False)
+                if players.count() == 0:
+                    raise ValueError("No active players found in room")
+                
+                # Step 4: Create new tiles for each player
+                created_tiles = []
+                available_genres = list(Tile.Genre.values)
+                
                 for player in players:
-                    all_genres = list(Tile.Genre.values)
-                    random.shuffle(all_genres)
-                    genres = all_genres[:9]
-
+                    # Create a copy of genres for each player to ensure uniqueness
+                    player_genres = available_genres.copy()
+                    random.shuffle(player_genres)
+                    
+                    # Take first 9 genres for this player
+                    selected_genres = player_genres[:9]
+                    
+                    if len(selected_genres) < 9:
+                        raise ValueError(f"Insufficient genres available for player {player.name}")
+                    
+                    # Create tiles for this player
                     for position in range(9):
-                        Tile.objects.create(
-                            player=player, position=position, genre=genres.pop()
-                        )
+                        try:
+                            tile = Tile.objects.create(
+                                player=player,
+                                room=room,
+                                position=position,
+                                genre=selected_genres[position]
+                            )
+                            created_tiles.append(tile)
+                        except IntegrityError as e:
+                            # This shouldn't happen with our validation, but handle it gracefully
+                            raise ValueError(f"Failed to create tile at position {position} for player {player.name}: {str(e)}")
+                
+                # Step 5: Validate all tiles were created successfully
+                expected_tiles = players.count() * 9
+                if len(created_tiles) != expected_tiles:
+                    raise ValueError(f"Expected {expected_tiles} tiles, only created {len(created_tiles)}")
+                
+                # Step 6: Broadcast update (outside of database operations but within transaction)
+                try:
+                    broadcast_game_update(room)
+                except Exception as e:
+                    # Broadcast failure shouldn't rollback the database changes
+                    # Log it but continue with success response
+                    logger.warning(f"Failed to broadcast game update for room {room.code}: {str(e)}")
 
-                broadcast_game_update(room)
+                return Response(
+                    {
+                        "status": "Game reset successfully",
+                        "round": room.current_round,
+                        "tiles_created": len(created_tiles),
+                        "players": players.count(),
+                        "previous_round": original_round
+                    },
+                    status=status.HTTP_200_OK,
+                )
 
+        except ValueError as e:
+            # Validation errors - don't rollback as no changes were made
+            logger.warning(f"Validation error in reset_game for room {room.code}: {str(e)}")
             return Response(
-                {"status": "Game reset", "round": room.current_round},
-                status=status.HTTP_200_OK,
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-
-        except Exception as e:
-            logger.exception(f"Failed to reset game in room {room.code}")
+            
+        except IntegrityError as e:
+            # Database constraint violation - transaction will automatically rollback
+            logger.error(f"Database integrity error in reset_game for room {room.code}: {str(e)}")
             return Response(
-                {"error": "Failed to reset game. Please try again."},
+                {"error": "Database constraint violation. Please try again."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+            
+        except Exception as e:
+            # Any other exception - transaction will automatically rollback
+            logger.exception(f"Unexpected error in reset_game for room {room.code}")
+            return Response(
+                {"error": "Failed to reset game due to unexpected error. Please try again."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     @action(detail=True, methods=["post"])
-    def kick_player(self, request, pk=None):
+    def kick_player(self, request, pk=None, code=None):
         room = self.get_object()
         requester_secret = request.data.get("player_secret")
         target_player_id = request.data.get("player_id")
@@ -589,7 +672,7 @@ class RoomViewSet(viewsets.ModelViewSet):
         )
 
     @action(detail=True, methods=["post"])
-    def next_turn(self, request, pk=None):
+    def next_turn(self, request, pk=None, code=None):
         """
         Advance to the next round/tile after voting is complete.
         Only host can trigger this.
@@ -939,31 +1022,88 @@ class PlayerViewSet(viewsets.ModelViewSet):
     queryset = Player.objects.all()
     serializer_class = PlayerSerializer
     permission_classes = [AllowAny]
+    lookup_field = "player_secret"  # Allow lookup by player secret
 
     def get_serializer_class(self):
         if self.action == "create":
             return PlayerCreateSerializer  # Use create serializer for direct player creation
         return PlayerSerializer
 
+    def get_object(self):
+        """
+        Override get_object to handle player_secret lookup
+        """
+        if self.kwargs.get(self.lookup_field):
+            try:
+                return Player.objects.get(player_secret=self.kwargs[self.lookup_field])
+            except Player.DoesNotExist:
+                pass
+        return super().get_object()
+
+    @action(detail=True, methods=["post"])
+    def update_score(self, request, pk=None, player_secret=None):
+        """
+        Update player score (for future ELO implementation)
+        """
+        player = self.get_object()
+        
+        score_delta = request.data.get('score_delta', 0)
+        if not isinstance(score_delta, (int, float)):
+            return Response(
+                {"error": "score_delta must be a number"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # For now, just return success - ELO implementation would go here
+        return Response(
+            {
+                "status": "Score update received",
+                "player": player.name,
+                "score_delta": score_delta
+            },
+            status=status.HTTP_200_OK
+        )
+
+    @action(detail=True, methods=["post"])
+    def toggle_connection(self, request, pk=None, player_secret=None):
+        """
+        Toggle player connection status
+        """
+        player = self.get_object()
+        
+        # Toggle connection status
+        player.is_connected = not player.is_connected
+        player.save()
+        
+        broadcast_game_update(player.room)
+        
+        return Response(
+            {
+                "status": "Connection toggled",
+                "player": player.name,
+                "is_connected": player.is_connected
+            },
+            status=status.HTTP_200_OK
+        )
+
     def perform_create(self, serializer):
         """
         Override to ensure room is set when creating players directly.
         This handles the case where players are created via PlayerViewSet.create()
         """
-        # Get room from request data or context
-        room_id = serializer.validated_data.get("room_id") or self.request.data.get(
-            "room_id"
-        )
+        # Get room from request data
+        room_id = self.request.data.get("room_id")
         if room_id:
             from .models import Room
-
             room = Room.objects.get(id=room_id)
-            serializer.save(room=room)
-        else:
+            # Provide room context to serializer (serializer.create() will handle room assignment)
+            serializer.context['room'] = room
             serializer.save()
+        else:
+            raise serializers.ValidationError("room_id is required")
 
     @action(detail=True, methods=["post"])
-    def leave_game(self, request, pk=None):
+    def leave_game(self, request, pk=None, code=None):
         """
         Leave a game room.
         """
@@ -996,7 +1136,7 @@ class TileViewSet(viewsets.ModelViewSet):
     permission_classes = [AllowAny]
 
     @action(detail=True, methods=["post"])
-    def play_tile(self, request, pk=None):
+    def play_tile(self, request, pk=None, code=None):
         """
         Play a tile in the game.
         """

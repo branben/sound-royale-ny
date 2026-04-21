@@ -7,6 +7,9 @@ import { TurnIndicator } from '@/components/game/TurnIndicator';
 import { ScoreDisplay } from '@/components/game/ScoreDisplay';
 import { VictoryCelebration } from '@/components/game/VictoryCelebration';
 import { BingoNotification } from '@/components/game/BingoNotification';
+import { WinnerAnnouncement } from '@/components/game/WinnerAnnouncement';
+import { RoundIndicator } from '@/components/game/RoundIndicator';
+import { GameOverScreen } from '@/components/game/GameOverScreen';
 import { toast } from 'sonner';
 import { Tile } from '@/types/game';
 import { useGame } from '@/context/useGame';
@@ -100,9 +103,9 @@ export function PlayerView({ roomId, playerName }: PlayerViewProps) {
   }
 
   const ConnectionStatus = () => {
-    const isConnected = playerData.isConnected ?? false;
+    const isConnected = playerData.isConnected;
     return (
-      <div className={`flex items-center gap-1 text-xs ${isConnected ? 'text-green-500' : 'text-gray-500'}`}>
+      <div data-testid="connection-status" className={`flex items-center gap-1 text-xs ${isConnected ? 'text-green-500' : 'text-gray-500'}`}>
         {isConnected ? (
           <Wifi className="h-3 w-3" />
         ) : (
@@ -130,6 +133,7 @@ export function PlayerView({ roomId, playerName }: PlayerViewProps) {
           playerName={playerData.name}
           isCurrentPlayer={true}
           hasWon={gameState.status === 'finished' && gameState.winner === playerData.id}
+          eloRating={playerData.eloRating}
         />
 
         {gameState.status === 'playing' && (
@@ -185,6 +189,34 @@ export function PlayerView({ roomId, playerName }: PlayerViewProps) {
         isDoubleBingo={isDoubleBingo}
         onComplete={handleBingoNotificationComplete}
       />
+
+      {/* Winner Announcement */}
+      {gameState.status === 'finished' && gameState.winner && (
+        <WinnerAnnouncement
+          winnerName={players.find(p => p.id === gameState.winner)?.name || 'Unknown'}
+          score={players.find(p => p.id === gameState.winner)?.scoreInfo?.score}
+          eloDeltas={gameState.eloDeltas}
+          isVisible={true}
+        />
+      )}
+
+      {/* Round Indicator */}
+      {gameState.status === 'playing' && (
+        <RoundIndicator
+          currentRound={gameState.currentRound || 1}
+          isPreparing={false}
+        />
+      )}
+
+      {/* Game Over Screen (shown only when finished without a winner) */}
+      {gameState.status === 'finished' && !gameState.winner && (
+        <GameOverScreen
+          isVisible={true}
+          onReturnToLobby={() => window.location.href = '/'}
+          onPlayAgain={() => window.location.href = '/'}
+          totalScore={playerData.scoreInfo?.score}
+        />
+      )}
     </div>
   );
 }
