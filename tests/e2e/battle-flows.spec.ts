@@ -72,6 +72,11 @@ test.describe('Music Battle Game Flows', () => {
     test('should handle room navigation - join existing room', async ({ page }) => {
       await mockApiRoutes(page, { roomResponse: mockPlayingRoomResponse });
 
+      // Clear playerName so Lobby starts in 'landing' mode (not 'join')
+      await page.addInitScript(() => {
+        localStorage.removeItem('playerName');
+      });
+
       await page.goto('/');
 
       // Landing page: enter player name first
@@ -86,11 +91,11 @@ test.describe('Music Battle Game Flows', () => {
       await expect(roomInput).toBeVisible();
       await roomInput.fill('1234');
 
-      // Click the Join Room submit button to navigate
+      // Click the Join Room submit button
       await page.getByTestId('join-room-button').click();
 
-      // Assert navigation to room page
-      await expect(page).toHaveURL(/\/room\/.+/, { timeout: 10000 });
+      // Assert the Lobby transitions to waiting room view
+      await expect(page.getByText('Waiting for players...')).toBeVisible({ timeout: 10000 });
     });
 
     test('should handle tile selection and upload', async ({ page }) => {
