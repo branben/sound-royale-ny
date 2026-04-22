@@ -220,7 +220,7 @@ jobs:
           check_pattern 'console\.log[^\n]*playerSecret' "playerSecret in console.log (log exposure)" "${TS_FILES[@]}"
           
           check_pattern '(["\'']playerSecret["'\'']\s*:\s*["'\''][^"\'']+["'\''])' "playerSecret literal value in API objects" "${TS_FILES[@]}"
-          check_pattern 'playerSecret\s*:\s*[^,)}]+' "playerSecret field surface (non-literal)" "${TS_FILES[@]}"
+          check_pattern 'playerSecret\s*:\s*[^,)}]+(?!\s*string\s*\?|\s*\?)' "playerSecret field surface (non-literal, excluding type declarations)" "${TS_FILES[@]}"
           
           check_pattern 'error[^\n]*playerSecret' "playerSecret in error context" "${TS_FILES[@]}"
           

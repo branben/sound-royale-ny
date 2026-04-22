@@ -74,13 +74,23 @@ test.describe('Music Battle Game Flows', () => {
 
       await page.goto('/');
 
-      const roomInput = page.locator('input[inputmode="numeric"]');
+      // Landing page: enter player name first
+      const nameInput = page.getByTestId('player-name-input');
+      await expect(nameInput).toBeVisible();
+      await nameInput.fill('TestPlayer');
+
+      // Click Join Room mode button to show room code input
+      await page.getByTestId('join-room-mode-button').click();
+
+      const roomInput = page.getByTestId('room-code-input');
       await expect(roomInput).toBeVisible();
-
       await roomInput.fill('1234');
-      await page.click('button:has-text("Join Room")');
 
-      await expect(page.locator('input[inputmode="numeric"]')).not.toBeVisible({ timeout: 10000 });
+      // Click the Join Room submit button to navigate
+      await page.getByTestId('join-room-button').click();
+
+      // Assert navigation to room page
+      await expect(page).toHaveURL(/\/room\/.+/, { timeout: 10000 });
     });
 
     test('should handle tile selection and upload', async ({ page }) => {

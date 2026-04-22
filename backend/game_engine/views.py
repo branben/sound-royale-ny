@@ -364,7 +364,6 @@ class RoomViewSet(viewsets.ModelViewSet):
                     "id": str(player.id),
                     "name": player.name,
                     "isSpectator": player.is_spectator,
-                    "playerSecret": str(player.player_secret),
                 },
                 status=status.HTTP_200_OK,
             )
