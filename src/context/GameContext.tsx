@@ -29,7 +29,7 @@ const emptyGameState: GameState = {
 };
 
 export function GameProvider({ children, roomCode }: { children: ReactNode; roomCode?: string }) {
-  const isE2E = import.meta.env.VITE_E2E_TESTING === 'true' || (typeof window !== 'undefined' && (window as any).__E2E_TESTING__ === true);
+  const isE2E = import.meta.env.VITE_E2E_TESTING === 'true' || (typeof window !== 'undefined' && window.__E2E_TESTING__ === true);
   
   // Debug log for GameProvider initialization
   console.log('[GameContext] Provider initialized', { roomCode, isE2E });

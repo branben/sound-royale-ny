@@ -113,7 +113,7 @@ test.describe('Network Recovery', () => {
         if (attempt < 2) {
           await route.abort('failed');
         } else {
-          await route.fulfill({ json: gameState });
+          await route.fulfill({ json: toRoomResponse(gameState) });
         }
       } else {
         await route.continue();

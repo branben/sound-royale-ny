@@ -18,7 +18,7 @@ interface Player {
 
 export default function Lobby() {
   const navigate = useNavigate();
-  const { setPlayerName, setPlayerCredentials } = useUser();
+  const { userSession, setPlayerName, setPlayerCredentials } = useUser();
   const [roomCode, setRoomCode] = useState('');
   const [isJoined, setIsJoined] = useState(false);
   const [isHost] = useState(true);
@@ -30,7 +30,9 @@ export default function Lobby() {
   const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
   const [playerNameInput, setPlayerNameInput] = useState('');
   const [roomNameInput, setRoomNameInput] = useState('');
-  const [mode, setMode] = useState<'landing' | 'join' | 'create'>('landing');
+  const [mode, setMode] = useState<'landing' | 'join' | 'create'>(
+    userSession.playerName ? 'join' : 'landing'
+  );
 
   // Fetch real room data when joined
   useEffect(() => {
