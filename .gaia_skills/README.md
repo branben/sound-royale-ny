@@ -15,6 +15,7 @@ This repo includes a collection of skill docs under `.gaia_skills/`.
 | `gt-mail` | Gas Town mail workflows |
 | `pii-prevention` | Prevent leaking PII/secrets into commits/artifacts |
 | `playwright` | Playwright E2E testing guidance |
+| `polecat-operational-hygiene` | Pre-flight infrastructure checks, queue monitoring, batch file reads |
 | `pr-comment-monitor` | Monitor PR comments/bot feedback (Qodo, CI) |
 | `pr-errors` | PR error test suite patterns |
 | `pr-hardening` | PR hygiene + safety checks |
