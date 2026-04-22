@@ -24,6 +24,8 @@ import random
 import subprocess
 import sys
 import time
+import urllib.request
+import urllib.error
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +38,7 @@ DEFAULT_QUEUE_FILE = DEFAULT_PRIVATE_DIR / "task_queue.jsonl"
 DEFAULT_CHECKPOINT_DIR = DEFAULT_PRIVATE_DIR / "checkpoints"
 DEFAULT_MEMORY_FILE = DEFAULT_PRIVATE_DIR / "memory.jsonl"
 DEFAULT_LOCKS_DIR = DEFAULT_PRIVATE_DIR / "locks"
+DEFAULT_PROGRESS_LOG = DEFAULT_PRIVATE_DIR / "progress.log"
 
 SKILLS_DIR = Path(".gaia_skills")
 
@@ -48,6 +51,7 @@ DEFAULT_SKILL_ALLOWLIST = [
     "playwright",
     "pr-hardening",
     "e2e-test-hygiene",
+    "polecat-operational-hygiene",
     "react",
     "test-driven-development",
     "websocket",
@@ -94,6 +98,101 @@ def warn_if_legacy_beads_exist(repo_root: Path) -> None:
             "State is stored under .gaia_private/gaia/.",
             file=sys.stderr,
         )
+
+
+def check_lmstudio_health(base_url: str) -> dict[str, Any]:
+    """Verify LM Studio / OpenAI-compatible endpoint returns valid JSON.
+
+    Returns {"ok": True, "models": [...]} on success.
+    Returns {"ok": False, "error": str, "hint": str} on failure.
+    """
+    url = base_url.rstrip("/") + "/models"
+    try:
+        with urllib.request.urlopen(url, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            models = data.get("data", [])
+            if not models:
+                return {"ok": False, "error": "Endpoint returned empty model list", "hint": "LM Studio may be running but no model is loaded."}
+            return {"ok": True, "models": [m.get("id") for m in models]}
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="ignore")[:200]
+        return {"ok": False, "error": f"HTTP {e.code}: {body}", "hint": "Endpoint is reachable but returned an error (ngrok tunnel may be dead or URL changed)."}
+    except urllib.error.URLError as e:
+        return {"ok": False, "error": str(e.reason), "hint": "Cannot reach endpoint. Check: 1) LM Studio is running, 2) ngrok tunnel is active, 3) URL is correct."}
+    except json.JSONDecodeError as e:
+        return {"ok": False, "error": f"Invalid JSON response: {e}", "hint": "Endpoint returned HTML instead of JSON. ngrok tunnel is likely dead."}
+    except Exception as e:
+        return {"ok": False, "error": str(e), "hint": "Unexpected error during health check."}
+
+
+def purge_stale_failed_tasks(repo_root: Path, dry_run: bool = False) -> int:
+    """Remove or archive tasks with status 'failed' that lack a valid source marker.
+
+    Returns number of purged tasks.
+    """
+    queue = load_queue(repo_root)
+    kept: list[dict[str, Any]] = []
+    purged_count = 0
+
+    for item in queue:
+        status = item.get("status", "pending")
+        attempts = item.get("attempts", 0)
+        # Heuristic: failed with >2 attempts and no explicit source = likely stale
+        is_stale = (
+            status == "failed"
+            and attempts >= 2
+            and item.get("source") is None  # legacy .beads/ tasks have no source
+        )
+        if is_stale:
+            purged_count += 1
+            if not dry_run:
+                # Archive to .gaia_private/gaia/archived_tasks.jsonl
+                archive_path = repo_root / DEFAULT_PRIVATE_DIR / "archived_tasks.jsonl"
+                archive_path.parent.mkdir(parents=True, exist_ok=True)
+                with archive_path.open("a", encoding="utf-8") as f:
+                    f.write(json.dumps(item, ensure_ascii=False) + "\n")
+        else:
+            kept.append(item)
+
+    if purged_count > 0 and not dry_run:
+        save_queue(repo_root, kept)
+        print(
+            f"🗑️  Purged {purged_count} stale failed task(s). Archived to .gaia_private/gaia/archived_tasks.jsonl",
+            file=sys.stderr,
+        )
+    elif purged_count > 0 and dry_run:
+        print(
+            f"⚠️  {purged_count} stale failed task(s) detected (dry-run, not purged).",
+            file=sys.stderr,
+        )
+
+    return purged_count
+
+
+def log_progress(repo_root: Path, task_id: str | None, status: str, attempt: int, error: str | None = None) -> None:
+    """Append a timestamped progress entry to progress.log."""
+    log_path = repo_root / DEFAULT_PROGRESS_LOG
+    entry = {
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "task_id": task_id,
+        "status": status,
+        "attempt": attempt,
+        "error": error,
+    }
+    try:
+        with log_path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception:
+        pass  # Progress logging is best-effort
+
+
+def log_queue_summary(repo_root: Path) -> None:
+    """Log a summary of queue state to progress.log."""
+    queue = load_queue(repo_root)
+    pending = [t for t in queue if t.get("status") == "pending"]
+    failed = [t for t in queue if t.get("status") == "failed"]
+    running = [t for t in queue if t.get("status") == "running"]
+    log_progress(repo_root, None, "queue_summary", 0, f"total={len(queue)} pending={len(pending)} failed={len(failed)} running={len(running)}")
 
 
 def load_queue(repo_root: Path) -> list[dict[str, Any]]:
@@ -740,6 +839,11 @@ def main() -> None:
     parser.add_argument("--list-queue", action="store_true", help="List queued tasks")
     parser.add_argument("--run-queue", action="store_true", help="Run queued tasks")
     parser.add_argument(
+        "--health-check",
+        action="store_true",
+        help="Verify LM Studio / OpenAI endpoint health before run-queue (default: enabled when compiler-provider=lmstudio)",
+    )
+    parser.add_argument(
         "--skills",
         default=",".join(DEFAULT_SKILL_ALLOWLIST),
         help="Comma-separated skill names to inject (default: curated allowlist)",
@@ -810,6 +914,9 @@ def main() -> None:
     ensure_private_dirs(repo_root)
     warn_if_legacy_beads_exist(repo_root)
 
+    # Auto-purge stale failed tasks (legacy .beads/ migration leftovers)
+    purge_stale_failed_tasks(repo_root, dry_run=False)
+
     skill_allowlist = [s.strip() for s in str(args.skills).split(",") if s.strip()]
     forbidden_prefixes = [p.strip() for p in str(args.forbid_paths).split(",") if p.strip()]
 
@@ -828,6 +935,21 @@ def main() -> None:
         return
 
     if args.run_queue:
+        # Health check before starting queue processing
+        if args.health_check or args.compiler_provider == "lmstudio":
+            health = check_lmstudio_health(str(args.lmstudio_base_url))
+            if not health.get("ok"):
+                print(f"❌ Health check failed: {health.get('error')}", file=sys.stderr)
+                print(f"💡 Hint: {health.get('hint')}", file=sys.stderr)
+                print("Aborting --run-queue. Fix infrastructure and retry.", file=sys.stderr)
+                raise SystemExit(1)
+            print(f"✅ Health check passed: {len(health.get('models', []))} model(s) available", file=sys.stderr)
+
+        # Initialize progress logging
+        log_queue_summary(repo_root)
+        last_progress_log = time.time()
+        PROGRESS_LOG_INTERVAL = 300  # 5 minutes
+
         while True:
             next_task = get_next_task(repo_root)
             if not next_task:
@@ -835,7 +957,13 @@ def main() -> None:
                 pending = [t for t in queue if t.get("status") == "pending"]
                 if not pending:
                     print("Queue empty")
+                    log_queue_summary(repo_root)
                     return
+
+                # Periodic progress logging while waiting
+                if time.time() - last_progress_log >= PROGRESS_LOG_INTERVAL:
+                    log_queue_summary(repo_root)
+                    last_progress_log = time.time()
 
                 # Pending tasks exist but are not yet due.
                 time.sleep(5)
@@ -852,6 +980,7 @@ def main() -> None:
 
             try:
                 update_task_status(repo_root, task_id, "running")
+                log_progress(repo_root, task_id, "running", int(next_task.get("attempts") or 0) + 1)
 
                 contract: dict[str, Any] | None = None
                 if args.compiler_provider == "lmstudio":
@@ -896,6 +1025,7 @@ def main() -> None:
                         task_id,
                         {"next_run_at": None, "last_error": None},
                     )
+                    log_progress(repo_root, task_id, "completed", int(next_task.get("attempts") or 0) + 1)
                     clear_checkpoint(repo_root, task_id)
                     continue
 
@@ -911,6 +1041,7 @@ def main() -> None:
                             "next_run_at": None,
                         },
                     )
+                    log_progress(repo_root, task_id, "failed", attempts, f"Exit: {exit_code}")
                     save_checkpoint(repo_root, task_id, 0, f"Exit: {exit_code}")
                     continue
 
@@ -928,6 +1059,7 @@ def main() -> None:
                         "next_run_at": time.time() + delay,
                     },
                 )
+                log_progress(repo_root, task_id, "retry", attempts, f"Exit: {exit_code}; retry in {delay}s")
                 save_checkpoint(repo_root, task_id, 0, f"Exit: {exit_code}; retry in {delay}s")
 
             finally:

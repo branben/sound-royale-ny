@@ -153,10 +153,45 @@ For merge conflicts specifically:
 
 ---
 
+## Runtime Integration (Repo-Local Polecat)
+
+The repo-local `scripts/gaia-polecat.py` now implements these checks automatically:
+
+| Check | Behavior |
+|---|---|
+| **Health check** | `--health-check` flag or auto-enabled when `compiler-provider=lmstudio`. Calls `/models` endpoint before `--run-queue`. Aborts with actionable error if endpoint returns HTML (dead ngrok) or is unreachable. |
+| **Auto-purge** | On startup, scans queue for `failed` tasks with `attempts >= 2` and no `source` field (legacy `.beads/` artifacts). Archives them to `archived_tasks.jsonl`, purges from active queue. |
+| **Progress logging** | Every task start/completion/failure/retry logged to `.gaia_private/gaia/progress.log`. Queue summary logged every 5 minutes during idle wait. `tail -f .gaia_private/gaia/progress.log` for live status. |
+
+---
+
+## External Polecat Integration (`~/gaia-polecat`)
+
+For the external `~/gaia-polecat` runner (outside this repo), inject this skill into `SUPERPOWERS_PROMPT`:
+
+1. Open `~/gaia-polecat` (the external GAIA runner script or config)
+2. Add `polecat-operational-hygiene` to the skill injection list
+3. Or append this condensed prompt block to `SUPERPOWERS_PROMPT`:
+
+```markdown
+## Polecat Operational Hygiene (self-check)
+
+Before ANY --run-queue or long-running task:
+1. `curl -s "${LMSTUDIO_BASE_URL}/models" | head -5` → must be JSON with `"data": [...]`
+2. If HTML returned: STOP. ngrok tunnel dead. Do not proceed.
+3. `python scripts/gaia-polecat.py --list-queue` → inspect failed tasks
+4. If >0 failed tasks: diagnose or run `purge_stale_failed_tasks()` before queue execution
+5. When reading >1 file: batch read_file calls in parallel (same tool turn)
+6. Log progress: write timestamped entries to `.gaia_private/gaia/progress.log`
+```
+
+---
+
 ## Post-Run Checklist
 
 ```
 □ --list-queue to confirm queue state (empty = success, failed = investigate)
+□ tail .gaia_private/gaia/progress.log to verify all tasks completed
 □ git status to verify no unintended changes
 □ git diff --stat to sanity-check change scope
 □ Type check + test run before push
