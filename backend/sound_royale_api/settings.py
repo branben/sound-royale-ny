@@ -170,3 +170,6 @@ CHANNEL_LAYERS = {
         },
     },
 }
+
+# Linear webhook integration
+LINEAR_WEBHOOK_SECRET = config('LINEAR_WEBHOOK_SECRET', default='')

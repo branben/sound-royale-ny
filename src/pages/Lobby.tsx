@@ -4,9 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Users, Gamepad2, Crown, Loader2, Sparkles } from 'lucide-react';
+import { Users, Gamepad2, Crown, Loader2, Sparkles, Plus } from 'lucide-react';
 import { roomApi } from '@/services/api';
 import { RoomResponse } from '@/types/game';
+import { useUser } from '@/context/UserContext';
 
 interface Player {
   id: string;
@@ -17,6 +18,7 @@ interface Player {
 
 export default function Lobby() {
   const navigate = useNavigate();
+  const { userSession, setPlayerName, setPlayerCredentials } = useUser();
   const [roomCode, setRoomCode] = useState('');
   const [isJoined, setIsJoined] = useState(false);
   const [isHost] = useState(true);
@@ -26,6 +28,11 @@ export default function Lobby() {
   const [roomData, setRoomData] = useState<RoomResponse | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
+  const [playerNameInput, setPlayerNameInput] = useState('');
+  const [roomNameInput, setRoomNameInput] = useState('');
+  const [mode, setMode] = useState<'landing' | 'join' | 'create'>(
+    userSession.playerName ? 'join' : 'landing'
+  );
 
   // Fetch real room data when joined
   useEffect(() => {
@@ -66,8 +73,32 @@ export default function Lobby() {
   }, [isJoined, roomCode]);
 
   const handleJoin = () => {
-    if (roomCode.length === 4) {
+    if (roomCode.length === 4 && playerNameInput.trim()) {
+      setPlayerName(playerNameInput.trim());
       setIsJoined(true);
+    }
+  };
+
+  const handleCreateRoom = async () => {
+    if (!playerNameInput.trim() || !roomNameInput.trim()) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await roomApi.createRoom(roomNameInput.trim(), playerNameInput.trim());
+      const { room_code, player_id, player_secret } = response;
+
+      setPlayerName(playerNameInput.trim());
+      setPlayerCredentials(player_id, player_secret);
+      setRoomCode(room_code);
+      setIsJoined(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create room';
+      setError(message);
+      console.error('Error creating room:', err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -108,36 +139,131 @@ export default function Lobby() {
         <CardContent className="space-y-6">
           {!isJoined ? (
             <>
+              {/* Player Name — required for both join and create */}
               <div className="space-y-2">
                 <Input
-                  data-testid="room-code-input"
+                  data-testid="player-name-input"
                   type="text"
-                  inputMode="numeric"
-                  placeholder="0000"
-                  value={roomCode}
-                  onChange={handleCodeChange}
-                  className="text-center text-4xl font-mono tracking-[0.5em] h-16 bg-[#0F0F23]/50 border-[#7C3AED]/50 focus:border-[#A78BFA] focus:shadow-[0_0_30px_rgba(124,58,237,0.5),inset_0_0_20px_rgba(124,58,237,0.1)] transition-all duration-200"
-                  maxLength={4}
+                  placeholder="Enter your name"
+                  value={playerNameInput}
+                  onChange={(e) => setPlayerNameInput(e.target.value.slice(0, 20))}
+                  className="text-center text-xl h-12 bg-[#0F0F23]/50 border-[#7C3AED]/50 focus:border-[#A78BFA] focus:shadow-[0_0_30px_rgba(124,58,237,0.5),inset_0_0_20px_rgba(124,58,237,0.1)] transition-all duration-200"
+                  maxLength={20}
                 />
-                <p className="text-xs text-[#E2E8F0]/50 text-center">
-                  Enter 4-digit room code
-                </p>
               </div>
 
-              <Button
-                data-testid="join-room-button"
-                onClick={handleJoin}
-                disabled={roomCode.length !== 4 || isLoading}
-                className="w-full h-12 text-lg font-semibold"
-                size="lg"
-              >
-                {isLoading ? (
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                ) : (
-                  <Users className="mr-2 h-5 w-5" />
-                )}
-                {isLoading ? 'Joining...' : 'Join Room'}
-              </Button>
+              {mode === 'landing' && (
+                <div className="space-y-3">
+                  <Button
+                    data-testid="create-room-button"
+                    onClick={() => setMode('create')}
+                    disabled={!playerNameInput.trim()}
+                    className="w-full h-12 text-lg font-semibold bg-gradient-to-r from-[#7C3AED] to-[#F43F5E] hover:shadow-[0_6px_20px_rgba(124,58,237,0.5)]"
+                    size="lg"
+                  >
+                    <Plus className="mr-2 h-5 w-5" />
+                    Create Room
+                  </Button>
+
+                  <Button
+                    data-testid="join-room-mode-button"
+                    onClick={() => setMode('join')}
+                    disabled={!playerNameInput.trim()}
+                    variant="outline"
+                    className="w-full h-12 text-lg font-semibold border-[#7C3AED]/50 hover:bg-[#7C3AED]/10"
+                    size="lg"
+                  >
+                    <Users className="mr-2 h-5 w-5" />
+                    Join Room
+                  </Button>
+                </div>
+              )}
+
+              {mode === 'join' && (
+                <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
+                  <div className="space-y-2">
+                    <Input
+                      data-testid="room-code-input"
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="0000"
+                      value={roomCode}
+                      onChange={handleCodeChange}
+                      className="text-center text-4xl font-mono tracking-[0.5em] h-16 bg-[#0F0F23]/50 border-[#7C3AED]/50 focus:border-[#A78BFA] focus:shadow-[0_0_30px_rgba(124,58,237,0.5),inset_0_0_20px_rgba(124,58,237,0.1)] transition-all duration-200"
+                      maxLength={4}
+                    />
+                    <p className="text-xs text-[#E2E8F0]/50 text-center">
+                      Enter 4-digit room code
+                    </p>
+                  </div>
+
+                  <Button
+                    data-testid="join-room-button"
+                    onClick={handleJoin}
+                    disabled={roomCode.length !== 4 || isLoading}
+                    className="w-full h-12 text-lg font-semibold"
+                    size="lg"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    ) : (
+                      <Users className="mr-2 h-5 w-5" />
+                    )}
+                    {isLoading ? 'Joining...' : 'Join Room'}
+                  </Button>
+
+                  <button
+                    onClick={() => setMode('landing')}
+                    className="w-full text-sm text-[#E2E8F0]/50 hover:text-[#E2E8F0] transition-colors"
+                  >
+                    ← Back
+                  </button>
+                </div>
+              )}
+
+              {mode === 'create' && (
+                <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
+                  <div className="space-y-2">
+                    <Input
+                      data-testid="create-room-name-input"
+                      type="text"
+                      placeholder="Room name"
+                      value={roomNameInput}
+                      onChange={(e) => setRoomNameInput(e.target.value.slice(0, 30))}
+                      className="text-center text-xl h-12 bg-[#0F0F23]/50 border-[#7C3AED]/50 focus:border-[#A78BFA] focus:shadow-[0_0_30px_rgba(124,58,237,0.5),inset_0_0_20px_rgba(124,58,237,0.1)] transition-all duration-200"
+                      maxLength={30}
+                    />
+                  </div>
+
+                  <Button
+                    data-testid="create-room-submit-button"
+                    onClick={handleCreateRoom}
+                    disabled={!roomNameInput.trim() || isLoading}
+                    className="w-full h-12 text-lg font-semibold bg-gradient-to-r from-[#7C3AED] to-[#F43F5E] hover:shadow-[0_6px_20px_rgba(124,58,237,0.5)]"
+                    size="lg"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    ) : (
+                      <Sparkles className="mr-2 h-5 w-5" />
+                    )}
+                    {isLoading ? 'Creating...' : 'Create Room'}
+                  </Button>
+
+                  {error && (
+                    <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-sm text-center">
+                      {error}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => setMode('landing')}
+                    className="w-full text-sm text-[#E2E8F0]/50 hover:text-[#E2E8F0] transition-colors"
+                  >
+                    ← Back
+                  </button>
+                </div>
+              )}
             </>
           ) : (
             <>

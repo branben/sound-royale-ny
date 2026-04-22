@@ -29,7 +29,7 @@ const emptyGameState: GameState = {
 };
 
 export function GameProvider({ children, roomCode }: { children: ReactNode; roomCode?: string }) {
-  const isE2E = import.meta.env.VITE_E2E_TESTING === 'true' || (typeof window !== 'undefined' && (window as any).__E2E_TESTING__ === true);
+  const isE2E = import.meta.env.VITE_E2E_TESTING === 'true' || (typeof window !== 'undefined' && window.__E2E_TESTING__ === true);
   
   // Debug log for GameProvider initialization
   console.log('[GameContext] Provider initialized', { roomCode, isE2E });
@@ -128,13 +128,14 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
           const newState = message.payload;
           const players: GameState['players'] = {};
           if (newState.players) {
-            Object.entries(newState.players).forEach(([id, player]: [string, any]) => {
+            Object.entries(newState.players).forEach(([id, playerData]: [string, unknown]) => {
+              const player = playerData as Player;
               players[id] = {
                 id,
                 name: player.name,
                 avatar: player.avatar,
                 board: {
-                  tiles: player.board?.tiles?.map((tile: any) => ({
+                  tiles: player.board?.tiles?.map((tile: Tile) => ({
                     id: tile.id,
                     genre: tile.genre,
                     status: tile.status,

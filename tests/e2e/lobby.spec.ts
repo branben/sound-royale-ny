@@ -1,9 +1,10 @@
 import { test, expect } from '@playwright/test';
-import { enableE2EMode } from './helpers';
+import { enableE2EMode, setupPlayerSession } from './helpers';
 
 test.describe('Lobby', () => {
   test.beforeEach(async ({ page }) => {
     await enableE2EMode(page);
+    await setupPlayerSession(page, { playerName: 'TestPlayer', playerId: 'test-id', playerSecret: 'test-secret' });
     await page.goto('/');
   });
 
