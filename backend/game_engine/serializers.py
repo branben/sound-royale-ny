@@ -254,7 +254,7 @@ class RoomCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Room
-        fields = ["id", "code", "name", "status", "player_name"]
+        fields = ["id", "code", "name", "status", "player_name", "theme", "custom_genres", "total_rounds"]
 
     def create(self, validated_data):
         """Create a new room with default values"""

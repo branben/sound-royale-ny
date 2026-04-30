@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Users, Gamepad2, Crown, Loader2, Sparkles, Plus } from 'lucide-react';
 import { roomApi } from '@/services/api';
-import { RoomResponse } from '@/types/game';
+import { RoomResponse, ThemeId } from '@/types/game';
 import { useUser } from '@/context/UserContext';
+import { ThemeSelector } from '@/components/game/ThemeSelector';
 
 interface Player {
   id: string;
@@ -28,6 +29,8 @@ export default function Lobby() {
   const [roomData, setRoomData] = useState<RoomResponse | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
+  const [selectedThemeId, setSelectedThemeId] = useState<ThemeId>('classic');
+  const [selectedCustomGenres, setSelectedCustomGenres] = useState<string[]>([]);
   const [playerNameInput, setPlayerNameInput] = useState('');
   const [roomNameInput, setRoomNameInput] = useState('');
   const [mode, setMode] = useState<'landing' | 'join' | 'create'>(
@@ -86,7 +89,13 @@ export default function Lobby() {
     setError(null);
 
     try {
-      const response = await roomApi.createRoom(roomNameInput.trim(), playerNameInput.trim());
+      const response = await roomApi.createRoom(
+        roomNameInput.trim(),
+        playerNameInput.trim(),
+        undefined,
+        selectedThemeId,
+        selectedCustomGenres
+      );
       const { room_code, player_id, player_secret } = response;
 
       setPlayerName(playerNameInput.trim());
@@ -234,6 +243,12 @@ export default function Lobby() {
                       maxLength={30}
                     />
                   </div>
+
+                  <ThemeSelector
+                    selectedThemeId={selectedThemeId}
+                    onThemeChange={setSelectedThemeId}
+                    onCustomGenresChange={setSelectedCustomGenres}
+                  />
 
                   <Button
                     data-testid="create-room-submit-button"

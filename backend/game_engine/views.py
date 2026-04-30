@@ -29,7 +29,7 @@ from .serializers import (
     VoteSerializer,
     RoundSerializer,
 )
-from .bingo_utils import check_bingo_lines, calculate_bingo_score, check_tie_breaker
+from .bingo_utils import check_bingo_lines, calculate_bingo_score, check_tie_breaker, get_theme_genres
 
 
 def broadcast_game_update(room):
@@ -157,9 +157,10 @@ class RoomViewSet(viewsets.ModelViewSet):
             room=room, name=player_name, is_spectator=False, is_host=True
         )
 
-        all_genres = list(Tile.Genre.values)
-        random.shuffle(all_genres)
-        genres = all_genres[:9]
+        # Use theme-based genre selection
+        theme_genres = get_theme_genres(room)
+        random.shuffle(theme_genres)
+        genres = theme_genres[:9]
 
         for position in range(9):
             Tile.objects.create(
@@ -217,9 +218,10 @@ class RoomViewSet(viewsets.ModelViewSet):
                     player = serializer.save()
 
                     if not player.is_spectator:
-                        all_genres = list(Tile.Genre.values)
-                        random.shuffle(all_genres)
-                        genres = all_genres[:9]
+                        # Use theme-based genre selection
+                        theme_genres = get_theme_genres(room)
+                        random.shuffle(theme_genres)
+                        genres = theme_genres[:9]
 
                         for position in range(9):
                             tile = Tile.objects.create(
@@ -303,9 +305,11 @@ class RoomViewSet(viewsets.ModelViewSet):
                     "current_tile_genre", flat=True
                 )
             )
-            available_genres = [g for g in Tile.Genre.values if g not in used_genres]
+            # Use theme-based genre selection
+            theme_genres = get_theme_genres(room)
+            available_genres = [g for g in theme_genres if g not in used_genres]
             if not available_genres:
-                available_genres = list(Tile.Genre.values)
+                available_genres = theme_genres
 
             first_genre = random.choice(available_genres)
 
@@ -441,11 +445,12 @@ class RoomViewSet(viewsets.ModelViewSet):
                 
                 # Step 4: Create new tiles for each player
                 created_tiles = []
-                available_genres = list(Tile.Genre.values)
+                # Use theme-based genre selection
+                theme_genres = get_theme_genres(room)
                 
                 for player in players:
                     # Create a copy of genres for each player to ensure uniqueness
-                    player_genres = available_genres.copy()
+                    player_genres = theme_genres.copy()
                     random.shuffle(player_genres)
                     
                     # Take first 9 genres for this player
@@ -803,12 +808,29 @@ class RoomViewSet(viewsets.ModelViewSet):
         used_genres = set(
             Round.objects.filter(room=room).values_list("current_tile_genre", flat=True)
         )
-        available_genres = [g for g in Tile.Genre.values if g not in used_genres]
+        # Use theme-based genre selection
+        theme_genres = get_theme_genres(room)
+        available_genres = [g for g in theme_genres if g not in used_genres]
         if not available_genres:
-            available_genres = list(Tile.Genre.values)
+            available_genres = theme_genres
 
         next_genre = random.choice(available_genres)
         next_round_number = room.current_round + 1
+        
+        # Check if game should end based on total_rounds (only enforce if explicitly set to meaningful value)
+        if room.total_rounds and room.total_rounds > 5 and next_round_number > room.total_rounds:
+            room.status = Room.Status.FINISHED
+            room.save(update_fields=["status"])
+            broadcast_game_update(room)
+            return Response(
+                {
+                    "status": "Game finished",
+                    "reason": "All rounds completed",
+                    "final_round": room.current_round,
+                    "total_rounds": room.total_rounds,
+                },
+                status=status.HTTP_200_OK,
+            )
 
         timer_started = timezone.now()
         timer_ends = timer_started + timezone.timedelta(seconds=60)
@@ -977,12 +999,29 @@ class RoomViewSet(viewsets.ModelViewSet):
         used_genres = set(
             Round.objects.filter(room=room).values_list("current_tile_genre", flat=True)
         )
-        available_genres = [g for g in Tile.Genre.values if g not in used_genres]
+        # Use theme-based genre selection
+        theme_genres = get_theme_genres(room)
+        available_genres = [g for g in theme_genres if g not in used_genres]
         if not available_genres:
-            available_genres = list(Tile.Genre.values)
+            available_genres = theme_genres
 
         next_genre = random.choice(available_genres)
         next_round_number = room.current_round + 1
+        
+        # Check if game should end based on total_rounds (only enforce if explicitly set to meaningful value)
+        if room.total_rounds and room.total_rounds > 5 and next_round_number > room.total_rounds:
+            room.status = Room.Status.FINISHED
+            room.save(update_fields=["status"])
+            broadcast_game_update(room)
+            return Response(
+                {
+                    "status": "Game finished",
+                    "reason": "All rounds completed",
+                    "final_round": room.current_round,
+                    "total_rounds": room.total_rounds,
+                },
+                status=status.HTTP_200_OK,
+            )
 
         timer_started = timezone.now()
         timer_ends = timer_started + timezone.timedelta(seconds=60)

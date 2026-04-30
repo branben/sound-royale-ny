@@ -51,7 +51,43 @@ def check_bingo_lines(board_tiles):
     return completed_lines
 
 
-def calculate_bingo_score(player, completed_lines):
+def get_theme_genres(room):
+    """
+    Get genre list based on room theme or custom genres.
+    
+    Args:
+        room: Room object with theme and custom_genres fields
+        
+    Returns:
+        List of 9 genre strings
+    """
+    theme_genres = {
+        "classic": ["Phonk", "Trap", "Lo-Fi", "House", "Drill", "R&B", "EDM", "Jazz", "Ambient"],
+        "phonk": ["Phonk", "Trap", "Drill", "House", "R&B"],
+        "trap": ["Trap", "Phonk", "Drill", "R&B", "EDM"],
+        "lofi": ["Lo-Fi", "Ambient", "Jazz", "R&B", "Phonk"],
+        "house": ["House", "EDM", "Techno", "Disco", "Lo-Fi"],
+        "electronic": ["EDM", "House", "Techno", "Trance", "Dubstep"],
+    }
+    
+    # Handle custom genres or get theme-specific genres
+    if room.theme == "custom" and len(room.custom_genres) >= 9:
+        selected = room.custom_genres
+    else:
+        selected = theme_genres.get(room.theme, theme_genres["classic"])
+    
+    # Ensure exactly 9 genres by filling from classic if needed
+    if len(selected) < 9:
+        for genre in theme_genres["classic"]:
+            if genre not in selected:
+                selected.append(genre)
+            if len(selected) >= 9:
+                break
+    
+    return selected[:9]
+
+
+def calculate_bingo_score(player, completed_lines, room=None):
     """
     Calculate score for a player based on completed lines.
     More lines = higher score.
@@ -59,11 +95,16 @@ def calculate_bingo_score(player, completed_lines):
     Args:
         player: Player object
         completed_lines: List of completed line dictionaries
+        room: Room object (optional, for theme bonus multiplier)
 
     Returns:
         Dictionary with score and line details
     """
     base_score = len(completed_lines) * 100
+    
+    # Apply theme bonus multiplier if room is provided
+    if room and room.bonus_multiplier:
+        base_score = int(base_score * float(room.bonus_multiplier))
 
     # Bonus points for specific patterns
     bonuses = []
