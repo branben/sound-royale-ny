@@ -39,7 +39,7 @@ def broadcast_game_update(room):
     channel_layer = get_channel_layer()
     serializer = GameStateSerializer(room)
     async_to_sync(channel_layer.group_send)(
-        f"game_{room.id}", {"type": "game_state_update", "payload": serializer.data}
+        f"game_{room.code}", {"type": "game_state_update", "payload": serializer.data}
     )
 
 
@@ -59,12 +59,83 @@ def broadcast_timer_tick(room):
         time_remaining = int((current_round.timer_ends_at - now).total_seconds())
 
     async_to_sync(channel_layer.group_send)(
-        f"game_{room.id}",
+        f"game_{room.code}",
         {"type": "timer_tick", "payload": {"timeRemaining": time_remaining}},
     )
 
 
 _active_timers = {}
+
+
+def _advance_casual_round(room, current_round):
+    """
+    Auto-advance a casual round (< 3 spectators).
+    Checks bingo for all producers and either ends the game or
+    creates the next round. Tiles remain as-is — manual plays
+    drive bingo progress in casual mode.
+    """
+    from .models import Room
+
+    producers = room.players.filter(is_spectator=False)
+
+    with transaction.atomic():
+        # Check bingo for all producers
+        bingo_winners = []
+        for producer in producers:
+            completed_tiles = list(
+                Tile.objects.filter(player=producer, status=Tile.Status.COMPLETE)
+            )
+            if len(completed_tiles) >= 3:
+                completed_lines = check_bingo_lines(completed_tiles)
+                if completed_lines:
+                    score_info = calculate_bingo_score(producer, completed_lines)
+                    bingo_winners.append((producer, score_info))
+
+        if bingo_winners:
+            if len(bingo_winners) == 1:
+                winner, _score = bingo_winners[0]
+                room.status = Room.Status.FINISHED
+                room.winner = winner
+                room.save()
+                broadcast_game_update(room)
+                return
+            else:
+                # Tie-breaker among multiple bingo winners
+                winner = check_tie_breaker(bingo_winners)
+                if winner:
+                    room.status = Room.Status.FINISHED
+                    room.winner = winner
+                    room.save()
+                    broadcast_game_update(room)
+                    return
+
+        # No bingo — advance to next round
+        used_genres = set(
+            Round.objects.filter(room=room).values_list("current_tile_genre", flat=True)
+        )
+        available_genres = [g for g in Tile.Genre.values if g not in used_genres]
+        if not available_genres:
+            available_genres = list(Tile.Genre.values)
+
+        next_genre = random.choice(available_genres)
+        next_round_number = room.current_round + 1
+
+        timer_started = timezone.now()
+        timer_ends = timer_started + timezone.timedelta(seconds=60)
+
+        new_round = Round.objects.create(
+            room=room,
+            round_number=next_round_number,
+            current_tile_genre=next_genre,
+            timer_duration=60,
+            timer_started_at=timer_started,
+            timer_ends_at=timer_ends,
+        )
+        room.current_round = next_round_number
+        room.save()
+
+    broadcast_game_update(room)
+    broadcast_timer_tick(room)
 
 
 def start_timer_broadcast(room_id, duration):
@@ -73,7 +144,11 @@ def start_timer_broadcast(room_id, duration):
     Uses a daemon thread that stops when the process exits.
     """
     if room_id in _active_timers:
-        return
+        existing = _active_timers[room_id]
+        if existing.is_alive():
+            return
+        # Dead thread — clean up slot before starting new one
+        _active_timers.pop(room_id, None)
 
     def run_timer():
         from .models import Room
@@ -90,15 +165,20 @@ def start_timer_broadcast(room_id, duration):
                 if not current_round or not current_round.timer_ends_at:
                     break
                 now = timezone.now()
-                if current_round.timer_ends_at <= now:
+                if current_round.timer_ends_at <= now and not current_round.voting_open:
+                    # Only process expiry once — after voting opens the round waits for votes
                     broadcast_timer_tick(room)
                     spectator_count = room.players.filter(is_spectator=True).count()
-                    if spectator_count >= 3 and not current_round.voting_open:
+                    if spectator_count >= 3:
                         current_round.voting_open = True
                         current_round.save()
                         broadcast_game_update(room)
-                    break
-                broadcast_timer_tick(room)
+                    elif spectator_count < 3:
+                        # Casual mode: auto-complete tiles and advance
+                        _advance_casual_round(room, current_round)
+                    # Timer loop continues — next iteration picks up new round
+                elif not current_round.voting_open:
+                    broadcast_timer_tick(room)
         except Exception as e:
             logger.error(
                 f"Error in timer thread for room {room_id}: {e}", exc_info=True
@@ -140,7 +220,10 @@ class RoomViewSet(viewsets.ModelViewSet):
             return RoomDetailSerializer
         return RoomSerializer
 
-    def perform_create(self, serializer):
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
         # When creating a room, set the creator as the first player
         room = serializer.save()
 
@@ -165,6 +248,15 @@ class RoomViewSet(viewsets.ModelViewSet):
             Tile.objects.create(
                 player=player, room=room, position=position, genre=genres.pop()
             )
+
+        return Response(
+            {
+                "room_code": room.code,
+                "player_id": str(player.id),
+                "player_secret": str(player.player_secret),
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
     @action(detail=True, methods=["post"])
     def join_game(self, request, pk=None, code=None):
@@ -215,6 +307,9 @@ class RoomViewSet(viewsets.ModelViewSet):
                 serializer = PlayerCreateSerializer(data=data, context={"room": room})
                 if serializer.is_valid():
                     player = serializer.save()
+                    # Mark as connected since they just joined
+                    player.is_connected = True
+                    player.save(update_fields=["is_connected"])
 
                     if not player.is_spectator:
                         all_genres = list(Tile.Genre.values)
@@ -233,7 +328,12 @@ class RoomViewSet(viewsets.ModelViewSet):
 
                     room_serializer = RoomDetailSerializer(room)
                     return Response(
-                        room_serializer.data, status=status.HTTP_201_CREATED
+                        {
+                            **room_serializer.data,
+                            "player_id": str(player.id),
+                            "player_secret": str(player.player_secret),
+                        },
+                        status=status.HTTP_201_CREATED,
                     )
 
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -359,11 +459,15 @@ class RoomViewSet(viewsets.ModelViewSet):
 
         try:
             player = Player.objects.get(room=room, player_secret=player_secret)
+            if not player.is_connected:
+                player.is_connected = True
+                player.save(update_fields=["is_connected"])
             return Response(
                 {
                     "id": str(player.id),
                     "name": player.name,
                     "isSpectator": player.is_spectator,
+                    "player_secret": player.player_secret,
                 },
                 status=status.HTTP_200_OK,
             )
@@ -698,6 +802,13 @@ class RoomViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+        # Guard: don't advance a finished game
+        if room.status == Room.Status.FINISHED:
+            return Response(
+                {"error": "Game has already finished"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         current_round = Round.objects.filter(room=room).first()
         if not current_round:
             return Response(
@@ -823,7 +934,7 @@ class RoomViewSet(viewsets.ModelViewSet):
                 timer_ends_at=timer_ends,
             )
             room.current_round = next_round_number
-            room.save()
+            room.save(update_fields=["current_round"])
 
         broadcast_game_update(room)
         broadcast_timer_tick(room)
@@ -833,6 +944,49 @@ class RoomViewSet(viewsets.ModelViewSet):
             {
                 "status": "Advanced to next round",
                 "new_round": RoundSerializer(new_round).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=["post"])
+    def toggle_ready(self, request, pk=None, code=None):
+        """
+        Toggle a player's ready state in the lobby.
+        Requires player_secret for authentication.
+        """
+        room = self.get_object()
+        player_secret = request.data.get("player_secret")
+
+        if not player_secret:
+            return Response(
+                {"error": "player_secret is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if room.status != Room.Status.LOBBY:
+            return Response(
+                {"error": "Can only toggle ready in lobby"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            player = Player.objects.get(room=room, player_secret=player_secret)
+        except Player.DoesNotExist:
+            return Response(
+                {"error": "Player not found with this secret"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        player.is_ready = not player.is_ready
+        player.save()
+
+        broadcast_game_update(room)
+
+        return Response(
+            {
+                "status": "Ready state toggled",
+                "is_ready": player.is_ready,
+                "player": player.name,
             },
             status=status.HTTP_200_OK,
         )
@@ -1147,18 +1301,22 @@ class TileViewSet(viewsets.ModelViewSet):
                 {"error": "Game is not in progress"}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        if tile.is_revealed:
+        if tile.status == Tile.Status.COMPLETE:
             return Response(
                 {"error": "Tile has already been played"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        player_id = request.data.get("player_id")
+        player_secret = request.data.get("player_secret")
+        if not player_secret:
+            return Response(
+                {"error": "player_secret required"}, status=status.HTTP_400_BAD_REQUEST
+            )
         try:
-            player = Player.objects.get(id=player_id, room=room, is_spectator=False)
+            player = Player.objects.get(player_secret=player_secret, room=room, is_spectator=False)
         except Player.DoesNotExist:
             return Response(
-                {"error": "Invalid player"}, status=status.HTTP_400_BAD_REQUEST
+                {"error": "Invalid player_secret"}, status=status.HTTP_400_BAD_REQUEST
             )
 
         with transaction.atomic():
@@ -1169,30 +1327,13 @@ class TileViewSet(viewsets.ModelViewSet):
                 tile.audio_file = audio_file
             tile.save()
 
-            # Check for bingo lines (proper bingo logic) - OPTIMIZED
-            # Bulk fetch all completed tiles for room players with prefetch
-
-            all_players_with_tiles = room.players.filter(
-                is_spectator=False
-            ).prefetch_related(
-                Prefetch(
-                    "tile_set",
-                    queryset=Tile.objects.filter(status=Tile.Status.COMPLETE),
-                    to_attr="completed_tiles",
-                )
+            # Check for bingo lines - direct query avoids prefetch cache
+            # missing uncommitted saves inside transaction.atomic()
+            current_player_tiles = list(
+                Tile.objects.filter(player=player, status=Tile.Status.COMPLETE)
             )
 
-            # Get current player's completed tiles from prefetched data
-            current_player_tiles = next(
-                (
-                    p.completed_tiles
-                    for p in all_players_with_tiles
-                    if p.id == player.id
-                ),
-                [],
-            )
-
-            if len(current_player_tiles) >= 5:
+            if len(current_player_tiles) >= 3:
                 # Check if current player has completed any bingo lines
                 player_tiles = list(current_player_tiles)
                 completed_lines = check_bingo_lines(player_tiles)
@@ -1201,16 +1342,18 @@ class TileViewSet(viewsets.ModelViewSet):
                     # Calculate score based on completed lines
                     score_info = calculate_bingo_score(player, completed_lines)
 
-                    # Check for multiple winners in this round (NO N+1 queries)
+                    # Check for multiple winners in this round
                     player_scores = []
+                    other_players = room.players.filter(
+                        is_spectator=False
+                    ).exclude(id=player.id)
 
-                    for other_player in all_players_with_tiles:
-                        other_completed_tiles = other_player.completed_tiles
-
-                        if other_completed_tiles:
-                            other_tiles_list = list(other_completed_tiles)
-                            other_completed_lines = check_bingo_lines(other_tiles_list)
-
+                    for other_player in other_players:
+                        other_tiles = list(Tile.objects.filter(
+                            player=other_player, status=Tile.Status.COMPLETE
+                        ))
+                        if len(other_tiles) >= 3:
+                            other_completed_lines = check_bingo_lines(other_tiles)
                             if other_completed_lines:
                                 other_score_info = calculate_bingo_score(
                                     other_player, other_completed_lines

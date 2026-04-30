@@ -23,14 +23,14 @@ export function SpectatorView() {
   const isCurrentUserSpectator = spectators.some(p => p.id === userSession.playerId);
 
   const boardRefs = useMemo(() => {
-    return players.reduce((acc, player) => {
+    return producers.reduce((acc, player) => {
       acc[player.id] = createRef<HTMLDivElement>();
       return acc;
     }, {} as Record<string, React.RefObject<HTMLDivElement>>);
-  }, [players]);
+  }, [producers]);
 
   const leaderboard = useMemo(() => {
-    return Object.values(gameState.players).map(player => {
+    return producers.map(player => {
       const totalTiles = player.board.tiles.length;
       const completeTiles = player.board.tiles.filter(t => t.status === 'complete').length;
       const pendingTiles = player.board.tiles.filter(t => t.status === 'pending').length;
@@ -42,7 +42,7 @@ export function SpectatorView() {
         progress
       };
     }).sort((a, b) => b.progress - a.progress);
-  }, [gameState.players]);
+  }, [producers]);
 
   const getGamePhase = () => {
     switch (gameState.status) {
@@ -184,7 +184,7 @@ export function SpectatorView() {
 
         <div className="mb-4 flex items-center gap-2 overflow-x-auto pb-2">
           <span className="text-sm text-muted-foreground shrink-0">Jump to:</span>
-          {players.map(player => (
+          {producers.map(player => (
             <button
               key={player.id}
               onClick={() => {
@@ -210,7 +210,7 @@ export function SpectatorView() {
           </div>
 
           <div className="grid gap-6 md:grid-cols-2 md:gap-8 lg:gap-12">
-            {players.map((player) => (
+            {producers.map((player) => (
               <div ref={boardRefs[player.id]} key={player.id} className={selectedPlayerId === player.id ? 'ring-2 ring-primary rounded-lg' : ''}>
                 <BingoBoard
                   playerId={player.id}

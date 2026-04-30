@@ -3,7 +3,8 @@ import logging
 from urllib.parse import parse_qs
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
-from .models import Room, Player
+from django.utils import timezone
+from .models import Room, Player, Round
 from .serializers import GameStateSerializer
 
 # Audit logger for security-relevant events
@@ -47,6 +48,9 @@ class GameConsumer(AsyncWebsocketConsumer):
         # Broadcast that player is now online
         if self.player_id:
             await self.broadcast_game_state()
+
+        # Sync active timer immediately so reconnecting clients resume countdown
+        await self.broadcast_timer_tick()
 
     async def disconnect(self, close_code):
         # Mark player as disconnected
@@ -132,7 +136,7 @@ class GameConsumer(AsyncWebsocketConsumer):
         """Verify player credentials and return player if valid"""
         try:
             player = Player.objects.get(
-                id=player_id, player_secret=player_secret, room_id=self.game_id
+                id=player_id, player_secret=player_secret, room__code=self.game_id
             )
             return player
         except Player.DoesNotExist:
@@ -150,7 +154,7 @@ class GameConsumer(AsyncWebsocketConsumer):
     def get_game_state(self):
         """Get serialized game state for broadcasting"""
         try:
-            room = Room.objects.get(id=self.game_id)
+            room = Room.objects.get(code=self.game_id)
             serializer = GameStateSerializer(room)
             return serializer.data
         except Room.DoesNotExist:
@@ -164,6 +168,35 @@ class GameConsumer(AsyncWebsocketConsumer):
                 self.game_group_name,
                 {"type": "game_state_update", "payload": game_state},
             )
+
+    async def broadcast_timer_tick(self):
+        """Broadcast current timer state to reconnecting clients."""
+        room = await self.get_room()
+        if not room or room.status != "playing":
+            return
+        current_round = await self.get_current_round(room)
+        if not current_round or not current_round.timer_ends_at:
+            return
+        now = timezone.now()
+        if current_round.timer_ends_at <= now:
+            time_remaining = 0
+        else:
+            time_remaining = int((current_round.timer_ends_at - now).total_seconds())
+        await self.channel_layer.group_send(
+            self.game_group_name,
+            {"type": "timer_tick", "payload": {"timeRemaining": time_remaining}},
+        )
+
+    @database_sync_to_async
+    def get_room(self):
+        try:
+            return Room.objects.get(code=self.game_id)
+        except Room.DoesNotExist:
+            return None
+
+    @database_sync_to_async
+    def get_current_round(self, room):
+        return Round.objects.filter(room=room).first()
 
     async def vote_submitted(self, event):
         await self.send(

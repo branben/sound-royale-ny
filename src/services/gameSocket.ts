@@ -24,6 +24,8 @@ export interface GameSocketOptions {
   reconnectInterval?: number;
 }
 
+export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnecting';
+
 class GameSocketService {
   private ws: WebSocket | null = null;
   private options: GameSocketOptions | null = null;
@@ -31,6 +33,7 @@ class GameSocketService {
   private maxReconnectAttempts = 5;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private isIntentionallyClosed = false;
+  private connectionStatus: ConnectionStatus = 'disconnected';
 
   private getWsUrl(): string {
     const baseUrl = import.meta.env.VITE_WS_URL || 
@@ -83,6 +86,7 @@ class GameSocketService {
 
       this.ws.onopen = () => {
         console.log('[GameSocket] Connected');
+        this.connectionStatus = 'connected';
         this.reconnectAttempts = 0;
         this.options?.onConnect?.();
       };
@@ -99,7 +103,8 @@ class GameSocketService {
 
       this.ws.onclose = (event) => {
         console.log('[GameSocket] Disconnected:', event.reason || event.code);
-        
+        this.connectionStatus = 'disconnected';
+
         if (!this.isIntentionallyClosed) {
           this.options?.onDisconnect?.(event.reason || `Code: ${event.code}`);
           this.attemptReconnect();
@@ -118,17 +123,19 @@ class GameSocketService {
 
   private attemptReconnect(): void {
     if (this.isIntentionallyClosed || !this.options) return;
-    
+
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.log('[GameSocket] Max reconnection attempts reached');
+      this.connectionStatus = 'disconnected';
       return;
     }
 
+    this.connectionStatus = 'reconnecting';
     const interval = this.options.reconnectInterval ?? 1000;
     const delay = Math.min(interval * Math.pow(2, this.reconnectAttempts), 30000);
-    
+
     console.log(`[GameSocket] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
-    
+
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectAttempts++;
       this.doConnect();
@@ -169,6 +176,10 @@ class GameSocketService {
 
   isConnected(): boolean {
     return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
+  }
+
+  getConnectionStatus(): ConnectionStatus {
+    return this.connectionStatus;
   }
 }
 

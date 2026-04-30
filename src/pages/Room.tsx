@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +9,7 @@ import { BingoBoard } from '@/components/game/BingoBoard';
 import { SpectatorView } from '@/components/game/SpectatorView';
 import { PlayerView } from '@/components/game/PlayerView';
 import { GameInfo } from '@/components/game/GameInfo';
-import { useGame, useGameRefresh, useGameRefreshEffect, useWebSocketConnection } from '@/context/useGame';
+import { useGame, useGameRefresh, useGameRefreshEffect } from '@/context/useGame';
 import { useUser } from '@/context/UserContext';
 import type { RoomResponse, Player } from '@/types/game';
 
@@ -19,14 +19,21 @@ export default function Room() {
   const [room, setRoom] = useState<RoomResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [hasLoaded, setHasLoaded] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const { userSession, setPlayerName, setPlayerCredentials, setSpectatorMode, clearSession, isHost: isHostFunction } = useUser();
   const { setForceRefresh } = useGameRefresh();
   const { gameState, setGameState } = useGame();
+  const fetchSequenceRef = useRef(0);
 
-  useWebSocketConnection();
   const players = gameState.players ? Object.values(gameState.players) : [];
+
+  // One-shot rejoin on mount only — decoupled from fetchRoom to prevent infinite loop
+  useEffect(() => {
+    if (roomId && userSession.playerSecret) {
+      attemptRejoin();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const isHost = useMemo(() => {
     if (!gameState.players) return false;
@@ -127,22 +134,41 @@ export default function Room() {
       return;
     }
 
-    if (hasLoaded && !error) {
-      return;
-    }
-
     try {
       setLoading(true);
       setError(null);
       const roomData = await roomApi.getRoom(roomId);
       setRoom(roomData);
-      setHasLoaded(true);
+
+      const currentPlayer = roomData.players?.find(player => player.id === userSession.playerId);
+      if (currentPlayer) {
+        const backendIsSpectator = currentPlayer.is_spectator ?? false;
+        if (userSession.isSpectator !== backendIsSpectator) {
+          setSpectatorMode(backendIsSpectator);
+        }
+        if (currentPlayer.name && currentPlayer.name !== userSession.playerName) {
+          setPlayerName(currentPlayer.name);
+        }
+      }
+
+      // Fetch full game state (includes roundState and spectatorCount)
+      let roundState = undefined;
+      let spectatorCount = undefined;
+      try {
+        const fullState = await gameApi.getGameState(roomId);
+        roundState = fullState.roundState;
+        spectatorCount = fullState.spectatorCount;
+      } catch {
+        // OK if this fails — WebSocket will provide roundState
+      }
 
       const newGameState = {
         gameId: roomData.code,
         status: roomData.status,
         currentRound: roomData.current_round,
-        winner: roomData.winner,
+        winner: typeof roomData.winner === 'string' ? roomData.winner : roomData.winner?.id,
+        roundState,
+        spectatorCount,
         players: roomData.players?.reduce((acc: Record<string, Player>, player: any) => {
           acc[player.id] = {
             ...player,
@@ -178,12 +204,8 @@ export default function Room() {
         })),
       };
       
-      console.log('Room: Setting game state:', newGameState);
       setGameState(newGameState);
 
-      if (userSession.playerSecret) {
-        await attemptRejoin();
-      }
     } catch (err: unknown) {
       const error = err as { response?: { status?: number }; message?: string };
       if (error.response?.status === 404) {
@@ -197,7 +219,25 @@ export default function Room() {
     } finally {
       setLoading(false);
     }
-  }, [roomId, userSession.playerSecret, attemptRejoin, navigate, setGameState, hasLoaded, error]);
+  }, [
+    roomId,
+    navigate,
+    setGameState,
+    setPlayerName,
+    setSpectatorMode,
+    userSession.isSpectator,
+    userSession.playerId,
+    userSession.playerName,
+  ]);
+
+  useEffect(() => {
+    const sequence = ++fetchSequenceRef.current;
+    fetchRoom().finally(() => {
+      if (fetchSequenceRef.current === sequence) {
+        setLoading(false);
+      }
+    });
+  }, [fetchRoom]);
 
   useGameRefreshEffect(fetchRoom);
 

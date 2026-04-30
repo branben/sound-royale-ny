@@ -53,7 +53,17 @@ export const gameApi = {
       player_name: playerName,
       is_spectator: isSpectator || false,
     });
-    return transformPlayer(response.data);
+    const data = response.data;
+    // Backend returns room data with player_id and player_secret at top level
+    // Use player_id to find player (backend auto-assigns spectator names)
+    const playerData = data.players?.find((p: any) => p.id === data.player_id);
+    if (!playerData) {
+      throw new Error('Player not found in join response');
+    }
+    return transformPlayer({
+      ...playerData,
+      player_secret: data.player_secret,
+    });
   },
 
   rejoinRoom: async (roomId: string, playerSecret: string): Promise<Player | null> => {
@@ -72,14 +82,22 @@ export const gameApi = {
     return response.data;
   },
 
-  submitTile: async (tileId: string, audioFile: File): Promise<any> => {
+  submitTile: async (tileId: string, audioFile: File, playerSecret: string): Promise<any> => {
     const formData = new FormData();
     formData.append('audio_file', audioFile);
+    formData.append('player_secret', playerSecret);
 
     const response = await api.post(`/tiles/${tileId}/play_tile/`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+    });
+    return response.data;
+  },
+
+  toggleReady: async (roomId: string, playerSecret: string): Promise<{ is_ready: boolean }> => {
+    const response = await api.post(`/rooms/${roomId}/toggle_ready/`, {
+      player_secret: playerSecret,
     });
     return response.data;
   },

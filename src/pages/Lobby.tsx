@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Users, Gamepad2, Crown, Loader2, Sparkles, Plus } from 'lucide-react';
-import { roomApi } from '@/services/api';
+import { Users, Gamepad2, Crown, Loader2, Sparkles, Plus, Eye } from 'lucide-react';
+import { roomApi, gameApi } from '@/services/api';
 import { RoomResponse } from '@/types/game';
 import { useUser } from '@/context/UserContext';
 
@@ -21,13 +21,19 @@ export default function Lobby() {
   const { userSession, setPlayerName, setPlayerCredentials } = useUser();
   const [roomCode, setRoomCode] = useState('');
   const [isJoined, setIsJoined] = useState(false);
-  const [isHost] = useState(true);
   const [players, setPlayers] = useState<Player[]>([]);
+  const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [roomData, setRoomData] = useState<RoomResponse | null>(null);
   const [isReady, setIsReady] = useState(false);
-  const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
+
+  const isHost = useMemo(() => {
+    if (!currentPlayerId) return false;
+    const currentPlayer = players.find(p => p.id === currentPlayerId);
+    return currentPlayer?.isHost ?? false;
+  }, [players, currentPlayerId]);
+
   const [playerNameInput, setPlayerNameInput] = useState('');
   const [roomNameInput, setRoomNameInput] = useState('');
   const [mode, setMode] = useState<'landing' | 'join' | 'create'>(
@@ -38,13 +44,19 @@ export default function Lobby() {
   useEffect(() => {
     if (!isJoined || !roomCode) return;
 
-    const fetchRoomData = async () => {
-      setIsLoading(true);
+    const fetchRoomData = async (silent = false) => {
+      if (!silent) setIsLoading(true);
       setError(null);
       
       try {
         const data = await roomApi.getRoom(roomCode);
         setRoomData(data);
+
+        // Auto-navigate all players when game starts
+        if (data.status === 'playing') {
+          navigate(`/room/${roomCode}`);
+          return;
+        }
         
         // Transform backend players to local format
         const transformedPlayers = data.players.map((player) => ({
@@ -55,27 +67,41 @@ export default function Lobby() {
         }));
         
         setPlayers(transformedPlayers);
-        
-        // Set current player ID (first player is the current user)
-        if (data.players.length > 0 && !currentPlayerId) {
-          setCurrentPlayerId(data.players[0].id);
-        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to join room');
         console.error('Error joining room:', err);
         setIsJoined(false);
       } finally {
-        setIsLoading(false);
+        if (!silent) setIsLoading(false);
       }
     };
 
-    fetchRoomData();
+    fetchRoomData(false); // initial fetch shows loading
+
+    // Poll every 3 seconds for live updates while in waiting room
+    const interval = setInterval(() => fetchRoomData(true), 3000);
+
+    return () => clearInterval(interval);
   }, [isJoined, roomCode]);
 
-  const handleJoin = () => {
-    if (roomCode.length === 4 && playerNameInput.trim()) {
+  const handleJoin = async (isSpectator = false) => {
+    if (roomCode.length !== 4 || !playerNameInput.trim()) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const player = await gameApi.joinRoom(roomCode, playerNameInput.trim(), isSpectator);
       setPlayerName(playerNameInput.trim());
+      setPlayerCredentials(player.id, player.playerSecret || '');
+      setCurrentPlayerId(player.id);
       setIsJoined(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to join room';
+      setError(message);
+      console.error('Error joining room:', err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -92,18 +118,31 @@ export default function Lobby() {
       setPlayerName(playerNameInput.trim());
       setPlayerCredentials(player_id, player_secret);
       setRoomCode(room_code);
+      setPlayers([{ id: player_id, name: playerNameInput.trim(), isHost: true, isReady: false }]);
+      setCurrentPlayerId(player_id);
       setIsJoined(true);
+      // isLoading stays true — fetchRoomData will clear it after fetching full room state
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create room';
       setError(message);
       console.error('Error creating room:', err);
-    } finally {
       setIsLoading(false);
     }
   };
 
-  const handleStartMatch = () => {
-    navigate(`/room/${roomCode}`);
+  const handleStartMatch = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await gameApi.startGame(roomCode);
+      navigate(`/room/${roomCode}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to start game';
+      setError(message);
+      console.error('Error starting game:', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -111,8 +150,14 @@ export default function Lobby() {
     setRoomCode(value);
   };
 
-  const handleToggleReady = () => {
-    setIsReady(!isReady);
+  const handleToggleReady = async () => {
+    if (!userSession.playerSecret) return;
+    try {
+      const result = await gameApi.toggleReady(roomCode, userSession.playerSecret);
+      setIsReady(result.is_ready);
+    } catch (err) {
+      console.error('Error toggling ready:', err);
+    }
   };
 
   return (
@@ -123,18 +168,19 @@ export default function Lobby() {
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-[#F43F5E]/10 rounded-full blur-3xl" />
       </div>
 
-      <Card className="w-full max-w-md border-[#7C3AED]/30 bg-[#0F0F23]/80 backdrop-blur-xl shadow-[0_25px_50px_rgba(0,0,0,0.5),0_0_0_1px_rgba(124,58,237,0.1)] card-enter">
-        <CardHeader className="text-center space-y-4">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#7C3AED]/20 neon-glow">
-            <Gamepad2 className="h-8 w-8 text-[#7C3AED]" />
-          </div>
-          <CardTitle className="text-3xl font-bold tracking-tight font-['Righteous'] text-transparent bg-clip-text bg-gradient-to-r from-[#7C3AED] to-[#F43F5E] drop-shadow-[0_0_10px_rgba(124,58,237,0.5)]">
-            Sound Royale
-          </CardTitle>
-          <CardDescription className="text-[#E2E8F0]/70">
-            {isJoined ? 'Waiting for players...' : 'Enter a room code to join the battle'}
-          </CardDescription>
-        </CardHeader>
+      <header role="banner" className="border-b border-[#7C3AED]/30 bg-[#0F0F23]/60 backdrop-blur-md px-4 py-3 sticky top-0 z-50">
+        <Card className="w-full max-w-md border-[#7C3AED]/30 bg-[#0F0F23]/80 backdrop-blur-xl shadow-[0_25px_50px_rgba(0,0,0,0.5),0_0_0_1px_rgba(124,58,237,0.1)] card-enter">
+          <CardHeader className="text-center space-y-4">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#7C3AED]/20 neon-glow">
+              <Gamepad2 className="h-8 w-8 text-[#7C3AED]" />
+            </div>
+            <CardTitle className="text-3xl font-bold tracking-tight font-['Righteous'] text-transparent bg-clip-text bg-gradient-to-r from-[#7C3AED] to-[#F43F5E] drop-shadow-[0_0_10px_rgba(124,58,237,0.5)]">
+              Sound Royale
+            </CardTitle>
+            <CardDescription className="text-[#E2E8F0]/70">
+              {isJoined ? 'Waiting for players...' : 'Enter a room code to join the battle'}
+            </CardDescription>
+          </CardHeader>
 
         <CardContent className="space-y-6">
           {!isJoined ? (
@@ -199,7 +245,7 @@ export default function Lobby() {
 
                   <Button
                     data-testid="join-room-button"
-                    onClick={handleJoin}
+                    onClick={() => handleJoin(false)}
                     disabled={roomCode.length !== 4 || isLoading}
                     className="w-full h-12 text-lg font-semibold"
                     size="lg"
@@ -209,7 +255,23 @@ export default function Lobby() {
                     ) : (
                       <Users className="mr-2 h-5 w-5" />
                     )}
-                    {isLoading ? 'Joining...' : 'Join Room'}
+                    {isLoading ? 'Joining...' : 'Join as Player'}
+                  </Button>
+
+                  <Button
+                    data-testid="join-spectator-button"
+                    onClick={() => handleJoin(true)}
+                    disabled={roomCode.length !== 4 || isLoading}
+                    variant="outline"
+                    className="w-full h-12 text-lg font-semibold border-[#7C3AED]/50 hover:bg-[#7C3AED]/10"
+                    size="lg"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    ) : (
+                      <Eye className="mr-2 h-5 w-5" />
+                    )}
+                    {isLoading ? 'Joining...' : 'Join as Spectator'}
                   </Button>
 
                   <button
@@ -360,13 +422,14 @@ export default function Lobby() {
 
               <div className="pt-4 border-t border-[#7C3AED]/20">
                 <p className="text-xs text-[#E2E8F0]/60 text-center">
-                  Room Code: <span className="font-mono text-[#7C3AED] tracking-wider neon-text">{roomCode}</span>
+                  Room Code: <span data-testid="room-id" className="font-mono text-[#7C3AED] tracking-wider neon-text">{roomCode}</span>
                 </p>
               </div>
             </>
           )}
         </CardContent>
       </Card>
+    </header>
     </div>
   );
 }

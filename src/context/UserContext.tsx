@@ -58,13 +58,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const playerName = safeLocalStorage.getItem('playerName');
     const playerId = safeLocalStorage.getItem('playerId');
     const playerSecret = safeLocalStorage.getItem('playerSecret');
-    // Also check for isSpectator in localStorage (set by E2E tests)
+    const storedIsSpectator = safeLocalStorage.getItem('isSpectator');
     const stored = safeLocalStorage.getItem('userSession');
-    let isSpectator = false;
+    let isSpectator = storedIsSpectator === 'true';
     if (stored) {
       try {
         const session = JSON.parse(stored);
-        isSpectator = session.isSpectator ?? false;
+        isSpectator = session.isSpectator ?? isSpectator;
       } catch {
         // ignore parse errors
       }
@@ -103,6 +103,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }
   }, [userSession.playerSecret]);
 
+  useEffect(() => {
+    safeLocalStorage.setItem('isSpectator', String(userSession.isSpectator));
+  }, [userSession.isSpectator]);
+
   const setPlayerName = (name: string) => {
     setUserSession(prev => ({ ...prev, playerName: name?.trim() || null }));
   };
@@ -125,13 +129,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
     safeLocalStorage.removeItem('playerName');
     safeLocalStorage.removeItem('playerId');
     safeLocalStorage.removeItem('playerSecret');
+    safeLocalStorage.removeItem('isSpectator');
   };
 
   const isHost = (players: Player[]): boolean => {
-    if (!userSession.playerName) return false;
-    
-    const hostPlayer = players.find(p => !p.name?.startsWith('Spectator '));
-    return hostPlayer?.name === userSession.playerName;
+    if (!userSession.playerId) return false;
+
+    const currentPlayer = players.find(p => p.id === userSession.playerId);
+    return currentPlayer?.isHost ?? false;
   };
 
   return (

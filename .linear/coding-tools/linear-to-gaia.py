@@ -144,6 +144,22 @@ def is_already_queued(queue: list[dict], linear_id: str) -> bool:
 def extract_verify_command(text: str) -> str:
     """Determine verification command from issue content."""
     text_lower = text.lower()
+    browser_live_keywords = (
+        "user-flow",
+        "user flow",
+        "production flow",
+        "browser-live",
+        "browser live",
+        "golden flow",
+        "spectator perspective",
+        "host perspective",
+        "producer perspective",
+        "natural transition",
+        "transition naturally",
+    )
+    if any(keyword in text_lower for keyword in browser_live_keywords):
+        return "npx playwright test tests/e2e/live/golden-user-flow.spec.ts --project=live --reporter=line"
+
     hints = {
         "e2e": "npx playwright test tests/e2e --reporter=line",
         "playwright": "npx playwright test tests/e2e --reporter=line",
@@ -164,7 +180,7 @@ def extract_verify_command(text: str) -> str:
 
 def extract_file_paths(text: str) -> list[str]:
     """Extract likely file paths from issue description."""
-    return re.findall(r'[a-zA-Z0-9_/-]+\.(py|ts|tsx|js|jsx|yml|yaml|json)', text)
+    return re.findall(r'[a-zA-Z0-9_/-]+\.(?:py|tsx|ts|jsx|js|yml|yaml|json)', text)
 
 
 def build_gaia_task(issue: dict) -> str:
@@ -190,6 +206,11 @@ Description:
 {description[:500]}
 
 Verification: {verify}
+
+Production-flow guardrail:
+- If this task changes host/producer/spectator browser behavior, the browser-live gate must pass:
+  `npx playwright test tests/e2e/live/golden-user-flow.spec.ts --project=live --reporter=line`
+- API-driven live tests are backend smoke coverage only; do not cite them as proof of production user flow.
 
 Files:
 {files_block}

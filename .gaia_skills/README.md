@@ -36,6 +36,12 @@ Local GAIA/polecat tasks can run from feature branches. They do not require `mai
 
 Direct Codex sessions do not automatically inject these skills. Treat this directory as documentation unless the task is launched through `scripts/gaia-polecat.py` or the external `~/gaia-polecat` workflow.
 
+## Live Flow Guardrail
+
+- `tests/e2e/live/golden-user-flow.spec.ts` is the browser-live production-flow gate for host, producer, and spectator transitions.
+- Live tests that use direct API helpers are backend/API smoke coverage only.
+- GAIA, Hermes, Sisyphus, and Gastown should not accept production-flow work as complete unless the golden browser-live gate passes freshly.
+
 ## Adding Skills
 
 1. Add skill content to `SUPERPOWERS_PROMPT` in `~/gaia-polecat`

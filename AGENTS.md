@@ -22,6 +22,10 @@
 | **Never** model a host-only E2E flow with `createMockProducer(...)` | It defaults `isHost=false`. Use `createMockHostProducer(...)` or pass `isHost: true` so `toRoomResponse(...)` emits `is_host` and host-gated UI renders. |
 | **Never** put `data-testid` directly on a raw `lucide-react` SVG when visibility matters | Put it on a stable visible wrapper; SVGs can be rendered but intermittently considered hidden by Playwright. |
 | **Never** relax a production conditional ("default to true for tests", remove `!winner` guard) to make a test pass | This is a test-driven regression. Fix the test fixture, not the product semantics. |
+| **Never** strip imports before deleting the code body that uses them | Creates a compile-error cascade that hides the real issue. Delete body first, then clean imports. |
+| **Never** open a passing test file to "verify coverage" after a green suite | Zero actionable signal, wastes context tokens. Open only on failure, new assertions, or explicit PR request. |
+| **Never** re-read the same file in >2 chunks for planning edits | Read the entire file once instead. Chunked reading burns context-window budget and causes backtracking. |
+| **Never** claim production user-flow coverage from API-driven live tests | `tests/e2e/live/golden-user-flow.spec.ts` is the browser-live gate; API helpers prove backend smoke only |
 
 ---
 
@@ -48,6 +52,9 @@ python backend/manage.py test --verbosity=2 2>&1 | grep -E "Ran [0-9]+ test"
 - Required for any gameplay feature changes
 - See `tests/e2e/README.md` for test conventions and fixture format rules
 - `playwright.config.ts` currently expects the frontend to already be running on `localhost:8080`; start `npm run dev:frontend` manually before E2E runs unless the config is changed.
+- Browser-live production gate: `npx playwright test tests/e2e/live/golden-user-flow.spec.ts --project=live --reporter=line`
+- API-live smoke suite: `npx playwright test tests/e2e/live/ --project=live --reporter=line`
+- If a "live" test uses direct API helpers for create/join/play/vote, it is backend/API smoke coverage, not proof that the production browser flow works.
 
 ---
 
@@ -156,3 +163,11 @@ The app API layer expects snake_case. Strong assertions fail silently with camel
 - Local GAIA/polecat work can run from feature branches; it does not require `main`.
 - A normal Codex session is not automatically a GAIA run. GAIA skills are injected only when using `scripts/gaia-polecat.py` or the external `~/gaia-polecat` workflow.
 - Do not invoke GAIA orchestration from a branch where `scripts/gaia-polecat.py` has unrelated dirty changes unless the task is specifically to validate the runner.
+
+## Skills Reference
+
+| Skill | When to Consult |
+|-------|-----------------|
+| `.gaia_skills/react-refactoring-hygiene/SKILL.md` | Multi-file React/TypeScript refactors touching Context providers, component props, dead code, WebSocket/polling infra |
+| `.gaia_skills/e2e-test-hygiene/SKILL.md` | Any E2E test failure or skip decision |
+| `.gaia_skills/verification-before-completion/SKILL.md` | Before PR merge, CI gate failures |

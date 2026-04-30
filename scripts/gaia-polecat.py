@@ -387,6 +387,11 @@ Before fixing ANY bug:
   - Type check: `npx tsc --noEmit`
   - Build: `npm run build`
 - Show actual command OUTPUT in your response
+
+### 3. Production Browser Flow
+- For host/producer/spectator production-flow, natural-transition, or perspective bugs, `tests/e2e/live/golden-user-flow.spec.ts` is the required browser-live gate.
+- API-driven live tests are backend smoke coverage only. Do not cite API-live tests as proof that production browser flow works.
+- Do not use route mocks, direct gameplay API calls, localStorage session injection, or manual reloads in the browser-live gate.
 """
 
 

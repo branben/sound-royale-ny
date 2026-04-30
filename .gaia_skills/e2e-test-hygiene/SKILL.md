@@ -101,6 +101,16 @@ Before any E2E test modification:
 | Assuming routes | Writing `/path` without checking App.tsx | `grep -n "Route.*path" src/App.tsx` first |
 | Ignoring console | Test fails, no error capture in code | Add `page.on('console', ...)` and `page.on('pageerror', ...)` |
 | Component surgery | Editing without understanding structure | Read full component, identify insertion point |
+| Calling API-live "production flow" | Test uses direct API helpers to create/join/play/vote | Label as backend/API smoke; run the browser-live golden gate for user flow |
+| Manual reload masking transitions | Test reloads after host starts or after joining | Fix the product transition; browser-live gate must move naturally |
+
+## Browser-Live vs API-Live
+
+- **Browser-live production gate:** `tests/e2e/live/golden-user-flow.spec.ts`
+- Browser-live means no API helpers, no route mocks, no localStorage session injection, and no manual reloads.
+- **API-live smoke:** live tests that use direct API helpers to set up rooms or trigger gameplay.
+- API-live smoke is useful backend coverage, but it is not proof that host, producer, and spectator browser flows work in production.
+- Production-flow, spectator-perspective, host-perspective, producer-perspective, or natural-transition bugs are not complete until the golden gate passes freshly.
 
 ## Fast Debugging Protocol
 

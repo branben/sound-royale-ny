@@ -18,6 +18,7 @@
     "test:e2e:preflight": "./scripts/e2e-guard.sh preflight",
     "test:e2e:guard": "./scripts/e2e-guard.sh check",
     "test:e2e:clean": "./scripts/e2e-guard.sh clean",
+    "test:e2e:live": "playwright test tests/e2e/live/ --reporter=line",
     "test:backend": "cd backend && python manage.py test",
     "db:migrate": "cd backend && python manage.py makemigrations && python manage.py migrate"
   },

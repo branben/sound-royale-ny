@@ -58,7 +58,10 @@ export interface RoundState {
   votingOpen: boolean;
   votesRecorded: number;
   votes?: Vote[];
-  winner?: string;
+  winner?: string | {
+    id: string;
+    name?: string;
+  };
 }
 
 export interface EloDelta {

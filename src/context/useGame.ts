@@ -25,12 +25,3 @@ export function useGameRefreshEffect(callback: () => void) {
   }, [forceRefresh, callback]);
 }
 
-// WebSocket connection hook (placeholder for future implementation)
-export function useWebSocketConnection() {
-  // Placeholder - WebSocket implementation to be added later
-  // This prevents build errors while maintaining the API contract
-  useEffect(() => {
-    // WebSocket connection logic will be implemented here
-    // For now, this is a no-op to satisfy the import requirements
-  }, []);
-}
