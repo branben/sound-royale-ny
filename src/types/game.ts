@@ -97,6 +97,61 @@ export const GENRES = [
 
 export type Genre = typeof GENRES[number];
 
+export type ThemeId = 'classic' | 'phonk' | 'trap' | 'lofi' | 'house' | 'electronic' | 'custom';
+
+export interface Theme {
+  id: string;
+  name: string;
+  description: string;
+  genres: string[];
+  bonusMultiplier: number;
+}
+
+export const THEMES: Theme[] = [
+  {
+    id: 'classic',
+    name: 'Classic',
+    description: 'Standard genre mix',
+    genres: [...GENRES],
+    bonusMultiplier: 1.0,
+  },
+  {
+    id: 'phonk',
+    name: 'Phonk Heavy',
+    description: 'Aggressive phonk and drill',
+    genres: ['Phonk', 'Trap', 'Drill', 'House', 'R&B'],
+    bonusMultiplier: 1.2,
+  },
+  {
+    id: 'trap',
+    name: 'Trap',
+    description: 'Trap-focused selection',
+    genres: ['Trap', 'Phonk', 'Drill', 'R&B', 'EDM'],
+    bonusMultiplier: 1.15,
+  },
+  {
+    id: 'lofi',
+    name: 'Chill Vibes',
+    description: 'Relaxed lo-fi and ambient',
+    genres: ['Lo-Fi', 'Ambient', 'Jazz', 'R&B', 'Phonk'],
+    bonusMultiplier: 1.1,
+  },
+  {
+    id: 'house',
+    name: 'House',
+    description: 'House and electronic beats',
+    genres: ['House', 'EDM', 'Techno', 'Disco', 'Lo-Fi'],
+    bonusMultiplier: 1.15,
+  },
+  {
+    id: 'electronic',
+    name: 'Electronic',
+    description: 'Pure electronic music',
+    genres: ['EDM', 'House', 'Techno', 'Trance', 'Dubstep'],
+    bonusMultiplier: 1.15,
+  },
+] as const;
+
 export interface RoomResponse {
   code: string;
   status: 'lobby' | 'playing' | 'finished';
@@ -122,6 +177,9 @@ export interface RoomResponse {
   }>;
   current_round: number;
   total_rounds?: number;
+  theme?: string;
+  custom_genres?: string[];
+  bonus_multiplier?: number;
   winner?: string;
   elo_deltas?: Array<{
     player_id: string;

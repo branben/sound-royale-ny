@@ -40,6 +40,15 @@ class Room(models.Model):
         PLAYING = "playing", "Playing"
         FINISHED = "finished", "Finished"
 
+    class Theme(models.TextChoices):
+        CLASSIC = "classic", "Classic"
+        PHONK = "phonk", "Phonk"
+        TRAP = "trap", "Trap"
+        LOFI = "lofi", "Lo-Fi"
+        HOUSE = "house", "House"
+        ELECTRONIC = "electronic", "Electronic"
+        CUSTOM = "custom", "Custom"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     code = models.CharField(
         max_length=4, unique=True, blank=True, default=""
@@ -49,6 +58,14 @@ class Room(models.Model):
         max_length=20, choices=Status.choices, default=Status.LOBBY
     )
     current_round = models.PositiveIntegerField(default=1)
+    total_rounds = models.PositiveIntegerField(default=10)
+    theme = models.CharField(
+        max_length=20, choices=Theme.choices, default=Theme.CLASSIC, blank=True
+    )
+    custom_genres = models.JSONField(default=list, blank=True)  # Array of genre strings
+    bonus_multiplier = models.DecimalField(
+        max_digits=3, decimal_places=2, default=1.00
+    )
     winner = models.ForeignKey(
         "Player",
         on_delete=models.SET_NULL,

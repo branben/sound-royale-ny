@@ -22,10 +22,13 @@ export const roomApi = {
     return response.data;
   },
 
-  createRoom: async (roomName: string, playerName: string): Promise<CreateRoomResponse> => {
+  createRoom: async (roomName: string, playerName: string, totalRounds?: number, theme?: string, customGenres?: string[]): Promise<CreateRoomResponse> => {
     const response = await api.post('/rooms/', {
       name: roomName,
       player_name: playerName,
+      total_rounds: totalRounds,
+      theme: theme,
+      custom_genres: customGenres,
     });
     return response.data;
   },
