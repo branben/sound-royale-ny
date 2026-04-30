@@ -23,7 +23,7 @@ test.describe('Full 3-Round Game', () => {
     await enableE2EMode(page);
   });
 
-  test.skip('should configure game with 3 rounds [needs multi-round-config component]', async ({ page }) => {
+  test.skip('should configure game with 3 rounds [needs MultiRoundConfig integration in Lobby page]', async ({ page }) => {
     const gameState = createMockLobbyState('HostPlayer', ['Player1'], []);
 
     await page.route('**/api/**', async (route) => {
@@ -42,7 +42,7 @@ test.describe('Full 3-Round Game', () => {
     await expect(page.locator('[data-testid="multi-round-config"]')).toContainText('3 Rounds');
   });
 
-  test.skip('should progress from round 1 to round 2 [needs round progression UI]', async ({ page }) => {
+  test.skip('should progress from round 1 to round 2 [needs RoundIndicator integration in game page]', async ({ page }) => {
     const producer = createMockProducer('Player1');
     let currentRound = 1;
 
@@ -63,7 +63,7 @@ test.describe('Full 3-Round Game', () => {
     await expect(page.locator('[data-testid="round-indicator"]')).toContainText('2/');
   });
 
-  test.skip('should progress from round 2 to round 3 [needs round progression UI]', async ({ page }) => {
+  test.skip('should progress from round 2 to round 3 [needs RoundIndicator integration in game page]', async ({ page }) => {
     const producer = createMockProducer('Player1');
 
     await page.route('**/api/**', async (route) => {
@@ -82,7 +82,7 @@ test.describe('Full 3-Round Game', () => {
     await expect(page.locator('[data-testid="round-indicator"]')).toContainText('3/');
   });
 
-  test.skip('should accumulate scores across rounds [needs total-score component]', async ({ page }) => {
+  test.skip('should accumulate scores across rounds [needs TotalScoreDisplay integration in game page]', async ({ page }) => {
     const producer = createMockProducer('Player1');
     const gameState = createMockFinishedState({ [producer.id]: producer }, producer.id, 3);
 
@@ -144,7 +144,7 @@ test.describe('Full 3-Round Game', () => {
     await expect(page.locator('[data-testid="game-over-screen"]')).toContainText('GAME OVER');
   });
 
-  test.skip('should show play again option [needs play-again button in winner flow]', async ({ page }) => {
+  test.skip('should show play again option [needs PlayAgainButton integration in winner flow]', async ({ page }) => {
     const producer = createMockProducer('Player1');
     const gameState = createMockFinishedState({ [producer.id]: producer }, producer.id, 3);
 

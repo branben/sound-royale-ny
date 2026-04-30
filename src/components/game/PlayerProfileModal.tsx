@@ -34,9 +34,9 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent 
         data-testid="player-profile-modal"
-        className="bg-[#0F0F23]/95 backdrop-blur-xl border-[#7C3AED]/30 max-w-md"
+        className="max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-lg overflow-y-auto border-[#7C3AED]/30 bg-[#0F0F23]/95 backdrop-blur-xl"
       >
-        <DialogHeader>
+        <DialogHeader className="min-w-0 pr-6">
           <DialogTitle className="text-2xl font-bold text-white">Player Profile</DialogTitle>
           <DialogDescription className="text-gray-400">
             View detailed player information and statistics
@@ -47,15 +47,15 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
           {/* Player Header */}
           <Card className="bg-[#0F0F23]/60 border-[#7C3AED]/20">
             <CardHeader className="pb-4">
-              <div className="flex items-center gap-4">
+              <div className="flex min-w-0 items-center gap-4">
                 <Avatar className="h-16 w-16 border-2 border-[#7C3AED]/50">
                   <AvatarFallback className="bg-[#7C3AED]/20 text-[#7C3AED] font-bold text-lg">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
-                <div className="flex-1">
-                  <CardTitle className="text-xl text-white">{player.name}</CardTitle>
-                  <div className="flex items-center gap-2 mt-1">
+                <div className="min-w-0 flex-1">
+                  <CardTitle className="break-words text-xl text-white">{player.name}</CardTitle>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
                     {isConnected ? (
                       <div className="flex items-center gap-1 text-green-400 text-sm">
                         <Wifi className="h-3 w-3" />
@@ -115,7 +115,7 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
                 <CardTitle className="text-lg text-white">Board Progress</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-2 sm:gap-3">
                   {player.board.tiles.slice(0, 9).map((tile, index) => (
                     <div
                       key={tile.id}

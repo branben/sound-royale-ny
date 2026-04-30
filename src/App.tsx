@@ -6,6 +6,8 @@ import { BrowserRouter, Routes, Route, useParams } from "react-router-dom";
 import Index from "./pages/Index";
 import Lobby from "./pages/Lobby";
 import Room from "./pages/Room";
+import RoomLeaderboardPage from "./pages/RoomLeaderboardPage";
+import GlobalLeaderboardPage from "./pages/GlobalLeaderboardPage";
 import Producer from "./pages/Producer";
 import NotFound from "./pages/NotFound";
 import { GameProvider, GameRefreshProvider } from "./context/GameContext";
@@ -22,6 +24,15 @@ const RoomWrapper = () => {
   );
 };
 
+const RoomLeaderboardWrapper = () => {
+  const { id } = useParams<{ id: string }>();
+  return (
+    <GameProvider roomCode={id}>
+      <RoomLeaderboardPage />
+    </GameProvider>
+  );
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -32,6 +43,8 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Lobby />} />
             <Route path="/room/:id" element={<RoomWrapper />} />
+            <Route path="/room/:id/leaderboard" element={<RoomLeaderboardWrapper />} />
+            <Route path="/leaderboard" element={<GlobalLeaderboardPage />} />
             <Route path="/spectator" element={<Index />} />
             <Route path="/producer" element={<Producer />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

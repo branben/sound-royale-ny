@@ -8,8 +8,65 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: false,
+  withCredentials: true,
 });
+
+export interface VerifiedUser {
+  id: string;
+  display_name: string;
+  email: string;
+  email_verified_at: string | null;
+  elo_rating: number;
+  elo_wins: number;
+  elo_losses: number;
+  elo_matches: number;
+}
+
+export interface LeaderboardUser {
+  id: string;
+  display_name: string;
+  elo_rating: number;
+  elo_wins: number;
+  elo_losses: number;
+  elo_matches: number;
+}
+
+export const authApi = {
+  requestCode: async (email: string): Promise<{ status: string }> => {
+    const response = await api.post('/auth/request-code/', { email });
+    return response.data;
+  },
+
+  verifyCode: async (
+    email: string,
+    code: string,
+    displayName?: string
+  ): Promise<VerifiedUser> => {
+    const response = await api.post('/auth/verify-code/', {
+      email,
+      code,
+      display_name: displayName,
+    });
+    return response.data;
+  },
+
+  me: async (): Promise<{ user: VerifiedUser | null }> => {
+    const response = await api.get('/auth/me/');
+    return response.data;
+  },
+
+  logout: async (): Promise<{ status: string }> => {
+    const response = await api.post('/auth/logout/');
+    return response.data;
+  },
+};
+
+export const leaderboardApi = {
+  global: async (): Promise<{ leaderboard: LeaderboardUser[] }> => {
+    const response = await api.get('/leaderboard/');
+    return response.data;
+  },
+};
 
 export const roomApi = {
   getRooms: async (): Promise<RoomResponse[]> => {
@@ -22,10 +79,13 @@ export const roomApi = {
     return response.data;
   },
 
-  createRoom: async (roomName: string, playerName: string): Promise<CreateRoomResponse> => {
+  createRoom: async (roomName: string, playerName: string, totalRounds?: number, theme?: string, customGenres?: string[]): Promise<CreateRoomResponse> => {
     const response = await api.post('/rooms/', {
       name: roomName,
       player_name: playerName,
+      total_rounds: totalRounds,
+      theme: theme,
+      custom_genres: customGenres,
     });
     return response.data;
   },
@@ -149,6 +209,8 @@ function transformPlayer(backendPlayer: RoomResponse['players'][0]): Player {
       tiles: backendPlayer.tiles || []
     },
     playerSecret: backendPlayer.player_secret,
+    verifiedUserId: backendPlayer.verifiedUserId ?? backendPlayer.verified_user,
+    isVerified: backendPlayer.isVerified ?? Boolean(backendPlayer.verified_user),
     isConnected: backendPlayer.is_connected,
     isSpectator: backendPlayer.is_spectator,
     isHost: backendPlayer.is_host,

@@ -1,6 +1,40 @@
 from django.db import IntegrityError
 from rest_framework import serializers
-from .models import Room, Player, Tile, Round, Vote
+from .models import Room, Player, Tile, Round, Vote, VerifiedUser, EloDeltaEvent
+
+
+class VerifiedUserSerializer(serializers.ModelSerializer):
+    """Public verified account profile."""
+
+    class Meta:
+        model = VerifiedUser
+        fields = [
+            "id",
+            "display_name",
+            "email",
+            "email_verified_at",
+            "elo_rating",
+            "elo_wins",
+            "elo_losses",
+            "elo_matches",
+        ]
+        read_only_fields = fields
+
+
+class LeaderboardUserSerializer(serializers.ModelSerializer):
+    """Public global leaderboard row without email."""
+
+    class Meta:
+        model = VerifiedUser
+        fields = [
+            "id",
+            "display_name",
+            "elo_rating",
+            "elo_wins",
+            "elo_losses",
+            "elo_matches",
+        ]
+        read_only_fields = fields
 
 
 class TileSerializer(serializers.ModelSerializer):
@@ -178,25 +212,19 @@ class PlayerSerializer(serializers.ModelSerializer):
             "name",
             "avatar",
             "room",
+            "verified_user",
             "is_spectator",
             "is_host",
             "is_connected",
             "is_ready",
             "joined_at",
             "tiles",
-            "elo_rating",
-            "elo_wins",
-            "elo_losses",
-            "elo_matches",
         ]
         read_only_fields = [
             "id",
             "joined_at",
+            "verified_user",
             "is_connected",
-            "elo_rating",
-            "elo_wins",
-            "elo_losses",
-            "elo_matches",
         ]
 
 
@@ -240,6 +268,10 @@ class RoomDetailSerializer(serializers.ModelSerializer):
             "name",
             "status",
             "current_round",
+            "total_rounds",
+            "theme",
+            "custom_genres",
+            "bonus_multiplier",
             "winner",
             "created_at",
             "updated_at",
@@ -252,10 +284,13 @@ class RoomCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating new rooms"""
 
     player_name = serializers.CharField(write_only=True, required=False)
+    total_rounds = serializers.IntegerField(write_only=True, required=False, default=1)
+    theme = serializers.CharField(write_only=True, required=False, default="classic")
+    custom_genres = serializers.ListField(write_only=True, required=False, default=list)
 
     class Meta:
         model = Room
-        fields = ["id", "code", "name", "status", "player_name"]
+        fields = ["id", "code", "name", "status", "player_name", "total_rounds", "theme", "custom_genres"]
 
     def create(self, validated_data):
         """Create a new room with default values"""
@@ -381,14 +416,26 @@ class GameStateSerializer(serializers.ModelSerializer):
                     score_info = calculate_bingo_score(player, completed_lines)
 
             # Structure matching React Player interface
+            # Source ELO from VerifiedUser (single source of truth)
+            elo_rating = player.verified_user.elo_rating if player.verified_user else None
+            elo_wins = player.verified_user.elo_wins if player.verified_user else None
+            elo_losses = player.verified_user.elo_losses if player.verified_user else None
+            elo_matches = player.verified_user.elo_matches if player.verified_user else None
+
             players_dict[str(player.id)] = {
                 "id": str(player.id),
                 "name": player.name,
                 "avatar": player.avatar,
+                "verifiedUserId": str(player.verified_user_id) if player.verified_user_id else None,
+                "isVerified": player.verified_user_id is not None,
                 "isSpectator": player.is_spectator,
                 "isHost": player.is_host,
                 "isConnected": player.is_connected,
                 "board": {"tiles": board_tiles},
+                "eloRating": elo_rating,
+                "eloWins": elo_wins,
+                "eloLosses": elo_losses,
+                "eloMatches": elo_matches,
                 "scoreInfo": score_info,
             }
 
@@ -406,3 +453,37 @@ class GameStateSerializer(serializers.ModelSerializer):
         # Rename 'spectator_count' to 'spectatorCount'
         data["spectatorCount"] = data.pop("spectator_count")
         return data
+
+
+class EloDeltaEventSerializer(serializers.ModelSerializer):
+    """Serializer for ELO delta events - ledger entries"""
+
+    display_name = serializers.CharField(source="verified_user.display_name", read_only=True)
+    room_code = serializers.CharField(source="room.code", read_only=True)
+
+    class Meta:
+        model = EloDeltaEvent
+        fields = [
+            "id",
+            "verified_user",
+            "display_name",
+            "room",
+            "room_code",
+            "previous_elo",
+            "delta",
+            "new_elo",
+            "match_result",
+            "reason",
+            "idempotency_key",
+            "created_at",
+        ]
+        read_only_fields = ["id", "created_at"]
+
+
+class EloSummarySerializer(serializers.Serializer):
+    """Serializer for ELO summary response"""
+    elo_rating = serializers.IntegerField()
+    elo_wins = serializers.IntegerField()
+    elo_losses = serializers.IntegerField()
+    elo_matches = serializers.IntegerField()
+    total_deltas = serializers.IntegerField()

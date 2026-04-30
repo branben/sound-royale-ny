@@ -137,7 +137,8 @@ test.describe('Single Round End-to-End', () => {
 
       await page.goto(`/room/${gameState.id}`);
 
-      await expect(page.getByText('Round: 1')).toBeVisible();
+      await expect(page.getByTestId('round-indicator')).toBeVisible();
+      await expect(page.getByText('Round 1')).toBeVisible();
       await expect(page.getByText(/^\d{2}:\d{2}$/)).toBeVisible();
     });
 
@@ -222,7 +223,7 @@ test.describe('Single Round End-to-End', () => {
       await page.goto(`/room/${gameState.id}`);
 
       await expect(page.getByTestId('request-to-play')).toBeVisible();
-      await expect(page.getByText('Game in Progress')).toBeVisible();
+      await expect(page.getByText('Battle in Progress')).toBeVisible();
       await expect(page.getByTestId(`player-name-${producer1.name}`)).toBeVisible();
       await expect(page.getByTestId(`player-name-${producer2.name}`)).toBeVisible();
     });

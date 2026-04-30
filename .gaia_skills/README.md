@@ -41,6 +41,17 @@ Direct Codex sessions do not automatically inject these skills. Treat this direc
 - `tests/e2e/live/golden-user-flow.spec.ts` is the browser-live production-flow gate for host, producer, and spectator transitions.
 - Live tests that use direct API helpers are backend/API smoke coverage only.
 - GAIA, Hermes, Sisyphus, and Gastown should not accept production-flow work as complete unless the golden browser-live gate passes freshly.
+- Hermes should route production-flow regressions to `user-flow-live` and desktop viewport regressions to `ui-layout-live`, even when the same golden run exposes both.
+- GAIA must use explicit live frontend/backend URLs for local runs and may use a writable browser cache such as `/private/tmp/ms-playwright` when the default Playwright cache is blocked.
+- Sisyphus should inspect desktop screenshots for host, producer, and spectator views before accepting a browser-live fix.
+- Gastown should record local runtime blockers, including stale ports and browser-cache permission failures, separately from product failures.
+
+## Verified Identity Guardrail
+
+- `player_secret` is not account authentication; it only authorizes room rejoin/actions.
+- Global leaderboard work must use verified accounts, not room-scoped player names.
+- Hermes should route impersonation issues to `auth-verified-users` or `ranked-verification-guard`, not generic E2E cleanup.
+- Sisyphus should review stale local storage, protected display-name joins, and accidental player-secret exposure before accepting identity work.
 
 ## Adding Skills
 

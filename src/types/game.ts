@@ -30,6 +30,8 @@ export interface Player {
   avatar?: string;
   board: BoardData;
   playerSecret?: string;
+  verifiedUserId?: string | null;
+  isVerified?: boolean;
   isConnected?: boolean;
   isSpectator?: boolean;
   isHost?: boolean;
@@ -100,6 +102,61 @@ export const GENRES = [
 
 export type Genre = typeof GENRES[number];
 
+export interface Theme {
+  id: string;
+  name: string;
+  description: string;
+  genres: string[];
+  bonusMultiplier: number;
+}
+
+export const THEMES: Theme[] = [
+  {
+    id: 'classic',
+    name: 'Classic',
+    description: 'Standard genre mix',
+    genres: [...GENRES],
+    bonusMultiplier: 1.0,
+  },
+  {
+    id: 'phonk',
+    name: 'Phonk Heavy',
+    description: 'Dark and aggressive sounds',
+    genres: ['Phonk', 'Trap', 'Drill', 'House', 'R&B'],
+    bonusMultiplier: 1.2,
+  },
+  {
+    id: 'trap',
+    name: 'Trap',
+    description: 'Atlanta trap beats',
+    genres: ['Trap', 'Phonk', 'Drill', 'R&B', 'EDM'],
+    bonusMultiplier: 1.15,
+  },
+  {
+    id: 'lofi',
+    name: 'Chill Vibes',
+    description: 'Relaxed and atmospheric',
+    genres: ['Lo-Fi', 'Ambient', 'Jazz', 'R&B', 'Phonk'],
+    bonusMultiplier: 1.1,
+  },
+  {
+    id: 'house',
+    name: 'House',
+    description: 'Dance and electronic beats',
+    genres: ['House', 'EDM', 'Techno', 'Disco', 'Lo-Fi'],
+    bonusMultiplier: 1.15,
+  },
+  {
+    id: 'electronic',
+    name: 'Electronic',
+    description: 'EDM and energy',
+    genres: ['EDM', 'House', 'Techno', 'Trance', 'Dubstep'],
+    bonusMultiplier: 1.15,
+  },
+] as const;
+
+export type ThemeId = typeof THEMES[number]['id'];
+
 export interface RoomResponse {
   code: string;
   status: 'lobby' | 'playing' | 'finished';
@@ -114,6 +171,9 @@ export interface RoomResponse {
       audio_url?: string;
     }>;
     player_secret?: string;
+    verified_user?: string | null;
+    verifiedUserId?: string | null;
+    isVerified?: boolean;
     is_connected?: boolean;
     is_spectator?: boolean;
     is_host?: boolean;
@@ -125,6 +185,9 @@ export interface RoomResponse {
   }>;
   current_round: number;
   total_rounds?: number;
+  theme?: string;
+  custom_genres?: string[];
+  bonus_multiplier?: number;
   winner?: string;
   elo_deltas?: Array<{
     player_id: string;

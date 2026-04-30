@@ -98,7 +98,7 @@ test.describe('API Rejoin Recovery', () => {
     await page.reload();
 
     await expect(page.getByTestId('request-to-play')).toBeVisible();
-    await expect(page.getByText('Game in Progress')).toBeVisible();
+    await expect(page.getByText('Battle in Progress')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Your Board' })).not.toBeVisible();
     await expect.poll(rejoinTracker.count).toBeGreaterThan(0);
   });

@@ -26,6 +26,8 @@
 | **Never** open a passing test file to "verify coverage" after a green suite | Zero actionable signal, wastes context tokens. Open only on failure, new assertions, or explicit PR request. |
 | **Never** re-read the same file in >2 chunks for planning edits | Read the entire file once instead. Chunked reading burns context-window budget and causes backtracking. |
 | **Never** claim production user-flow coverage from API-driven live tests | `tests/e2e/live/golden-user-flow.spec.ts` is the browser-live gate; API helpers prove backend smoke only |
+| **Never** treat `player_secret` as account authentication | It is room-action/rejoin authorization only; verified users own leaderboard identity |
+| **Never** allow an unverified player to join as a protected verified display name | Prevent impersonation before ranked/leaderboard credit is assigned |
 
 ---
 
@@ -55,6 +57,10 @@ python backend/manage.py test --verbosity=2 2>&1 | grep -E "Ran [0-9]+ test"
 - Browser-live production gate: `npx playwright test tests/e2e/live/golden-user-flow.spec.ts --project=live --reporter=line`
 - API-live smoke suite: `npx playwright test tests/e2e/live/ --project=live --reporter=line`
 - If a "live" test uses direct API helpers for create/join/play/vote, it is backend/API smoke coverage, not proof that the production browser flow works.
+- For local browser-live debugging, prefer explicit live URLs and a writable browser cache, e.g. `PLAYWRIGHT_BROWSERS_PATH=/private/tmp/ms-playwright LIVE_BROWSER=firefox LIVE_FRONTEND_URL=http://127.0.0.1:8081 LIVE_API_BASE_URL=http://127.0.0.1:8001/api npx playwright test tests/e2e/live/golden-user-flow.spec.ts --project=live --reporter=line`.
+- If `8000` or `8080` are occupied by stale local servers, use clean alternate ports and run backend migrations before testing. Do not commit local SQLite changes from that setup.
+- Browser-live flow fixes require desktop screenshot review at realistic desktop widths; passing API-live smoke tests alone is not enough.
+- Verified leaderboard work must keep `/room/:id/leaderboard` separate from `/leaderboard`: room progress can include room players, global rankings must use verified accounts only.
 
 ---
 

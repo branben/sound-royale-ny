@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { BingoBoard } from '@/components/game/BingoBoard';
-import { BattleTile } from '@/components/game/BattleTile';
 import { UploadDrawer } from '@/components/game/UploadDrawer';
 import { TurnTimer } from '@/components/game/TurnTimer';
 import { TurnIndicator } from '@/components/game/TurnIndicator';
@@ -117,9 +116,12 @@ export function PlayerView({ roomId, playerName }: PlayerViewProps) {
   };
 
   return (
-    <div className={`grid grid-cols-1 lg:grid-cols-3 gap-6 ${!playerData.isConnected ? 'opacity-60' : ''}`}>
+    <div
+      data-testid="player-play-view"
+      className={`grid min-w-0 grid-cols-1 gap-5 2xl:grid-cols-[minmax(14rem,18rem)_minmax(0,1fr)] ${!playerData.isConnected ? 'opacity-60' : ''}`}
+    >
       {/* Player Info Column */}
-      <div className="space-y-4">
+      <div className="min-w-0 space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-lg font-semibold">{playerData.name}</h3>
@@ -148,32 +150,16 @@ export function PlayerView({ roomId, playerName }: PlayerViewProps) {
       </div>
 
       {/* Game Board Column */}
-      <div className="lg:col-span-2">
-        {gameState.roundState?.currentTileGenre && gameState.status === 'playing' ? (
-          <BattleTile
-            genre={gameState.roundState.currentTileGenre}
-            status={playerData.tiles[0]?.status || 'empty'}
-            isInteractive={!currentPlayer?.isSpectator}
-            onUpload={() => {
-              const firstEmptyTile = playerData.tiles.find(t => t.status === 'empty');
-              if (firstEmptyTile) {
-                setSelectedTile({ tile: firstEmptyTile });
-                setSelectedFile(null);
-                setIsDrawerOpen(true);
-              }
-            }}
-          />
-        ) : (
-          <BingoBoard
-            playerId={playerData.id}
-            playerName={playerData.name}
-            boardData={{
-              tiles: playerData.tiles || []
-            }}
-            onTileClick={handleTileClick}
-            isInteractive={gameState.status === 'playing' && !currentPlayer?.isSpectator}
-          />
-        )}
+      <div className="min-w-0">
+        <BingoBoard
+          playerId={playerData.id}
+          playerName={playerData.name}
+          boardData={{
+            tiles: playerData.tiles || []
+          }}
+          onTileClick={handleTileClick}
+          isInteractive={gameState.status === 'playing' && !currentPlayer?.isSpectator}
+        />
 
         <UploadDrawer
           isOpen={isDrawerOpen}

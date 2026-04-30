@@ -354,16 +354,16 @@ export default function Room() {
             </CardContent>
           </Card>
         ) : (
-          <div className="flex flex-col lg:flex-row gap-4">
-            <div className="lg:w-80 lg:order-1">
+          <div className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-[20rem_minmax(0,1fr)]">
+            <div className="min-w-0">
               <GameInfo roomId={roomId!} currentPlayerName={userSession.playerName} />
             </div>
 
-            <div className="flex-1 lg:order-2">
+            <div className="min-w-0">
               {userSession.isSpectator ? (
-                <SpectatorView />
+                <SpectatorView embedded />
               ) : (
-                <div className="flex flex-col">
+                <div className="flex min-w-0 flex-col">
                   <div className="text-center mb-6">
                     <h2 className="text-2xl font-bold text-foreground md:text-3xl">Your Board</h2>
                     <p className="text-muted-foreground">Complete your genre tiles to win!</p>

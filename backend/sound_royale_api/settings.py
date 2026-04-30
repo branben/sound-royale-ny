@@ -171,5 +171,39 @@ CHANNEL_LAYERS = {
     },
 }
 
+# Logging configuration with token redaction
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'filters': {
+        'token_redaction': {
+            '()': 'game_engine.logging_filters.TokenRedactionFilter',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'filters': ['token_redaction'],
+        },
+    },
+    'loggers': {
+        'game_audit': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'game_engine': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
+
 # Linear webhook integration
 LINEAR_WEBHOOK_SECRET = config('LINEAR_WEBHOOK_SECRET', default='')

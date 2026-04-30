@@ -1,24 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const liveBrowser = process.env.LIVE_BROWSER === 'firefox' ? 'Desktop Firefox' : 'Desktop Chrome';
-const liveChromeExecutablePath = process.env.LIVE_CHROME_EXECUTABLE_PATH;
-const liveLaunchOptions = process.env.LIVE_BROWSER === 'firefox'
-  ? {}
-  : {
-      ...(liveChromeExecutablePath ? { executablePath: liveChromeExecutablePath } : {}),
-      args: [
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows',
-        '--disable-renderer-backgrounding',
-        '--disable-features=TranslateUI',
-        '--disable-extensions',
-      ],
-    };
-
 export default defineConfig({
   testDir: './tests/e2e',
   testIgnore: ['**/_future/**', '**/live/**'],
@@ -51,15 +32,38 @@ export default defineConfig({
       },
     },
     {
-      name: 'live',
+      name: 'live-chrome',
       testDir: './tests/e2e/live',
       testIgnore: ['**/_future/**'],
       fullyParallel: false,
-      timeout: 120000, // Longer timeout for live multi-browser tests (5 players + voting)
+      timeout: 120000,
       use: {
-        ...devices[liveBrowser],
+        ...devices['Desktop Chrome'],
         baseURL: process.env.LIVE_FRONTEND_URL || 'http://localhost:8080',
-        launchOptions: liveLaunchOptions,
+        launchOptions: {
+          args: [
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-renderer-backgrounding',
+            '--disable-features=TranslateUI',
+            '--disable-extensions',
+          ],
+        },
+      },
+    },
+    {
+      name: 'live-firefox',
+      testDir: './tests/e2e/live',
+      testIgnore: ['**/_future/**'],
+      fullyParallel: false,
+      timeout: 120000,
+      use: {
+        ...devices['Desktop Firefox'],
+        baseURL: process.env.LIVE_FRONTEND_URL || 'http://localhost:8080',
       },
     },
   ],

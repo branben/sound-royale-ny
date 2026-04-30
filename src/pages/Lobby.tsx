@@ -1,13 +1,16 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Users, Gamepad2, Crown, Loader2, Sparkles, Plus, Eye } from 'lucide-react';
+import { Users, Gamepad2, Crown, Loader2, Sparkles, Plus, Eye, Trophy } from 'lucide-react';
 import { roomApi, gameApi } from '@/services/api';
-import { RoomResponse } from '@/types/game';
+import { RoomResponse, ThemeId } from '@/types/game';
 import { useUser } from '@/context/UserContext';
+import { VerifiedIdentityPanel } from '@/components/auth/VerifiedIdentityPanel';
+import { MultiRoundConfig } from '@/components/game/MultiRoundConfig';
+import { ThemeSelector } from '@/components/game/ThemeSelector';
 
 interface Player {
   id: string;
@@ -27,6 +30,9 @@ export default function Lobby() {
   const [error, setError] = useState<string | null>(null);
   const [roomData, setRoomData] = useState<RoomResponse | null>(null);
   const [isReady, setIsReady] = useState(false);
+  const [totalRounds, setTotalRounds] = useState(1);
+  const [selectedThemeId, setSelectedThemeId] = useState<ThemeId>('classic');
+  const [selectedCustomGenres, setSelectedCustomGenres] = useState<string[]>([]);
 
   const isHost = useMemo(() => {
     if (!currentPlayerId) return false;
@@ -39,6 +45,13 @@ export default function Lobby() {
   const [mode, setMode] = useState<'landing' | 'join' | 'create'>(
     userSession.playerName ? 'join' : 'landing'
   );
+
+  useEffect(() => {
+    if (userSession.verifiedUser) {
+      setPlayerNameInput(userSession.verifiedUser.display_name);
+      setPlayerName(userSession.verifiedUser.display_name);
+    }
+  }, [setPlayerName, userSession.verifiedUser]);
 
   // Fetch real room data when joined
   useEffect(() => {
@@ -112,7 +125,13 @@ export default function Lobby() {
     setError(null);
 
     try {
-      const response = await roomApi.createRoom(roomNameInput.trim(), playerNameInput.trim());
+      const response = await roomApi.createRoom(
+        roomNameInput.trim(),
+        playerNameInput.trim(),
+        totalRounds,
+        selectedThemeId,
+        selectedCustomGenres
+      );
       const { room_code, player_id, player_secret } = response;
 
       setPlayerName(playerNameInput.trim());
@@ -126,8 +145,13 @@ export default function Lobby() {
       const message = err instanceof Error ? err.message : 'Failed to create room';
       setError(message);
       console.error('Error creating room:', err);
+    } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleRoundsChange = (rounds: number) => {
+    setTotalRounds(rounds);
   };
 
   const handleStartMatch = async () => {
@@ -185,6 +209,8 @@ export default function Lobby() {
         <CardContent className="space-y-6">
           {!isJoined ? (
             <>
+              <VerifiedIdentityPanel />
+
               {/* Player Name — required for both join and create */}
               <div className="space-y-2">
                 <Input
@@ -193,9 +219,15 @@ export default function Lobby() {
                   placeholder="Enter your name"
                   value={playerNameInput}
                   onChange={(e) => setPlayerNameInput(e.target.value.slice(0, 20))}
+                  disabled={Boolean(userSession.verifiedUser)}
                   className="text-center text-xl h-12 bg-[#0F0F23]/50 border-[#7C3AED]/50 focus:border-[#A78BFA] focus:shadow-[0_0_30px_rgba(124,58,237,0.5),inset_0_0_20px_rgba(124,58,237,0.1)] transition-all duration-200"
                   maxLength={20}
                 />
+                {userSession.verifiedUser && (
+                  <p className="text-center text-xs text-[#10B981]">
+                    Producer name locked to verified identity.
+                  </p>
+                )}
               </div>
 
               {mode === 'landing' && (
@@ -221,6 +253,18 @@ export default function Lobby() {
                   >
                     <Users className="mr-2 h-5 w-5" />
                     Join Room
+                  </Button>
+
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="w-full h-12 text-lg font-semibold border-[#7C3AED]/50 hover:bg-[#7C3AED]/10"
+                    size="lg"
+                  >
+                    <Link to="/leaderboard">
+                      <Trophy className="mr-2 h-5 w-5" />
+                      Leaderboard
+                    </Link>
                   </Button>
                 </div>
               )}
@@ -296,6 +340,12 @@ export default function Lobby() {
                       maxLength={30}
                     />
                   </div>
+
+                  <ThemeSelector
+                    selectedThemeId={selectedThemeId}
+                    onThemeChange={setSelectedThemeId}
+                    onCustomGenresChange={setSelectedCustomGenres}
+                  />
 
                   <Button
                     data-testid="create-room-submit-button"
@@ -391,6 +441,18 @@ export default function Lobby() {
                   </div>
                 ))}
               </div>
+              )}
+
+              {/* Multi-round configuration for host */}
+              {isHost && (
+                <div className="mt-4">
+                  <MultiRoundConfig
+                    totalRounds={totalRounds}
+                    currentRound={1}
+                    isHost={isHost}
+                    onRoundsChange={handleRoundsChange}
+                  />
+                </div>
               )}
 
               {/* Ready toggle button - show for non-host players */}

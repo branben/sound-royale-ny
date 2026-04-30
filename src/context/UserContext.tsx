@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Player } from '@/types/game';
+import { authApi, VerifiedUser } from '@/services/api';
 
 interface UserSession {
   playerName: string | null;
@@ -7,6 +8,8 @@ interface UserSession {
   playerSecret: string | null;
   isSpectator: boolean;
   isAuthenticated: boolean;
+  verifiedUser: VerifiedUser | null;
+  authLoading: boolean;
 }
 
 interface UserContextType {
@@ -15,6 +18,10 @@ interface UserContextType {
   setPlayerCredentials: (id: string, secret: string) => void;
   setSpectatorMode: (isSpectator: boolean) => void;
   clearSession: () => void;
+  refreshVerifiedUser: () => Promise<void>;
+  requestLoginCode: (email: string) => Promise<void>;
+  verifyLoginCode: (email: string, code: string, displayName?: string) => Promise<VerifiedUser>;
+  logoutVerifiedUser: () => Promise<void>;
   isAuthenticated: boolean;
   isHost: (players: Player[]) => boolean;
 }
@@ -25,6 +32,8 @@ const initialSession: UserSession = {
   playerSecret: null,
   isSpectator: false,
   isAuthenticated: false,
+  verifiedUser: null,
+  authLoading: true,
 };
 
 const safeLocalStorage = {
@@ -76,8 +85,24 @@ export function UserProvider({ children }: { children: ReactNode }) {
       playerSecret,
       isSpectator,
       isAuthenticated: !!(playerId && playerSecret),
+      verifiedUser: null,
+      authLoading: true,
     };
   });
+
+  const refreshVerifiedUser = async () => {
+    setUserSession(prev => ({ ...prev, authLoading: true }));
+    try {
+      const { user } = await authApi.me();
+      setUserSession(prev => ({ ...prev, verifiedUser: user, authLoading: false }));
+    } catch {
+      setUserSession(prev => ({ ...prev, verifiedUser: null, authLoading: false }));
+    }
+  };
+
+  useEffect(() => {
+    refreshVerifiedUser();
+  }, []);
 
   useEffect(() => {
     if (userSession.playerName) {
@@ -125,11 +150,35 @@ export function UserProvider({ children }: { children: ReactNode }) {
   };
 
   const clearSession = () => {
-    setUserSession(initialSession);
+    setUserSession(prev => ({
+      ...initialSession,
+      verifiedUser: prev.verifiedUser,
+      authLoading: false,
+    }));
     safeLocalStorage.removeItem('playerName');
     safeLocalStorage.removeItem('playerId');
     safeLocalStorage.removeItem('playerSecret');
     safeLocalStorage.removeItem('isSpectator');
+  };
+
+  const requestLoginCode = async (email: string) => {
+    await authApi.requestCode(email);
+  };
+
+  const verifyLoginCode = async (email: string, code: string, displayName?: string) => {
+    const user = await authApi.verifyCode(email, code, displayName);
+    setUserSession(prev => ({
+      ...prev,
+      verifiedUser: user,
+      playerName: user.display_name,
+      authLoading: false,
+    }));
+    return user;
+  };
+
+  const logoutVerifiedUser = async () => {
+    await authApi.logout();
+    setUserSession(prev => ({ ...prev, verifiedUser: null, authLoading: false }));
   };
 
   const isHost = (players: Player[]): boolean => {
@@ -146,6 +195,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
       setPlayerCredentials,
       setSpectatorMode,
       clearSession,
+      refreshVerifiedUser,
+      requestLoginCode,
+      verifyLoginCode,
+      logoutVerifiedUser,
       isAuthenticated: userSession.isAuthenticated,
       isHost,
     }}>

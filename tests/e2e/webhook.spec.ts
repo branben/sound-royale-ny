@@ -10,9 +10,9 @@ test.describe('Webhook', () => {
 
   test('GET /webhooks/linear/ returns health check', async ({ page }) => {
     const response = await page.request.get(`${BACKEND_URL}/webhooks/linear/`);
-    
+
     expect(response.status()).toBe(200);
-    
+
     const json = await response.json();
     expect(json.status).toBe('ok');
     expect(json.webhook).toBe('linear-gaia-bridge');
@@ -40,7 +40,7 @@ test.describe('Webhook', () => {
     });
 
     expect(response.status()).toBe(200);
-    
+
     const json = await response.json();
     expect(json.status).toBe('enqueued');
     expect(json.gaia_task_id).toBeDefined();
@@ -70,7 +70,7 @@ test.describe('Webhook', () => {
     });
 
     expect(response.status()).toBe(200);
-    
+
     const json = await response.json();
     expect(json.status).toBe('enqueued');
     expect(json.priority).toBe(2);
@@ -98,7 +98,7 @@ test.describe('Webhook', () => {
     });
 
     expect(response.status()).toBe(200);
-    
+
     const json = await response.json();
     expect(json.status).toBe('ignored');
     expect(json.reason).toContain('state=done');

@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, createRef } from 'react';
+import { Link } from 'react-router-dom';
 import { useGame } from '@/context/useGame';
 import { useUser } from '@/context/UserContext';
 import { BingoBoard } from './BingoBoard';
@@ -7,10 +8,15 @@ import { VotingPanel } from './VotingPanel';
 import { WinnerAnnouncement } from './WinnerAnnouncement';
 import { RoundIndicator } from './RoundIndicator';
 import { GameOverScreen } from './GameOverScreen';
+import { RoomLeaderboard } from './RoomLeaderboard';
 import { Tile } from '@/types/game';
-import { Crown, Zap, Users, Trophy, ArrowUpCircle, Clock, PlayCircle } from 'lucide-react';
+import { Crown, Zap, Users, ArrowUpCircle, Clock, PlayCircle, Trophy } from 'lucide-react';
 
-export function SpectatorView() {
+interface SpectatorViewProps {
+  embedded?: boolean;
+}
+
+export function SpectatorView({ embedded = false }: SpectatorViewProps) {
   const { gameState, setTileAudio, updateTileStatus } = useGame();
   const { userSession } = useUser();
   const [selectedTile, setSelectedTile] = useState<{ playerId: string; tile: Tile } | null>(null);
@@ -29,20 +35,7 @@ export function SpectatorView() {
     }, {} as Record<string, React.RefObject<HTMLDivElement>>);
   }, [producers]);
 
-  const leaderboard = useMemo(() => {
-    return producers.map(player => {
-      const totalTiles = player.board.tiles.length;
-      const completeTiles = player.board.tiles.filter(t => t.status === 'complete').length;
-      const pendingTiles = player.board.tiles.filter(t => t.status === 'pending').length;
-      const progress = totalTiles > 0 ? Math.round((completeTiles / totalTiles) * 100) : 0;
-      return {
-        player,
-        completeTiles,
-        pendingTiles,
-        progress
-      };
-    }).sort((a, b) => b.progress - a.progress);
-  }, [producers]);
+  const roomCode = gameState.roomCode || gameState.gameId;
 
   const getGamePhase = () => {
     switch (gameState.status) {
@@ -79,8 +72,9 @@ export function SpectatorView() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className={embedded ? 'min-w-0' : 'min-h-screen bg-background'}>
       {/* Header */}
+      {!embedded && (
       <header className="border-b border-border/30 bg-card/30 backdrop-blur-md">
         <div className="container mx-auto flex items-center justify-between px-4 py-4">
           <div className="flex items-center gap-3">
@@ -109,61 +103,38 @@ export function SpectatorView() {
           </div>
         </div>
       </header>
+      )}
 
       {/* Main Content - Split Screen */}
-      <main className="container mx-auto p-4 md:p-8">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
+      <main className={embedded ? 'min-w-0 space-y-6' : 'container mx-auto p-4 md:p-8'}>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <h2 className="text-2xl font-bold text-foreground md:text-3xl">Battle Arena</h2>
-            <p className="text-muted-foreground">Watch the producers compete in real-time</p>
+            <p className="text-muted-foreground">
+              Round {gameState.currentRound} · Watch the producers compete in real-time
+            </p>
           </div>
-          <button data-testid="request-to-play" className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
+          <button data-testid="request-to-play" className="flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
             <PlayCircle className="h-4 w-4" />
             Request to Play
           </button>
         </div>
 
-        <div className="mb-6 rounded-xl border border-border/30 bg-card/50 p-4 backdrop-blur-sm">
-          <div className="flex items-center gap-2 mb-3">
-            <Trophy className="h-5 w-5 text-yellow-500" />
-            <h3 className="font-semibold text-foreground">Leaderboard</h3>
-          </div>
-          <div className="space-y-2 max-h-48 overflow-y-auto">
-            {leaderboard.map((entry, index) => (
-              <button
-                key={entry.player.id}
-                onClick={() => setSelectedPlayerId(entry.player.id)}
-                className={`flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-muted/50 ${
-                  selectedPlayerId === entry.player.id ? 'bg-primary/10 ring-1 ring-primary' : ''
-                }`}
-              >
-                <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
-                  index === 0 ? 'bg-yellow-500 text-black' :
-                  index === 1 ? 'bg-gray-400 text-black' :
-                  index === 2 ? 'bg-orange-600 text-white' :
-                  'bg-muted text-muted-foreground'
-                }`}>
-                  {index + 1}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="truncate text-sm font-medium text-foreground">{entry.player.name}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-                      <div 
-                        className="h-full bg-primary rounded-full transition-all"
-                        style={{ width: `${entry.progress}%` }}
-                      />
-                    </div>
-                    <span className="text-xs text-muted-foreground">{entry.progress}%</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <span className="text-green-400">{entry.completeTiles}</span>
-                  <span>/</span>
-                  <span className="text-yellow-400">{entry.pendingTiles}</span>
-                </div>
-              </button>
-            ))}
+        <div className="rounded-xl border border-border/30 bg-card/50 p-4 backdrop-blur-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-yellow-500" />
+              <div>
+                <h3 className="font-semibold text-foreground">Leaderboard</h3>
+                <p className="text-sm text-muted-foreground">{producers.length} producers competing</p>
+              </div>
+            </div>
+            <Link
+              to={`/room/${roomCode}/leaderboard`}
+              className="inline-flex items-center justify-center rounded-lg border border-primary/40 px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
+            >
+              View Full Leaderboard
+            </Link>
           </div>
         </div>
 
@@ -203,13 +174,13 @@ export function SpectatorView() {
         </div>
 
         <div className="relative">
-          <div className="hidden md:absolute md:left-1/2 md:top-1/2 md:z-10 md:flex md:-translate-x-1/2 md:-translate-y-1/2 md:items-center md:justify-center">
+          <div className="hidden 2xl:absolute 2xl:left-1/2 2xl:top-1/2 2xl:z-10 2xl:flex 2xl:-translate-x-1/2 2xl:-translate-y-1/2 2xl:items-center 2xl:justify-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-primary/50 bg-card/80 shadow-lg shadow-primary/20 backdrop-blur-md">
               <span className="text-xl font-bold text-primary">VS</span>
             </div>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2 md:gap-8 lg:gap-12">
+          <div className="grid min-w-0 gap-6 2xl:grid-cols-2 2xl:gap-8">
             {producers.map((player) => (
               <div ref={boardRefs[player.id]} key={player.id} className={selectedPlayerId === player.id ? 'ring-2 ring-primary rounded-lg' : ''}>
                 <BingoBoard
@@ -225,7 +196,7 @@ export function SpectatorView() {
         </div>
 
         {/* Mobile VS indicator */}
-        <div className="my-4 flex items-center justify-center md:hidden">
+        <div className="my-4 flex items-center justify-center 2xl:hidden">
           <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-primary/50 bg-card/80 shadow-lg shadow-primary/20 backdrop-blur-md">
             <span className="text-lg font-bold text-primary">VS</span>
           </div>

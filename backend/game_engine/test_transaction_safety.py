@@ -215,7 +215,7 @@ class TransactionSafetyTestCase(TestCase):
         request.data = request_data
         
         # Mock broadcast_game_update to raise an exception
-        with patch('game_engine.views.broadcast_game_update', side_effect=Exception("Broadcast failed")):
+        with patch('game_engine.broadcasting.broadcast_game_update', side_effect=Exception("Broadcast failed")):
             with patch.object(viewset, 'get_object', return_value=self.room):
                 response = viewset.reset_game(request)
         
