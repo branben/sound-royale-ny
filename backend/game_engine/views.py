@@ -140,8 +140,12 @@ class RoomViewSet(viewsets.ModelViewSet):
             return RoomDetailSerializer
         return RoomSerializer
 
-    def perform_create(self, serializer):
-        # When creating a room, set the creator as the first player
+    def create(self, request, *args, **kwargs):
+        """Override create to return room_code, player_id, and player_secret."""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # Create the room
         room = serializer.save()
 
         # Generate unique 4-digit room code
@@ -166,6 +170,15 @@ class RoomViewSet(viewsets.ModelViewSet):
             Tile.objects.create(
                 player=player, room=room, position=position, genre=genres.pop()
             )
+
+        return Response(
+            {
+                "room_code": room.code,
+                "player_id": str(player.id),
+                "player_secret": str(player.player_secret),
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
     @action(detail=True, methods=["post"])
     def join_game(self, request, pk=None, code=None):

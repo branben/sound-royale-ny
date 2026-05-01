@@ -262,7 +262,7 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
               <div className="text-sm text-muted-foreground">
                 <div className="capitalize font-medium">
                   {gameState.status === 'lobby' && 'Waiting for players to join'}
-                  {gameState.status === 'playing' && activePlayers.length >= 2 && 'Both players are creating beats!'}
+                  {gameState.status === 'playing' && activePlayers.length >= 2 && `${activePlayers.length} producers are creating beats!`}
                   {gameState.status === 'playing' && activePlayers.length < 2 && 'Waiting for more players to join...'}
                   {gameState.status === 'finished' && (
                     <span className="animate-pulse-glow">
@@ -279,7 +279,7 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
                   {gameState.status === 'lobby' && 'Waiting for at least 2 players to start the game'}
-                  {gameState.status === 'playing' && activePlayers.length >= 2 && 'Both players are creating beats!'}
+                  {gameState.status === 'playing' && activePlayers.length >= 2 && `${activePlayers.length} producers are creating beats!`}
                   {gameState.status === 'playing' && activePlayers.length < 2 && 'Waiting for more players to join...'}
                   {gameState.status === 'finished' && `🎉 ${players.find((p: Player) => p.id === gameState.winner)?.name} wins the battle!`}
                 </div>
