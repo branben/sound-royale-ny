@@ -1092,6 +1092,36 @@ class PlayerViewSet(viewsets.ModelViewSet):
         return super().get_object()
 
     @action(detail=True, methods=["post"])
+    def toggle_ready(self, request, pk=None, player_secret=None):
+        """
+        Toggle player ready status in lobby.
+        """
+        player = self.get_object()
+        
+        # Verify player_secret matches
+        provided_secret = request.data.get("player_secret")
+        if not provided_secret or str(player.player_secret) != str(provided_secret):
+            return Response(
+                {"error": "Invalid player_secret"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Toggle ready status
+        player.is_ready = not player.is_ready
+        player.save()
+        
+        # Broadcast update to all players
+        broadcast_game_update(player.room)
+        
+        return Response(
+            {
+                "player_id": str(player.id),
+                "is_ready": player.is_ready
+            },
+            status=status.HTTP_200_OK
+        )
+
+    @action(detail=True, methods=["post"])
     def update_score(self, request, pk=None, player_secret=None):
         """
         Update player score (for future ELO implementation)

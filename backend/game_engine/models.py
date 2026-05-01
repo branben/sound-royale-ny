@@ -98,6 +98,7 @@ class Player(models.Model):
     is_spectator = models.BooleanField(default=False)
     is_host = models.BooleanField(default=False)
     is_connected = models.BooleanField(default=False)  # Presence tracking
+    is_ready = models.BooleanField(default=False)  # Ready status for lobby
     joined_at = models.DateTimeField(auto_now_add=True)
 
     # ELO Rating fields

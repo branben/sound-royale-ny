@@ -181,6 +181,7 @@ class PlayerSerializer(serializers.ModelSerializer):
             "is_spectator",
             "is_host",
             "is_connected",
+            "is_ready",
             "joined_at",
             "tiles",
             "elo_rating",

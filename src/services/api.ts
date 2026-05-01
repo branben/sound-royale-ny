@@ -123,6 +123,13 @@ export const gameApi = {
     });
     return response.data;
   },
+
+  toggleReady: async (playerId: string, playerSecret: string): Promise<{ player_id: string; is_ready: boolean }> => {
+    const response = await api.post(`/players/${playerId}/toggle_ready/`, {
+      player_secret: playerSecret,
+    });
+    return response.data;
+  },
 };
 
 function transformPlayer(backendPlayer: RoomResponse['players'][0]): Player {

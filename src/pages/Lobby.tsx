@@ -140,8 +140,30 @@ export default function Lobby() {
     setRoomCode(value);
   };
 
-  const handleToggleReady = () => {
-    setIsReady(!isReady);
+  const handleToggleReady = async () => {
+    if (!currentPlayerId || !userSession.playerSecret) return;
+    
+    try {
+      const result = await gameApi.toggleReady(currentPlayerId, userSession.playerSecret);
+      setIsReady(result.is_ready);
+      
+      // Refetch room data to update UI for all players
+      if (roomCode) {
+        const data = await roomApi.getRoom(roomCode);
+        setRoomData(data);
+        
+        const transformedPlayers = data.players.map((player) => ({
+          id: player.id,
+          name: player.name,
+          isHost: player.is_host,
+          isReady: player.is_ready ?? false,
+        }));
+        
+        setPlayers(transformedPlayers);
+      }
+    } catch (err) {
+      console.error('Failed to toggle ready status:', err);
+    }
   };
 
   return (
