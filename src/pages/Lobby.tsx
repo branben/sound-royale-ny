@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Users, Gamepad2, Crown, Loader2, Sparkles, Plus } from 'lucide-react';
-import { roomApi } from '@/services/api';
+import { roomApi, gameApi } from '@/services/api';
 import { RoomResponse, ThemeId } from '@/types/game';
 import { useUser } from '@/context/UserContext';
 import { ThemeSelector } from '@/components/game/ThemeSelector';
@@ -22,7 +22,7 @@ export default function Lobby() {
   const { userSession, setPlayerName, setPlayerCredentials } = useUser();
   const [roomCode, setRoomCode] = useState('');
   const [isJoined, setIsJoined] = useState(false);
-  const [isHost] = useState(true);
+  const [isHost, setIsHost] = useState(false);
   const [players, setPlayers] = useState<Player[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,9 +59,14 @@ export default function Lobby() {
         
         setPlayers(transformedPlayers);
         
-        // Set current player ID (first player is the current user)
-        if (data.players.length > 0 && !currentPlayerId) {
-          setCurrentPlayerId(data.players[0].id);
+        // Set current player ID from user session or first player
+        const playerId = userSession.playerId || (data.players.length > 0 ? data.players[0].id : null);
+        setCurrentPlayerId(playerId);
+        
+        // Determine if current player is host
+        if (playerId) {
+          const currentPlayer = transformedPlayers.find(p => p.id === playerId);
+          setIsHost(currentPlayer?.isHost ?? false);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to join room');
@@ -75,10 +80,24 @@ export default function Lobby() {
     fetchRoomData();
   }, [isJoined, roomCode]);
 
-  const handleJoin = () => {
-    if (roomCode.length === 4 && playerNameInput.trim()) {
+  const handleJoin = async () => {
+    if (roomCode.length !== 4 || !playerNameInput.trim()) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const player = await gameApi.joinRoom(roomCode, playerNameInput.trim());
+
       setPlayerName(playerNameInput.trim());
+      setPlayerCredentials(player.id, player.playerSecret);
       setIsJoined(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to join room';
+      setError(message);
+      console.error('Error joining room:', err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -102,6 +121,7 @@ export default function Lobby() {
       setPlayerCredentials(player_id, player_secret);
       setRoomCode(room_code);
       setIsJoined(true);
+      setIsHost(true); // Room creator is always the host
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create room';
       setError(message);
@@ -221,8 +241,14 @@ export default function Lobby() {
                     {isLoading ? 'Joining...' : 'Join Room'}
                   </Button>
 
+                  {error && (
+                    <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-sm text-center">
+                      {error}
+                    </div>
+                  )}
+
                   <button
-                    onClick={() => setMode('landing')}
+                    onClick={() => { setMode('landing'); setError(null); }}
                     className="w-full text-sm text-[#E2E8F0]/50 hover:text-[#E2E8F0] transition-colors"
                   >
                     ← Back
