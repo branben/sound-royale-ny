@@ -89,8 +89,8 @@ export default function Lobby() {
       if (message.type === 'game_state_update') {
         const gameState = message.payload as any;
         
-        // Update players from game state
-        const transformedPlayers = (gameState.players || []).map((player: any) => ({
+        // Update players from game state (backend sends dict, use Object.values)
+        const transformedPlayers = Object.values(gameState.players || {}).map((player: any) => ({
           id: player.id,
           name: player.name,
           isHost: player.is_host,
@@ -115,7 +115,8 @@ export default function Lobby() {
     });
 
     return () => {
-      gameSocket.disconnect();
+      // Don't disconnect - gameSocket handles singleton management
+      // Only disconnect if leaving the game entirely
     };
   }, [isJoined, roomCode, currentPlayerId, userSession.playerSecret]);
 
