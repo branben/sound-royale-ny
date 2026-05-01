@@ -1,13 +1,14 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Users, Gamepad2, Crown, Loader2, Sparkles, Plus } from 'lucide-react';
+import { Gamepad2, Users, Crown, Plus, Loader2, Sparkles } from 'lucide-react';
 import { roomApi, gameApi } from '@/services/api';
-import { RoomResponse, ThemeId } from '@/types/game';
+import { gameSocket, GameSocketMessage } from '@/services/gameSocket';
 import { useUser } from '@/context/UserContext';
+import { RoomResponse, ThemeId } from '@/types/game';
 import { ThemeSelector } from '@/components/game/ThemeSelector';
 
 interface Player {
@@ -80,6 +81,44 @@ export default function Lobby() {
     fetchRoomData();
   }, [isJoined, roomCode]);
 
+  // WebSocket connection for real-time updates
+  useEffect(() => {
+    if (!isJoined || !roomCode || !currentPlayerId || !userSession.playerSecret) return;
+
+    const handleGameUpdate = (message: GameSocketMessage) => {
+      if (message.type === 'game_state_update') {
+        const gameState = message.payload as any;
+        
+        // Update players from game state
+        const transformedPlayers = (gameState.players || []).map((player: any) => ({
+          id: player.id,
+          name: player.name,
+          isHost: player.is_host,
+          isReady: player.is_ready ?? false,
+        }));
+        
+        setPlayers(transformedPlayers);
+        
+        // Update current player's ready status
+        const currentPlayer = transformedPlayers.find(p => p.id === currentPlayerId);
+        if (currentPlayer) {
+          setIsReady(currentPlayer.isReady ?? false);
+        }
+      }
+    };
+
+    gameSocket.connect({
+      gameId: roomCode,
+      playerId: currentPlayerId,
+      playerSecret: userSession.playerSecret,
+      onMessage: handleGameUpdate,
+    });
+
+    return () => {
+      gameSocket.disconnect();
+    };
+  }, [isJoined, roomCode, currentPlayerId, userSession.playerSecret]);
+
   const handleJoin = async () => {
     if (roomCode.length !== 4 || !playerNameInput.trim()) return;
 
@@ -146,21 +185,7 @@ export default function Lobby() {
     try {
       const result = await gameApi.toggleReady(currentPlayerId, userSession.playerSecret);
       setIsReady(result.is_ready);
-      
-      // Refetch room data to update UI for all players
-      if (roomCode) {
-        const data = await roomApi.getRoom(roomCode);
-        setRoomData(data);
-        
-        const transformedPlayers = data.players.map((player) => ({
-          id: player.id,
-          name: player.name,
-          isHost: player.is_host,
-          isReady: player.is_ready ?? false,
-        }));
-        
-        setPlayers(transformedPlayers);
-      }
+      // WebSocket will broadcast the update to all players
     } catch (err) {
       console.error('Failed to toggle ready status:', err);
     }
