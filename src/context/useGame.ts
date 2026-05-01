@@ -2,6 +2,7 @@ import { useContext, useEffect } from 'react';
 import { GameContext, GameRefreshContext } from './GameContext';
 import { gameSocket, GameSocketMessage } from '@/services/gameSocket';
 import { useUser } from './UserContext';
+import type { GameState } from '@/types/game';
 
 export function useGame() {
   const context = useContext(GameContext);
@@ -39,10 +40,15 @@ export function useWebSocketConnection() {
 
     const handleGameUpdate = (message: GameSocketMessage) => {
       if (message.type === 'game_state_update') {
-        const newGameState = message.payload as any;
+        const newGameState = message.payload as Partial<GameState>;
         setGameState(prev => ({
           ...prev,
           ...newGameState,
+          // Deep merge players object
+          players: newGameState.players ? {
+            ...prev.players,
+            ...newGameState.players,
+          } : prev.players,
         }));
       } else if (message.type === 'timer_tick') {
         setGameState(prev => ({

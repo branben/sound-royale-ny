@@ -31,6 +31,7 @@ class GameSocketService {
   private maxReconnectAttempts = 5;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private isIntentionallyClosed = false;
+  private currentGameId: string | null = null;
 
   private getWsUrl(): string {
     const baseUrl = import.meta.env.VITE_WS_URL || 
@@ -51,10 +52,23 @@ class GameSocketService {
   }
 
   connect(options: GameSocketOptions): void {
+    // If already connected to the same game, just update the message handler
+    if (this.currentGameId === options.gameId && this.ws && this.ws.readyState === WebSocket.OPEN) {
+      console.log('[GameSocket] Already connected to game, updating handler');
+      this.options = options;
+      return;
+    }
+
+    // If connecting to a different game, disconnect first
+    if (this.currentGameId !== options.gameId) {
+      this.disconnect();
+    }
+
     this.options = options;
     this.maxReconnectAttempts = options.reconnectAttempts ?? 5;
     this.isIntentionallyClosed = false;
     this.reconnectAttempts = 0;
+    this.currentGameId = options.gameId;
     
     // Connection established with gameId
     console.log('[GameSocket] Connection config:', { 
@@ -137,6 +151,7 @@ class GameSocketService {
 
   disconnect(): void {
     this.isIntentionallyClosed = true;
+    this.currentGameId = null;
     
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);

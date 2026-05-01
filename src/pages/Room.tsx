@@ -140,6 +140,7 @@ export default function Room() {
 
       const newGameState = {
         gameId: roomData.code,
+        roomCode: roomData.code,
         status: roomData.status,
         currentRound: roomData.current_round,
         winner: roomData.winner,

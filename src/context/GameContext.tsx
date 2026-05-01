@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { GameState, TileStatus, RoomResponse } from '@/types/game';
+import { GameState, TileStatus, RoomResponse, Player, Tile } from '@/types/game';
 import { mockGameState } from '@/data/mockGameState';
 import { roomApi } from '@/services/api';
 import gameSocket, { GameSocketMessage } from '@/services/gameSocket';
