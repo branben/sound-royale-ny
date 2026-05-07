@@ -9,7 +9,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { enableE2EMode, setupPlayerSession } from './helpers';
+import { enableE2EMode, mockApiRoutes, setupPlayerSession } from './helpers';
 import {
   createMockLobbyState,
   createMockPlayingState,
@@ -86,12 +86,12 @@ test.describe('Full 3-Round Game', () => {
     const producer = createMockProducer('Player1');
     const gameState = createMockFinishedState({ [producer.id]: producer }, producer.id, 3);
 
-    await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: toRoomResponse(gameState) });
-      } else {
-        await route.continue();
-      }
+    await mockApiRoutes(page, {
+      roomResponse: toRoomResponse(gameState),
+      rejoin: {
+        player: producer,
+        playerSecret: 'player-secret',
+      },
     });
 
     await setupPlayerSession(page, { playerName: producer.name, playerId: producer.id, playerSecret: 'player-secret' });
@@ -110,12 +110,12 @@ test.describe('Full 3-Round Game', () => {
       3
     );
 
-    await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: toRoomResponse(gameState) });
-      } else {
-        await route.continue();
-      }
+    await mockApiRoutes(page, {
+      roomResponse: toRoomResponse(gameState),
+      rejoin: {
+        player: winner,
+        playerSecret: 'winner-secret',
+      },
     });
 
     await setupPlayerSession(page, { playerName: winner.name, playerId: winner.id, playerSecret: 'winner-secret' });
@@ -129,12 +129,12 @@ test.describe('Full 3-Round Game', () => {
     const producer = createMockProducer('Player1');
     const gameState = createMockFinishedState({ [producer.id]: producer }, null, 3);
 
-    await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: toRoomResponse(gameState) });
-      } else {
-        await route.continue();
-      }
+    await mockApiRoutes(page, {
+      roomResponse: toRoomResponse(gameState),
+      rejoin: {
+        player: producer,
+        playerSecret: 'player-secret',
+      },
     });
 
     await setupPlayerSession(page, { playerName: producer.name, playerId: producer.id, playerSecret: 'player-secret' });

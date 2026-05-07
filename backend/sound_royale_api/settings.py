@@ -14,6 +14,7 @@ from pathlib import Path
 import os
 from pathlib import Path
 from decouple import config
+from corsheaders.defaults import default_headers
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -138,6 +139,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # CORS settings
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    "x-theme-admin-secret",
+]
 
 # CSRF settings for frontend
 CSRF_TRUSTED_ORIGINS = [
@@ -173,3 +177,6 @@ CHANNEL_LAYERS = {
 
 # Linear webhook integration
 LINEAR_WEBHOOK_SECRET = config('LINEAR_WEBHOOK_SECRET', default='')
+
+# Lightweight admin gate for editing public theme rotations from the React app.
+THEME_ADMIN_SECRET = config('THEME_ADMIN_SECRET', default='')

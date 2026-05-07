@@ -11,7 +11,7 @@ interface UploadDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   tile: Tile | null;
-  onUpload: (audioUrl: string) => void;
+  onUpload: (audioUrl: string, audioFile: File) => void;
 }
 
 export function UploadDrawer({ isOpen, onClose, tile, onUpload }: UploadDrawerProps) {
@@ -65,7 +65,7 @@ export function UploadDrawer({ isOpen, onClose, tile, onUpload }: UploadDrawerPr
     if (selectedFile) {
       // In a real app, this would upload to a server
       const fakeUrl = URL.createObjectURL(selectedFile);
-      onUpload(fakeUrl);
+      onUpload(fakeUrl, selectedFile);
       setSelectedFile(null);
       onClose();
     }

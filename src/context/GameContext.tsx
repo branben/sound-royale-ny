@@ -1,8 +1,9 @@
 import React, { createContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { GameState, TileStatus, RoomResponse, Player, Tile } from '@/types/game';
 import { mockGameState } from '@/data/mockGameState';
-import { roomApi } from '@/services/api';
+import { normalizeRoomWinner, roomApi } from '@/services/api';
 import gameSocket, { GameSocketMessage } from '@/services/gameSocket';
+import { useUser } from './UserContext';
 
 interface GameContextType {
   gameState: GameState;
@@ -30,9 +31,7 @@ const emptyGameState: GameState = {
 
 export function GameProvider({ children, roomCode }: { children: ReactNode; roomCode?: string }) {
   const isE2E = import.meta.env.VITE_E2E_TESTING === 'true' || (typeof window !== 'undefined' && window.__E2E_TESTING__ === true);
-  
-  // Debug log for GameProvider initialization
-  console.log('[GameContext] Provider initialized', { roomCode, isE2E });
+  const { userSession } = useUser();
   
   const [gameState, setGameState] = useState<GameState>(isE2E ? mockGameState : emptyGameState);
   const [isLoading, setIsLoading] = useState(false);
@@ -48,7 +47,7 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
     if (!roomCode) {
       setError('Room code is required');
       setIsLoading(false);
-      setGameState(emptyGameState);
+      setGameState(() => emptyGameState);
       return;
     }
 
@@ -62,30 +61,40 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
         // Transform backend data to GameState format
         const players: GameState['players'] = {};
         roomData.players.forEach(player => {
+          const tiles = player.board?.tiles ?? player.tiles?.map(tile => ({
+            id: tile.id,
+            genre: tile.genre,
+            status: tile.status,
+            audioUrl: tile.audio_url ?? tile.audioUrl,
+          })) ?? [];
+
           players[player.id] = {
             id: player.id,
             name: player.name,
             avatar: player.avatar,
-            board: {
-              tiles: player.tiles?.map(tile => ({
-                id: tile.id,
-                genre: tile.genre,
-                status: tile.status,
-                audioUrl: tile.audio_url,
-              })) || []
-            },
+            board: { tiles },
             isConnected: player.is_connected,
             isSpectator: player.is_spectator,
+            isHost: player.is_host,
+            isReady: player.is_ready,
+            eloRating: player.elo_rating,
+            eloWins: player.elo_wins,
+            eloLosses: player.elo_losses,
+            eloMatches: player.elo_matches,
+            isCheckedIn: player.is_checked_in ?? player.isCheckedIn,
+            currentTitle: player.current_title ?? player.currentTitle,
+            scoreInfo: player.scoreInfo,
           };
         });
 
-        setGameState({
+        setGameState(prev => ({
+          ...prev,
           gameId: roomData.code,
           roomCode: roomData.code,
           status: roomData.status,
           players,
           currentRound: roomData.current_round,
-          winner: roomData.winner,
+          winner: normalizeRoomWinner(roomData.winner),
           eloDeltas: roomData.elo_deltas?.map(d => ({
             playerId: d.player_id,
             playerName: d.player_name,
@@ -94,7 +103,7 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
             delta: d.delta,
             isWinner: d.is_winner,
           })),
-        });
+        }));
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch room data');
         console.error('Error fetching room data:', err);
@@ -109,17 +118,6 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
   useEffect(() => {
     if (isE2E || !roomCode) {
       return;
-    }
-
-    const stored = localStorage.getItem('userSession');
-    let playerId: string | undefined;
-    
-    if (stored) {
-      try {
-        const session = JSON.parse(stored);
-        playerId = session.playerId;
-      } catch {
-      }
     }
 
     const handleMessage = (message: GameSocketMessage) => {
@@ -144,14 +142,18 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
                 },
                 isConnected: player.isConnected,
                 isSpectator: player.isSpectator,
+                isHost: player.isHost,
+                isReady: player.isReady,
                 eloRating: player.eloRating,
                 eloWins: player.eloWins,
                 eloLosses: player.eloLosses,
                 eloMatches: player.eloMatches,
+                scoreInfo: player.scoreInfo,
               };
             });
           }
-          setGameState({
+          setGameState(prev => ({
+            ...prev,
             gameId: newState.gameId || roomCode,
             roomCode: newState.roomCode || roomCode,
             status: newState.status,
@@ -161,46 +163,35 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
             roundState: newState.roundState,
             spectatorCount: newState.spectatorCount,
             eloDeltas: newState.eloDeltas,
-          });
+          }));
           break;
         }
         case 'bingo_achievement':
-          console.log('[GameContext] Bingo achievement:', message.payload);
-          break;
         case 'victory_celebration':
-          console.log('[GameContext] Victory:', message.payload);
-          break;
         case 'vote_submitted':
-          console.log('[GameContext] Vote submitted:', message.payload);
           break;
         case 'timer_tick':
           setTimeRemaining(message.payload.timeRemaining);
           break;
         case 'turn_change':
-          console.log('[GameContext] Turn change:', message.payload);
-          break;
         case 'player_joined':
-          console.log('[GameContext] Player joined:', message.payload);
-          break;
         case 'player_left':
-          console.log('[GameContext] Player left:', message.payload);
           break;
       }
     };
 
     gameSocket.connect({
       gameId: roomCode,
-      playerId,
+      playerId: userSession.playerId ?? undefined,
+      playerSecret: userSession.playerSecret ?? undefined,
       onMessage: handleMessage,
-      onConnect: () => console.log('[GameContext] WebSocket connected'),
-      onDisconnect: (reason) => console.log('[GameContext] WebSocket disconnected:', reason),
       onError: (error) => console.error('[GameContext] WebSocket error:', error),
     });
 
     return () => {
       gameSocket.disconnect();
     };
-  }, [roomCode, isE2E]);
+  }, [roomCode, isE2E, userSession.playerId, userSession.playerSecret]);
 
   const updateTileStatus = (playerId: string, tileId: string, status: TileStatus) => {
     setGameState(prev => ({

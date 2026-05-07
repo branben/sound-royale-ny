@@ -42,6 +42,8 @@ class Room(models.Model):
 
     class Theme(models.TextChoices):
         CLASSIC = "classic", "Classic"
+        WEEKLY = "weekly", "Weekly Rotation"
+        MONTHLY = "monthly", "Monthly Rotation"
         PHONK = "phonk", "Phonk"
         TRAP = "trap", "Trap"
         LOFI = "lofi", "Lo-Fi"
@@ -87,7 +89,33 @@ class Room(models.Model):
         return self.players.filter(is_host=True, is_spectator=False).first()
 
 
+class ThemeRotation(models.Model):
+    class Key(models.TextChoices):
+        CLASSIC = "classic", "Classic"
+        WEEKLY = "weekly", "Weekly Rotation"
+        MONTHLY = "monthly", "Monthly Rotation"
+
+    key = models.CharField(max_length=20, choices=Key.choices, unique=True)
+    name = models.CharField(max_length=50)
+    description = models.CharField(max_length=120, default="theme by @1120cooks")
+    genres = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["key"]
+
+    def __str__(self):
+        return self.name
+
+
 class Player(models.Model):
+    class Title(models.TextChoices):
+        NONE = "NONE", "None"
+        JACKPOT = "JACKPOT", "Jackpot"
+        SWEEPER = "SWEEPER", "Sweeper"
+        CHECKED_IN = "CHECKED_IN", "Checked In"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     player_secret = models.UUIDField(
         default=uuid.uuid4, editable=False
@@ -107,12 +135,27 @@ class Player(models.Model):
     elo_losses = models.PositiveIntegerField(default=0)
     elo_matches = models.PositiveIntegerField(default=0)
 
+    # Producer title flags. current_title is derived from these by priority.
+    is_checked_in = models.BooleanField(default=False)
+    earned_jackpot = models.BooleanField(default=False)
+    earned_sweeper = models.BooleanField(default=False)
+
     class Meta:
         ordering = ["joined_at"]
         unique_together = ["room", "name"]  # Prevent duplicate names in same room
 
     def __str__(self):
         return f"{self.name} in {self.room.id}"
+
+    @property
+    def current_title(self):
+        if self.earned_sweeper:
+            return self.Title.SWEEPER
+        if self.earned_jackpot:
+            return self.Title.JACKPOT
+        if self.is_checked_in:
+            return self.Title.CHECKED_IN
+        return self.Title.NONE
 
 
 class Tile(models.Model):

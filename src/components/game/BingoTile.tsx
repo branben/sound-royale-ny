@@ -7,9 +7,10 @@ interface BingoTileProps {
   tile: Tile;
   onClick: () => void;
   isInteractive?: boolean;
+  isActiveRoundTile?: boolean;
 }
 
-export function BingoTile({ tile, onClick, isInteractive = false }: BingoTileProps) {
+export function BingoTile({ tile, onClick, isInteractive = false, isActiveRoundTile }: BingoTileProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const playCountRef = useRef(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -61,15 +62,21 @@ export function BingoTile({ tile, onClick, isInteractive = false }: BingoTilePro
     <button
       data-testid="bingo-tile"
       onClick={onClick}
-      disabled={!isInteractive && tile.status !== 'empty'}
+      aria-disabled={!isInteractive}
+      disabled={!isInteractive && !tile.audioUrl}
       className={cn(
         'relative aspect-square w-full rounded-lg border-2 backdrop-blur-sm transition-all duration-300',
         'flex flex-col items-center justify-center gap-2 p-2',
-        'group cursor-pointer',
+        'group',
         statusStyles[tile.status],
+        !isInteractive && 'cursor-not-allowed opacity-45',
         isInteractive && tile.status === 'empty' && 'hover:scale-[1.02] hover:shadow-lg hover:shadow-primary/20'
       )}
     >
+      {isActiveRoundTile && tile.status === 'empty' && (
+        <div className="absolute inset-0 rounded-lg ring-2 ring-[#A855F7]/70 ring-offset-2 ring-offset-[#1A1A2E]" />
+      )}
+
       {/* Status Icon */}
       <div className={cn(
         'flex h-10 w-10 items-center justify-center rounded-full',

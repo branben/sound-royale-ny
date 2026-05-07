@@ -13,6 +13,8 @@ def check_bingo_lines(board_tiles):
     for tile in board_tiles:
         if hasattr(tile, "position"):
             tile_lookup[tile.position] = tile.status
+        elif isinstance(tile, dict):
+            tile_lookup[tile.get("position")] = tile.get("status")
 
     completed_lines = []
 
@@ -61,24 +63,34 @@ def get_theme_genres(room):
     Returns:
         List of 9 genre strings
     """
+    classic_genres = ["Phonk", "Trap", "Lo-Fi", "House", "Drill", "R&B", "EDM", "Jazz", "Ambient"]
     theme_genres = {
-        "classic": ["Phonk", "Trap", "Lo-Fi", "House", "Drill", "R&B", "EDM", "Jazz", "Ambient"],
+        "classic": classic_genres,
+        "weekly": classic_genres,
+        "monthly": classic_genres,
         "phonk": ["Phonk", "Trap", "Drill", "House", "R&B"],
         "trap": ["Trap", "Phonk", "Drill", "R&B", "EDM"],
         "lofi": ["Lo-Fi", "Ambient", "Jazz", "R&B", "Phonk"],
         "house": ["House", "EDM", "Techno", "Disco", "Lo-Fi"],
         "electronic": ["EDM", "House", "Techno", "Trance", "Dubstep"],
     }
+
+    if room.theme in {"classic", "weekly", "monthly"}:
+        from .models import ThemeRotation
+
+        rotation = ThemeRotation.objects.filter(key=room.theme).first()
+        if rotation and len(rotation.genres) >= 9:
+            return list(rotation.genres[:9])
     
     # Handle custom genres or get theme-specific genres
     if room.theme == "custom" and len(room.custom_genres) >= 9:
         selected = room.custom_genres
     else:
-        selected = theme_genres.get(room.theme, theme_genres["classic"])
+        selected = list(theme_genres.get(room.theme, theme_genres["classic"]))
     
     # Ensure exactly 9 genres by filling from classic if needed
     if len(selected) < 9:
-        for genre in theme_genres["classic"]:
+        for genre in classic_genres:
             if genre not in selected:
                 selected.append(genre)
             if len(selected) >= 9:

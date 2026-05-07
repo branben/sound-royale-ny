@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Gamepad2, Users, Crown, Plus, Loader2, Sparkles } from 'lucide-react';
+import { Gamepad2, Users, Crown, Plus, Loader2, Sparkles, Trophy } from 'lucide-react';
 import { roomApi, gameApi } from '@/services/api';
-import { gameSocket, GameSocketMessage } from '@/services/gameSocket';
 import { useUser } from '@/context/UserContext';
 import { RoomResponse, ThemeId } from '@/types/game';
 import { ThemeSelector } from '@/components/game/ThemeSelector';
@@ -27,7 +26,6 @@ export default function Lobby() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [roomData, setRoomData] = useState<RoomResponse | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
   const [selectedThemeId, setSelectedThemeId] = useState<ThemeId>('classic');
@@ -38,87 +36,67 @@ export default function Lobby() {
     userSession.playerName ? 'join' : 'landing'
   );
 
-  // Fetch real room data when joined
+  const applyRoomData = useCallback((data: RoomResponse) => {
+    const transformedPlayers = data.players.map((player) => ({
+      id: player.id,
+      name: player.name,
+      isHost: player.is_host ?? false,
+      isReady: player.is_ready ?? false,
+    }));
+
+    setPlayers(transformedPlayers);
+
+    const playerId = userSession.playerId || (data.players.length > 0 ? data.players[0].id : null);
+    setCurrentPlayerId(playerId);
+
+    if (playerId) {
+      const currentPlayer = transformedPlayers.find(p => p.id === playerId);
+      setIsHost(currentPlayer?.isHost ?? false);
+      setIsReady(currentPlayer?.isReady ?? false);
+    }
+  }, [userSession.playerId]);
+
+  // Fetch real room data when joined. The room page owns the shared WebSocket;
+  // this lobby polls so it cannot steal the singleton handler during navigation.
   useEffect(() => {
     if (!isJoined || !roomCode) return;
 
-    const fetchRoomData = async () => {
-      setIsLoading(true);
+    let isActive = true;
+
+    const fetchRoomData = async (showLoading: boolean) => {
+      if (showLoading) {
+        setIsLoading(true);
+      }
       setError(null);
       
       try {
         const data = await roomApi.getRoom(roomCode);
-        setRoomData(data);
-        
-        // Transform backend players to local format
-        const transformedPlayers = data.players.map((player) => ({
-          id: player.id,
-          name: player.name,
-          isHost: player.is_host,
-          isReady: player.is_ready ?? false,
-        }));
-        
-        setPlayers(transformedPlayers);
-        
-        // Set current player ID from user session or first player
-        const playerId = userSession.playerId || (data.players.length > 0 ? data.players[0].id : null);
-        setCurrentPlayerId(playerId);
-        
-        // Determine if current player is host
-        if (playerId) {
-          const currentPlayer = transformedPlayers.find(p => p.id === playerId);
-          setIsHost(currentPlayer?.isHost ?? false);
+        if (isActive) {
+          applyRoomData(data);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to join room');
-        console.error('Error joining room:', err);
-        setIsJoined(false);
+        if (isActive) {
+          setError(err instanceof Error ? err.message : 'Failed to join room');
+          console.error('Error joining room:', err);
+          setIsJoined(false);
+        }
       } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchRoomData();
-  }, [isJoined, roomCode]);
-
-  // WebSocket connection for real-time updates
-  useEffect(() => {
-    if (!isJoined || !roomCode || !currentPlayerId || !userSession.playerSecret) return;
-
-    const handleGameUpdate = (message: GameSocketMessage) => {
-      if (message.type === 'game_state_update') {
-        const gameState = message.payload as any;
-        
-        // Update players from game state (backend sends dict, use Object.values)
-        const transformedPlayers = Object.values(gameState.players || {}).map((player: any) => ({
-          id: player.id,
-          name: player.name,
-          isHost: player.is_host,
-          isReady: player.is_ready ?? false,
-        }));
-        
-        setPlayers(transformedPlayers);
-        
-        // Update current player's ready status
-        const currentPlayer = transformedPlayers.find(p => p.id === currentPlayerId);
-        if (currentPlayer) {
-          setIsReady(currentPlayer.isReady ?? false);
+        if (isActive && showLoading) {
+          setIsLoading(false);
         }
       }
     };
 
-    gameSocket.connect({
-      gameId: roomCode,
-      playerId: currentPlayerId,
-      playerSecret: userSession.playerSecret,
-      onMessage: handleGameUpdate,
-    });
+    void fetchRoomData(true);
+    const intervalId = setInterval(() => {
+      void fetchRoomData(false);
+    }, 2000);
 
     return () => {
-      // Don't disconnect - gameSocket handles singleton management
-      // Only disconnect if leaving the game entirely
+      isActive = false;
+      clearInterval(intervalId);
     };
-  }, [isJoined, roomCode, currentPlayerId, userSession.playerSecret]);
+  }, [isJoined, roomCode, applyRoomData]);
 
   const handleJoin = async () => {
     if (roomCode.length !== 4 || !playerNameInput.trim()) return;
@@ -184,9 +162,13 @@ export default function Lobby() {
     if (!currentPlayerId || !userSession.playerSecret) return;
     
     try {
-      const result = await gameApi.toggleReady(currentPlayerId, userSession.playerSecret);
+      const result = await gameApi.toggleReady(roomCode, currentPlayerId, userSession.playerSecret);
       setIsReady(result.is_ready);
-      // WebSocket will broadcast the update to all players
+      setPlayers(prevPlayers => prevPlayers.map(player =>
+        player.id === result.player_id
+          ? { ...player, isReady: result.is_ready }
+          : player
+      ));
     } catch (err) {
       console.error('Failed to toggle ready status:', err);
     }
@@ -211,6 +193,12 @@ export default function Lobby() {
           <CardDescription className="text-[#E2E8F0]/70">
             {isJoined ? 'Waiting for players...' : 'Enter a room code to join the battle'}
           </CardDescription>
+          <Link to="/leaderboard">
+            <Button variant="ghost" size="sm" className="text-[#7C3AED] hover:text-[#A78BFA] hover:bg-[#7C3AED]/10">
+              <Trophy className="mr-2 h-4 w-4" />
+              View Leaderboard
+            </Button>
+          </Link>
         </CardHeader>
 
         <CardContent className="space-y-6">

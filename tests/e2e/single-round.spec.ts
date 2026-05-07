@@ -138,7 +138,8 @@ test.describe('Single Round End-to-End', () => {
       await page.goto(`/room/${gameState.id}`);
 
       await expect(page.getByText('Round: 1')).toBeVisible();
-      await expect(page.getByText(/^\d{2}:\d{2}$/)).toBeVisible();
+      await expect(page.getByText('Time Remaining')).toBeVisible();
+      await expect(page.getByText('--:--')).toBeVisible();
     });
 
     test('lets a producer pick a tile and opens the upload drawer', async ({ page }) => {

@@ -1,11 +1,12 @@
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from django.db import transaction, IntegrityError
 from django.db.models import Prefetch
 from django.utils import timezone
+from django.conf import settings
 from itertools import groupby
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
@@ -17,7 +18,7 @@ import logging
 logger = logging.getLogger(__name__)
 audit_logger = logging.getLogger("game_audit")
 
-from .models import Room, Player, Tile, Round, Vote
+from .models import Room, Player, Tile, Round, Vote, ThemeRotation
 from .serializers import (
     RoomSerializer,
     RoomDetailSerializer,
@@ -28,8 +29,164 @@ from .serializers import (
     GameStateSerializer,
     VoteSerializer,
     RoundSerializer,
+    ThemeRotationSerializer,
+    GenrePerformanceSerializer,
 )
 from .bingo_utils import check_bingo_lines, calculate_bingo_score, check_tie_breaker, get_theme_genres
+
+
+DEFAULT_THEME_ROTATIONS = {
+    "classic": {
+        "name": "Classic",
+        "description": "theme by @1120cooks",
+        "genres": ["Phonk", "Trap", "Lo-Fi", "House", "Drill", "R&B", "EDM", "Jazz", "Ambient"],
+    },
+    "weekly": {
+        "name": "Weekly Rotation",
+        "description": "theme by @1120cooks",
+        "genres": ["Trap", "Phonk", "Drill", "R&B", "EDM", "House", "Lo-Fi", "Jazz", "Ambient"],
+    },
+    "monthly": {
+        "name": "Monthly Rotation",
+        "description": "theme by @1120cooks",
+        "genres": ["House", "EDM", "Techno", "Disco", "Lo-Fi", "R&B", "Trap", "Phonk", "Ambient"],
+    },
+}
+
+
+def build_genre_performance(player):
+    """Build FIFA-style genre performance stats for a player."""
+    player_rooms = Room.objects.filter(players=player)
+    rounds = Round.objects.filter(room__in=player_rooms)
+
+    genre_stats = {}
+    for genre_choice in Tile.Genre.choices:
+        genre = genre_choice[0]
+        genre_rounds = rounds.filter(current_tile_genre=genre)
+
+        total_rounds = genre_rounds.count()
+        if total_rounds == 0:
+            genre_stats[genre] = {
+                "genre": genre,
+                "wins": 0,
+                "total_rounds": 0,
+                "win_rate": 0.0,
+                "grade": "N/A",
+            }
+            continue
+
+        wins = genre_rounds.filter(winner=player).count()
+        win_rate = round((wins / total_rounds) * 100, 2)
+
+        if win_rate >= 80:
+            grade = "S"
+        elif win_rate >= 70:
+            grade = "A"
+        elif win_rate >= 60:
+            grade = "B"
+        elif win_rate >= 50:
+            grade = "C"
+        elif win_rate >= 40:
+            grade = "D"
+        elif win_rate >= 30:
+            grade = "E"
+        else:
+            grade = "F"
+
+        genre_stats[genre] = {
+            "genre": genre,
+            "wins": wins,
+            "total_rounds": total_rounds,
+            "win_rate": win_rate,
+            "grade": grade,
+        }
+
+    performance_data = list(genre_stats.values())
+    performance_data.sort(key=lambda x: x["genre"])
+    return performance_data
+
+
+@api_view(["GET"])
+def genre_performance_by_player_id(request, player_id):
+    """Public genre performance endpoint keyed by stable player id."""
+    player = get_object_or_404(Player, id=player_id)
+    serializer = GenrePerformanceSerializer(build_genre_performance(player), many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@api_view(["POST"])
+def set_checked_in_by_player_id(request, player_id):
+    """Admin endpoint for idempotently assigning Checked In status."""
+    configured_secret = getattr(settings, "THEME_ADMIN_SECRET", "")
+    provided_secret = request.headers.get("X-Theme-Admin-Secret", "")
+    if not configured_secret or provided_secret != configured_secret:
+        return Response(
+            {"error": "Invalid theme admin secret"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    player = get_object_or_404(Player, id=player_id)
+    player.is_checked_in = bool(request.data.get("is_checked_in", False))
+    player.save(update_fields=["is_checked_in"])
+    serializer = PlayerSerializer(player)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+def get_vote_resolution(current_round):
+    votes_for = {}
+    checked_in_votes_for = set()
+    for vote in current_round.votes.select_related("voter", "voted_for").all():
+        voted_for_id = str(vote.voted_for.id)
+        votes_for[voted_for_id] = votes_for.get(voted_for_id, 0) + 1
+        if vote.voter.is_checked_in:
+            checked_in_votes_for.add(voted_for_id)
+
+    if not votes_for:
+        return None
+
+    max_votes = max(votes_for.values())
+    winners = [pid for pid, count in votes_for.items() if count == max_votes]
+    return {
+        "votes_for": votes_for,
+        "max_votes": max_votes,
+        "winners": winners,
+        "checked_in_votes_for": checked_in_votes_for,
+    }
+
+
+def has_consecutive_round_wins(room, winner, current_round, streak_length=2):
+    resolved_rounds = list(
+        Round.objects.filter(room=room, round_number__lte=current_round.round_number)
+        .exclude(winner__isnull=True)
+        .order_by("-round_number")
+    )
+    streak = 0
+    for round_obj in resolved_rounds:
+        if round_obj.winner_id != winner.id:
+            break
+        streak += 1
+        if streak >= streak_length:
+            return True
+    return False
+
+
+def has_ranked_three_round_sweep(room, winner, current_round, is_ranked):
+    if not is_ranked or room.total_rounds != 3 or current_round.round_number != 3:
+        return False
+
+    resolved_rounds = list(
+        Round.objects.filter(room=room, round_number__lte=3)
+        .exclude(winner__isnull=True)
+        .order_by("round_number")
+    )
+    return len(resolved_rounds) == 3 and all(
+        round_obj.winner_id == winner.id for round_obj in resolved_rounds
+    )
+
+
+def ensure_theme_rotations():
+    for key, defaults in DEFAULT_THEME_ROTATIONS.items():
+        ThemeRotation.objects.get_or_create(key=key, defaults=defaults)
 
 
 def broadcast_game_update(room):
@@ -111,6 +268,32 @@ def start_timer_broadcast(room_id, duration):
     _active_timers[room_id] = thread
 
 
+class ThemeRotationViewSet(viewsets.ModelViewSet):
+    serializer_class = ThemeRotationSerializer
+    permission_classes = [AllowAny]
+    lookup_field = "key"
+    http_method_names = ["get", "put", "head", "options"]
+
+    def get_queryset(self):
+        ensure_theme_rotations()
+        return ThemeRotation.objects.filter(key__in=DEFAULT_THEME_ROTATIONS.keys()).order_by("id")
+
+    def update(self, request, *args, **kwargs):
+        configured_secret = getattr(settings, "THEME_ADMIN_SECRET", "")
+        provided_secret = request.headers.get("X-Theme-Admin-Secret", "")
+        if not configured_secret or provided_secret != configured_secret:
+            return Response(
+                {"error": "Invalid theme admin secret"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+
 class RoomViewSet(viewsets.ModelViewSet):
     """
     API endpoint for managing game rooms.
@@ -187,12 +370,6 @@ class RoomViewSet(viewsets.ModelViewSet):
         """
         room = self.get_object()
 
-        if room.status != Room.Status.LOBBY:
-            return Response(
-                {"error": "Cannot join a game that has already started"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         existing_names = set()
         try:
             with transaction.atomic():
@@ -205,15 +382,24 @@ class RoomViewSet(viewsets.ModelViewSet):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
+                is_spectator_join = data.get("is_spectator", False)
+                if room.status != Room.Status.LOBBY and not (
+                    is_spectator_join and room.status == Room.Status.PLAYING
+                ):
+                    return Response(
+                        {"error": "Only spectators can join after a game has started"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
                 spectator_count = room.players.filter(is_spectator=True).count()
-                if data.get("is_spectator", False):
+                if is_spectator_join:
                     if spectator_count >= 10:
                         return Response(
                             {"error": "Spectator limit reached (max 10)"},
                             status=status.HTTP_400_BAD_REQUEST,
                         )
 
-                if data.get("is_spectator", False):
+                if is_spectator_join:
                     existing_names = set(
                         Player.objects.filter(room=room).values_list("name", flat=True)
                     )
@@ -246,9 +432,9 @@ class RoomViewSet(viewsets.ModelViewSet):
 
                     broadcast_game_update(room)
 
-                    room_serializer = RoomDetailSerializer(room)
                     return Response(
-                        room_serializer.data, status=status.HTTP_201_CREATED
+                        PlayerCreateSerializer(player).data,
+                        status=status.HTTP_201_CREATED,
                     )
 
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -284,6 +470,48 @@ class RoomViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+    @action(detail=True, methods=["post"])
+    def toggle_ready(self, request, pk=None, code=None):
+        """
+        Toggle a player's ready status in this room.
+        """
+        room = self.get_object()
+        player_id = request.data.get("player_id")
+        player_secret = request.data.get("player_secret")
+
+        if not player_id or not player_secret:
+            return Response(
+                {"error": "player_id and player_secret are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            player = Player.objects.get(id=player_id, room=room)
+        except Player.DoesNotExist:
+            return Response(
+                {"error": "Player not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if str(player.player_secret) != str(player_secret):
+            return Response(
+                {"error": "Invalid player_secret"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        player.is_ready = not player.is_ready
+        player.save(update_fields=["is_ready"])
+
+        broadcast_game_update(room)
+
+        return Response(
+            {
+                "player_id": str(player.id),
+                "is_ready": player.is_ready,
+            },
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=True, methods=["post"])
     def start_game(self, request, pk=None, code=None):
@@ -381,6 +609,8 @@ class RoomViewSet(viewsets.ModelViewSet):
                     "id": str(player.id),
                     "name": player.name,
                     "isSpectator": player.is_spectator,
+                    "is_checked_in": player.is_checked_in,
+                    "current_title": player.current_title,
                 },
                 status=status.HTTP_200_OK,
             )
@@ -688,6 +918,119 @@ class RoomViewSet(viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED,
         )
 
+    def _resolve_ranked_round(self, room, current_round, spectator_count):
+        resolution = get_vote_resolution(current_round)
+        if not resolution:
+            return {
+                "response": Response(
+                    {"error": "No votes recorded"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            }
+
+        winners = resolution["winners"]
+        if len(winners) > 1:
+            current_round.voting_open = True
+            current_round.votes_recorded = 0
+            Vote.objects.filter(round=current_round).delete()
+            current_round.save()
+            broadcast_game_update(room)
+            return {
+                "response": Response(
+                    {"error": "Tie vote - re-voting required", "tie": True},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            }
+
+        winner_id = winners[0]
+        winner = Player.objects.get(id=winner_id)
+
+        current_round.winner = winner
+        current_round.voting_open = False
+        current_round.save(update_fields=["winner", "voting_open", "updated_at"])
+
+        producers = list(room.players.filter(is_spectator=False).order_by("joined_at"))
+        losers = [producer for producer in producers if producer.id != winner.id]
+        elo_gain = 0
+        sweeper_penalty = 0
+        awarded_jackpot = False
+        awarded_sweeper = False
+        is_ranked = spectator_count >= 3
+
+        if len(producers) >= 2:
+            base_gain = 25
+            max_votes = resolution["max_votes"]
+            vote_margin = max_votes - (spectator_count - max_votes)
+            if vote_margin == 1:
+                multiplier = 1.5
+            elif vote_margin == spectator_count:
+                multiplier = 2.0
+            else:
+                multiplier = 1.0
+
+            elo_gain = int(base_gain * multiplier)
+            if winner_id in resolution["checked_in_votes_for"]:
+                elo_gain = int(elo_gain * 1.2)
+
+            if has_consecutive_round_wins(room, winner, current_round):
+                if not winner.earned_jackpot:
+                    winner.earned_jackpot = True
+                    awarded_jackpot = True
+                elo_gain += 10
+
+            if has_ranked_three_round_sweep(room, winner, current_round, is_ranked):
+                if not winner.earned_sweeper:
+                    winner.earned_sweeper = True
+                    awarded_sweeper = True
+                sweeper_penalty = 20
+
+            winner.elo_rating += elo_gain
+            winner.elo_wins += 1
+            winner.elo_matches += 1
+
+            for loser in losers:
+                loser.elo_rating = max(100, loser.elo_rating - elo_gain - sweeper_penalty)
+                loser.elo_losses += 1
+                loser.elo_matches += 1
+
+            winner.save(
+                update_fields=[
+                    "elo_rating",
+                    "elo_wins",
+                    "elo_matches",
+                    "earned_jackpot",
+                    "earned_sweeper",
+                ]
+            )
+            for loser in losers:
+                loser.save(update_fields=["elo_rating", "elo_losses", "elo_matches"])
+
+            audit_logger.info(
+                "elo_updated",
+                extra={
+                    "room_code": room.code,
+                    "round_number": current_round.round_number,
+                    "winner_id": str(winner.id),
+                    "winner_name": winner.name,
+                    "winner_new_rating": winner.elo_rating,
+                    "elo_gained": elo_gain,
+                    "sweeper_penalty": sweeper_penalty,
+                    "loser_ids": [str(loser.id) for loser in losers],
+                    "awarded_jackpot": awarded_jackpot,
+                    "awarded_sweeper": awarded_sweeper,
+                    "timestamp": timezone.now().isoformat(),
+                    "action": "elo_update",
+                    "outcome": "success",
+                },
+            )
+
+        return {
+            "response": None,
+            "winner": winner,
+            "elo_gain": elo_gain,
+            "sweeper_penalty": sweeper_penalty,
+        }
+
     @action(detail=True, methods=["post"])
     def next_turn(self, request, pk=None, code=None):
         """
@@ -725,6 +1068,7 @@ class RoomViewSet(viewsets.ModelViewSet):
 
         spectator_count = room.players.filter(is_spectator=True).count()
         is_ranked = spectator_count >= 3
+        resolution_result = None
 
         if is_ranked and current_round.voting_open:
             if current_round.votes_recorded < spectator_count:
@@ -733,83 +1077,11 @@ class RoomViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            votes_for = {}
-            for vote in current_round.votes.select_related("voted_for").all():
-                voted_for_id = str(vote.voted_for.id)
-                votes_for[voted_for_id] = votes_for.get(voted_for_id, 0) + 1
-
-            if not votes_for:
-                return Response(
-                    {"error": "No votes recorded"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            max_votes = max(votes_for.values())
-            winners = [pid for pid, count in votes_for.items() if count == max_votes]
-
-            if len(winners) > 1:
-                current_round.voting_open = True
-                current_round.votes_recorded = 0
-                Vote.objects.filter(round=current_round).delete()
-                current_round.save()
-                broadcast_game_update(room)
-                return Response(
-                    {"error": "Tie vote - re-voting required", "tie": True},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            winner_id = winners[0]
-            winner = Player.objects.get(id=winner_id)
-
-            current_round.winner = winner
-            current_round.voting_open = False
-            current_round.save()
-
-            producer_count = room.players.filter(is_spectator=False).count()
-            if producer_count >= 2:
-                base_gain = 25
-                vote_margin = max_votes - (spectator_count - max_votes)
-                if vote_margin == 1:
-                    multiplier = 1.5
-                elif vote_margin == spectator_count:
-                    multiplier = 2.0
-                else:
-                    multiplier = 1.0
-
-                elo_gain = int(base_gain * multiplier)
-                winner.elo_rating += elo_gain
-                winner.elo_wins += 1
-                winner.elo_matches += 1
-                loser = (
-                    room.players.filter(is_spectator=False)
-                    .exclude(id=winner_id)
-                    .first()
-                )
-                if loser:
-                    loser.elo_rating = max(100, loser.elo_rating - elo_gain)
-                    loser.elo_losses += 1
-                    loser.elo_matches += 1
-                winner.save()
-                if loser:
-                    loser.save()
-
-                audit_logger.info(
-                    "elo_updated",
-                    extra={
-                        "room_code": room.code,
-                        "round_number": current_round.round_number,
-                        "winner_id": str(winner.id),
-                        "winner_name": winner.name,
-                        "winner_new_rating": winner.elo_rating,
-                        "elo_gained": elo_gain,
-                        "loser_id": str(loser.id) if loser else None,
-                        "loser_name": loser.name if loser else None,
-                        "loser_new_rating": loser.elo_rating if loser else None,
-                        "timestamp": timezone.now().isoformat(),
-                        "action": "elo_update",
-                        "outcome": "success",
-                    },
-                )
+            resolution_result = self._resolve_ranked_round(
+                room, current_round, spectator_count
+            )
+            if resolution_result["response"] is not None:
+                return resolution_result["response"]
 
         producers = room.players.filter(is_spectator=False)
         if producers.count() < 2:
@@ -830,8 +1102,7 @@ class RoomViewSet(viewsets.ModelViewSet):
         next_genre = random.choice(available_genres)
         next_round_number = room.current_round + 1
         
-        # Check if game should end based on total_rounds (only enforce if explicitly set to meaningful value)
-        if room.total_rounds and room.total_rounds > 5 and next_round_number > room.total_rounds:
+        if room.total_rounds and next_round_number > room.total_rounds:
             room.status = Room.Status.FINISHED
             room.save(update_fields=["status"])
             broadcast_game_update(room)
@@ -841,6 +1112,8 @@ class RoomViewSet(viewsets.ModelViewSet):
                     "reason": "All rounds completed",
                     "final_round": room.current_round,
                     "total_rounds": room.total_rounds,
+                    "winner": resolution_result["winner"].name if resolution_result else None,
+                    "elo_gained": resolution_result["elo_gain"] if resolution_result else 0,
                 },
                 status=status.HTTP_200_OK,
             )
@@ -952,62 +1225,11 @@ class RoomViewSet(viewsets.ModelViewSet):
         Automatically advance to next turn when all spectators have voted.
         Determines winner and advances the round.
         """
-        votes_for = {}
-        for vote in current_round.votes.select_related("voted_for").all():
-            voted_for_id = str(vote.voted_for.id)
-            votes_for[voted_for_id] = votes_for.get(voted_for_id, 0) + 1
-
-        if not votes_for:
-            return Response(
-                {"error": "No votes recorded"}, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        max_votes = max(votes_for.values())
-        winners = [pid for pid, count in votes_for.items() if count == max_votes]
-
-        if len(winners) > 1:
-            current_round.voting_open = True
-            current_round.votes_recorded = 0
-            Vote.objects.filter(round=current_round).delete()
-            current_round.save()
-            broadcast_game_update(room)
-            return Response(
-                {"error": "Tie vote - re-voting required", "tie": True},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        winner_id = winners[0]
-        winner = Player.objects.get(id=winner_id)
-
-        current_round.winner = winner
-        current_round.voting_open = False
-        current_round.save()
-
-        producer_count = room.players.filter(is_spectator=False).count()
-        if producer_count >= 2:
-            base_gain = 25
-            vote_margin = max_votes - (spectator_count - max_votes)
-            if vote_margin == 1:
-                multiplier = 1.5
-            elif vote_margin == spectator_count:
-                multiplier = 2.0
-            else:
-                multiplier = 1.0
-
-            elo_gain = int(base_gain * multiplier)
-            winner.elo_rating += elo_gain
-            winner.elo_wins += 1
-            winner.elo_matches += 1
-            loser = (
-                room.players.filter(is_spectator=False).exclude(id=winner_id).first()
-            )
-            if loser:
-                loser.elo_rating = max(100, loser.elo_rating - elo_gain)
-                loser.elo_losses += 1
-                loser.elo_matches += 1
-            winner.save()
-            if loser:
-                loser.save()
+        resolution_result = self._resolve_ranked_round(
+            room, current_round, spectator_count
+        )
+        if resolution_result["response"] is not None:
+            return resolution_result["response"]
 
         used_genres = set(
             Round.objects.filter(room=room).values_list("current_tile_genre", flat=True)
@@ -1021,8 +1243,7 @@ class RoomViewSet(viewsets.ModelViewSet):
         next_genre = random.choice(available_genres)
         next_round_number = room.current_round + 1
         
-        # Check if game should end based on total_rounds (only enforce if explicitly set to meaningful value)
-        if room.total_rounds and room.total_rounds > 5 and next_round_number > room.total_rounds:
+        if room.total_rounds and next_round_number > room.total_rounds:
             room.status = Room.Status.FINISHED
             room.save(update_fields=["status"])
             broadcast_game_update(room)
@@ -1032,6 +1253,8 @@ class RoomViewSet(viewsets.ModelViewSet):
                     "reason": "All rounds completed",
                     "final_round": room.current_round,
                     "total_rounds": room.total_rounds,
+                    "winner": resolution_result["winner"].name,
+                    "elo_gained": resolution_result["elo_gain"],
                 },
                 status=status.HTTP_200_OK,
             )
@@ -1058,8 +1281,8 @@ class RoomViewSet(viewsets.ModelViewSet):
             {
                 "status": "Advanced to next round",
                 "new_round": RoundSerializer(new_round).data,
-                "winner": winner.name,
-                "elo_gained": elo_gain if producer_count >= 2 else 0,
+                "winner": resolution_result["winner"].name,
+                "elo_gained": resolution_result["elo_gain"],
             },
             status=status.HTTP_200_OK,
         )
@@ -1183,6 +1406,16 @@ class PlayerViewSet(viewsets.ModelViewSet):
         else:
             raise serializers.ValidationError("room_id is required")
 
+    @action(detail=True, methods=["get"])
+    def genre_performance(self, request, pk=None):
+        """
+        Get genre performance stats for a player with FIFA-style grades.
+        Computes win rate per genre based on historical round data.
+        """
+        player = self.get_object()
+        serializer = GenrePerformanceSerializer(build_genre_performance(player), many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
     @action(detail=True, methods=["post"])
     def leave_game(self, request, pk=None, code=None):
         """
@@ -1229,7 +1462,7 @@ class TileViewSet(viewsets.ModelViewSet):
                 {"error": "Game is not in progress"}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        if tile.is_revealed:
+        if tile.status != Tile.Status.EMPTY:
             return Response(
                 {"error": "Tile has already been played"},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -1242,6 +1475,32 @@ class TileViewSet(viewsets.ModelViewSet):
             return Response(
                 {"error": "Invalid player"}, status=status.HTTP_400_BAD_REQUEST
             )
+
+        if tile.player_id != player.id:
+            return Response(
+                {"error": "This tile does not belong to the player"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        current_round = Round.objects.filter(
+            room=room,
+            round_number=room.current_round,
+        ).first()
+        if current_round:
+            def normalize_genre(value):
+                normalized = "".join(
+                    char for char in str(value).lower() if char.isalnum()
+                )
+                return "rb" if normalized == "rnb" else normalized
+
+            if normalize_genre(tile.genre) != normalize_genre(current_round.current_tile_genre):
+                return Response(
+                    {
+                        "error": f"This round is for {current_round.current_tile_genre}",
+                        "current_tile_genre": current_round.current_tile_genre,
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         with transaction.atomic():
             # Update tile
@@ -1258,7 +1517,7 @@ class TileViewSet(viewsets.ModelViewSet):
                 is_spectator=False
             ).prefetch_related(
                 Prefetch(
-                    "tile_set",
+                    "tiles",
                     queryset=Tile.objects.filter(status=Tile.Status.COMPLETE),
                     to_attr="completed_tiles",
                 )
@@ -1287,6 +1546,9 @@ class TileViewSet(viewsets.ModelViewSet):
                     player_scores = []
 
                     for other_player in all_players_with_tiles:
+                        if other_player.id == player.id:
+                            continue
+
                         other_completed_tiles = other_player.completed_tiles
 
                         if other_completed_tiles:

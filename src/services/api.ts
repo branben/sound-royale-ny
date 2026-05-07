@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Player, Tile, RoomResponse, CreateRoomResponse } from '@/types/game';
+import { Player, Tile, RoomResponse, CreateRoomResponse, ThemeRotation, GenrePerformance } from '@/types/game';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
@@ -10,6 +10,37 @@ const api = axios.create({
   },
   withCredentials: false,
 });
+
+interface PlayerResponse {
+  id: string;
+  name?: string;
+  player_name?: string;
+  avatar?: string;
+  board?: Player['board'];
+  tiles?: Tile[];
+  player_secret?: string;
+  is_connected?: boolean;
+  isConnected?: boolean;
+  is_spectator?: boolean;
+  isSpectator?: boolean;
+  is_host?: boolean;
+  isHost?: boolean;
+  is_ready?: boolean;
+  isReady?: boolean;
+  elo_rating?: number;
+  eloRating?: number;
+  elo_wins?: number;
+  eloWins?: number;
+  elo_losses?: number;
+  eloLosses?: number;
+  elo_matches?: number;
+  eloMatches?: number;
+  is_checked_in?: boolean;
+  isCheckedIn?: boolean;
+  current_title?: Player['currentTitle'];
+  currentTitle?: Player['currentTitle'];
+  scoreInfo?: Player['scoreInfo'];
+}
 
 export const roomApi = {
   getRooms: async (): Promise<RoomResponse[]> => {
@@ -29,6 +60,24 @@ export const roomApi = {
       total_rounds: totalRounds,
       theme: theme,
       custom_genres: customGenres,
+    });
+    return response.data;
+  },
+
+  getThemeRotations: async (): Promise<ThemeRotation[]> => {
+    const response = await api.get('/theme-rotations/');
+    return response.data;
+  },
+
+  updateThemeRotation: async (
+    key: ThemeRotation['key'],
+    rotation: Pick<ThemeRotation, 'name' | 'description' | 'genres'>,
+    adminSecret: string
+  ): Promise<ThemeRotation> => {
+    const response = await api.put(`/theme-rotations/${key}/`, rotation, {
+      headers: {
+        'X-Theme-Admin-Secret': adminSecret,
+      },
     });
     return response.data;
   },
@@ -64,7 +113,10 @@ export const gameApi = {
       const response = await api.post(`/rooms/${roomId}/rejoin_game/`, {
         player_secret: playerSecret,
       });
-      return transformPlayer(response.data);
+      return {
+        ...transformPlayer(response.data),
+        playerSecret,
+      };
     } catch {
       return null;
     }
@@ -75,9 +127,10 @@ export const gameApi = {
     return response.data;
   },
 
-  submitTile: async (tileId: string, audioFile: File): Promise<any> => {
+  submitTile: async (tileId: string, audioFile: File, playerId: string): Promise<any> => {
     const formData = new FormData();
     formData.append('audio_file', audioFile);
+    formData.append('player_id', playerId);
 
     const response = await api.post(`/tiles/${tileId}/play_tile/`, formData, {
       headers: {
@@ -124,31 +177,65 @@ export const gameApi = {
     return response.data;
   },
 
-  toggleReady: async (playerId: string, playerSecret: string): Promise<{ player_id: string; is_ready: boolean }> => {
-    const response = await api.post(`/players/${playerId}/toggle_ready/`, {
+  toggleReady: async (roomId: string, playerId: string, playerSecret: string): Promise<{ player_id: string; is_ready: boolean }> => {
+    const response = await api.post(`/rooms/${roomId}/toggle_ready/`, {
+      player_id: playerId,
       player_secret: playerSecret,
     });
     return response.data;
   },
+
+  getGenrePerformance: async (playerId: string): Promise<GenrePerformance[]> => {
+    const response = await api.get(`/players/by-id/${playerId}/genre_performance/`);
+    return response.data;
+  },
+
+  getAllPlayers: async (): Promise<Player[]> => {
+    const response = await api.get('/players/');
+    return response.data.map((p: PlayerResponse) => transformPlayer(p));
+  },
+
+  setCheckedIn: async (playerId: string, isCheckedIn: boolean, adminSecret: string): Promise<Player> => {
+    const response = await api.post(`/players/by-id/${playerId}/set_checked_in/`, {
+      is_checked_in: isCheckedIn,
+    }, {
+      headers: {
+        'X-Theme-Admin-Secret': adminSecret,
+      },
+    });
+    return transformPlayer(response.data);
+  },
 };
 
-function transformPlayer(backendPlayer: RoomResponse['players'][0]): Player {
+function transformPlayer(backendPlayer: PlayerResponse): Player {
   return {
     id: backendPlayer.id,
-    name: backendPlayer.name,
+    name: backendPlayer.name ?? backendPlayer.player_name ?? '',
     avatar: backendPlayer.avatar,
-    board: {
-      tiles: backendPlayer.tiles || []
+    board: backendPlayer.board ?? {
+      tiles: backendPlayer.tiles || [],
     },
     playerSecret: backendPlayer.player_secret,
-    isConnected: backendPlayer.is_connected,
-    isSpectator: backendPlayer.is_spectator,
-    isHost: backendPlayer.is_host,
-    eloRating: backendPlayer.elo_rating,
-    eloWins: backendPlayer.elo_wins,
-    eloLosses: backendPlayer.elo_losses,
-    eloMatches: backendPlayer.elo_matches,
+    isConnected: backendPlayer.is_connected ?? backendPlayer.isConnected,
+    isSpectator: backendPlayer.is_spectator ?? backendPlayer.isSpectator,
+    isHost: backendPlayer.is_host ?? backendPlayer.isHost,
+    isReady: backendPlayer.is_ready ?? backendPlayer.isReady,
+    eloRating: backendPlayer.elo_rating ?? backendPlayer.eloRating,
+    eloWins: backendPlayer.elo_wins ?? backendPlayer.eloWins,
+    eloLosses: backendPlayer.elo_losses ?? backendPlayer.eloLosses,
+    eloMatches: backendPlayer.elo_matches ?? backendPlayer.eloMatches,
+    isCheckedIn: backendPlayer.is_checked_in ?? backendPlayer.isCheckedIn,
+    currentTitle: backendPlayer.current_title ?? backendPlayer.currentTitle,
+    scoreInfo: backendPlayer.scoreInfo,
   };
+}
+
+export function normalizeRoomWinner(winner: RoomResponse['winner']): string | undefined {
+  if (!winner) {
+    return undefined;
+  }
+
+  return typeof winner === 'string' ? winner : winner.id;
 }
 
 export default api;

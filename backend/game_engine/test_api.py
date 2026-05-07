@@ -1,5 +1,5 @@
 import uuid
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -7,7 +7,7 @@ from rest_framework.test import APIRequestFactory
 from unittest.mock import patch, MagicMock
 from django.db import transaction
 from django.utils import timezone
-from .models import Room, Player, Tile, Round, Vote
+from .models import Room, Player, Tile, Round, Vote, ThemeRotation
 from .views import RoomViewSet
 
 
@@ -155,8 +155,8 @@ class RoomAPITestCase(TestCase):
         # Check that no tiles were created for the spectator
         self.assertEqual(Tile.objects.filter(player=new_spectator).count(), 0)
 
-    def test_join_game_already_started(self):
-        """Test joining a game that has already started"""
+    def test_join_producer_after_game_started_is_blocked(self):
+        """Test joining a game as producer after start is blocked"""
         self.room.status = Room.Status.PLAYING
         self.room.save()
         
@@ -168,7 +168,145 @@ class RoomAPITestCase(TestCase):
         response = self.client.post(url, data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('Cannot join a game that has already started', response.data['error'])
+        self.assertIn('Only spectators can join after a game has started', response.data['error'])
+
+    def test_join_spectator_after_game_started_is_allowed(self):
+        """Test joining a game as spectator after start is allowed"""
+        self.room.status = Room.Status.PLAYING
+        self.room.save()
+
+        data = {
+            'player_name': 'LateSpectator',
+            'is_spectator': True
+        }
+        url = reverse('room-join-game', kwargs={'code': '1234'})
+        response = self.client.post(url, data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        new_spectator = Player.objects.filter(is_spectator=True).last()
+        self.assertTrue(new_spectator.is_spectator)
+        self.assertEqual(new_spectator.room, self.room)
+        self.assertEqual(Tile.objects.filter(player=new_spectator).count(), 0)
+
+    def test_theme_rotation_defaults_are_available(self):
+        """Test editable theme rotations are seeded and exposed"""
+        ThemeRotation.objects.all().delete()
+
+        url = reverse('theme-rotation-list')
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        keys = {rotation['key'] for rotation in response.data}
+        self.assertEqual(keys, {'classic', 'weekly', 'monthly'})
+        for rotation in response.data:
+            self.assertEqual(rotation['description'], 'theme by @1120cooks')
+            self.assertEqual(len(rotation['genres']), 9)
+
+    def test_new_room_uses_weekly_rotation_genres(self):
+        """Test new rooms copy the selected rotation into generated boards"""
+        ThemeRotation.objects.update_or_create(
+            key='weekly',
+            defaults={
+                'name': 'Weekly Rotation',
+                'description': 'theme by @1120cooks',
+                'genres': [
+                    'Bounce', 'Jersey', 'Club', 'Garage', 'Amapiano',
+                    'Hyperpop', 'Grime', 'Afrobeats', 'Footwork'
+                ],
+            },
+        )
+
+        data = {
+            'name': 'Weekly Room',
+            'player_name': 'WeeklyHost',
+            'theme': 'weekly',
+        }
+        response = self.client.post(reverse('room-list'), data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        player = Player.objects.get(name='WeeklyHost')
+        genres = set(Tile.objects.filter(player=player).values_list('genre', flat=True))
+        self.assertEqual(genres, {
+            'Bounce', 'Jersey', 'Club', 'Garage', 'Amapiano',
+            'Hyperpop', 'Grime', 'Afrobeats', 'Footwork'
+        })
+
+    @override_settings(THEME_ADMIN_SECRET='admin-pin')
+    def test_theme_rotation_update_requires_admin_secret(self):
+        """Test rotation updates reject missing or wrong admin secrets"""
+        ThemeRotation.objects.update_or_create(
+            key='weekly',
+            defaults={
+                'name': 'Weekly Rotation',
+                'description': 'theme by @1120cooks',
+                'genres': ['Trap', 'Phonk', 'Drill', 'R&B', 'EDM', 'House', 'Lo-Fi', 'Jazz', 'Ambient'],
+            },
+        )
+        url = reverse('theme-rotation-detail', kwargs={'key': 'weekly'})
+        payload = {
+            'name': 'Weekly Rotation',
+            'description': 'theme by @1120cooks',
+            'genres': ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'],
+        }
+
+        response = self.client.put(url, payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @override_settings(THEME_ADMIN_SECRET='admin-pin')
+    def test_theme_rotation_update_success(self):
+        """Test rotation updates with the admin secret"""
+        ThemeRotation.objects.update_or_create(
+            key='monthly',
+            defaults={
+                'name': 'Monthly Rotation',
+                'description': 'theme by @1120cooks',
+                'genres': ['House', 'EDM', 'Techno', 'Disco', 'Lo-Fi', 'R&B', 'Trap', 'Phonk', 'Ambient'],
+            },
+        )
+        url = reverse('theme-rotation-detail', kwargs={'key': 'monthly'})
+        payload = {
+            'name': 'Monthly Rotation',
+            'description': 'theme by @1120cooks',
+            'genres': ['Soul', 'Funk', 'Breaks', 'Dub', 'Garage', 'House', 'Techno', 'Jazz', 'Disco'],
+        }
+
+        response = self.client.put(
+            url,
+            payload,
+            format='json',
+            HTTP_X_THEME_ADMIN_SECRET='admin-pin',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['genres'], payload['genres'])
+
+    @override_settings(THEME_ADMIN_SECRET='admin-pin')
+    def test_theme_rotation_rejects_invalid_genres(self):
+        """Test rotation updates require exactly 9 non-empty unique genres"""
+        ThemeRotation.objects.update_or_create(
+            key='classic',
+            defaults={
+                'name': 'Classic',
+                'description': 'theme by @1120cooks',
+                'genres': ['Phonk', 'Trap', 'Lo-Fi', 'House', 'Drill', 'R&B', 'EDM', 'Jazz', 'Ambient'],
+            },
+        )
+        url = reverse('theme-rotation-detail', kwargs={'key': 'classic'})
+        payload = {
+            'name': 'Classic',
+            'description': 'theme by @1120cooks',
+            'genres': ['Trap', 'Trap', 'House'],
+        }
+
+        response = self.client.put(
+            url,
+            payload,
+            format='json',
+            HTTP_X_THEME_ADMIN_SECRET='admin-pin',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_join_game_duplicate_name(self):
         """Test joining a game with a duplicate name"""

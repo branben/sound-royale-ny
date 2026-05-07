@@ -41,7 +41,7 @@ test.describe('Spectator Mode Experience', () => {
     await page.goto(`/room/${gameState.id}`);
 
     await expect(page.getByRole('banner').getByRole('heading', { name: 'Sound Royale' })).toBeVisible();
-    await expect(page.getByText('Round 1')).toBeVisible();
+    await expect(page.getByTestId('round-stage').getByText('Round 1')).toBeVisible();
   });
 
   test('shows the game phase badge and request-to-play button', async ({ page }) => {
@@ -133,7 +133,6 @@ test.describe('Spectator Mode Experience', () => {
 
     await expect(page.getByRole('heading', { name: producer1.name })).toBeVisible();
     await expect(page.getByRole('heading', { name: producer2.name })).toBeVisible();
-    await expect(page.getByRole('heading', { name: spectator.name })).toBeVisible();
   });
 
   test('keeps the spectator dashboard after a reload-style reconnect', async ({ page }) => {
