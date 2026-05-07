@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { enableE2EMode, setupPlayerSession, mockWebSocketConnection, createMockGameStateUpdate, createMockPlayerJoined, createMockGameStarted, createMockGameFinished } from './helpers';
+import { enableE2EMode, mockApiRoutes, setupPlayerSession, mockWebSocketConnection, createMockGameStateUpdate, createMockPlayerJoined, createMockGameStarted, createMockGameFinished } from './helpers';
 import { createMockPlayingStateWithoutGenre, createMockProducer, toRoomResponse } from './utils/game-fixtures';
 
 const API_BASE_URL = 'http://localhost:8000/api';
@@ -35,19 +35,22 @@ test.describe('WebSocket Real-time Updates', () => {
   test.beforeEach(async ({ page }) => {
     await enableE2EMode(page);
     await mockWebSocketConnection(page);
-    await setupPlayerSession(page, { playerName: 'TestPlayer', playerId: 'player1', playerSecret: 'test-secret' });
-
     // Create proper game state using fixtures
     const producer = createMockProducer('TestPlayer');
     const gameState = createMockPlayingStateWithoutGenre({ [producer.id]: producer });
 
-    await page.route('**/api/**', async (route) => {
-      const url = route.request().url();
-      if (url.includes('/rooms/')) {
-        await route.fulfill({ json: toRoomResponse(gameState) });
-      } else {
-        await route.continue();
-      }
+    await setupPlayerSession(page, {
+      playerName: producer.name,
+      playerId: producer.id,
+      playerSecret: 'test-secret',
+    });
+
+    await mockApiRoutes(page, {
+      roomResponse: toRoomResponse(gameState),
+      rejoin: {
+        player: producer,
+        playerSecret: 'test-secret',
+      },
     });
   });
 
@@ -188,7 +191,7 @@ test.describe('WebSocket Real-time Updates', () => {
   test('should show live indicator for active game', async ({ page }) => {
     await page.goto('/room/test-room');
 
-    const liveIndicator = page.locator('text=LIVE');
+    const liveIndicator = page.getByText('Live', { exact: true }).first();
     await expect(liveIndicator).toBeVisible({ timeout: 5000 });
   });
 });

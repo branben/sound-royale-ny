@@ -54,5 +54,7 @@ daemon/
 test-results/
 dist/
 playwright-report/
+backend/media/
+output/
 .serena/
 .DS_Store

@@ -270,10 +270,14 @@ interface MockPlayerLike {
   isSpectator?: boolean;
   isConnected?: boolean;
   isHost?: boolean;
+  isReady?: boolean;
   eloRating?: number;
   eloWins?: number;
   eloLosses?: number;
   eloMatches?: number;
+  isCheckedIn?: boolean;
+  currentTitle?: 'NONE' | 'JACKPOT' | 'SWEEPER' | 'CHECKED_IN';
+  scoreInfo?: unknown;
 }
 
 interface MockRouteResponse {
@@ -285,8 +289,16 @@ type MockRouteHandler =
   | MockRouteResponse
   | ((route: Route) => Promise<void>);
 
+type MockGenrePerformance = Array<{
+  genre: string;
+  wins: number;
+  total_rounds: number;
+  win_rate: number;
+  grade: 'S' | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'N/A';
+}>;
+
 interface MockApiRoutesOptions {
-  roomResponse: Record<string, unknown>;
+  roomResponse: Record<string, unknown> | MockRouteHandler;
   rejoin?: {
     player: MockPlayerLike;
     playerSecret: string;
@@ -295,9 +307,14 @@ interface MockApiRoutesOptions {
   startGame?: MockRouteHandler;
   kickPlayer?: MockRouteHandler;
   vote?: MockRouteHandler;
+  toggleReady?: MockRouteHandler;
+  submitTile?: MockRouteHandler;
+  players?: MockPlayerLike[] | MockRouteHandler;
+  genrePerformance?: Record<string, MockGenrePerformance> | MockRouteHandler;
+  setCheckedIn?: MockRouteHandler;
 }
 
-function toTileResponse(tile: any): Record<string, unknown> {
+function toTileResponse(tile: NonNullable<MockPlayerLike['board']>['tiles'][number]): Record<string, unknown> {
   return {
     id: tile.id,
     genre: tile.genre,
@@ -320,10 +337,34 @@ export function toRejoinResponse(
     is_connected: player.isConnected ?? true,
     is_spectator: player.isSpectator ?? false,
     is_host: player.isHost ?? false,
+    is_ready: player.isReady ?? false,
     elo_rating: player.eloRating,
     elo_wins: player.eloWins,
     elo_losses: player.eloLosses,
     elo_matches: player.eloMatches,
+    is_checked_in: player.isCheckedIn,
+    current_title: player.currentTitle,
+    scoreInfo: player.scoreInfo,
+  };
+}
+
+function toPlayerListResponse(player: MockPlayerLike): Record<string, unknown> {
+  return {
+    id: player.id,
+    name: player.name,
+    avatar: player.avatar,
+    tiles: player.board?.tiles?.map(toTileResponse) ?? [],
+    is_connected: player.isConnected ?? true,
+    is_spectator: player.isSpectator ?? false,
+    is_host: player.isHost ?? false,
+    is_ready: player.isReady ?? false,
+    elo_rating: player.eloRating,
+    elo_wins: player.eloWins,
+    elo_losses: player.eloLosses,
+    elo_matches: player.eloMatches,
+    is_checked_in: player.isCheckedIn,
+    current_title: player.currentTitle,
+    scoreInfo: player.scoreInfo,
   };
 }
 
@@ -362,11 +403,6 @@ export async function mockApiRoutes(
       return;
     }
 
-    if (url.includes('/rooms/')) {
-      await route.fulfill({ json: options.roomResponse });
-      return;
-    }
-
     if (url.includes('/join_game/')) {
       if (options.joinGame) {
         await fulfillRoute(route, options.joinGame);
@@ -393,6 +429,69 @@ export async function mockApiRoutes(
         await fulfillRoute(route, options.vote);
         return;
       }
+    }
+
+    if (url.includes('/toggle_ready/')) {
+      if (options.toggleReady) {
+        await fulfillRoute(route, options.toggleReady);
+        return;
+      }
+    }
+
+    if (url.includes('/play_tile/')) {
+      if (options.submitTile) {
+        await fulfillRoute(route, options.submitTile);
+        return;
+      }
+    }
+
+    if (url.includes('/players/by-id/') && url.includes('/genre_performance/')) {
+      if (options.genrePerformance) {
+        if (typeof options.genrePerformance === 'function' || 'json' in options.genrePerformance) {
+          await fulfillRoute(route, options.genrePerformance);
+        } else {
+          const playerId = url.match(/\/players\/by-id\/([^/]+)\/genre_performance\//)?.[1] ?? '';
+          await route.fulfill({ json: options.genrePerformance[playerId] ?? [] });
+        }
+        return;
+      }
+    }
+
+    if (url.includes('/players/by-id/') && url.includes('/set_checked_in/')) {
+      if (options.setCheckedIn) {
+        await fulfillRoute(route, options.setCheckedIn);
+        return;
+      }
+    }
+
+    if (url.includes('/players/') && url.includes('/genre_performance/')) {
+      if (options.genrePerformance) {
+        await route.fulfill({
+          status: 404,
+          json: { error: 'Genre performance must be fetched by public player id route' },
+        });
+        return;
+      }
+    }
+
+    if (url.endsWith('/api/players/') || url.includes('/api/players/?')) {
+      if (options.players) {
+        if (typeof options.players === 'function' || 'json' in options.players) {
+          await fulfillRoute(route, options.players);
+        } else {
+          await route.fulfill({ json: options.players.map(toPlayerListResponse) });
+        }
+        return;
+      }
+    }
+
+    if (url.includes('/rooms/')) {
+      if (typeof options.roomResponse === 'function' || 'json' in options.roomResponse) {
+        await fulfillRoute(route, options.roomResponse);
+      } else {
+        await route.fulfill({ json: options.roomResponse });
+      }
+      return;
     }
 
     // Default: continue with original request

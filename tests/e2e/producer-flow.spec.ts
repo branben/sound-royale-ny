@@ -55,7 +55,6 @@ test.describe('Producer Flow', () => {
 
     await page.goto(`/room/${gameState.id}`);
 
-    await expect(page.getByRole('heading', { name: 'Your Board' })).toBeVisible();
     await expect(page.getByTestId('game-board')).toBeVisible();
     await expect(page.getByTestId(`player-name-${producer.name}`)).toBeVisible();
   });
@@ -122,6 +121,51 @@ test.describe('Producer Flow', () => {
     await expect(page.getByRole('button', { name: 'Upload Track' })).toBeVisible();
   });
 
+  test('uploads audio with player identity and keeps the board visible', async ({ page }) => {
+    const producer = createMockProducer('UploadProducer');
+    const gameState = createMockPlayingStateWithoutGenre({ [producer.id]: producer });
+    let multipartBody = '';
+
+    await mockApiRoutes(page, {
+      roomResponse: toRoomResponse(gameState),
+      rejoin: {
+        player: producer,
+        playerSecret: 'upload-secret',
+      },
+      submitTile: async (route) => {
+        multipartBody = route.request().postData() ?? '';
+        await route.fulfill({
+          status: 200,
+          json: { status: 'ok' },
+        });
+      },
+    });
+
+    await setupPlayerSession(page, {
+      playerName: producer.name,
+      playerId: producer.id,
+      playerSecret: 'upload-secret',
+    });
+
+    await page.goto(`/room/${gameState.id}`);
+    await expect(page.getByTestId('game-board')).toBeVisible();
+
+    await page.getByTestId('bingo-tile').first().click();
+    await expect(page.getByText(/Upload Audio for/i)).toBeVisible();
+
+    await page.locator('input[type="file"]').setInputFiles({
+      name: 'producer-track.mp3',
+      mimeType: 'audio/mpeg',
+      buffer: Buffer.from('fake-audio'),
+    });
+    await page.getByRole('button', { name: 'Upload Track' }).click();
+
+    expect(multipartBody).toContain('name="audio_file"');
+    expect(multipartBody).toContain('name="player_id"');
+    expect(multipartBody).toContain(producer.id);
+    await expect(page.getByTestId('game-board')).toBeVisible();
+  });
+
   test('routes spectators to the spectator dashboard instead of the producer board', async ({ page }) => {
     const producer = createMockProducer('Producer');
     const spectator = createMockSpectator('Spectator');
@@ -147,7 +191,7 @@ test.describe('Producer Flow', () => {
     await page.goto(`/room/${gameState.id}`);
 
     await expect(page.getByTestId('request-to-play')).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Your Board' })).not.toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your Status' })).not.toBeVisible();
   });
 
   test('shows start battle controls to the joined host in the lobby', async ({ page }) => {
@@ -217,8 +261,11 @@ test.describe('Producer Flow', () => {
       winner.id
     );
 
+    const roomResponse = toRoomResponse(gameState);
+    roomResponse.winner = { id: winner.id, name: winner.name };
+
     await mockApiRoutes(page, {
-      roomResponse: toRoomResponse(gameState),
+      roomResponse,
       rejoin: {
         player: winner,
         playerSecret: 'winner-secret',
@@ -237,5 +284,7 @@ test.describe('Producer Flow', () => {
     await expect(
       page.getByTestId('winner-announcement').getByText(new RegExp(`^${winner.name}$`))
     ).toBeVisible();
+    await expect(page.getByTestId('score-display').first()).toBeVisible();
+    await expect(page.getByText('No score yet')).not.toBeVisible();
   });
 });

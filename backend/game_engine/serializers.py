@@ -1,6 +1,6 @@
 from django.db import IntegrityError
 from rest_framework import serializers
-from .models import Room, Player, Tile, Round, Vote
+from .models import Room, Player, Tile, Round, Vote, ThemeRotation
 
 
 class TileSerializer(serializers.ModelSerializer):
@@ -170,6 +170,8 @@ class PlayerSerializer(serializers.ModelSerializer):
 
     # Nested tiles serializer to include board data
     tiles = TileSerializer(many=True, read_only=True)
+    scoreInfo = serializers.SerializerMethodField()
+    current_title = serializers.CharField(read_only=True)
 
     class Meta:
         model = Player
@@ -188,6 +190,11 @@ class PlayerSerializer(serializers.ModelSerializer):
             "elo_wins",
             "elo_losses",
             "elo_matches",
+            "is_checked_in",
+            "earned_jackpot",
+            "earned_sweeper",
+            "current_title",
+            "scoreInfo",
         ]
         read_only_fields = [
             "id",
@@ -197,7 +204,26 @@ class PlayerSerializer(serializers.ModelSerializer):
             "elo_wins",
             "elo_losses",
             "elo_matches",
+            "earned_jackpot",
+            "earned_sweeper",
+            "current_title",
         ]
+
+    def get_scoreInfo(self, obj):
+        completed_tiles = [
+            tile for tile in obj.tiles.all().order_by("position")
+            if tile.status == Tile.Status.COMPLETE
+        ]
+        if not completed_tiles:
+            return None
+
+        from .bingo_utils import check_bingo_lines, calculate_bingo_score
+
+        completed_lines = check_bingo_lines(completed_tiles)
+        if not completed_lines:
+            return None
+
+        return calculate_bingo_score(obj, completed_lines)
 
 
 class RoomSerializer(serializers.ModelSerializer):
@@ -266,6 +292,37 @@ class RoomCreateSerializer(serializers.ModelSerializer):
         return room
 
 
+class ThemeRotationSerializer(serializers.ModelSerializer):
+    """Serializer for editable public theme rotations."""
+
+    class Meta:
+        model = ThemeRotation
+        fields = ["key", "name", "description", "genres", "created_at", "updated_at"]
+        read_only_fields = ["key", "created_at", "updated_at"]
+
+    def validate_genres(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Genres must be a list")
+        cleaned = [str(genre).strip() for genre in value if str(genre).strip()]
+        if len(cleaned) != 9:
+            raise serializers.ValidationError("Exactly 9 genres are required")
+        if len(set(genre.lower() for genre in cleaned)) != 9:
+            raise serializers.ValidationError("Genres must be unique")
+        return cleaned
+
+    def validate_description(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Description is required")
+        return value
+
+    def validate_name(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Name is required")
+        return value
+
+
 class PlayerCreateSerializer(serializers.ModelSerializer):
     """Serializer for players joining a room - returns player_secret on creation"""
 
@@ -284,6 +341,16 @@ class PlayerCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Room context is required")
         player = Player.objects.create(room=room, **validated_data)
         return player
+
+
+class GenrePerformanceSerializer(serializers.Serializer):
+    """Serializer for genre performance data with FIFA-style grades"""
+
+    genre = serializers.CharField()
+    wins = serializers.IntegerField()
+    total_rounds = serializers.IntegerField()
+    win_rate = serializers.FloatField()
+    grade = serializers.CharField()
 
 
 class GameStateSerializer(serializers.ModelSerializer):
@@ -316,7 +383,10 @@ class GameStateSerializer(serializers.ModelSerializer):
 
     def get_round_state(self, obj):
         """Get the current round state for the room"""
-        current_round = Round.objects.filter(room=obj).first()
+        current_round = Round.objects.filter(
+            room=obj,
+            round_number=obj.current_round,
+        ).first()
         if not current_round:
             return None
 
@@ -388,6 +458,13 @@ class GameStateSerializer(serializers.ModelSerializer):
                 "isSpectator": player.is_spectator,
                 "isHost": player.is_host,
                 "isConnected": player.is_connected,
+                "isReady": player.is_ready,
+                "eloRating": player.elo_rating,
+                "eloWins": player.elo_wins,
+                "eloLosses": player.elo_losses,
+                "eloMatches": player.elo_matches,
+                "isCheckedIn": player.is_checked_in,
+                "currentTitle": player.current_title,
                 "board": {"tiles": board_tiles},
                 "scoreInfo": score_info,
             }

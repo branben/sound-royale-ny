@@ -9,7 +9,8 @@ class RoomAdmin(admin.ModelAdmin):
 
 @admin.register(Player)
 class PlayerAdmin(admin.ModelAdmin):
-    list_display = ("name", "room", "is_spectator")
+    list_display = ("name", "room", "is_spectator", "is_checked_in", "current_title")
+    list_editable = ("is_checked_in",)
 
 
 @admin.register(Tile)

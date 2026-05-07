@@ -59,7 +59,6 @@ test.describe('API Rejoin Recovery', () => {
     rejoinTracker.reset();
     await page.reload();
 
-    await expect(page.getByRole('heading', { name: 'Your Board' })).toBeVisible();
     await expect(page.getByTestId('game-board')).toBeVisible();
     await expect(page.getByTestId(`player-name-${producer.name}`)).toBeVisible();
     await expect.poll(rejoinTracker.count).toBeGreaterThan(0);
