@@ -1,0 +1,70 @@
+project:
+  name: "Sound Royale"
+  description: "Multiplayer music bingo game with real-time WebSocket gameplay"
+  type: "react_typescript"
+  
+paths:
+  src: "src"
+  tests: "tests"
+  docs: "docs"
+  build: "dist"
+  
+technology_stack:
+  frontend:
+    framework: "React 18"
+    language: "TypeScript"
+    ui_library: "Radix UI + shadcn/ui"
+    styling: "Tailwind CSS"
+    state_management: "React Context"
+    build_tool: "Vite"
+  backend:
+    framework: "Django"
+    language: "Python"
+    real_time: "WebSockets"
+    
+key_patterns:
+  state_management:
+    - "src/context/GameContext.tsx"
+    - "src/context/UserContext.tsx"
+  types:
+    - "src/types/game.ts"
+  components:
+    - "src/components/game/"
+    - "src/components/ui/"
+  pages:
+    - "src/pages/"
+  api:
+    - "src/services/api.ts"
+    
+conventions:
+  naming:
+    components: "PascalCase"
+    files: "PascalCase for components, camelCase for utilities"
+    variables: "camelCase for frontend, snake_case for backend"
+  state:
+    - "Use immutable updates with spread operator"
+    - "Never mutate state directly"
+    - "Use setGameState() for all state changes"
+  types:
+    - "Strict TypeScript with interfaces"
+    - "No 'any' types"
+    
+anti_patterns:
+  - "Direct state mutations"
+  - "Exposing playerSecret in logs/responses"
+  - "Using Inter, Roboto, or Arial fonts (AI slop)"
+  - "Purple gradients on white backgrounds"
+  - "Predictable centered layouts"
+
+development_commands:
+  start: "npm run dev"
+  build: "npm run build"
+  test: "npm run test:e2e"
+  lint: "npx tsc --noEmit"
+  symbol_check: "serena-slim"
+
+code_quality:
+  - "Always run typecheck before commits"
+  - "Use functional components with hooks"
+  - "Follow existing component patterns"
+  - "Maintain consistent error handling"

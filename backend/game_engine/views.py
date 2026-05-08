@@ -392,7 +392,13 @@ class RoomViewSet(viewsets.ModelViewSet):
         return RoomSerializer
 
     def create(self, request, *args, **kwargs):
-        """Override create to return room_code, player_id, and player_secret."""
+        """Override create to return room_code, player_id, and player_secret.
+
+        NOTE: player_secret is intentionally returned here (and in join_game) as
+        this is the ONLY time it is issued to the client. It serves as the session
+        auth token for all subsequent requests. It must NOT be returned by any
+        other endpoint (list, retrieve, etc.).
+        """
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 

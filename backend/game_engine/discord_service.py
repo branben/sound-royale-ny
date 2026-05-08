@@ -25,10 +25,16 @@ DISCORD_REDIRECT_URI = config("DISCORD_REDIRECT_URI", default="http://localhost:
 # Generate or load encryption key for token storage
 DISCORD_ENCRYPTION_KEY = os.getenv("DISCORD_ENCRYPTION_KEY", "")
 if not DISCORD_ENCRYPTION_KEY:
-    # Generate a key if not set (for development only)
+    if not settings.DEBUG:
+        raise RuntimeError(
+            "DISCORD_ENCRYPTION_KEY must be set in production. "
+            "Generate one with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
+        )
+    # In DEBUG mode, generate an ephemeral key (tokens won't persist across restarts)
     DISCORD_ENCRYPTION_KEY = Fernet.generate_key().decode()
     logger.warning(
-        "DISCORD_ENCRYPTION_KEY is not configured; using an ephemeral development key"
+        "DISCORD_ENCRYPTION_KEY is not configured; using an ephemeral development key. "
+        "Discord tokens will NOT persist across process restarts."
     )
 
 
@@ -101,16 +107,16 @@ class DiscordOAuthService:
         discord_username: str,
         discord_avatar_url: str,
         access_token: str,
-        refresh_token: str,
+        refresh_token: str | None,
         expires_in: int,
     ) -> DiscordAccount:
         """Link a Discord account to a Sound Royale player."""
         # Calculate token expiration
         expires_at = timezone.now() + timedelta(seconds=expires_in)
 
-        # Encrypt tokens
+        # Encrypt tokens (refresh_token may be None for some OAuth flows)
         encrypted_access = self.encrypt_token(access_token)
-        encrypted_refresh = self.encrypt_token(refresh_token)
+        encrypted_refresh = self.encrypt_token(refresh_token) if refresh_token else ""
 
         # Create or update Discord account
         discord_account, created = DiscordAccount.objects.update_or_create(
@@ -133,19 +139,19 @@ class DiscordOAuthService:
 
     def unlink_discord_account(self, player: Player) -> bool:
         """Unlink a Discord account from a Sound Royale player."""
-        try:
-            discord_account = DiscordAccount.objects.get(player=player)
-            discord_account.delete()
-            return True
-        except DiscordAccount.DoesNotExist:
+        discord_account = player.discord_identity
+        if not discord_account:
             return False
+        player.discord_identity = None
+        player.save(update_fields=["discord_identity"])
+        # Only delete the DiscordAccount if no other players reference it
+        if not Player.objects.filter(discord_identity=discord_account).exists():
+            discord_account.delete()
+        return True
 
     def get_discord_account(self, player: Player) -> DiscordAccount | None:
         """Get the Discord account linked to a player."""
-        try:
-            return DiscordAccount.objects.get(player=player)
-        except DiscordAccount.DoesNotExist:
-            return None
+        return player.discord_identity
 
     def refresh_token_if_needed(self, discord_account: DiscordAccount) -> bool:
         """Refresh access token if it's expired or will expire soon."""
@@ -155,6 +161,10 @@ class DiscordOAuthService:
         # Refresh if token expires within 5 minutes
         if discord_account.token_expires_at > timezone.now() + timedelta(minutes=5):
             return True
+
+        if not discord_account.refresh_token:
+            logger.warning("Cannot refresh token: no refresh_token stored for account %s", discord_account.discord_user_id)
+            return False
 
         try:
             # Decrypt refresh token
