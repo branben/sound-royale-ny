@@ -1,6 +1,12 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { Player } from '@/types/game';
 
+interface VerifiedUser {
+  id: string;
+  email: string;
+  display_name: string;
+}
+
 interface UserSession {
   roomCode: string | null;
   playerName: string | null;
@@ -8,6 +14,7 @@ interface UserSession {
   playerSecret: string | null;
   isSpectator: boolean;
   isAuthenticated: boolean;
+  verifiedUser?: VerifiedUser | null;
 }
 
 interface RoomSessionInput {
@@ -30,6 +37,9 @@ interface UserContextType {
   clearSession: () => void;
   isAuthenticated: boolean;
   isHost: (players: Player[]) => boolean;
+  requestLoginCode: (email: string) => Promise<void>;
+  verifyLoginCode: (email: string, code: string, displayName?: string) => Promise<void>;
+  logoutVerifiedUser: () => void;
 }
 
 const ROOM_SESSIONS_KEY = 'soundRoyaleSessions';
@@ -282,6 +292,19 @@ export function UserProvider({ children }: { children: ReactNode }) {
     return players.some(p => p.id === userSession.playerId && p.isHost === true);
   };
 
+  // TODO: Implement verified identity when backend API is ready
+  const requestLoginCode = async (_email: string): Promise<void> => {
+    throw new Error('Verified identity not yet implemented');
+  };
+
+  const verifyLoginCode = async (_email: string, _code: string, _displayName?: string): Promise<void> => {
+    throw new Error('Verified identity not yet implemented');
+  };
+
+  const logoutVerifiedUser = (): void => {
+    setUserSession(prev => ({ ...prev, verifiedUser: null }));
+  };
+
   return (
     <UserContext.Provider value={{
       userSession,
@@ -292,6 +315,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
       clearSession,
       isAuthenticated: userSession.isAuthenticated,
       isHost,
+      requestLoginCode,
+      verifyLoginCode,
+      logoutVerifiedUser,
     }}>
       {children}
     </UserContext.Provider>

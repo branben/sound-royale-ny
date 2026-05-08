@@ -52,13 +52,15 @@ export class PlayerPage {
     this.playerId = data.player_id || '';
     this.playerSecret = data.player_secret || '';
 
-    // Inject session and navigate so React loads correctly
+    // Inject session using the modern soundRoyaleSessions format
     await this.page.goto('/');
-    await this.page.evaluate(({ id, secret, name }) => {
-      localStorage.setItem('playerId', id);
-      localStorage.setItem('playerSecret', secret);
-      localStorage.setItem('playerName', name);
-    }, { id: this.playerId, secret: this.playerSecret, name: this.name });
+    await this.page.evaluate(({ id, secret, name, roomCode }) => {
+      const sessionKey = `${roomCode}:${id}`;
+      localStorage.setItem('soundRoyaleSessions', JSON.stringify({
+        [sessionKey]: { roomCode, playerName: name, playerId: id, playerSecret: secret, isSpectator: false },
+      }));
+      sessionStorage.setItem('soundRoyaleActiveSessionKey', sessionKey);
+    }, { id: this.playerId, secret: this.playerSecret, name: this.name, roomCode: this.roomCode });
     await this.page.goto(`/room/${this.roomCode}`);
     // Wait for lobby to confirm render
     await this.page.waitForSelector('text=/Room Code:/', { timeout: 15000 });
@@ -83,13 +85,15 @@ export class PlayerPage {
       this.playerId = joinedPlayer.id;
       this.playerSecret = response.player_secret;
       this.name = joinedPlayer.name; // Update to auto-assigned name
-      // Inject session so React loads correctly
+      // Inject session using the modern soundRoyaleSessions format
       await this.page.goto('/');
-      await this.page.evaluate(({ id, secret, name }) => {
-        localStorage.setItem('playerId', id);
-        localStorage.setItem('playerSecret', secret);
-        localStorage.setItem('playerName', name);
-      }, { id: this.playerId, secret: this.playerSecret, name: this.name });
+      await this.page.evaluate(({ id, secret, name, roomCode }) => {
+        const sessionKey = `${roomCode}:${id}`;
+        localStorage.setItem('soundRoyaleSessions', JSON.stringify({
+          [sessionKey]: { roomCode, playerName: name, playerId: id, playerSecret: secret, isSpectator: true },
+        }));
+        sessionStorage.setItem('soundRoyaleActiveSessionKey', sessionKey);
+      }, { id: this.playerId, secret: this.playerSecret, name: this.name, roomCode });
       await this.page.goto(`/?code=${roomCode}`);
     } else {
       // Producer / host join via API for reliability
@@ -101,13 +105,15 @@ export class PlayerPage {
       }
       this.playerId = joinedPlayer.id;
       this.playerSecret = response.player_secret;
-      // Inject session and navigate so React loads correctly
+      // Inject session using the modern soundRoyaleSessions format
       await this.page.goto('/');
-      await this.page.evaluate(({ id, secret, name }) => {
-        localStorage.setItem('playerId', id);
-        localStorage.setItem('playerSecret', secret);
-        localStorage.setItem('playerName', name);
-      }, { id: this.playerId, secret: this.playerSecret, name: this.name });
+      await this.page.evaluate(({ id, secret, name, roomCode }) => {
+        const sessionKey = `${roomCode}:${id}`;
+        localStorage.setItem('soundRoyaleSessions', JSON.stringify({
+          [sessionKey]: { roomCode, playerName: name, playerId: id, playerSecret: secret, isSpectator: false },
+        }));
+        sessionStorage.setItem('soundRoyaleActiveSessionKey', sessionKey);
+      }, { id: this.playerId, secret: this.playerSecret, name: this.name, roomCode });
       await this.page.goto(`/room/${roomCode}`);
       await this.page.waitForSelector('text=/Room Code:/', { timeout: 15000 });
     }

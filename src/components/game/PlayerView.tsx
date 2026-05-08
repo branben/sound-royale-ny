@@ -67,7 +67,7 @@ export function PlayerView({ roomId, playerName }: PlayerViewProps) {
     try {
       const updatedTiles = playerData.tiles.map(t => 
         t.id === selectedTile.tile.id 
-          ? { ...t, status: 'pending', audioUrl: audioUrl }
+          ? { ...t, status: 'pending' as const, audioUrl: audioUrl }
           : t
       );
       

@@ -28,6 +28,7 @@ export interface Player {
   id: string;
   name: string;
   avatar?: string;
+  isVerified?: boolean;
   isDiscordVerified?: boolean;
   discordUsername?: string;
   discordAvatarUrl?: string;
