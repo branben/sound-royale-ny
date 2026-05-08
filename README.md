@@ -9,6 +9,7 @@
 
 This project implements a **GAIA polecat** that combines:
 - **Gas Town** patterns (polecats, hooks, beads)
+- **CocoIndex Code** for semantic codebase discovery
 - **Serena MCP** for symbolic code navigation
 - **Symbolic memory** via extended bead schema
 
@@ -43,10 +44,12 @@ gaia-polecat (Python orchestrator)
     │
     ├── Stores local/private state in .gaia_private/gaia/
     ├── Loads curated skills from .gaia_skills/**/SKILL.md
+    ├── Uses CocoIndex Code (`ccc search`) for semantic discovery
     ├── Compiles a minimal task contract (local-first optional)
     ├── Passes the contract to a provider (opencode/ollama/codex)
     │
-    └── Provider uses Serena MCP tools:
+    └── Provider verifies with rg + Serena MCP tools:
+        ├── rg                         → exact strings, anti-patterns, secret scans
         ├── serena.find_symbol()     → exact code location
         ├── serena.get_symbols_overview() → file structure
         ├── serena.replace_symbol_body() → safe edits
@@ -59,6 +62,7 @@ gaia-polecat (Python orchestrator)
 | Component | Role |
 |-----------|------|
 | [Gas Town](https://github.com/steveyegge/gastown) | Multi-agent orchestration patterns |
+| CocoIndex Code (`ccc`) | Semantic discovery across code, tests, docs, and GAIA workflow files |
 | [Serena MCP](https://github.com/oraios/serena) | Symbolic code navigation via LSP |
 | `.beads/` | Legacy bead location (no longer committed; treated as local/private) |
 | `.gaia_private/` | Private polecat state + bead outputs (git-ignored) |
@@ -86,7 +90,7 @@ In earlier iterations, we experimented with committing bead artifacts to git. In
 - Missing return types, state mutation, error handlers
 - Secret exposure, missing imports, race conditions
 
-### Usage (with Codex + Serena MCP)
+### Usage (with Codex + CocoIndex + Serena MCP)
 
 ```bash
 # Run a task via GAIA polecat (repo-local runner)
@@ -96,11 +100,34 @@ python scripts/gaia-polecat.py "Add a comment to GameContext.tsx"
 gaia-polecat "Add a comment to GameContext.tsx"
 
 # The polecat uses Codex with these MCP tools:
+# - CocoIndex Code: semantic codebase discovery
 # - Serena: Symbolic code navigation
 # - Linear: Issue tracking
 # - Context7: Documentation lookup
 # - Qodo: Code review feedback
 ```
+
+### Discovery Guardrail
+
+Agents must use this order when the task touches unfamiliar code or workflow files:
+
+1. `ccc status`; if stale or missing, run `ccc index`.
+2. `ccc search "<concept>"` to identify likely files and existing patterns.
+3. `rg "<exact string>"` for exact checks and security/test guardrails.
+4. Serena MCP or direct file reads for exact symbol locations before edits.
+
+CocoIndex narrows the search space. It does not authorize edits by itself.
+
+RTK is available as an optional shell-output compressor for noisy commands:
+
+```bash
+rtk git status
+rtk rg "playerSecret|player_secret"
+rtk npm run build
+rtk pytest
+```
+
+Use raw commands or `rtk proxy <command>` when exact output matters, especially security reviews, final diffs, migrations, destructive operations, and hard-to-explain failures.
 
 ### Quick Reference
 
@@ -113,6 +140,11 @@ gaia-polecat "Add a comment to GameContext.tsx"
 | `gaia-polecat --run-queue` | Run queued tasks |
 | `gt mail send sound_royale_ny/mayor -s "Subject" -m "Body"` | Notify Gas Town mayor |
 | `codex exec --dangerously-bypass-approvals-and-sandbox "task"` | Direct Codex execution |
+| `ccc status` | Check CocoIndex project index health |
+| `ccc index` | Refresh semantic index |
+| `ccc search "<concept>"` | Semantic codebase discovery |
+| `rtk <command>` | Compact noisy command output |
+| `rtk proxy <command>` | Run through RTK without filtering |
 
 ### Cost control + autonomy (recommended operating mode)
 
@@ -132,9 +164,10 @@ Local-first option (primarily free):
 ### Prerequisites
 
 1. **Codex** - `brew install codex` or use web interface
-2. **Serena MCP** - Already configured in Codex
-3. **Linear MCP** - Run `codex mcp login linear`
-4. **Gas Town** - `gt` CLI for mail/roles
+2. **CocoIndex Code** - `uv tool install --upgrade 'cocoindex-code[full]'`
+3. **Serena MCP** - Already configured in Codex
+4. **Linear MCP** - Run `codex mcp login linear`
+5. **Gas Town** - `gt` CLI for mail/roles
 
 ### References
 
@@ -174,6 +207,7 @@ Sound Royale + GAIA (v2)
 ├── Beads: Symbolic memory persistence
 ├── Qodo feedback loop: Automated code review → bead creation
 ├── Security guards: Path integrity, secret exclusion
+├── CocoIndex Code: Semantic discovery before file selection
 ├── Serena MCP: Exact code locations without searching
 └── Session continuity via M-beads
 ```
@@ -182,7 +216,8 @@ Sound Royale + GAIA (v2)
 | Capability | Old System | New System (GAIA) |
 |------------|------------|-------------------|
 | **Memory** | Lost between sessions | Beads persist across sessions |
-| **Code Navigation** | Grep/search | `serena.find_symbol()` → exact line |
+| **Code Discovery** | Grep/search | `ccc search` → concept map, then `rg`/Serena verification |
+| **Code Navigation** | Manual file hunting | `serena.find_symbol()` → exact line |
 | **Code Review** | Manual PR review | Qodo bot → auto-bead → polecat fix |
 | **Security** | None | Path guards, secret exclusion |
 | **Session Continuity** | Start fresh each time | M-bead carries context |
@@ -233,4 +268,3 @@ Expected QODO feedback:
 - Recommend React/Django best practices
 
 Tradeoffs: Keeping test antipatterns visible speeds tooling evaluation but can confuse new devs; we isolate these in test files and CI gates to limit impact.
-

@@ -28,8 +28,9 @@ await page.addInitScript(() => {
 });
 ```
 
-`setupPlayerSession` is in `tests/e2e/helpers.ts`. It writes three individual keys:
-`playerName`, `playerId`, `playerSecret` — matching what `UserContext.tsx` reads.
+`setupPlayerSession` is in `tests/e2e/helpers.ts`. It writes the room session map in
+`localStorage["soundRoyaleSessions"]` and the active tab pointer in
+`sessionStorage["soundRoyaleActiveSessionKey"]`, matching what `UserContext.tsx` reads.
 
 ---
 
@@ -128,5 +129,6 @@ Full source of truth: `docs/MVP_SCOPE.md`
 - **ELO delta display** ⏸ Deferred — assertions have `TODO(Phase 4B)` comments
 - **Multi-round UI** ⏸ Deferred — tests in `_future/full-game.spec.ts`
 - **API rejoin recovery** ✅ Phase 5B complete — active producer/spectator reload coverage uses `mockApiRoutes(...)` and `/rejoin_game/`
-- **WebSocket E2E mocking** ⏸ Deferred — tests in `_future/websocket.spec.ts`
+- **Mocked WebSocket E2E** ✅ Active mocked coverage — `websocket.spec.ts` and `network-recovery.spec.ts` replace `window.WebSocket` and do not prove live Channels/Redis connectivity
+- **Live WebSocket E2E** ⏸ Opt-in — `live-websocket.spec.ts` runs only with `LIVE_WS_E2E=true` while frontend, backend, and Redis are running
 - **Network recovery/reconnect E2E** ⏸ Deferred — tests in `_future/network-recovery.spec.ts`; scope Phase 5 before moving them

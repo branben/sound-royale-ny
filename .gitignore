@@ -57,4 +57,5 @@ playwright-report/
 backend/media/
 output/
 .serena/
+.cocoindex_code/
 .DS_Store

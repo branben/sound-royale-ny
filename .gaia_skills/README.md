@@ -9,6 +9,7 @@ This repo includes a collection of skill docs under `.gaia_skills/`.
 | Skill | Description |
 |-------|-------------|
 | `agent-resilience` | Checkpoint-based recovery + safe retry patterns |
+| `code-discovery-guardrails` | CocoIndex → rg → Serena discovery workflow for agents |
 | `django` | Django-specific conventions and guardrails |
 | `e2e-test-hygiene` | Fast debugging protocol and determinism rules for Playwright E2E work |
 | `gastown-070-integration` | Integration notes for GT 0.7.0 workflows |
@@ -35,6 +36,25 @@ Note: `~/gaia-polecat` is local tooling (outside this repo). The `.gaia_skills/`
 Local GAIA/polecat tasks can run from feature branches. They do not require `main`, but default-branch CI and branch protection checks still require workflows to exist on the default branch. Avoid running GAIA orchestration from a branch where `scripts/gaia-polecat.py` has unrelated dirty changes unless the task is specifically to validate the runner.
 
 Direct Codex sessions do not automatically inject these skills. Treat this directory as documentation unless the task is launched through `scripts/gaia-polecat.py` or the external `~/gaia-polecat` workflow.
+
+## Code Discovery Guardrails
+
+CocoIndex Code is available as local semantic discovery via `ccc`.
+
+Mandatory discovery flow for GAIA/polecat and direct Codex sessions:
+
+1. Run `ccc status` before relying on CocoIndex.
+2. Use `ccc search "<concept>"` to find likely files and workflows.
+3. Use `rg` for exact anti-pattern, fixture, and secret checks.
+4. Use Serena MCP or direct file reads to verify exact symbols before edits.
+
+CocoIndex output is never authoritative by itself. It is a map, not evidence. Do not edit solely from a search result.
+
+Keep local state private:
+- `.cocoindex_code/` must remain ignored and unstaged.
+- `.serena/cache/`, `.gaia_private/`, `.beads/`, and generated logs must not be committed.
+
+External `~/gaia-polecat` should inject `code-discovery-guardrails` into `SUPERPOWERS_PROMPT` or include the same discovery flow in its task executor prompt.
 
 ## Adding Skills
 
