@@ -6,7 +6,7 @@ Reads the GAIA queue for tasks that have status "completed" or "failed"
 and posts a comment to the corresponding Linear issue.
 
 Usage:
-    python .linear/coding-tools/notify-linear.py
+    python .ai-tools/.linear/coding-tools/notify-linear.py
 
 Requires:
     LINEAR_API_KEY environment variable

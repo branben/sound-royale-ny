@@ -63,6 +63,30 @@ python backend/manage.py test --verbosity=2 2>&1 | grep -E "Ran [0-9]+ test"
 
 ---
 
+## Code Discovery Guardrails
+
+Use discovery tools in this order:
+
+1. `ccc status` before relying on CocoIndex. If stale or missing, run `ccc index`.
+2. `ccc search "<concept>"` for broad semantic discovery across frontend, backend, tests, docs, and GAIA workflow files.
+3. `rg "<exact string>"` for exact matches, anti-pattern scans, secret scans, and test convention checks.
+4. Serena MCP for exact symbol navigation, references, and scoped edits.
+5. Read the target file/test before changing behavior.
+
+CocoIndex narrows the search space; it is not proof. Never edit solely from a CocoIndex result. Verify with source reads, `rg`, or Serena first.
+
+Good CocoIndex queries:
+- `ccc search "player session and secret handling"`
+- `ccc search --lang python "title ELO calculation"`
+- `ccc search --lang typescript "leaderboard player profile heatmap"`
+- `ccc search "GAIA polecat task contract guardrails"`
+
+Never stage `.cocoindex_code/`, `.serena/cache/`, `.gaia_private/`, `.beads/`, or generated search/index state.
+
+RTK (`rtk`) is optional command-output compression. Use it for noisy commands such as `rtk git status`, `rtk rg ...`, `rtk npm run build`, and `rtk pytest` when a compact summary is enough. Use raw commands or `rtk proxy <command>` for security reviews, exact diffs, migrations, destructive operations, and suspicious failures where full output matters.
+
+---
+
 ## Architecture
 
 - **Frontend:** React + TypeScript + Vite
@@ -101,8 +125,11 @@ python backend/manage.py test
 
 | Tool | When to Use |
 |------|-------------|
+| CocoIndex Code (`ccc`) | Semantic codebase discovery before broad or unfamiliar tasks |
+| `rg` | Exact text search, anti-pattern scans, secret scans |
+| RTK (`rtk`) | Optional high-volume shell output compression; bypass for exact/security-sensitive output |
 | `sequentialthinking` | Complex multi-step problems, architectural decisions, debugging deadends (built-in, use ad-hoc) |
-| Seria MCP | Symbolic code navigation (`serena.find_symbol`, `serena_replace_symbol_body`) |
+| Serena MCP | Exact symbolic code navigation (`serena.find_symbol`, `serena.replace_symbol_body`) |
 
 ---
 
@@ -156,3 +183,6 @@ The app API layer expects snake_case. Strong assertions fail silently with camel
 - Local GAIA/polecat work can run from feature branches; it does not require `main`.
 - A normal Codex session is not automatically a GAIA run. GAIA skills are injected only when using `scripts/gaia-polecat.py` or the external `~/gaia-polecat` workflow.
 - Do not invoke GAIA orchestration from a branch where `scripts/gaia-polecat.py` has unrelated dirty changes unless the task is specifically to validate the runner.
+- GAIA/polecat task contracts should include: discovery query, file allowlist, forbidden paths, required skills, stop conditions, and verification commands.
+- For unfamiliar GAIA/Gas Town/polecat work, run `ccc search "GAIA polecat <task concept>"` before choosing files or spawning agents.
+- CocoIndex is discovery-only in GAIA. Serena and direct file reads remain authoritative for edits.

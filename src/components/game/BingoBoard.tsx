@@ -1,22 +1,29 @@
 import { BoardData } from '@/types/game';
 import { BingoTile } from './BingoTile';
 import { cn } from '@/lib/utils';
+import { DiscordVerifiedIcon } from './DiscordVerifiedIcon';
 
 interface BingoBoardProps {
   playerId: string;
   playerName: string;
+  isDiscordVerified?: boolean;
+  discordUsername?: string;
   boardData: BoardData;
   onTileClick?: (tileId: string) => void;
   isInteractive?: boolean;
+  isTileInteractive?: (tileId: string) => boolean;
   className?: string;
 }
 
 export function BingoBoard({
   playerId,
   playerName,
+  isDiscordVerified,
+  discordUsername,
   boardData,
   onTileClick,
   isInteractive = false,
+  isTileInteractive,
   className
 }: BingoBoardProps) {
   const completedCount = boardData.tiles.filter(t => t.status === 'complete').length;
@@ -30,13 +37,16 @@ export function BingoBoard({
         'shadow-[0_0_40px_rgba(124,58,237,0.2),inset_0_0_60px_rgba(0,0,0,0.3)]',
         className
       )}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#7C3AED]/20 border border-[#7C3AED]/30 text-[#7C3AED]">
             <span className="text-lg font-bold font-['Righteous']">{playerName.charAt(0)}</span>
           </div>
-          <div>
-            <h3 className="font-semibold text-[#E2E8F0] font-['Poppins']">{playerName}</h3>
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-2">
+              <h3 className="truncate font-semibold text-[#E2E8F0] font-['Poppins']">{playerName}</h3>
+              {isDiscordVerified && <DiscordVerifiedIcon username={discordUsername} />}
+            </div>
             <p className="text-xs text-[#E2E8F0]/60">
               {completedCount}/9 complete
               {pendingCount > 0 && ` • ${pendingCount} pending`}
@@ -44,7 +54,7 @@ export function BingoBoard({
           </div>
         </div>
         
-        <div className="flex gap-1">
+        <div className="flex max-w-[5rem] shrink-0 flex-wrap justify-end gap-1 sm:max-w-none sm:flex-nowrap">
           {boardData.tiles.map((tile) => (
             <div
               key={tile.id}
@@ -66,7 +76,8 @@ export function BingoBoard({
             key={tile.id}
             tile={tile}
             onClick={() => onTileClick?.(tile.id)}
-            isInteractive={isInteractive}
+            isInteractive={isInteractive && (isTileInteractive?.(tile.id) ?? true)}
+            isActiveRoundTile={isTileInteractive?.(tile.id)}
           />
         ))}
       </div>

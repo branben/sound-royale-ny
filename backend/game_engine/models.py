@@ -42,6 +42,8 @@ class Room(models.Model):
 
     class Theme(models.TextChoices):
         CLASSIC = "classic", "Classic"
+        WEEKLY = "weekly", "Weekly Rotation"
+        MONTHLY = "monthly", "Monthly Rotation"
         PHONK = "phonk", "Phonk"
         TRAP = "trap", "Trap"
         LOFI = "lofi", "Lo-Fi"
@@ -87,7 +89,33 @@ class Room(models.Model):
         return self.players.filter(is_host=True, is_spectator=False).first()
 
 
+class ThemeRotation(models.Model):
+    class Key(models.TextChoices):
+        CLASSIC = "classic", "Classic"
+        WEEKLY = "weekly", "Weekly Rotation"
+        MONTHLY = "monthly", "Monthly Rotation"
+
+    key = models.CharField(max_length=20, choices=Key.choices, unique=True)
+    name = models.CharField(max_length=50)
+    description = models.CharField(max_length=120, default="theme by @1120cooks")
+    genres = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["key"]
+
+    def __str__(self):
+        return self.name
+
+
 class Player(models.Model):
+    class Title(models.TextChoices):
+        NONE = "NONE", "None"
+        JACKPOT = "JACKPOT", "Jackpot"
+        SWEEPER = "SWEEPER", "Sweeper"
+        CHECKED_IN = "CHECKED_IN", "Checked In"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     player_secret = models.UUIDField(
         default=uuid.uuid4, editable=False
@@ -95,9 +123,17 @@ class Player(models.Model):
     name = models.CharField(max_length=50)
     avatar = models.URLField(blank=True, null=True)
     room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name="players")
+    discord_identity = models.ForeignKey(
+        "DiscordAccount",
+        on_delete=models.SET_NULL,
+        related_name="linked_players",
+        blank=True,
+        null=True,
+    )
     is_spectator = models.BooleanField(default=False)
     is_host = models.BooleanField(default=False)
     is_connected = models.BooleanField(default=False)  # Presence tracking
+    is_ready = models.BooleanField(default=False)  # Ready status for lobby
     joined_at = models.DateTimeField(auto_now_add=True)
 
     # ELO Rating fields
@@ -106,12 +142,27 @@ class Player(models.Model):
     elo_losses = models.PositiveIntegerField(default=0)
     elo_matches = models.PositiveIntegerField(default=0)
 
+    # Producer title flags. current_title is derived from these by priority.
+    is_checked_in = models.BooleanField(default=False)
+    earned_jackpot = models.BooleanField(default=False)
+    earned_sweeper = models.BooleanField(default=False)
+
     class Meta:
         ordering = ["joined_at"]
         unique_together = ["room", "name"]  # Prevent duplicate names in same room
 
     def __str__(self):
         return f"{self.name} in {self.room.id}"
+
+    @property
+    def current_title(self):
+        if self.earned_sweeper:
+            return self.Title.SWEEPER
+        if self.earned_jackpot:
+            return self.Title.JACKPOT
+        if self.is_checked_in:
+            return self.Title.CHECKED_IN
+        return self.Title.NONE
 
 
 class Tile(models.Model):
@@ -225,3 +276,63 @@ class Vote(models.Model):
 
     def __str__(self):
         return f"{self.voter.name} voted for {self.voted_for.name} in Round {self.round.round_number}"
+
+
+class DiscordAccount(models.Model):
+    """Links a Sound Royale player to a Discord user account."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    player = models.ForeignKey(
+        Player, on_delete=models.CASCADE, related_name="discord_account"
+    )
+    session_secret = models.UUIDField(default=uuid.uuid4, editable=False)
+    discord_user_id = models.CharField(max_length=255, unique=True)
+    discord_username = models.CharField(max_length=255, blank=True)
+    discord_avatar_url = models.TextField(blank=True, null=True)
+    access_token = models.TextField(blank=True, null=True)
+    refresh_token = models.TextField(blank=True, null=True)
+    token_expires_at = models.DateTimeField(null=True, blank=True)
+    linked_at = models.DateTimeField(auto_now_add=True)
+    last_sync_at = models.DateTimeField(null=True, blank=True)
+    privacy_settings = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        unique_together = ["player", "discord_user_id"]
+
+    def __str__(self):
+        return f"{self.player.name} linked to Discord {self.discord_username}"
+
+
+class DiscordServer(models.Model):
+    """Tracks Discord servers where the Sound Royale bot is installed."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    server_id = models.CharField(max_length=255, unique=True)
+    server_name = models.CharField(max_length=255, blank=True)
+    bot_added_at = models.DateTimeField(auto_now_add=True)
+    settings = models.JSONField(default=dict, blank=True)
+
+    def __str__(self):
+        return f"Discord Server {self.server_name} ({self.server_id})"
+
+
+class DiscordServerMember(models.Model):
+    """Tracks Discord server member roles and ELO tiers."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    server = models.ForeignKey(
+        DiscordServer, on_delete=models.CASCADE, related_name="members"
+    )
+    discord_account = models.ForeignKey(
+        DiscordAccount, on_delete=models.CASCADE, related_name="server_memberships"
+    )
+    elo_tier = models.CharField(max_length=50, blank=True)
+    roles = models.JSONField(default=list, blank=True)
+    joined_at = models.DateTimeField(auto_now_add=True)
+    last_sync_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ["server", "discord_account"]
+
+    def __str__(self):
+        return f"{self.discord_account.discord_username} in {self.server.server_name}"

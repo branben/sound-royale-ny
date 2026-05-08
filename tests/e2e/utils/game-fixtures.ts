@@ -31,6 +31,7 @@ interface PlayerData {
   isSpectator: boolean;
   isConnected: boolean;
   isHost: boolean;
+  isReady: boolean;
   board: {
     tiles: TileData[];
   };
@@ -40,6 +41,8 @@ interface PlayerData {
   eloWins?: number;
   eloLosses?: number;
   eloMatches?: number;
+  isCheckedIn?: boolean;
+  currentTitle?: 'NONE' | 'JACKPOT' | 'SWEEPER' | 'CHECKED_IN';
 }
 
 interface VoteData {
@@ -178,24 +181,30 @@ export function createMockPlayer(
   options: {
     isSpectator?: boolean;
     isHost?: boolean;
+    isReady?: boolean;
     board?: { tiles: TileData[] };
     scoreInfo?: ScoreInfoData;
     eloRating?: number;
     eloWins?: number;
     eloLosses?: number;
     eloMatches?: number;
+    isCheckedIn?: boolean;
+    currentTitle?: 'NONE' | 'JACKPOT' | 'SWEEPER' | 'CHECKED_IN';
     isConnected?: boolean;
   } = {}
 ): PlayerData {
   const {
     isSpectator = false,
     isHost = false,
+    isReady = false,
     board = createMockBoard(),
     scoreInfo,
     eloRating = 1200,
     eloWins = 0,
     eloLosses = 0,
     eloMatches = 0,
+    isCheckedIn,
+    currentTitle,
     isConnected = true,
   } = options;
 
@@ -205,6 +214,7 @@ export function createMockPlayer(
     avatar: undefined,
     isSpectator,
     isHost,
+    isReady,
     isConnected,
     board: isSpectator ? { tiles: [] } : board,
     scoreInfo,
@@ -212,6 +222,8 @@ export function createMockPlayer(
     eloWins,
     eloLosses,
     eloMatches,
+    isCheckedIn,
+    currentTitle,
   };
 }
 
@@ -592,6 +604,7 @@ export const test = base.extend<TestFixtures>({
       isSpectator: false,
       isConnected: true,
       isHost: false,
+      isReady: false,
       scoreInfo: createMockScoreInfo()
     });
 
@@ -721,10 +734,14 @@ export function toRoomResponse(gameState: GameStateData): Record<string, unknown
       is_connected: player.isConnected,
       is_spectator: player.isSpectator,
       is_host: player.isHost,
+      is_ready: player.isReady,
       elo_rating: player.eloRating,
       elo_wins: player.eloWins,
       elo_losses: player.eloLosses,
       elo_matches: player.eloMatches,
+      is_checked_in: player.isCheckedIn,
+      current_title: player.currentTitle,
+      scoreInfo: player.scoreInfo,
     })),
   };
 

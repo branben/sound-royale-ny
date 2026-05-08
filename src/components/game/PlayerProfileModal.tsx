@@ -1,27 +1,66 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Wifi, WifiOff, Trophy, TrendingUp, Clock } from 'lucide-react';
-import { Player, ScoreInfo } from '@/types/game';
-import { cn } from '@/lib/utils';
+import { Music2, Trophy, TrendingUp, Wifi, WifiOff, Loader2 } from 'lucide-react';
+import { Player, ScoreInfo, GenrePerformance } from '@/types/game';
+import { gameApi } from '@/services/api';
+import { PlayerStatsRadar } from './PlayerStatsRadar';
+import { TitleBadge } from './TitleBadge';
+import { DiscordVerifiedIcon } from './DiscordVerifiedIcon';
+import { toast } from 'sonner';
 
 interface PlayerProfileModalProps {
   player: Player;
   isOpen: boolean;
   onClose: () => void;
   scoreInfo?: ScoreInfo | null;
+  roomGenres?: string[]; // Optional: genres from current room's theme
 }
 
 export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
   player,
   isOpen,
   onClose,
-  scoreInfo
+  scoreInfo,
+  roomGenres
 }) => {
   const isConnected = player.isConnected ?? true;
-  
+  const [genrePerformance, setGenrePerformance] = useState<GenrePerformance[]>([]);
+  const [isLoadingHeatmap, setIsLoadingHeatmap] = useState(false);
+
+  // Fetch genre performance when modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let isActive = true;
+    setIsLoadingHeatmap(true);
+    setGenrePerformance([]);
+
+    gameApi.getGenrePerformance(player.id)
+      .then(data => {
+        if (isActive) {
+          setGenrePerformance(data);
+        }
+      })
+      .catch(() => {
+        if (isActive) {
+          setGenrePerformance([]);
+          toast.error('Failed to load genre performance');
+        }
+      })
+      .finally(() => {
+        if (isActive) {
+          setIsLoadingHeatmap(false);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [isOpen, player.id]);
+
   // Generate initials from player name
   const initials = player.name
     .split(' ')
@@ -34,7 +73,7 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent 
         data-testid="player-profile-modal"
-        className="bg-[#0F0F23]/95 backdrop-blur-xl border-[#7C3AED]/30 max-w-md"
+        className="max-h-[90dvh] max-w-[calc(100vw-2rem)] overflow-y-auto border-[#7C3AED]/30 bg-[#0F0F23]/95 backdrop-blur-xl sm:max-w-md"
       >
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold text-white">Player Profile</DialogTitle>
@@ -54,7 +93,13 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
-                  <CardTitle className="text-xl text-white">{player.name}</CardTitle>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <CardTitle className="truncate text-xl text-white">{player.name}</CardTitle>
+                    {player.isDiscordVerified && (
+                      <DiscordVerifiedIcon username={player.discordUsername} />
+                    )}
+                  </div>
+                  <TitleBadge title={player.currentTitle} />
                   <div className="flex items-center gap-2 mt-1">
                     {isConnected ? (
                       <div className="flex items-center gap-1 text-green-400 text-sm">
@@ -108,65 +153,56 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
             </Card>
           )}
 
-          {/* Board Preview (for producers) */}
-          {!player.isSpectator && player.board && player.board.tiles.length > 0 && (
-            <Card className="bg-[#0F0F23]/60 border-[#7C3AED]/20">
-              <CardHeader>
-                <CardTitle className="text-lg text-white">Board Progress</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-3 gap-2">
-                  {player.board.tiles.slice(0, 9).map((tile, index) => (
-                    <div
-                      key={tile.id}
-                      className={cn(
-                        "aspect-square rounded-md border flex items-center justify-center text-xs font-medium",
-                        tile.status === 'complete'
-                          ? "bg-[#7C3AED]/30 border-[#7C3AED]/50 text-[#7C3AED]"
-                          : "bg-gray-800/50 border-gray-700/50 text-gray-500"
-                      )}
-                    >
-                      {tile.status === 'complete' ? '✓' : index + 1}
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-3 text-center text-sm text-gray-400">
-                  {player.board.tiles.filter(t => t.status === 'complete').length} / {player.board.tiles.length} tiles complete
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* ELO Rating (placeholder for future backend) */}
           <Card className="bg-[#0F0F23]/60 border-[#7C3AED]/20">
             <CardHeader>
               <CardTitle className="text-lg text-white flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-[#7C3AED]" />
-                ELO Rating
+                Battle Stats
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-4">
-                <div className="text-3xl font-bold text-gray-500">---</div>
-                <div className="text-sm text-gray-500 mt-1">Not available yet</div>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="rounded-lg border border-[#7C3AED]/20 bg-[#111126]/70 p-3">
+                  <div className="text-gray-400">ELO</div>
+                  <div className="mt-1 text-xl font-bold text-white">{player.eloRating ?? 1200}</div>
+                </div>
+                <div className="rounded-lg border border-[#7C3AED]/20 bg-[#111126]/70 p-3">
+                  <div className="text-gray-400">Record</div>
+                  <div className="mt-1 text-xl font-bold text-white">
+                    {player.eloWins ?? 0}-{player.eloLosses ?? 0}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-[#7C3AED]/20 bg-[#111126]/70 p-3">
+                  <div className="text-gray-400">Matches</div>
+                  <div className="mt-1 text-xl font-bold text-white">{player.eloMatches ?? 0}</div>
+                </div>
+                <div className="rounded-lg border border-[#7C3AED]/20 bg-[#111126]/70 p-3">
+                  <div className="text-gray-400">Role</div>
+                  <div className="mt-1 text-xl font-bold text-white">
+                    {player.isSpectator ? 'Spectator' : 'Producer'}
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Match History (placeholder for future backend) */}
-          <Card className="bg-[#0F0F23]/60 border-[#7C3AED]/20">
-            <CardHeader>
-              <CardTitle className="text-lg text-white flex items-center gap-2">
-                <Clock className="h-5 w-5 text-[#7C3AED]" />
-                Match History
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-4">
-                <div className="text-sm text-gray-500">No match history available</div>
+          {isLoadingHeatmap ? (
+            <div className="flex items-center justify-center p-8">
+              <Loader2 className="h-6 w-6 animate-spin text-[#7C3AED]" />
+            </div>
+          ) : (
+            <PlayerStatsRadar player={player} genrePerformance={genrePerformance} roomGenres={roomGenres} />
+          )}
+
+          {!player.isSpectator && (
+            <div className="rounded-lg border border-[#7C3AED]/20 bg-[#111126]/70 p-3 text-sm text-gray-400">
+              <div className="mb-1 flex items-center gap-2 text-white">
+                <Music2 className="h-4 w-4 text-[#7C3AED]" />
+                Current match
               </div>
-            </CardContent>
-          </Card>
+              Board progress is shown in the arena. This profile keeps permanent stats and role context only.
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

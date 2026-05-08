@@ -1,6 +1,6 @@
 import { Player } from '@/types/game';
 import { cn } from '@/lib/utils';
-import { Crown, Mic2 } from 'lucide-react';
+import { Mic2 } from 'lucide-react';
 
 interface TurnIndicatorProps {
   currentPlayer: Player | null;
@@ -16,7 +16,6 @@ export function TurnIndicator({
   className 
 }: TurnIndicatorProps) {
   const isActive = currentPlayer?.id === activePlayerId;
-  const isHost = currentPlayer && !currentPlayer.name?.startsWith('Spectator ');
 
   if (!currentPlayer) {
     return null;
@@ -30,17 +29,14 @@ export function TurnIndicator({
       className
     )}>
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/20">
-        <span className="text-lg font-bold text-primary">
-          {currentPlayer.name.charAt(0)}
-        </span>
+        <Mic2 className="h-6 w-6 text-primary" />
       </div>
 
       <div className="flex-1">
         <div className="flex items-center gap-2">
           <h3 className="font-semibold text-foreground">
-            {currentPlayer.name}
+            Round prompt
           </h3>
-          {isHost && <Crown className="h-4 w-4 text-yellow-500" />}
         </div>
         
         <div className="flex items-center gap-2 mt-1">
@@ -48,7 +44,7 @@ export function TurnIndicator({
             <div className="flex items-center gap-1 text-green-500">
               <Mic2 className="h-4 w-4" />
               <span className="text-sm font-medium">
-                Creating beat for: {activeGenre || 'Unknown'}
+                {activeGenre || 'Unknown'}
               </span>
             </div>
           ) : (

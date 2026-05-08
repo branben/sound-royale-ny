@@ -6,9 +6,9 @@ Polls Linear for open issues and enqueues them as GAIA tasks.
 Run manually or via cron. No webhooks needed.
 
 Usage:
-    python .linear/coding-tools/linear-to-gaia.py
+    python .ai-tools/.linear/coding-tools/linear-to-gaia.py
     # or with custom team filter:
-    LINEAR_TEAM=SR python .linear/coding-tools/linear-to-gaia.py
+    LINEAR_TEAM=SR python .ai-tools/.linear/coding-tools/linear-to-gaia.py
 
 Requires:
     LINEAR_API_KEY environment variable
@@ -196,7 +196,7 @@ Files:
 
 Do not touch:
 - dist/
-- .serena/
+- .ai-tools/.serena/
 - test-results/
 - playwright-report/
 """

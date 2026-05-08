@@ -1,5 +1,5 @@
 import uuid
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -7,7 +7,7 @@ from rest_framework.test import APIRequestFactory
 from unittest.mock import patch, MagicMock
 from django.db import transaction
 from django.utils import timezone
-from .models import Room, Player, Tile, Round, Vote
+from .models import Room, Player, Tile, Round, Vote, ThemeRotation, DiscordAccount
 from .views import RoomViewSet
 
 
@@ -155,8 +155,8 @@ class RoomAPITestCase(TestCase):
         # Check that no tiles were created for the spectator
         self.assertEqual(Tile.objects.filter(player=new_spectator).count(), 0)
 
-    def test_join_game_already_started(self):
-        """Test joining a game that has already started"""
+    def test_join_producer_after_game_started_is_blocked(self):
+        """Test joining a game as producer after start is blocked"""
         self.room.status = Room.Status.PLAYING
         self.room.save()
         
@@ -168,7 +168,249 @@ class RoomAPITestCase(TestCase):
         response = self.client.post(url, data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('Cannot join a game that has already started', response.data['error'])
+        self.assertIn('Only spectators can join after a game has started', response.data['error'])
+
+    def test_join_spectator_after_game_started_is_allowed(self):
+        """Test joining a game as spectator after start is allowed"""
+        self.room.status = Room.Status.PLAYING
+        self.room.save()
+
+        data = {
+            'player_name': 'LateSpectator',
+            'is_spectator': True
+        }
+        url = reverse('room-join-game', kwargs={'code': '1234'})
+        response = self.client.post(url, data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        new_spectator = Player.objects.filter(is_spectator=True).last()
+        self.assertTrue(new_spectator.is_spectator)
+        self.assertEqual(new_spectator.room, self.room)
+        self.assertEqual(Tile.objects.filter(player=new_spectator).count(), 0)
+
+    def test_theme_rotation_defaults_are_available(self):
+        """Test editable theme rotations are seeded and exposed"""
+        ThemeRotation.objects.all().delete()
+
+        url = reverse('theme-rotation-list')
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        keys = {rotation['key'] for rotation in response.data}
+        self.assertEqual(keys, {'classic', 'weekly', 'monthly'})
+        for rotation in response.data:
+            self.assertEqual(rotation['description'], 'theme by @1120cooks')
+            self.assertEqual(len(rotation['genres']), 9)
+
+    def test_new_room_uses_weekly_rotation_genres(self):
+        """Test new rooms copy the selected rotation into generated boards"""
+        ThemeRotation.objects.update_or_create(
+            key='weekly',
+            defaults={
+                'name': 'Weekly Rotation',
+                'description': 'theme by @1120cooks',
+                'genres': [
+                    'Bounce', 'Jersey', 'Club', 'Garage', 'Amapiano',
+                    'Hyperpop', 'Grime', 'Afrobeats', 'Footwork'
+                ],
+            },
+        )
+
+        data = {
+            'name': 'Weekly Room',
+            'player_name': 'WeeklyHost',
+            'theme': 'weekly',
+        }
+        response = self.client.post(reverse('room-list'), data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        player = Player.objects.get(name='WeeklyHost')
+        genres = set(Tile.objects.filter(player=player).values_list('genre', flat=True))
+        self.assertEqual(genres, {
+            'Bounce', 'Jersey', 'Club', 'Garage', 'Amapiano',
+            'Hyperpop', 'Grime', 'Afrobeats', 'Footwork'
+        })
+
+    def test_discord_link_returns_reusable_session_secret(self):
+        """Discord linking returns a stable session secret for future rooms."""
+        url = reverse('discord-link')
+        response = self.client.post(url, {
+            'player_id': str(self.host.id),
+            'player_secret': str(self.host.player_secret),
+            'discord_user_id': 'discord-123',
+            'discord_username': 'verified_user',
+            'discord_avatar_url': 'avatar-hash',
+            'access_token': 'access-token',
+            'refresh_token': 'refresh-token',
+            'expires_in': 3600,
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('discord_session_secret', response.data)
+        account = DiscordAccount.objects.get(discord_user_id='discord-123')
+        self.assertEqual(response.data['discord_session_secret'], str(account.session_secret))
+
+    def test_discord_status_accepts_stable_session_without_player_credentials(self):
+        """Discord status can be checked after leaving a room player session."""
+        account = DiscordAccount.objects.create(
+            player=self.host,
+            discord_user_id='discord-456',
+            discord_username='stable_user',
+            discord_avatar_url='https://cdn.discordapp.com/avatar.png',
+            access_token='encrypted-access',
+            refresh_token='encrypted-refresh',
+        )
+
+        response = self.client.get(reverse('discord-status'), {
+            'discord_user_id': account.discord_user_id,
+            'discord_session_secret': str(getattr(account, 'session_secret', uuid.uuid4())),
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['is_linked'])
+        self.assertEqual(response.data['discord_username'], 'stable_user')
+        self.assertEqual(response.data['discord_avatar_url'], 'https://cdn.discordapp.com/avatar.png')
+
+    def test_room_create_attaches_verified_discord_session_to_host(self):
+        """Creating a new room with a stable Discord session attaches it to the host player."""
+        account = DiscordAccount.objects.create(
+            player=self.host,
+            discord_user_id='discord-789',
+            discord_username='host_verified',
+            access_token='encrypted-access',
+            refresh_token='encrypted-refresh',
+        )
+
+        response = self.client.post(reverse('room-list'), {
+            'name': 'Verified Host Room',
+            'player_name': 'VerifiedHost',
+            'discord_user_id': account.discord_user_id,
+            'discord_session_secret': str(getattr(account, 'session_secret', uuid.uuid4())),
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        player = Player.objects.get(name='VerifiedHost')
+        self.assertEqual(getattr(player, 'discord_identity', None), account)
+
+    def test_join_game_attaches_verified_discord_session_to_player(self):
+        """Joining a room with a stable Discord session attaches it to the new player."""
+        account = DiscordAccount.objects.create(
+            player=self.host,
+            discord_user_id='discord-999',
+            discord_username='join_verified',
+            access_token='encrypted-access',
+            refresh_token='encrypted-refresh',
+        )
+
+        response = self.client.post(reverse('room-join-game', kwargs={'code': '1234'}), {
+            'player_name': 'VerifiedJoiner',
+            'is_spectator': False,
+            'discord_user_id': account.discord_user_id,
+            'discord_session_secret': str(account.session_secret),
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        player = Player.objects.get(name='VerifiedJoiner')
+        self.assertEqual(player.discord_identity, account)
+
+    def test_game_state_includes_verified_discord_metadata(self):
+        """Game state exposes verified Discord metadata for player display."""
+        account = DiscordAccount.objects.create(
+            player=self.host,
+            discord_user_id='discord-meta',
+            discord_username='meta_verified',
+            discord_avatar_url='https://cdn.discordapp.com/meta.png',
+            access_token='encrypted-access',
+            refresh_token='encrypted-refresh',
+        )
+        self.host.discord_identity = account
+        self.host.save(update_fields=['discord_identity'])
+
+        response = self.client.get(reverse('room-game-state', kwargs={'code': '1234'}))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        player_data = response.data['players'][str(self.host.id)]
+        self.assertIn('isDiscordVerified', player_data)
+        self.assertTrue(player_data['isDiscordVerified'])
+        self.assertEqual(player_data['discordUsername'], 'meta_verified')
+        self.assertEqual(player_data['discordAvatarUrl'], 'https://cdn.discordapp.com/meta.png')
+
+    @override_settings(THEME_ADMIN_SECRET='admin-pin')
+    def test_theme_rotation_update_requires_admin_secret(self):
+        """Test rotation updates reject missing or wrong admin secrets"""
+        ThemeRotation.objects.update_or_create(
+            key='weekly',
+            defaults={
+                'name': 'Weekly Rotation',
+                'description': 'theme by @1120cooks',
+                'genres': ['Trap', 'Phonk', 'Drill', 'R&B', 'EDM', 'House', 'Lo-Fi', 'Jazz', 'Ambient'],
+            },
+        )
+        url = reverse('theme-rotation-detail', kwargs={'key': 'weekly'})
+        payload = {
+            'name': 'Weekly Rotation',
+            'description': 'theme by @1120cooks',
+            'genres': ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'],
+        }
+
+        response = self.client.put(url, payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @override_settings(THEME_ADMIN_SECRET='admin-pin')
+    def test_theme_rotation_update_success(self):
+        """Test rotation updates with the admin secret"""
+        ThemeRotation.objects.update_or_create(
+            key='monthly',
+            defaults={
+                'name': 'Monthly Rotation',
+                'description': 'theme by @1120cooks',
+                'genres': ['House', 'EDM', 'Techno', 'Disco', 'Lo-Fi', 'R&B', 'Trap', 'Phonk', 'Ambient'],
+            },
+        )
+        url = reverse('theme-rotation-detail', kwargs={'key': 'monthly'})
+        payload = {
+            'name': 'Monthly Rotation',
+            'description': 'theme by @1120cooks',
+            'genres': ['Soul', 'Funk', 'Breaks', 'Dub', 'Garage', 'House', 'Techno', 'Jazz', 'Disco'],
+        }
+
+        response = self.client.put(
+            url,
+            payload,
+            format='json',
+            HTTP_X_THEME_ADMIN_SECRET='admin-pin',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['genres'], payload['genres'])
+
+    @override_settings(THEME_ADMIN_SECRET='admin-pin')
+    def test_theme_rotation_rejects_invalid_genres(self):
+        """Test rotation updates require exactly 9 non-empty unique genres"""
+        ThemeRotation.objects.update_or_create(
+            key='classic',
+            defaults={
+                'name': 'Classic',
+                'description': 'theme by @1120cooks',
+                'genres': ['Phonk', 'Trap', 'Lo-Fi', 'House', 'Drill', 'R&B', 'EDM', 'Jazz', 'Ambient'],
+            },
+        )
+        url = reverse('theme-rotation-detail', kwargs={'key': 'classic'})
+        payload = {
+            'name': 'Classic',
+            'description': 'theme by @1120cooks',
+            'genres': ['Trap', 'Trap', 'House'],
+        }
+
+        response = self.client.put(
+            url,
+            payload,
+            format='json',
+            HTTP_X_THEME_ADMIN_SECRET='admin-pin',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_join_game_duplicate_name(self):
         """Test joining a game with a duplicate name"""

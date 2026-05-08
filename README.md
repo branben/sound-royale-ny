@@ -1,236 +1,100 @@
 # Sound Royale 🎹
 
-> The High-Stakes Game Show for Music Producers.
-> Built with React + TypeScript + Django (PERN-like client patterns with a Python backend).
+The High-Stakes Game Show for Music Producers.
 
----
-
-## GAIA Polecat - Symbolic Memory Architecture
-
-This project implements a **GAIA polecat** that combines:
-- **Gas Town** patterns (polecats, hooks, beads)
-- **Serena MCP** for symbolic code navigation
-- **Symbolic memory** via extended bead schema
-
-### The Pain Point
-
-Based on [Gastown Issue #1061](https://github.com/steveyegge/gastown/issues/1061): *"From Task Orchestration to Systems Engineering"*
-
-> **Beads tracks tasks. Git tracks code. Nothing tracks specs.**
-
-The problem: Every time an AI agent starts a session, it has to re-explore the codebase, re-learn patterns, and re-discover architecture. Context doesn't persist.
-
-### My Solution
-
-GAIA polecat uses **symbolic memory** - beads that store not just descriptions, but **Serena symbol references**:
-
-```json
-{
-  "id": "sound-royale-ny-xxx",
-  "title": "Game State Management Pattern",
-  "description": "GameContext manages game state using React Context",
-  "symbols": [
-    {"name": "GameContext", "path": "src/context/GameContext.tsx", "line": 42},
-    {"name": "setGameState", "path": "src/context/GameContext.tsx", "line": 89}
-  ]
-}
-```
-
-### How It Works
-
-```
-gaia-polecat (Python orchestrator)
-    │
-    ├── Stores local/private state in .gaia_private/gaia/
-    ├── Loads curated skills from .gaia_skills/**/SKILL.md
-    ├── Compiles a minimal task contract (local-first optional)
-    ├── Passes the contract to a provider (opencode/ollama/codex)
-    │
-    └── Provider uses Serena MCP tools:
-        ├── serena.find_symbol()     → exact code location
-        ├── serena.get_symbols_overview() → file structure
-        ├── serena.replace_symbol_body() → safe edits
-        │
-    └── Creates new bead documenting work
-```
-
-### Components
-
-| Component | Role |
-|-----------|------|
-| [Gas Town](https://github.com/steveyegge/gastown) | Multi-agent orchestration patterns |
-| [Serena MCP](https://github.com/oraios/serena) | Symbolic code navigation via LSP |
-| `.beads/` | Legacy bead location (no longer committed; treated as local/private) |
-| `.gaia_private/` | Private polecat state + bead outputs (git-ignored) |
-| `scripts/gaia-polecat.py` | Repo-local canonical runner |
-| `.gaia_skills/` | AI development skills & PR error test suite |
-
-### Quick note on Beads + privacy
-
-In earlier iterations, we experimented with committing bead artifacts to git. In practice, that’s too risky:
-- PR comments, logs, and stack traces can accidentally include PII/secrets.
-- Absolute paths like `file:///Users/...` can leak local usernames.
-
-**Current approach:** beads are treated as **local/private** by default (stored under `.gaia_private/`). CI also enforces that `.beads/` is not tracked.
-
-### GAIA Skills Framework
-
-| Skill | Description |
-|-------|-------------|
-| `systematic-debugging` | Root cause analysis before fixing bugs |
-| `test-driven-development` | Red-green-refactor methodology |
-| `verification-before-completion` | Evidence-based completion claims |
-| `rating-system` | Evaluating GAIA's contribution (294/300 Gold Polecat) |
-
-**PR Error Test Suite** - 6 common patterns from Gas Town issues:
-- Missing return types, state mutation, error handlers
-- Secret exposure, missing imports, race conditions
-
-### Usage (with Codex + Serena MCP)
+## Quick Start
 
 ```bash
-# Run a task via GAIA polecat (repo-local runner)
-python scripts/gaia-polecat.py "Add a comment to GameContext.tsx"
+# Frontend
+npm install
+npm run dev
 
-# Optional convenience wrapper (recommended once installed)
-gaia-polecat "Add a comment to GameContext.tsx"
-
-# The polecat uses Codex with these MCP tools:
-# - Serena: Symbolic code navigation
-# - Linear: Issue tracking
-# - Context7: Documentation lookup
-# - Qodo: Code review feedback
+# Backend
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+python manage.py runserver
 ```
 
-### Quick Reference
+## Project Overview
 
-| Command | Description |
-|---------|-------------|
-| `python scripts/gaia-polecat.py "task"` | Run GAIA task via repo-local runner |
-| `gaia-polecat "task"` | Run via convenience wrapper (forwards to repo-local runner) |
-| `gaia-polecat --list-queue` | Show queued tasks |
-| `gaia-polecat "task" --queue` | Add task to queue |
-| `gaia-polecat --run-queue` | Run queued tasks |
-| `gt mail send sound_royale_ny/mayor -s "Subject" -m "Body"` | Notify Gas Town mayor |
-| `codex exec --dangerously-bypass-approvals-and-sandbox "task"` | Direct Codex execution |
+Sound Royale is a multiplayer music bingo game where producers compete by completing bingo boards with audio tiles. Players upload audio samples, and the game broadcasts them in real-time for other players to match and claim tiles.
 
-### Cost control + autonomy (recommended operating mode)
+**Tech Stack:**
+- **Frontend:** React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui
+- **Backend:** Django 5.2, Django REST Framework, Django Channels (WebSockets)
+- **Real-time:** WebSockets via Django Channels with Redis
+- **Database:** SQLite (dev), PostgreSQL (production)
 
-The goal is to keep GAIA autonomous while minimizing paid-token usage:
-- GAIA (this repo) acts as the **orchestrator** and **token budget governor**.
-- Providers (e.g. opencode) should be treated as **executors** that receive a minimal task contract.
-
-Practical defaults:
-- Prefer **single-worker queue execution** (avoid “spawn storms”).
-- On transient provider errors (e.g. rate limiting), use **exponential backoff** and respect `retry-after` when present.
-- Inject only the **minimum required skills** for the task.
-
-Local-first option (primarily free):
-- Use **LM Studio** as a local Tier-1 “compiler” model for triage/plan/contract generation.
-- Reserve opencode/Codex for code edits that require deeper reasoning/tool use.
-
-### Prerequisites
-
-1. **Codex** - `brew install codex` or use web interface
-2. **Serena MCP** - Already configured in Codex
-3. **Linear MCP** - Run `codex mcp login linear`
-4. **Gas Town** - `gt` CLI for mail/roles
-
-### References
-
-- [Gastown Issue #1061](https://github.com/steveyegge/gastown/issues/1061) - The core pain point (specs/knowledge layer)
-- [Gastown PR #212](https://github.com/steveyegge/gastown/pull/212) - Gas Town Web GUI (related polecat UI)
-- [Serena](https://github.com/oraios/serena) - Symbolic code intelligence
-
----
-
-## System Evolution: Before vs After GAIA
-
-This project has evolved from a **simple music game** to an **AI-enhanced development platform**. Here's how the system has changed:
-
-### Before GAIA (Original System)
+## Architecture
 
 ```
-Sound Royale (v1)
-├── Manual coding workflow
-├── Standard git commits only
-├── No AI assistance during development
-├── Basic README with game features
-├── Security: Minimal (no path guards)
-└── Issue tracking: External (Linear/GitHub Issues)
+sound-royale-ny/
+├── src/              # React frontend
+│   ├── components/   # UI components
+│   ├── context/      # React Context for state management
+│   ├── pages/        # Route components
+│   ├── services/     # API and WebSocket clients
+│   └── types/        # TypeScript definitions
+├── backend/          # Django backend
+│   ├── game_engine/  # Core game logic and models
+│   └── sound_royale_api/  # Django project config
+├── tests/            # E2E tests (Playwright)
+└── docs/             # Documentation
+    ├── guides/       # How-to guides
+    ├── reference/    # Technical references
+    ├── architecture/ # Architecture docs
+    ├── operations/  # CI/CD & operations
+    ├── testing/      # Testing docs
+    └── gaia/         # AI-assisted development docs
 ```
 
-**Characteristics:**
-- Traditional development workflow
-- Context lost between AI sessions
-- Manual code review via GitHub PRs
-- No symbolic memory persistence
+See [docs/architecture/SYSTEM_DESIGN_CHOICES.md](docs/architecture/SYSTEM_DESIGN_CHOICES.md) for detailed architecture decisions.
 
-### After GAIA (Current System)
+## Development
 
-```
-Sound Royale + GAIA (v2)
-├── GAIA polecat: Automated task execution
-├── Beads: Symbolic memory persistence
-├── Qodo feedback loop: Automated code review → bead creation
-├── Security guards: Path integrity, secret exclusion
-├── Serena MCP: Exact code locations without searching
-└── Session continuity via M-beads
-```
+### Running Tests
 
-**New Capabilities:**
-| Capability | Old System | New System (GAIA) |
-|------------|------------|-------------------|
-| **Memory** | Lost between sessions | Beads persist across sessions |
-| **Code Navigation** | Grep/search | `serena.find_symbol()` → exact line |
-| **Code Review** | Manual PR review | Qodo bot → auto-bead → polecat fix |
-| **Security** | None | Path guards, secret exclusion |
-| **Session Continuity** | Start fresh each time | M-bead carries context |
-| **Task Tracking** | Git commits | Beads with symbol refs |
+```bash
+# Frontend type check
+npx tsc --noEmit
 
-### Qodo Feedback → Fix Flow
+# E2E tests (requires frontend running on localhost:8080)
+npm run test:e2e
 
-The key new capability is **automated code review response**:
-
-```
-1. Qodo bot comments on PR
-   ↓
-2. qodo-feedback-loop.sh detects comment
-   ↓
-3. Creates a *symbolic* bead (PR/comment links + file paths; no raw comment bodies)
-   ↓
-4. Optional: Spawns polecat to fix
-   ↓
-5. Fix applied, committed to git
-
+# Backend tests
+cd backend
+python manage.py test
 ```
 
-### Runtime note (WebSockets + E2E)
+### Code Conventions
 
-This project uses Django Channels for realtime game updates. In most environments that means:
-- **WebSockets require Redis** (channel layer)
+- **Frontend:** Functional components with hooks, immutable state updates, TypeScript strict mode
+- **Backend:** Django REST Framework patterns, UUID primary keys, async WebSocket consumers
+- **State:** Never mutate gameState directly - use functional updates
+- **Security:** Never expose playerSecret in logs or API responses
 
-If Redis isn’t running (common in fresh dev setups or misconfigured CI), the backend can’t broadcast game updates and E2E tests that wait on realtime UI changes will time out.
+See `AGENTS.md` for detailed anti-patterns and conventions.
 
-**Recent fixes from Qodo feedback (PR #5):**
-- `.beadsignore`: Removed duplicate `.aws/`, redundant `.ssh/*`
-- `gaia-guards-ci.yml`: Fixed TS_FILES array with `readarray`
-- `guards_adapter.py`: Added `.expanduser()` before path resolution
+## Documentation
 
----
+- [Full Documentation](docs/README.md)
+- [Getting Started](docs/guides/MVP_SCOPE.md)
+- [Architecture](docs/architecture/SYSTEM_DESIGN_CHOICES.md)
+- [Testing](docs/testing/E2E_TASK_LIST.md)
 
-## QODO Test (Branch-specific)
+## AI-Assisted Development
 
-This branch includes intentional anti-patterns to exercise QODO:
-- Direct state mutations (frontend)
-- PlayerSecret exposure (logs)
-- Direct context usage instead of hooks
-- Missing error handling
+This project uses AI tools for development automation. See [docs/gaia/README.md](docs/gaia/README.md) for details on:
+- GAIA polecat orchestration
+- Serena MCP for code navigation
+- CocoIndex Code for semantic discovery
+- Qodo feedback automation
 
-Expected QODO feedback:
-- Flag anti-patterns and suggest immutable updates
-- Identify secret exposure risks
-- Recommend React/Django best practices
+## Before Commit
 
-Tradeoffs: Keeping test antipatterns visible speeds tooling evaluation but can confuse new devs; we isolate these in test files and CI gates to limit impact.
-
+- [ ] Build passes (`npm run build && npx tsc --noEmit`)
+- [ ] Tests pass (`npm run test:e2e` or `python backend/manage.py test`)
+- [ ] No secrets/PII in committed files
+- [ ] Update CHANGELOG.md if applicable

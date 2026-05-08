@@ -22,6 +22,7 @@ interface ScoreDisplayProps {
   onPlayerClick?: () => void;
   eloRating?: number;
   eloDelta?: number;
+  showPlayerName?: boolean;
 }
 
 export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
@@ -31,7 +32,8 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
   hasWon = false,
   onPlayerClick,
   eloRating,
-  eloDelta
+  eloDelta,
+  showPlayerName = true
 }) => {
   const eloRatingDisplay = eloRating !== undefined ? (
     <div className="flex items-center justify-center gap-2 mb-3 px-2 py-1 bg-[#7C3AED]/10 rounded border border-[#7C3AED]/30" data-testid="elo-rating">
@@ -43,9 +45,11 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
   if (!scoreInfo) {
     return (
       <div className="bg-gray-800/50 backdrop-blur-sm rounded-lg p-4 border border-gray-700/50">
-        <div className="text-center text-gray-400 font-medium">
-          {playerName}
-        </div>
+        {showPlayerName && (
+          <div className="text-center text-gray-400 font-medium">
+            {playerName}
+          </div>
+        )}
         {eloRatingDisplay}
         <div className="text-center text-sm text-gray-500">
           No score yet
@@ -60,7 +64,7 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
   return (
     <div 
       data-testid="score-display"
-      {...(hasWon && {'data-testid': 'victory-celebration'})}
+      data-victory-celebration={hasWon ? 'true' : undefined}
       className={`
         bg-gray-800/50 backdrop-blur-sm rounded-lg p-4 border transition-all duration-300 cursor-pointer
         ${isCurrentPlayer ? 'border-blue-500/50 shadow-blue-500/20' : 'border-gray-700/50'}
@@ -71,15 +75,17 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
     >
       {/* Player Name with Winner Badge */}
       <div className="flex items-center justify-between mb-3">
-        <div className={`
-          font-medium
-          ${isCurrentPlayer ? 'text-blue-400' : 'text-gray-300'}
-          ${hasWon ? 'text-yellow-400 font-bold' : ''}
-          ${onPlayerClick ? 'hover:text-[#7C3AED] transition-colors' : ''}
-        `}>
-          {playerName}
-          {onPlayerClick && <span className="text-xs text-gray-500 ml-1">→</span>}
-        </div>
+        {showPlayerName && (
+          <div className={`
+            font-medium
+            ${isCurrentPlayer ? 'text-blue-400' : 'text-gray-300'}
+            ${hasWon ? 'text-yellow-400 font-bold' : ''}
+            ${onPlayerClick ? 'hover:text-[#7C3AED] transition-colors' : ''}
+          `}>
+            {playerName}
+            {onPlayerClick && <span className="text-xs text-gray-500 ml-1">→</span>}
+          </div>
+        )}
         {hasWon && (
           <div className="flex items-center gap-1 text-yellow-400">
             <Trophy className="w-4 h-4" />

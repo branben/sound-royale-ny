@@ -1,6 +1,6 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, Crown, X, Clock, Trophy, WifiOff } from 'lucide-react';
+import { Share2, Users, Crown, X, Clock, Trophy, WifiOff } from 'lucide-react';
 import { Player } from '@/types/game';
 import { cn } from '@/lib/utils';
 import { useGame } from '@/context/useGame';
@@ -10,6 +10,9 @@ import { toast } from 'sonner';
 import { gameApi } from '@/services/api';
 import { VictoryCelebration } from '@/components/game/VictoryCelebration';
 import { PlayerProfileModal } from '@/components/game/PlayerProfileModal';
+import { TitleBadge } from '@/components/game/TitleBadge';
+import { DiscordVerifiedIcon } from '@/components/game/DiscordVerifiedIcon';
+import type { GameState } from '@/types/game';
 
 interface GameInfoProps {
   roomId: string;
@@ -17,46 +20,52 @@ interface GameInfoProps {
 }
 
 export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
-  const { gameState } = useGame();
+  const { gameState, setGameState, timeRemaining } = useGame();
   const { userSession } = useUser();
   const [showVictory, setShowVictory] = useState(false);
-  const [roundTimeLeft, setRoundTimeLeft] = useState<number | null>(null);
+  const [displayTimeLeft, setDisplayTimeLeft] = useState<number | null>(null);
+  const [isAdvancingRound, setIsAdvancingRound] = useState(false);
   const timeUpAnnouncedRef = useRef<number | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
-  
-  const ROUND_DURATION = 300;
-  
-  // Consolidated timer effect: handles reset, countdown, and announcement
+
   useEffect(() => {
-    // Handle game status changes
     if (gameState.status !== 'playing') {
-      setRoundTimeLeft(null);
+      setDisplayTimeLeft(null);
       timeUpAnnouncedRef.current = null;
       return;
     }
 
-    // Reset timer for new round
     setShowVictory(false);
-    setRoundTimeLeft(ROUND_DURATION);
-    timeUpAnnouncedRef.current = null;
+  }, [gameState.status, gameState.currentRound]);
 
-    // Set up countdown interval
+  useEffect(() => {
+    if (gameState.status !== 'playing') {
+      return;
+    }
+
+    if (timeRemaining !== null) {
+      setDisplayTimeLeft(Math.max(0, timeRemaining));
+      return;
+    }
+
+    const timerEndsAt = gameState.roundState?.timerEndsAt;
+    if (!timerEndsAt) {
+      setDisplayTimeLeft(null);
+      return;
+    }
+
+    const updateFromServerEndTime = () => {
+      const secondsLeft = Math.ceil((new Date(timerEndsAt).getTime() - Date.now()) / 1000);
+      setDisplayTimeLeft(Math.max(0, secondsLeft));
+    };
+
+    updateFromServerEndTime();
     const intervalId = setInterval(() => {
-      setRoundTimeLeft(prev => {
-        if (prev === null) return prev;
-        const next = prev - 1;
-        if (next <= 0) {
-          clearInterval(intervalId);
-          return 0;
-        }
-        return next;
-      });
+      updateFromServerEndTime();
     }, 1000);
 
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [gameState.status, gameState.currentRound]);
+    return () => clearInterval(intervalId);
+  }, [gameState.status, gameState.roundState?.timerEndsAt, timeRemaining]);
 
   // Timer announcement effect
   useEffect(() => {
@@ -65,13 +74,20 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
     }
 
     if (
-      roundTimeLeft === 0 &&
+      displayTimeLeft === 0 &&
       timeUpAnnouncedRef.current !== gameState.currentRound
     ) {
       timeUpAnnouncedRef.current = gameState.currentRound;
-      toast.message("Time's up — calculating winner...");
+      const spectatorCount = Object.values(gameState.players).filter(player =>
+        player.isSpectator || player.name?.startsWith('Spectator ')
+      ).length;
+      toast.message(
+        spectatorCount >= 3
+          ? "Time's up — voting is open."
+          : "Time's up — casual round, no spectator voting."
+      );
     }
-  }, [gameState.status, gameState.currentRound, roundTimeLeft]);
+  }, [gameState.status, gameState.currentRound, displayTimeLeft, gameState.players]);
 
   // Victory effect
   useEffect(() => {
@@ -101,6 +117,23 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
     }
   };
 
+  const handleNextRound = async () => {
+    if (!userSession.playerSecret) return;
+
+    setIsAdvancingRound(true);
+    try {
+      await gameApi.nextTurn(roomId, userSession.playerSecret);
+      const refreshedState = await gameApi.getGameState(roomId) as GameState;
+      setGameState(prev => ({ ...prev, ...refreshedState }));
+      toast.success(`Round ${refreshedState.currentRound} started.`);
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string } }; message?: string };
+      toast.error(error.response?.data?.error || 'Failed to start next round');
+    } finally {
+      setIsAdvancingRound(false);
+    }
+  };
+
   const handleCelebrationComplete = () => {
     setShowVictory(false);
   };
@@ -117,9 +150,28 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
     }
   };
 
+  const handleCopySpectatorLink = async () => {
+    const shareUrl = `${window.location.origin}/room/${roomId}?spectator=1`;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success('Spectator link copied');
+    } catch {
+      toast.info(shareUrl);
+    }
+  };
+
   const handlePlayerClick = (player: Player) => {
     setSelectedPlayer(player);
   };
+
+  // Extract room genres from the first player's board (all players have same board)
+  const roomGenres = useMemo(() => {
+    const players = Object.values(gameState.players);
+    if (players.length === 0) return [];
+    const firstPlayer = players[0];
+    if (!firstPlayer.board?.tiles) return [];
+    return firstPlayer.board.tiles.map(tile => tile.genre);
+  }, [gameState.players]);
 
   const handleCloseProfile = () => {
     setSelectedPlayer(null);
@@ -151,11 +203,13 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
     player.isSpectator || player.name?.startsWith('Spectator ');
   const spectators = players.filter(isSpectatorPlayer);
   const activePlayers = players.filter((player: Player) => !isSpectatorPlayer(player));
+  const isRankedRound = spectators.length >= 3;
+  const hasRoundTimedOut = gameState.status === 'playing' && displayTimeLeft === 0;
 
   return (
     <Card className="border-[#7C3AED]/30 bg-[#0F0F23]/80 backdrop-blur-xl mb-6 shadow-[0_0_30px_rgba(124,58,237,0.15)]">
       <CardContent className="p-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4">
           <div className="space-y-2">
             <div className="flex items-center gap-2 font-semibold text-foreground">
               <Users className="h-4 w-4" />
@@ -173,12 +227,15 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
                       data-testid={`player-name-${player.name}`}
                       onClick={() => handlePlayerClick(player)}
                       className={cn(
-                        "text-sm font-['Poppins'] hover:text-[#7C3AED] transition-colors cursor-pointer",
+                        "min-w-0 break-words text-left text-sm font-['Poppins'] hover:text-[#7C3AED] transition-colors cursor-pointer",
                         player.name === currentPlayerName && "font-semibold text-[#7C3AED] neon-text"
                       )}
                     >
                       {player.name} {player.name === currentPlayerName && "(You)"}
                     </button>
+                    {player.isDiscordVerified && (
+                      <DiscordVerifiedIcon username={player.discordUsername} />
+                    )}
                     {!player.isConnected && (
                       <span
                         data-testid="disconnected-indicator"
@@ -191,6 +248,7 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
                       <Crown className="h-4 w-4 text-[#EAB308] crown-glow drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]" />
                     )}
                   </div>
+                  <TitleBadge title={player.currentTitle} compact />
                   {player.eloRating !== undefined && (
                     <div
                       data-testid={`player-elo-stats-${player.id}`}
@@ -224,13 +282,41 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center gap-2 font-semibold text-foreground">
-              <Users className="h-4 w-4" />
-              Spectators ({spectators.length})
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 font-semibold text-foreground">
+                <Users className="h-4 w-4" />
+                Spectators ({spectators.length})
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleCopySpectatorLink}
+                className="h-8 gap-1.5 px-3"
+                aria-label="Copy spectator invite link"
+              >
+                <Share2 className="h-3.5 w-3.5" />
+                <span className="text-xs">Share</span>
+              </Button>
             </div>
             {spectators.map((spectator: Player) => (
               <div key={spectator.id} className="flex items-center justify-between text-sm p-2 rounded bg-background/50">
-                <span>{spectator.name}</span>
+                <div className="min-w-0">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <button
+                      type="button"
+                      data-testid={`player-name-${spectator.name}`}
+                      onClick={() => handlePlayerClick(spectator)}
+                      className="min-w-0 break-words text-left hover:text-[#7C3AED] focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/60"
+                    >
+                      {spectator.name}
+                    </button>
+                    {spectator.isDiscordVerified && (
+                      <DiscordVerifiedIcon username={spectator.discordUsername} />
+                    )}
+                  </div>
+                  <TitleBadge title={spectator.currentTitle} compact />
+                </div>
                 {isHost && spectator.id !== userSession.playerId && (
                   <Button
                     data-testid="kick-player"
@@ -248,58 +334,46 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
 
           <div className="space-y-2">
             <div className="font-semibold text-foreground">Game Status</div>
-            <div className="flex items-center gap-2">
-              <div className={cn(
-                "px-3 py-1 rounded-full text-sm font-medium font-['Righteous'] tracking-wider uppercase transition-all duration-500 border",
-                gameState.status === 'lobby' && 'bg-[#EAB308]/10 border-[#EAB308]/50 text-[#EAB308]',
-                gameState.status === 'playing' && 'bg-[#7C3AED]/10 border-[#7C3AED]/50 text-[#7C3AED] animate-pulse shadow-[0_0_15px_rgba(124,58,237,0.3)]',
-                gameState.status === 'finished' && 'bg-[#10B981]/10 border-[#10B981]/50 text-[#10B981] animate-bounce-in shadow-[0_0_15px_rgba(16,185,129,0.3)]'
-              )}>
-                {gameState.status === 'lobby' && 'Waiting'}
-                {gameState.status === 'playing' && 'Live'}
-                {gameState.status === 'finished' && 'Done'}
-              </div>
-              <div className="text-sm text-muted-foreground">
-                <div className="capitalize font-medium">
-                  {gameState.status === 'lobby' && 'Waiting for players to join'}
-                  {gameState.status === 'playing' && activePlayers.length >= 2 && 'Both players are creating beats!'}
-                  {gameState.status === 'playing' && activePlayers.length < 2 && 'Waiting for more players to join...'}
-                  {gameState.status === 'finished' && (
-                    <span className="animate-pulse-glow">
-                      🎉 {players.find((p: Player) => p.id === gameState.winner)?.name} wins the battle!
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="text-sm text-muted-foreground">
-                <div className="capitalize font-medium">
-                  {gameState.status === 'lobby' && 'Waiting for players to join'}
-                  {gameState.status === 'playing' && 'Battle in Progress'}
-                  {gameState.status === 'finished' && 'Battle Completed'}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  {gameState.status === 'lobby' && 'Waiting for at least 2 players to start the game'}
-                  {gameState.status === 'playing' && activePlayers.length >= 2 && 'Both players are creating beats!'}
-                  {gameState.status === 'playing' && activePlayers.length < 2 && 'Waiting for more players to join...'}
-                  {gameState.status === 'finished' && `🎉 ${players.find((p: Player) => p.id === gameState.winner)?.name} wins the battle!`}
-                </div>
+            <div className="text-sm text-muted-foreground">
+              <div className="text-xs text-muted-foreground">
+                {gameState.status === 'lobby' && 'Waiting for at least 2 players to start the game'}
+                {gameState.status === 'playing' && 'Game in progress'}
+                {gameState.status === 'finished' && `🎉 ${players.find((p: Player) => p.id === gameState.winner)?.name} wins the battle!`}
               </div>
             </div>
             <div className="text-sm text-muted-foreground">
               <div className="flex items-center gap-2">
                 <span>Round: {gameState.currentRound}</span>
-                {roundTimeLeft !== null && gameState.status === 'playing' && (
+                {displayTimeLeft !== null && gameState.status === 'playing' && (
                   <span className={cn(
                     "flex items-center gap-1 ml-2 px-2 py-0.5 rounded-full text-xs font-mono",
-                    roundTimeLeft <= 30 && "bg-red-500/20 text-red-400 animate-pulse",
-                    roundTimeLeft > 30 && "bg-[#7C3AED]/20 text-[#7C3AED]"
+                    displayTimeLeft <= 30 && "bg-red-500/20 text-red-400 animate-pulse",
+                    displayTimeLeft > 30 && "bg-[#7C3AED]/20 text-[#7C3AED]"
                   )}>
                     <Clock className="h-3 w-3" />
-                    {formatTime(roundTimeLeft)}
+                    {formatTime(displayTimeLeft)}
                   </span>
                 )}
               </div>
             </div>
+            {hasRoundTimedOut && !isRankedRound && (
+              <div className="rounded-lg border border-[#7C3AED]/30 bg-[#7C3AED]/10 p-3 text-sm text-muted-foreground">
+                <div className="font-medium text-foreground">Casual round complete</div>
+                <p className="mt-1">Voting needs 3 spectators. No votes are recorded for this round.</p>
+                {isHost ? (
+                  <Button
+                    onClick={handleNextRound}
+                    disabled={isAdvancingRound}
+                    className="mt-3 h-9 w-full"
+                    size="sm"
+                  >
+                    {isAdvancingRound ? 'Starting...' : 'Start Next Round'}
+                  </Button>
+                ) : (
+                  <p className="mt-2 text-xs">Waiting for the host to start the next round.</p>
+                )}
+              </div>
+            )}
             {gameState.winner && (
               <div className="flex items-center gap-2 mt-2 p-3 rounded-lg bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/30 animate-bounce-in">
                 <div className="flex items-center gap-2">
@@ -317,7 +391,7 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
             )}
             {gameState.status === 'finished' && (
               <VictoryCelebration
-                winnerName={players.find((p: any) => p.id === gameState.winner)?.name || 'Unknown'}
+                winnerName={players.find((p: Player) => p.id === gameState.winner)?.name || 'Unknown'}
                 isVisible={showVictory}
                 onComplete={handleCelebrationComplete}
               />
@@ -343,6 +417,7 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
           isOpen={!!selectedPlayer}
           onClose={handleCloseProfile}
           scoreInfo={selectedPlayer.scoreInfo}
+          roomGenres={roomGenres}
         />
       )}
     </Card>

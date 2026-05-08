@@ -31,6 +31,8 @@ class GameSocketService {
   private maxReconnectAttempts = 5;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private isIntentionallyClosed = false;
+  private currentConnectionKey: string | null = null;
+  private isConnecting = false;
 
   private getWsUrl(): string {
     const baseUrl = import.meta.env.VITE_WS_URL || 
@@ -51,22 +53,46 @@ class GameSocketService {
   }
 
   connect(options: GameSocketOptions): void {
+    const nextConnectionKey = this.getConnectionKey(options);
+
+    // Prevent duplicate simultaneous attempts for the same room and credentials.
+    if (this.isConnecting && this.currentConnectionKey === nextConnectionKey) {
+      return;
+    }
+
+    // If the same connection is open, only update callbacks
+    if (
+      this.currentConnectionKey === nextConnectionKey &&
+      this.ws &&
+      this.ws.readyState === WebSocket.OPEN
+    ) {
+      this.options = options;
+      return;
+    }
+
+    // Room or credentials changed; reconnect
+    if (this.currentConnectionKey !== nextConnectionKey) {
+      this.disconnect();
+    }
+
     this.options = options;
     this.maxReconnectAttempts = options.reconnectAttempts ?? 5;
     this.isIntentionallyClosed = false;
     this.reconnectAttempts = 0;
-    
-    // Connection established with gameId
-    console.log('[GameSocket] Connection config:', { 
-      gameId: options.gameId
-    });
-    
+    this.currentConnectionKey = nextConnectionKey;
+
     this.doConnect();
+  }
+
+  private getConnectionKey(options: GameSocketOptions): string {
+    return [options.gameId, options.playerId ?? '', options.playerSecret ?? ''].join(':');
   }
 
   private doConnect(): void {
     if (!this.options) return;
-    
+
+    this.isConnecting = true;
+
     // Close existing connection if any
     if (this.ws) {
       this.ws.close();
@@ -74,15 +100,12 @@ class GameSocketService {
     }
 
     const wsUrl = this.getWsUrl();
-    // Redact secret from URL for logging to prevent PII exposure
-    const safeWsUrl = wsUrl.replace(/secret=[^&]*/, 'secret=***');
-    console.log('[GameSocket] Connecting to', safeWsUrl);
 
     try {
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
-        console.log('[GameSocket] Connected');
+        this.isConnecting = false;
         this.reconnectAttempts = 0;
         this.options?.onConnect?.();
       };
@@ -90,7 +113,6 @@ class GameSocketService {
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data) as GameSocketMessage;
-          console.log('[GameSocket] Received:', data.type);
           this.options?.onMessage(data);
         } catch (err) {
           console.error('[GameSocket] Failed to parse message:', err);
@@ -98,8 +120,7 @@ class GameSocketService {
       };
 
       this.ws.onclose = (event) => {
-        console.log('[GameSocket] Disconnected:', event.reason || event.code);
-        
+        this.isConnecting = false;
         if (!this.isIntentionallyClosed) {
           this.options?.onDisconnect?.(event.reason || `Code: ${event.code}`);
           this.attemptReconnect();
@@ -107,10 +128,12 @@ class GameSocketService {
       };
 
       this.ws.onerror = (error) => {
+        this.isConnecting = false;
         console.error('[GameSocket] Error:', error);
         this.options?.onError?.(error);
       };
     } catch (err) {
+      this.isConnecting = false;
       console.error('[GameSocket] Failed to create WebSocket:', err);
       this.attemptReconnect();
     }
@@ -120,15 +143,12 @@ class GameSocketService {
     if (this.isIntentionallyClosed || !this.options) return;
     
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.log('[GameSocket] Max reconnection attempts reached');
       return;
     }
 
     const interval = this.options.reconnectInterval ?? 1000;
     const delay = Math.min(interval * Math.pow(2, this.reconnectAttempts), 30000);
-    
-    console.log(`[GameSocket] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
-    
+
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectAttempts++;
       this.doConnect();
@@ -137,7 +157,9 @@ class GameSocketService {
 
   disconnect(): void {
     this.isIntentionallyClosed = true;
-    
+    this.isConnecting = false;
+    this.currentConnectionKey = null;
+
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
@@ -147,9 +169,8 @@ class GameSocketService {
       this.ws.close(1000, 'Client disconnecting');
       this.ws = null;
     }
-    
+
     this.options = null;
-    console.log('[GameSocket] Disconnected');
   }
 
   send(messageType: string, payload?: unknown): void {
@@ -164,7 +185,6 @@ class GameSocketService {
     };
 
     this.ws.send(JSON.stringify(message));
-    console.log('[GameSocket] Sent:', messageType);
   }
 
   isConnected(): boolean {

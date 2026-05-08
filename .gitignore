@@ -9,9 +9,15 @@ env/
 
 # Beads / Gastown symbolic memory (treat as local-private; do not commit)
 .beads/
+.ai-tools/.beads/
 
-# Local agent runtime state
-.opencode/
+# AI tooling runtime state (consolidated in .ai-tools/)
+.ai-tools/.serena/
+.ai-tools/.cocoindex_code/
+.ai-tools/.opencode/
+
+# CocoIndex Code (semantic index - local state)
+.cocoindex_code/
 
 # Logs
 logs/
@@ -54,5 +60,6 @@ daemon/
 test-results/
 dist/
 playwright-report/
-.serena/
+backend/media/
+output/
 .DS_Store

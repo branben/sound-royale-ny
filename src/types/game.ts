@@ -28,6 +28,9 @@ export interface Player {
   id: string;
   name: string;
   avatar?: string;
+  isDiscordVerified?: boolean;
+  discordUsername?: string;
+  discordAvatarUrl?: string;
   board: BoardData;
   playerSecret?: string;
   isConnected?: boolean;
@@ -39,6 +42,8 @@ export interface Player {
   eloWins?: number;
   eloLosses?: number;
   eloMatches?: number;
+  isCheckedIn?: boolean;
+  currentTitle?: 'NONE' | 'JACKPOT' | 'SWEEPER' | 'CHECKED_IN';
   scoreInfo?: ScoreInfo;
 }
 
@@ -97,7 +102,7 @@ export const GENRES = [
 
 export type Genre = typeof GENRES[number];
 
-export type ThemeId = 'classic' | 'phonk' | 'trap' | 'lofi' | 'house' | 'electronic' | 'custom';
+export type ThemeId = 'classic' | 'weekly' | 'monthly' | 'phonk' | 'trap' | 'lofi' | 'house' | 'electronic' | 'custom';
 
 export interface Theme {
   id: string;
@@ -107,48 +112,36 @@ export interface Theme {
   bonusMultiplier: number;
 }
 
+export interface ThemeRotation {
+  key: 'classic' | 'weekly' | 'monthly';
+  name: string;
+  description: string;
+  genres: string[];
+  created_at?: string;
+  updated_at?: string;
+}
+
 export const THEMES: Theme[] = [
   {
     id: 'classic',
     name: 'Classic',
-    description: 'Standard genre mix',
+    description: 'theme by @1120cooks',
     genres: [...GENRES],
     bonusMultiplier: 1.0,
   },
   {
-    id: 'phonk',
-    name: 'Phonk Heavy',
-    description: 'Aggressive phonk and drill',
-    genres: ['Phonk', 'Trap', 'Drill', 'House', 'R&B'],
-    bonusMultiplier: 1.2,
+    id: 'weekly',
+    name: 'Weekly Rotation',
+    description: 'theme by @1120cooks',
+    genres: [...GENRES],
+    bonusMultiplier: 1.0,
   },
   {
-    id: 'trap',
-    name: 'Trap',
-    description: 'Trap-focused selection',
-    genres: ['Trap', 'Phonk', 'Drill', 'R&B', 'EDM'],
-    bonusMultiplier: 1.15,
-  },
-  {
-    id: 'lofi',
-    name: 'Chill Vibes',
-    description: 'Relaxed lo-fi and ambient',
-    genres: ['Lo-Fi', 'Ambient', 'Jazz', 'R&B', 'Phonk'],
-    bonusMultiplier: 1.1,
-  },
-  {
-    id: 'house',
-    name: 'House',
-    description: 'House and electronic beats',
-    genres: ['House', 'EDM', 'Techno', 'Disco', 'Lo-Fi'],
-    bonusMultiplier: 1.15,
-  },
-  {
-    id: 'electronic',
-    name: 'Electronic',
-    description: 'Pure electronic music',
-    genres: ['EDM', 'House', 'Techno', 'Trance', 'Dubstep'],
-    bonusMultiplier: 1.15,
+    id: 'monthly',
+    name: 'Monthly Rotation',
+    description: 'theme by @1120cooks',
+    genres: [...GENRES],
+    bonusMultiplier: 1.0,
   },
 ] as const;
 
@@ -159,11 +152,19 @@ export interface RoomResponse {
     id: string;
     name: string;
     avatar?: string;
+    is_discord_verified?: boolean;
+    isDiscordVerified?: boolean;
+    discord_username?: string;
+    discordUsername?: string;
+    discord_avatar_url?: string;
+    discordAvatarUrl?: string;
+    board?: BoardData;
     tiles?: Array<{
       id: string;
       genre: string;
       status: TileStatus;
       audio_url?: string;
+      audioUrl?: string;
     }>;
     player_secret?: string;
     is_connected?: boolean;
@@ -174,13 +175,18 @@ export interface RoomResponse {
     elo_wins?: number;
     elo_losses?: number;
     elo_matches?: number;
+    is_checked_in?: boolean;
+    current_title?: 'NONE' | 'JACKPOT' | 'SWEEPER' | 'CHECKED_IN';
+    isCheckedIn?: boolean;
+    currentTitle?: 'NONE' | 'JACKPOT' | 'SWEEPER' | 'CHECKED_IN';
+    scoreInfo?: ScoreInfo;
   }>;
   current_round: number;
   total_rounds?: number;
   theme?: string;
   custom_genres?: string[];
   bonus_multiplier?: number;
-  winner?: string;
+  winner?: string | { id: string } | null;
   elo_deltas?: Array<{
     player_id: string;
     player_name: string;
@@ -195,4 +201,13 @@ export interface CreateRoomResponse {
   room_code: string;
   player_id: string;
   player_secret: string;
+}
+
+export interface GenrePerformance {
+  genre: string;
+  wins: number;
+  total_rounds: number;
+  win_rate: number;
+  grade: 'S' | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'N/A';
+  is_legacy?: boolean;
 }

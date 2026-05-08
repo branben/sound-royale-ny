@@ -79,7 +79,7 @@ Files:
 
 Do not touch:
 - dist/
-- .serena/
+- .ai-tools/.serena/
 - test-results/
 - playwright-report/
 """

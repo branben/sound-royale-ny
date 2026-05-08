@@ -6,7 +6,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { enableE2EMode, setupPlayerSession, mockWebSocketConnection } from './helpers';
+import { enableE2EMode, mockApiRoutes, setupPlayerSession, mockWebSocketConnection } from './helpers';
 import {
   createMockPlayingState,
   createMockProducer,
@@ -26,12 +26,12 @@ test.describe('Network Recovery', () => {
 
     await setupPlayerSession(page, { playerName: producer.name, playerId: producer.id, playerSecret: 'test-secret' });
 
-    await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: roomResponse });
-      } else {
-        await route.continue();
-      }
+    await mockApiRoutes(page, {
+      roomResponse,
+      rejoin: {
+        player: producer,
+        playerSecret: 'test-secret',
+      },
     });
 
     await page.goto(`/room/${gameState.id}`);
@@ -46,13 +46,15 @@ test.describe('Network Recovery', () => {
 
     await setupPlayerSession(page, { playerName: producer.name, playerId: producer.id, playerSecret: 'test-secret' });
 
-    await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
+    await mockApiRoutes(page, {
+      roomResponse: async (route) => {
         requestCount++;
         await route.fulfill({ json: roomResponse });
-      } else {
-        await route.continue();
-      }
+      },
+      rejoin: {
+        player: producer,
+        playerSecret: 'test-secret',
+      },
     });
 
     await page.goto(`/room/${gameState.id}`);
@@ -67,13 +69,15 @@ test.describe('Network Recovery', () => {
 
     await setupPlayerSession(page, { playerName: producer.name, playerId: producer.id, playerSecret: 'test-secret' });
 
-    await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
+    await mockApiRoutes(page, {
+      roomResponse: async (route) => {
         fetchCount++;
         await route.fulfill({ json: roomResponse });
-      } else {
-        await route.continue();
-      }
+      },
+      rejoin: {
+        player: producer,
+        playerSecret: 'test-secret',
+      },
     });
 
     await page.goto(`/room/${gameState.id}`);
@@ -88,12 +92,12 @@ test.describe('Network Recovery', () => {
 
     await setupPlayerSession(page, { playerName: producer.name, playerId: producer.id, playerSecret: 'test-secret' });
 
-    await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: roomResponse });
-      } else {
-        await route.continue();
-      }
+    await mockApiRoutes(page, {
+      roomResponse,
+      rejoin: {
+        player: producer,
+        playerSecret: 'test-secret',
+      },
     });
 
     await page.goto(`/room/${gameState.id}`);
@@ -107,17 +111,19 @@ test.describe('Network Recovery', () => {
 
     await setupPlayerSession(page, { playerName: producer.name, playerId: producer.id, playerSecret: 'test-secret' });
 
-    await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
+    await mockApiRoutes(page, {
+      roomResponse: async (route) => {
         attempt++;
         if (attempt < 2) {
           await route.abort('failed');
         } else {
           await route.fulfill({ json: toRoomResponse(gameState) });
         }
-      } else {
-        await route.continue();
-      }
+      },
+      rejoin: {
+        player: producer,
+        playerSecret: 'test-secret',
+      },
     });
 
     await page.goto(`/room/${gameState.id}`, { timeout: 15000 }).catch(() => {});
@@ -133,12 +139,12 @@ test.describe('Network Recovery', () => {
 
     await setupPlayerSession(page, { playerName: producer.name, playerId: producer.id, playerSecret: 'test-secret' });
 
-    await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: roomResponse });
-      } else {
-        await route.continue();
-      }
+    await mockApiRoutes(page, {
+      roomResponse,
+      rejoin: {
+        player: producer,
+        playerSecret: 'test-secret',
+      },
     });
 
     await page.goto(`/room/${gameState.id}`);
@@ -183,12 +189,12 @@ test.describe('Network Recovery', () => {
 
     await setupPlayerSession(page, { playerName: producer.name, playerId: producer.id, playerSecret: 'test-secret' });
 
-    await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: roomResponse });
-      } else {
-        await route.continue();
-      }
+    await mockApiRoutes(page, {
+      roomResponse,
+      rejoin: {
+        player: producer,
+        playerSecret: 'test-secret',
+      },
     });
 
     await page.goto(`/room/${gameState.id}`);
@@ -242,12 +248,12 @@ test.describe('Network Recovery', () => {
 
     await setupPlayerSession(page, { playerName: producer.name, playerId: producer.id, playerSecret: 'test-secret' });
 
-    await page.route('**/api/**', async (route) => {
-      if (route.request().url().includes('/rooms/')) {
-        await route.fulfill({ json: roomResponse });
-      } else {
-        await route.continue();
-      }
+    await mockApiRoutes(page, {
+      roomResponse,
+      rejoin: {
+        player: producer,
+        playerSecret: 'test-secret',
+      },
     });
 
     await page.goto(`/room/${gameState.id}`);
