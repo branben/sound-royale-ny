@@ -31,7 +31,7 @@ const mockRoomResponse = {
   ]
 };
 
-test.describe('WebSocket Real-time Updates', () => {
+test.describe('Mocked WebSocket Real-time Updates', () => {
   test.beforeEach(async ({ page }) => {
     await enableE2EMode(page);
     await mockWebSocketConnection(page);

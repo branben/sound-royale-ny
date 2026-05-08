@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { Player, Tile, RoomResponse, CreateRoomResponse, ThemeRotation, GenrePerformance } from '@/types/game';
+import { DiscordLinkResponse, DiscordSession } from '@/services/discordSession';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
@@ -16,6 +17,12 @@ interface PlayerResponse {
   name?: string;
   player_name?: string;
   avatar?: string;
+  is_discord_verified?: boolean;
+  isDiscordVerified?: boolean;
+  discord_username?: string;
+  discordUsername?: string;
+  discord_avatar_url?: string;
+  discordAvatarUrl?: string;
   board?: Player['board'];
   tiles?: Tile[];
   player_secret?: string;
@@ -42,6 +49,17 @@ interface PlayerResponse {
   scoreInfo?: Player['scoreInfo'];
 }
 
+function discordSessionPayload(discordSession?: DiscordSession): {
+  discord_user_id?: string;
+  discord_session_secret?: string;
+} {
+  if (!discordSession) return {};
+  return {
+    discord_user_id: discordSession.discordUserId,
+    discord_session_secret: discordSession.sessionSecret,
+  };
+}
+
 export const roomApi = {
   getRooms: async (): Promise<RoomResponse[]> => {
     const response = await api.get('/rooms/');
@@ -53,13 +71,21 @@ export const roomApi = {
     return response.data;
   },
 
-  createRoom: async (roomName: string, playerName: string, totalRounds?: number, theme?: string, customGenres?: string[]): Promise<CreateRoomResponse> => {
+  createRoom: async (
+    roomName: string,
+    playerName: string,
+    totalRounds?: number,
+    theme?: string,
+    customGenres?: string[],
+    discordSession?: DiscordSession
+  ): Promise<CreateRoomResponse> => {
     const response = await api.post('/rooms/', {
       name: roomName,
       player_name: playerName,
       total_rounds: totalRounds,
       theme: theme,
       custom_genres: customGenres,
+      ...discordSessionPayload(discordSession),
     });
     return response.data;
   },
@@ -100,10 +126,16 @@ export const gameApi = {
     return response.data;
   },
 
-  joinRoom: async (roomId: string, playerName: string, isSpectator?: boolean): Promise<Player> => {
+  joinRoom: async (
+    roomId: string,
+    playerName: string,
+    isSpectator?: boolean,
+    discordSession?: DiscordSession
+  ): Promise<Player> => {
     const response = await api.post(`/rooms/${roomId}/join_game/`, {
       player_name: playerName,
       is_spectator: isSpectator || false,
+      ...discordSessionPayload(discordSession),
     });
     return transformPlayer(response.data);
   },
@@ -122,8 +154,8 @@ export const gameApi = {
     }
   },
 
-  startGame: async (roomId: string): Promise<{ status: string }> => {
-    const response = await api.post(`/rooms/${roomId}/start_game/`);
+  startGame: async (roomId: string, playerSecret: string): Promise<{ status: string }> => {
+    const response = await api.post(`/rooms/${roomId}/start_game/`, { player_secret: playerSecret });
     return response.data;
   },
 
@@ -207,11 +239,91 @@ export const gameApi = {
   },
 };
 
+export const discordApi = {
+  // Initiate Discord OAuth flow
+  getAuthUrl: async (): Promise<{ authorization_url: string; state: string }> => {
+    const response = await api.get('/auth/discord/');
+    return response.data;
+  },
+
+  // Handle Discord OAuth callback
+  handleCallback: async (code: string, state: string): Promise<{
+    discord_user_id: string;
+    discord_username: string;
+    discriminator: string;
+    avatar: string;
+    access_token: string;
+    refresh_token?: string;
+    expires_in: number;
+  }> => {
+    const response = await api.get(`/auth/discord/callback/?code=${code}&state=${state}`);
+    return response.data;
+  },
+
+  // Link Discord account to player
+  linkAccount: async (playerId: string, playerSecret: string, discordData: {
+    discord_user_id: string;
+    discord_username: string;
+    discord_avatar_url?: string;
+    access_token: string;
+    refresh_token?: string;
+    expires_in: number;
+  }): Promise<DiscordLinkResponse & { status: string }> => {
+    const response = await api.post('/auth/discord/link/', {
+      player_id: playerId,
+      player_secret: playerSecret,
+      ...discordData,
+    });
+    return response.data;
+  },
+
+  // Unlink Discord account
+  unlinkAccount: async (playerId: string, playerSecret: string): Promise<{ status: string }> => {
+    const response = await api.post('/auth/discord/unlink/', {
+      player_id: playerId,
+      player_secret: playerSecret,
+    });
+    return response.data;
+  },
+
+  // Get Discord account status
+  getAccountStatus: async (playerId: string, playerSecret: string): Promise<{
+    is_linked: boolean;
+    discord_user_id?: string;
+    discord_username?: string;
+    discord_avatar_url?: string;
+    discord_session_secret?: string;
+    linked_at?: string;
+    last_sync_at?: string;
+    privacy_settings?: Record<string, any>;
+  }> => {
+    const response = await api.get(`/auth/discord/status/?player_id=${playerId}&player_secret=${playerSecret}`);
+    return response.data;
+  },
+
+  getAccountStatusBySession: async (discordUserId: string, sessionSecret: string): Promise<{
+    is_linked: boolean;
+    discord_user_id?: string;
+    discord_username?: string;
+    discord_avatar_url?: string;
+    discord_session_secret?: string;
+    linked_at?: string;
+    last_sync_at?: string;
+    privacy_settings?: Record<string, any>;
+  }> => {
+    const response = await api.get(`/auth/discord/status/?discord_user_id=${discordUserId}&discord_session_secret=${sessionSecret}`);
+    return response.data;
+  },
+};
+
 function transformPlayer(backendPlayer: PlayerResponse): Player {
   return {
     id: backendPlayer.id,
     name: backendPlayer.name ?? backendPlayer.player_name ?? '',
     avatar: backendPlayer.avatar,
+    isDiscordVerified: backendPlayer.is_discord_verified ?? backendPlayer.isDiscordVerified,
+    discordUsername: backendPlayer.discord_username ?? backendPlayer.discordUsername,
+    discordAvatarUrl: backendPlayer.discord_avatar_url ?? backendPlayer.discordAvatarUrl,
     board: backendPlayer.board ?? {
       tiles: backendPlayer.tiles || [],
     },

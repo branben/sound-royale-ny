@@ -32,6 +32,7 @@ class GameSocketService {
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private isIntentionallyClosed = false;
   private currentConnectionKey: string | null = null;
+  private isConnecting = false;
 
   private getWsUrl(): string {
     const baseUrl = import.meta.env.VITE_WS_URL || 
@@ -54,17 +55,22 @@ class GameSocketService {
   connect(options: GameSocketOptions): void {
     const nextConnectionKey = this.getConnectionKey(options);
 
-    // If the same connection is open or still handshaking, only update callbacks.
+    // Prevent duplicate simultaneous attempts for the same room and credentials.
+    if (this.isConnecting && this.currentConnectionKey === nextConnectionKey) {
+      return;
+    }
+
+    // If the same connection is open, only update callbacks
     if (
       this.currentConnectionKey === nextConnectionKey &&
       this.ws &&
-      (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)
+      this.ws.readyState === WebSocket.OPEN
     ) {
       this.options = options;
       return;
     }
 
-    // Room or credentials changed; reconnect so the backend sees the right identity.
+    // Room or credentials changed; reconnect
     if (this.currentConnectionKey !== nextConnectionKey) {
       this.disconnect();
     }
@@ -84,7 +90,9 @@ class GameSocketService {
 
   private doConnect(): void {
     if (!this.options) return;
-    
+
+    this.isConnecting = true;
+
     // Close existing connection if any
     if (this.ws) {
       this.ws.close();
@@ -97,6 +105,7 @@ class GameSocketService {
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
+        this.isConnecting = false;
         this.reconnectAttempts = 0;
         this.options?.onConnect?.();
       };
@@ -111,6 +120,7 @@ class GameSocketService {
       };
 
       this.ws.onclose = (event) => {
+        this.isConnecting = false;
         if (!this.isIntentionallyClosed) {
           this.options?.onDisconnect?.(event.reason || `Code: ${event.code}`);
           this.attemptReconnect();
@@ -118,10 +128,12 @@ class GameSocketService {
       };
 
       this.ws.onerror = (error) => {
+        this.isConnecting = false;
         console.error('[GameSocket] Error:', error);
         this.options?.onError?.(error);
       };
     } catch (err) {
+      this.isConnecting = false;
       console.error('[GameSocket] Failed to create WebSocket:', err);
       this.attemptReconnect();
     }
@@ -145,8 +157,9 @@ class GameSocketService {
 
   disconnect(): void {
     this.isIntentionallyClosed = true;
+    this.isConnecting = false;
     this.currentConnectionKey = null;
-    
+
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
@@ -156,7 +169,7 @@ class GameSocketService {
       this.ws.close(1000, 'Client disconnecting');
       this.ws = null;
     }
-    
+
     this.options = null;
   }
 

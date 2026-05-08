@@ -43,17 +43,55 @@ class GameConsumer(AsyncWebsocketConsumer):
         player_id = query_params.get("player_id", [None])[0]
         player_secret = query_params.get("secret", [None])[0]
 
+        audit_logger.info(
+            "websocket_connect_attempt",
+            extra={
+                "room_id": self.game_id,
+                "room_code": self.room_code,
+                "player_id": player_id,
+                "has_secret": bool(player_secret),
+                "action": "connect",
+            },
+        )
+
         # Verify player if credentials provided
         if player_id and player_secret:
             player = await self.verify_player(player_id, player_secret)
             if player:
                 self.player_id = player_id
                 await self.set_player_connected(player_id, True)
+                audit_logger.info(
+                    "websocket_player_verified",
+                    extra={
+                        "room_id": self.game_id,
+                        "player_id": player_id,
+                        "action": "verified",
+                    },
+                )
+            else:
+                audit_logger.warning(
+                    "websocket_player_verification_failed",
+                    extra={
+                        "room_id": self.game_id,
+                        "player_id": player_id,
+                        "action": "verification_failed",
+                    },
+                )
 
         # Join room group
         await self.channel_layer.group_add(self.game_group_name, self.channel_name)
 
         await self.accept()
+
+        audit_logger.info(
+            "websocket_connected",
+            extra={
+                "room_id": self.game_id,
+                "player_id": self.player_id,
+                "group_name": self.game_group_name,
+                "action": "connected",
+            },
+        )
 
         # Broadcast that player is now online
         if self.player_id:

@@ -28,6 +28,9 @@ export interface Player {
   id: string;
   name: string;
   avatar?: string;
+  isDiscordVerified?: boolean;
+  discordUsername?: string;
+  discordAvatarUrl?: string;
   board: BoardData;
   playerSecret?: string;
   isConnected?: boolean;
@@ -149,6 +152,12 @@ export interface RoomResponse {
     id: string;
     name: string;
     avatar?: string;
+    is_discord_verified?: boolean;
+    isDiscordVerified?: boolean;
+    discord_username?: string;
+    discordUsername?: string;
+    discord_avatar_url?: string;
+    discordAvatarUrl?: string;
     board?: BoardData;
     tiles?: Array<{
       id: string;
@@ -200,4 +209,5 @@ export interface GenrePerformance {
   total_rounds: number;
   win_rate: number;
   grade: 'S' | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'N/A';
+  is_legacy?: boolean;
 }

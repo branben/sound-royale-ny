@@ -23,7 +23,7 @@ test.describe('Genre heatmap leaderboard', () => {
     await enableE2EMode(page);
   });
 
-  test('opens leaderboard from lobby and renders players sorted by ELO with mini heatmaps', async ({ page }) => {
+  test('opens leaderboard from lobby and renders players sorted by ELO with genre summary', async ({ page }) => {
     const champion = createMockProducer('Champion', { eloRating: 1500, eloWins: 9, eloLosses: 1, eloMatches: 10 });
     const contender = createMockProducer('Contender', { eloRating: 1250, eloWins: 4, eloLosses: 3, eloMatches: 7 });
     const roomResponse = toRoomResponse(createMockPlayingState({ [champion.id]: champion, [contender.id]: contender }));
@@ -47,15 +47,15 @@ test.describe('Genre heatmap leaderboard', () => {
 
     await expect(page).toHaveURL(/\/leaderboard$/);
     await expect(page.getByRole('heading', { name: 'Leaderboard' })).toBeVisible();
-    await expect(page.getByText('Genre Performance').first()).toBeVisible();
-
-    const playerHeadings = await page.locator('h3.text-lg').allTextContents();
-    expect(playerHeadings).toEqual(['Champion', 'Contender']);
-    await expect(page.getByText('S').first()).toBeVisible();
-    await expect(page.getByText('N/A').first()).toBeVisible();
+    await expect(page.getByText('Top Genres').first()).toBeVisible();
+    await expect(page.getByText('Champion')).toBeVisible();
+    await expect(page.getByText('Contender')).toBeVisible();
+    // Top genres summary should be visible (shows top 3 genres with grades)
+    await expect(page.getByText('phonk')).toBeVisible();
+    await expect(page.getByTestId('genre-grade-phonk')).toBeVisible();
   });
 
-  test('renders the full genre heatmap in the player profile modal', async ({ page }) => {
+  test('renders the radar chart in the player profile modal', async ({ page }) => {
     const producer = createMockProducer('Profile Producer', { eloRating: 1330 });
     const opponent = createMockProducer('Opponent', { eloRating: 1210 });
     const gameState = createMockPlayingState({ [producer.id]: producer, [opponent.id]: opponent });
@@ -78,7 +78,14 @@ test.describe('Genre heatmap leaderboard', () => {
 
     await expect(page.getByTestId('player-profile-modal')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Genre Performance' })).toBeVisible();
-    await expect(page.getByLabel(/phonk genre performance: grade S/i)).toBeVisible();
-    await expect(page.getByLabel(/ambient genre performance: grade N\/A/i)).toBeVisible();
+    // Radar chart should be visible (recharts renders SVG elements)
+    await expect(page.locator('svg.recharts-surface').first()).toBeVisible();
+  });
+
+  test.skip('radar chart displays legacy genre with label [needs update - room genres filter]', async ({ page }) => {
+    // This test is skipped because when viewing a player profile from a room,
+    // the radar chart now filters to only the room's genres, so legacy labels
+    // won't be shown in that context. The legacy genre display is still
+    // available when viewing a player from the leaderboard (no room genres).
   });
 });

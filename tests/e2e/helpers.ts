@@ -14,12 +14,21 @@ export async function enableE2EMode(page: Page): Promise<void> {
 
 export async function setupPlayerSession(
   page: Page,
-  session: { playerName: string; playerId: string; playerSecret: string }
+  session: { playerName: string; playerId: string; playerSecret: string; roomCode?: string; isSpectator?: boolean }
 ): Promise<void> {
   await page.addInitScript((s) => {
-    localStorage.setItem('playerName', s.playerName);
-    localStorage.setItem('playerId', s.playerId);
-    localStorage.setItem('playerSecret', s.playerSecret);
+    const roomCode = s.roomCode ?? 'test-room';
+    const sessionKey = `${roomCode}:${s.playerId}`;
+    localStorage.setItem('soundRoyaleSessions', JSON.stringify({
+      [sessionKey]: {
+        roomCode,
+        playerName: s.playerName,
+        playerId: s.playerId,
+        playerSecret: s.playerSecret,
+        isSpectator: s.isSpectator ?? false,
+      },
+    }));
+    sessionStorage.setItem('soundRoyaleActiveSessionKey', sessionKey);
   }, session);
 }
 

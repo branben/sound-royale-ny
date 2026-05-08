@@ -72,9 +72,9 @@ test.describe('Music Battle Game Flows', () => {
     test('should handle room navigation - join existing room', async ({ page }) => {
       await mockApiRoutes(page, { roomResponse: mockPlayingRoomResponse });
 
-      // Clear playerName so Lobby starts in 'landing' mode (not 'join')
+      // Clear active room session so Lobby starts in 'landing' mode (not 'join')
       await page.addInitScript(() => {
-        localStorage.removeItem('playerName');
+        sessionStorage.removeItem('soundRoyaleActiveSessionKey');
       });
 
       await page.goto('/');

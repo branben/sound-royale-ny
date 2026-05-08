@@ -172,6 +172,9 @@ class PlayerSerializer(serializers.ModelSerializer):
     tiles = TileSerializer(many=True, read_only=True)
     scoreInfo = serializers.SerializerMethodField()
     current_title = serializers.CharField(read_only=True)
+    is_discord_verified = serializers.SerializerMethodField()
+    discord_username = serializers.SerializerMethodField()
+    discord_avatar_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Player
@@ -194,6 +197,9 @@ class PlayerSerializer(serializers.ModelSerializer):
             "earned_jackpot",
             "earned_sweeper",
             "current_title",
+            "is_discord_verified",
+            "discord_username",
+            "discord_avatar_url",
             "scoreInfo",
         ]
         read_only_fields = [
@@ -207,7 +213,23 @@ class PlayerSerializer(serializers.ModelSerializer):
             "earned_jackpot",
             "earned_sweeper",
             "current_title",
+            "is_discord_verified",
+            "discord_username",
+            "discord_avatar_url",
         ]
+
+    def get_is_discord_verified(self, obj):
+        return obj.discord_identity_id is not None
+
+    def get_discord_username(self, obj):
+        if not obj.discord_identity:
+            return None
+        return obj.discord_identity.discord_username
+
+    def get_discord_avatar_url(self, obj):
+        if not obj.discord_identity:
+            return None
+        return obj.discord_identity.discord_avatar_url
 
     def get_scoreInfo(self, obj):
         completed_tiles = [
@@ -351,6 +373,7 @@ class GenrePerformanceSerializer(serializers.Serializer):
     total_rounds = serializers.IntegerField()
     win_rate = serializers.FloatField()
     grade = serializers.CharField()
+    is_legacy = serializers.BooleanField(required=False, default=False)
 
 
 class GameStateSerializer(serializers.ModelSerializer):
@@ -455,6 +478,9 @@ class GameStateSerializer(serializers.ModelSerializer):
                 "id": str(player.id),
                 "name": player.name,
                 "avatar": player.avatar,
+                "isDiscordVerified": player.discord_identity_id is not None,
+                "discordUsername": player.discord_identity.discord_username if player.discord_identity else None,
+                "discordAvatarUrl": player.discord_identity.discord_avatar_url if player.discord_identity else None,
                 "isSpectator": player.is_spectator,
                 "isHost": player.is_host,
                 "isConnected": player.is_connected,

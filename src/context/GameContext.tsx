@@ -32,7 +32,7 @@ const emptyGameState: GameState = {
 export function GameProvider({ children, roomCode }: { children: ReactNode; roomCode?: string }) {
   const isE2E = import.meta.env.VITE_E2E_TESTING === 'true' || (typeof window !== 'undefined' && window.__E2E_TESTING__ === true);
   const { userSession } = useUser();
-  
+
   const [gameState, setGameState] = useState<GameState>(isE2E ? mockGameState : emptyGameState);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,10 +54,10 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
     const fetchRoomData = async () => {
       setIsLoading(true);
       setError(null);
-      
+
       try {
         const roomData: RoomResponse = await roomApi.getRoom(roomCode);
-        
+
         // Transform backend data to GameState format
         const players: GameState['players'] = {};
         roomData.players.forEach(player => {
@@ -72,6 +72,9 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
             id: player.id,
             name: player.name,
             avatar: player.avatar,
+            isDiscordVerified: player.is_discord_verified ?? player.isDiscordVerified,
+            discordUsername: player.discord_username ?? player.discordUsername,
+            discordAvatarUrl: player.discord_avatar_url ?? player.discordAvatarUrl,
             board: { tiles },
             isConnected: player.is_connected,
             isSpectator: player.is_spectator,
@@ -120,6 +123,12 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
       return;
     }
 
+    console.log('[GameContext] Connecting to WebSocket', {
+      roomCode,
+      playerId: userSession.playerId,
+      hasSecret: !!userSession.playerSecret,
+    });
+
     const handleMessage = (message: GameSocketMessage) => {
       switch (message.type) {
         case 'game_state_update': {
@@ -132,6 +141,9 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
                 id,
                 name: player.name,
                 avatar: player.avatar,
+                isDiscordVerified: player.isDiscordVerified,
+                discordUsername: player.discordUsername,
+                discordAvatarUrl: player.discordAvatarUrl,
                 board: {
                   tiles: player.board?.tiles?.map((tile: Tile) => ({
                     id: tile.id,
@@ -185,6 +197,63 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
       playerId: userSession.playerId ?? undefined,
       playerSecret: userSession.playerSecret ?? undefined,
       onMessage: handleMessage,
+      onConnect: async () => {
+        try {
+          const roomData: RoomResponse = await roomApi.getRoom(roomCode);
+
+          // Transform and update state with API data as source of truth
+          const players: GameState['players'] = {};
+          roomData.players.forEach(player => {
+            const tiles = player.board?.tiles ?? player.tiles?.map(tile => ({
+              id: tile.id,
+              genre: tile.genre,
+              status: tile.status,
+              audioUrl: tile.audio_url ?? tile.audioUrl,
+            })) ?? [];
+
+            players[player.id] = {
+              id: player.id,
+              name: player.name,
+              avatar: player.avatar,
+              isDiscordVerified: player.is_discord_verified ?? player.isDiscordVerified,
+              discordUsername: player.discord_username ?? player.discordUsername,
+              discordAvatarUrl: player.discord_avatar_url ?? player.discordAvatarUrl,
+              board: { tiles },
+              isConnected: player.is_connected,
+              isSpectator: player.is_spectator,
+              isHost: player.is_host,
+              isReady: player.is_ready,
+              eloRating: player.elo_rating,
+              eloWins: player.elo_wins,
+              eloLosses: player.elo_losses,
+              eloMatches: player.elo_matches,
+              isCheckedIn: player.is_checked_in ?? player.isCheckedIn,
+              currentTitle: player.current_title ?? player.currentTitle,
+              scoreInfo: player.scoreInfo,
+            };
+          });
+
+          setGameState(prev => ({
+            ...prev,
+            gameId: roomData.code,
+            roomCode: roomData.code,
+            status: roomData.status,
+            players,
+            currentRound: roomData.current_round,
+            winner: normalizeRoomWinner(roomData.winner),
+            eloDeltas: roomData.elo_deltas?.map(d => ({
+              playerId: d.player_id,
+              playerName: d.player_name,
+              previousElo: d.previous_elo,
+              newElo: d.new_elo,
+              delta: d.delta,
+              isWinner: d.is_winner,
+            })),
+          }));
+        } catch (err) {
+          console.error('[GameContext] Failed to fetch room state after WebSocket connect:', err);
+        }
+      },
       onError: (error) => console.error('[GameContext] WebSocket error:', error),
     });
 
@@ -271,7 +340,7 @@ export const GameRefreshContext = createContext<{
 
 export function GameRefreshProvider({ children }: { children: ReactNode }) {
   const [forceRefresh, setForceRefresh] = useState<number>(Date.now());
-  
+
   return (
     <GameRefreshContext.Provider value={{ forceRefresh, setForceRefresh }}>
       {children}

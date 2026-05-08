@@ -123,6 +123,13 @@ class Player(models.Model):
     name = models.CharField(max_length=50)
     avatar = models.URLField(blank=True, null=True)
     room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name="players")
+    discord_identity = models.ForeignKey(
+        "DiscordAccount",
+        on_delete=models.SET_NULL,
+        related_name="linked_players",
+        blank=True,
+        null=True,
+    )
     is_spectator = models.BooleanField(default=False)
     is_host = models.BooleanField(default=False)
     is_connected = models.BooleanField(default=False)  # Presence tracking
@@ -269,3 +276,63 @@ class Vote(models.Model):
 
     def __str__(self):
         return f"{self.voter.name} voted for {self.voted_for.name} in Round {self.round.round_number}"
+
+
+class DiscordAccount(models.Model):
+    """Links a Sound Royale player to a Discord user account."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    player = models.ForeignKey(
+        Player, on_delete=models.CASCADE, related_name="discord_account"
+    )
+    session_secret = models.UUIDField(default=uuid.uuid4, editable=False)
+    discord_user_id = models.CharField(max_length=255, unique=True)
+    discord_username = models.CharField(max_length=255, blank=True)
+    discord_avatar_url = models.TextField(blank=True, null=True)
+    access_token = models.TextField(blank=True, null=True)
+    refresh_token = models.TextField(blank=True, null=True)
+    token_expires_at = models.DateTimeField(null=True, blank=True)
+    linked_at = models.DateTimeField(auto_now_add=True)
+    last_sync_at = models.DateTimeField(null=True, blank=True)
+    privacy_settings = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        unique_together = ["player", "discord_user_id"]
+
+    def __str__(self):
+        return f"{self.player.name} linked to Discord {self.discord_username}"
+
+
+class DiscordServer(models.Model):
+    """Tracks Discord servers where the Sound Royale bot is installed."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    server_id = models.CharField(max_length=255, unique=True)
+    server_name = models.CharField(max_length=255, blank=True)
+    bot_added_at = models.DateTimeField(auto_now_add=True)
+    settings = models.JSONField(default=dict, blank=True)
+
+    def __str__(self):
+        return f"Discord Server {self.server_name} ({self.server_id})"
+
+
+class DiscordServerMember(models.Model):
+    """Tracks Discord server member roles and ELO tiers."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    server = models.ForeignKey(
+        DiscordServer, on_delete=models.CASCADE, related_name="members"
+    )
+    discord_account = models.ForeignKey(
+        DiscordAccount, on_delete=models.CASCADE, related_name="server_memberships"
+    )
+    elo_tier = models.CharField(max_length=50, blank=True)
+    roles = models.JSONField(default=list, blank=True)
+    joined_at = models.DateTimeField(auto_now_add=True)
+    last_sync_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ["server", "discord_account"]
+
+    def __str__(self):
+        return f"{self.discord_account.discord_username} in {self.server.server_name}"

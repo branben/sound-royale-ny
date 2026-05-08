@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { Tile } from '@/types/game';
 import { useGame } from '@/context/useGame';
 import { gameApi } from '@/services/api';
-import { Wifi, WifiOff } from 'lucide-react';
+import { Wifi, WifiOff, Music, Users } from 'lucide-react';
 
 interface PlayerViewProps {
   roomId: string;
@@ -136,6 +136,26 @@ export function PlayerView({ roomId, playerName }: PlayerViewProps) {
     <div className={`grid grid-cols-1 lg:grid-cols-3 gap-6 ${!playerData.isConnected ? 'opacity-60' : ''}`}>
       {/* Player Info Column */}
       <div className="order-2 space-y-4 lg:order-1">
+        {/* Role Badge */}
+        <div className="rounded-lg border border-[#7C3AED]/30 bg-[#111126]/90 backdrop-blur-xl p-4">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#7C3AED]/20">
+              <Music className="h-5 w-5 text-[#7C3AED]" />
+            </div>
+            <div>
+              <div className="text-sm text-[#A78BFA] font-semibold uppercase tracking-wider">Role</div>
+              <div className="text-lg font-bold text-white">Producer</div>
+            </div>
+          </div>
+          {gameState.status === 'playing' && gameState.roundState?.currentTileGenre && (
+            <div className="mt-3 pt-3 border-t border-[#7C3AED]/20">
+              <p className="text-sm text-gray-300">
+                Your turn: Upload a beat for <span className="text-[#7C3AED] font-semibold">{gameState.roundState.currentTileGenre}</span>
+              </p>
+            </div>
+          )}
+        </div>
+
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2">
@@ -172,6 +192,8 @@ export function PlayerView({ roomId, playerName }: PlayerViewProps) {
         <BingoBoard
           playerId={playerData.id}
           playerName={playerData.name}
+          isDiscordVerified={playerData.isDiscordVerified}
+          discordUsername={playerData.discordUsername}
           boardData={{
             tiles: playerData.tiles || []
           }}

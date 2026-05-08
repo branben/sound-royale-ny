@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Clock, Disc3, Radio, Vote } from 'lucide-react';
+import { Clock, Disc3, Radio, Vote, Timer } from 'lucide-react';
 import { GENRES } from '@/types/game';
 import { cn } from '@/lib/utils';
 
@@ -10,6 +10,7 @@ interface RoundStageProps {
   timerEndsAt?: string | null;
   votingOpen?: boolean;
   spectatorCount: number;
+  votesRecorded?: number;
 }
 
 export function RoundStage({
@@ -19,10 +20,21 @@ export function RoundStage({
   timerEndsAt,
   votingOpen = false,
   spectatorCount,
+  votesRecorded = 0,
 }: RoundStageProps) {
   const [rouletteIndex, setRouletteIndex] = useState(0);
   const [isRouletting, setIsRouletting] = useState(false);
   const [fallbackTimeRemaining, setFallbackTimeRemaining] = useState<number | null>(null);
+  const [votingJustOpened, setVotingJustOpened] = useState(false);
+
+  // Flash animation when voting opens
+  useEffect(() => {
+    if (votingOpen && !votingJustOpened) {
+      setVotingJustOpened(true);
+      const timeoutId = setTimeout(() => setVotingJustOpened(false), 2000);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [votingOpen, votingJustOpened]);
 
   useEffect(() => {
     if (!genre) return;
@@ -74,7 +86,10 @@ export function RoundStage({
   return (
     <section
       data-testid="round-stage"
-      className="rounded-xl border border-[#7C3AED]/30 bg-[#111126]/90 p-5 shadow-[0_0_40px_rgba(124,58,237,0.18)] backdrop-blur-xl md:p-6"
+      className={cn(
+        "rounded-xl border border-[#7C3AED]/30 bg-[#111126]/90 p-5 shadow-[0_0_40px_rgba(124,58,237,0.18)] backdrop-blur-xl md:p-6",
+        votingJustOpened && "animate-pulse ring-2 ring-[#F43F5E]"
+      )}
     >
       <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
@@ -82,10 +97,30 @@ export function RoundStage({
             <span className="rounded-full border border-[#7C3AED]/30 bg-[#7C3AED]/15 px-3 py-1 font-medium">
               Round {roundNumber}
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-[#0F172A]/70 px-3 py-1">
-              <Radio className="h-3.5 w-3.5" />
-              {votingOpen ? 'Voting open' : spectatorCount >= 3 ? 'Ranked voting enabled' : 'Casual mode'}
+            <span className={cn(
+              "inline-flex items-center gap-1 rounded-full px-3 py-1 font-semibold transition-all",
+              votingOpen
+                ? "bg-[#F43F5E]/20 border border-[#F43F5E]/50 text-[#F43F5E]"
+                : "bg-[#0F172A]/70 border border-[#7C3AED]/30 text-[#A78BFA]"
+            )}>
+              {votingOpen ? (
+                <>
+                  <Vote className="h-3.5 w-3.5" />
+                  Voting Open
+                </>
+              ) : (
+                <>
+                  <Timer className="h-3.5 w-3.5" />
+                  {spectatorCount >= 3 ? 'Ranked voting' : 'Casual mode'}
+                </>
+              )}
             </span>
+            {votingOpen && votesRecorded > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-[#7C3AED]/20 px-3 py-1 text-[#A78BFA]">
+                <Vote className="h-3.5 w-3.5" />
+                {votesRecorded} votes
+              </span>
+            )}
           </div>
 
           <div className="flex min-h-20 items-center gap-4">
@@ -119,13 +154,20 @@ export function RoundStage({
               {formattedTime ?? '--:--'}
             </div>
           </div>
-          <div className="rounded-lg border border-[#334155]/70 bg-[#0F172A]/70 p-4">
+          <div className={cn(
+            "rounded-lg border p-4 transition-all",
+            votingOpen ? "border-[#F43F5E]/50 bg-[#F43F5E]/10" : "border-[#334155]/70 bg-[#0F172A]/70"
+          )}>
             <div className="mb-1 flex items-center gap-2 text-sm text-[#94A3B8]">
-              <Vote className="h-4 w-4 text-[#A855F7]" />
-              Round Mode
+              <Vote className={cn("h-4 w-4", votingOpen ? "text-[#F43F5E]" : "text-[#A855F7]")} />
+              {votingOpen ? 'Vote Status' : 'Round Mode'}
             </div>
             <div className="text-sm font-medium text-white">
-              {spectatorCount >= 3 ? `${spectatorCount} spectators can vote` : `${spectatorCount}/3 spectators for voting`}
+              {votingOpen ? (
+                <span className="text-[#F43F5E] font-semibold">{votesRecorded} votes recorded</span>
+              ) : (
+                spectatorCount >= 3 ? `${spectatorCount} spectators can vote` : `${spectatorCount}/3 spectators for voting`
+              )}
             </div>
           </div>
         </div>

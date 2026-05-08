@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
 import { toast } from 'sonner';
 import { ArrowLeft, Users, Play, Settings, Info, Vote, Share2 } from 'lucide-react';
 import { normalizeRoomWinner, roomApi, gameApi } from '@/services/api';
+import { getDiscordSession } from '@/services/discordSession';
 import { BingoBoard } from '@/components/game/BingoBoard';
 import { SpectatorView } from '@/components/game/SpectatorView';
 import { PlayerView } from '@/components/game/PlayerView';
@@ -13,6 +14,8 @@ import { GameInfo } from '@/components/game/GameInfo';
 import { RoundStage } from '@/components/game/RoundStage';
 import { VotingPanel } from '@/components/game/VotingPanel';
 import { TitleBadge } from '@/components/game/TitleBadge';
+import { GameTutorial } from '@/components/game/GameTutorial';
+import { DiscordVerifiedIcon } from '@/components/game/DiscordVerifiedIcon';
 import { useGame, useGameRefresh, useGameRefreshEffect } from '@/context/useGame';
 import { useUser } from '@/context/UserContext';
 import type { GameState, RoomResponse, Player } from '@/types/game';
@@ -58,8 +61,11 @@ function MobileGameDock({ roomId, currentPlayerName }: MobileGameDockProps) {
               <div key={player.id} className="rounded-lg border border-[#7C3AED]/20 bg-[#111126] p-3">
                 <div className="flex min-w-0 items-center gap-2">
                   <div className="truncate font-medium">{player.name}</div>
-                  <TitleBadge title={player.currentTitle} compact />
+                  {player.isDiscordVerified && (
+                    <DiscordVerifiedIcon username={player.discordUsername} />
+                  )}
                 </div>
+                <TitleBadge title={player.currentTitle} compact />
                 <div className="text-xs text-muted-foreground">ELO: {player.eloRating ?? 1200}</div>
               </div>
             ))}
@@ -70,8 +76,11 @@ function MobileGameDock({ roomId, currentPlayerName }: MobileGameDockProps) {
               <div key={player.id} className="rounded-lg bg-[#111126] p-3 text-sm">
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="truncate">{player.name}</span>
-                  <TitleBadge title={player.currentTitle} compact />
+                  {player.isDiscordVerified && (
+                    <DiscordVerifiedIcon username={player.discordUsername} />
+                  )}
                 </div>
+                <TitleBadge title={player.currentTitle} compact />
               </div>
             )) : (
               <p className="text-sm text-muted-foreground">No spectators yet.</p>
@@ -148,14 +157,30 @@ function MobileGameDock({ roomId, currentPlayerName }: MobileGameDockProps) {
 export default function Room() {
   const { id: roomId } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [room, setRoom] = useState<RoomResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
-  const { userSession, setPlayerName, setPlayerCredentials, setSpectatorMode, clearSession, isHost: isHostFunction } = useUser();
+  const [showTutorial, setShowTutorial] = useState(false);
+
+  const { userSession, setPlayerName, setPlayerCredentials, setSpectatorMode, setActiveRoomSession, clearSession, isHost: isHostFunction } = useUser();
   const { setForceRefresh } = useGameRefresh();
   const { gameState, setGameState, timeRemaining } = useGame();
+  const autoSpectatorJoinAttempted = useRef(false);
+
+  // Show tutorial for first-time players when game starts
+  useEffect(() => {
+    if (gameState.status === 'playing' && !localStorage.getItem('hasSeenGameTutorial')) {
+      setShowTutorial(true);
+    }
+  }, [gameState.status]);
+
+  const handleTutorialDismiss = () => {
+    setShowTutorial(false);
+    localStorage.setItem('hasSeenGameTutorial', 'true');
+  };
 
   const isHost = useMemo(() => {
     if (!gameState.players) return false;
@@ -164,11 +189,11 @@ export default function Room() {
   }, [gameState.players, isHostFunction]);
 
   const hasCurrentPlayer = useMemo(() => {
-    if (!userSession.playerId && !userSession.playerName) return false;
+    if (!userSession.playerId) return false;
     return Object.values(gameState.players ?? {}).some(player =>
-      player.id === userSession.playerId || player.name === userSession.playerName
+      player.id === userSession.playerId
     );
-  }, [gameState.players, userSession.playerId, userSession.playerName]);
+  }, [gameState.players, userSession.playerId]);
 
   const activePlayersCount = useMemo(() => {
     if (!gameState.players) return 0;
@@ -182,10 +207,16 @@ export default function Room() {
     if (!name?.trim()) return;
 
     try {
-      const player = await gameApi.joinRoom(roomId, name.trim());
+      const player = await gameApi.joinRoom(roomId, name.trim(), false, getDiscordSession() ?? undefined);
       setPlayerName(name.trim());
       setPlayerCredentials(player.id, player.playerSecret);
       setSpectatorMode(false);
+      setActiveRoomSession(roomId, {
+        playerName: name.trim(),
+        playerId: player.id,
+        playerSecret: player.playerSecret,
+        isSpectator: false,
+      });
       toast.success('Joined room as player!');
       void fetchRoom(true);
     } catch (err: unknown) {
@@ -199,10 +230,16 @@ export default function Room() {
     if (!roomId) return;
 
     try {
-      const player = await gameApi.joinRoom(roomId, 'Spectator', true);
+      const player = await gameApi.joinRoom(roomId, 'Spectator', true, getDiscordSession() ?? undefined);
       setPlayerName(player.name);
       setPlayerCredentials(player.id, player.playerSecret);
       setSpectatorMode(true);
+      setActiveRoomSession(roomId, {
+        playerName: player.name,
+        playerId: player.id,
+        playerSecret: player.playerSecret,
+        isSpectator: true,
+      });
       toast.success('Joined room as spectator!');
       void fetchRoom(true);
     } catch (err: unknown) {
@@ -212,11 +249,29 @@ export default function Room() {
     }
   };
 
+  useEffect(() => {
+    if (
+      autoSpectatorJoinAttempted.current ||
+      searchParams.get('spectator') !== '1' ||
+      loading ||
+      isReconnecting ||
+      hasCurrentPlayer
+    ) {
+      return;
+    }
+
+    autoSpectatorJoinAttempted.current = true;
+    void handleJoinAsSpectator();
+  }, [searchParams, loading, isReconnecting, hasCurrentPlayer]);
+
   const handleStartGame = async () => {
-    if (!roomId) return;
+    if (!roomId || !userSession.playerSecret) {
+      toast.error('Missing required credentials');
+      return;
+    }
 
     try {
-      await gameApi.startGame(roomId);
+      await gameApi.startGame(roomId, userSession.playerSecret);
       toast.success('Game started!');
       await fetchRoom(true);
       setForceRefresh(Date.now());
@@ -237,6 +292,12 @@ export default function Room() {
         setPlayerCredentials(playerData.id, playerData.playerSecret);
         setPlayerName(playerData.name);
         setSpectatorMode(playerData.isSpectator);
+        setActiveRoomSession(roomId, {
+          playerName: playerData.name,
+          playerId: playerData.id,
+          playerSecret: playerData.playerSecret,
+          isSpectator: playerData.isSpectator,
+        });
         
         localStorage.setItem('lastRoomCode', roomId);
         
@@ -247,8 +308,6 @@ export default function Room() {
       setIsReconnecting(false);
       return false;
     } catch (err) {
-      localStorage.removeItem('playerId');
-      localStorage.removeItem('playerSecret');
       setIsReconnecting(false);
       return false;
     }
@@ -284,6 +343,9 @@ export default function Room() {
           id: player.id,
           name: player.name,
           avatar: player.avatar,
+          isDiscordVerified: player.is_discord_verified ?? player.isDiscordVerified,
+          discordUsername: player.discord_username ?? player.discordUsername,
+          discordAvatarUrl: player.discord_avatar_url ?? player.discordAvatarUrl,
           isConnected: player.is_connected,
           isSpectator: player.is_spectator,
           isHost: player.is_host,
@@ -488,6 +550,7 @@ export default function Room() {
                       player.isSpectator || player.name?.startsWith('Spectator ')
                     ).length
                   }
+                  votesRecorded={gameState.roundState?.votesRecorded}
                 />
               )}
               {userSession.isSpectator ? (
@@ -505,6 +568,15 @@ export default function Room() {
       </main>
       {gameState.status !== 'lobby' && hasCurrentPlayer && (
         <MobileGameDock roomId={roomId!} currentPlayerName={userSession.playerName} />
+      )}
+
+      {/* Game Tutorial for first-time players */}
+      {gameState.status === 'playing' && hasCurrentPlayer && (
+        <GameTutorial
+          isSpectator={userSession.isSpectator || false}
+          onDismiss={handleTutorialDismiss}
+          isActive={showTutorial}
+        />
       )}
     </div>
   );

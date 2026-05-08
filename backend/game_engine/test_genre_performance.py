@@ -108,3 +108,33 @@ class GenrePerformanceAPITestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["player_id"], str(self.player.id))
         self.assertTrue(response.data["is_ready"])
+
+    def test_genre_performance_includes_historical_non_core_genres(self):
+        """Test that historical genres from Round.current_tile_genre are returned with is_legacy=True."""
+        # Create a round with a non-core genre (e.g., "techno" from monthly rotation)
+        Round.objects.create(
+            room=self.room,
+            round_number=1,
+            current_tile_genre="techno",
+            winner=self.player,
+        )
+
+        response = self.client.get(
+            f"/api/players/by-id/{self.player.id}/genre_performance/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Find the techno genre in the response
+        techno = next((item for item in response.data if item["genre"] == "techno"), None)
+        self.assertIsNotNone(techno, "Historical genre 'techno' should be returned")
+        self.assertEqual(techno["wins"], 1)
+        self.assertEqual(techno["total_rounds"], 1)
+        self.assertEqual(techno["win_rate"], 100.0)
+        self.assertEqual(techno["grade"], "S")
+        self.assertTrue(techno["is_legacy"], "Non-core genre should be marked as legacy")
+
+        # Verify core genres are marked as not legacy
+        phonk = next((item for item in response.data if item["genre"] == Tile.Genre.PHONK), None)
+        self.assertIsNotNone(phonk)
+        self.assertFalse(phonk.get("is_legacy", False), "Core genre should not be marked as legacy")

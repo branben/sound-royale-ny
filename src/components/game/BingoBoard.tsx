@@ -1,10 +1,13 @@
 import { BoardData } from '@/types/game';
 import { BingoTile } from './BingoTile';
 import { cn } from '@/lib/utils';
+import { DiscordVerifiedIcon } from './DiscordVerifiedIcon';
 
 interface BingoBoardProps {
   playerId: string;
   playerName: string;
+  isDiscordVerified?: boolean;
+  discordUsername?: string;
   boardData: BoardData;
   onTileClick?: (tileId: string) => void;
   isInteractive?: boolean;
@@ -15,6 +18,8 @@ interface BingoBoardProps {
 export function BingoBoard({
   playerId,
   playerName,
+  isDiscordVerified,
+  discordUsername,
   boardData,
   onTileClick,
   isInteractive = false,
@@ -38,7 +43,10 @@ export function BingoBoard({
             <span className="text-lg font-bold font-['Righteous']">{playerName.charAt(0)}</span>
           </div>
           <div className="min-w-0">
-            <h3 className="truncate font-semibold text-[#E2E8F0] font-['Poppins']">{playerName}</h3>
+            <div className="flex min-w-0 items-center gap-2">
+              <h3 className="truncate font-semibold text-[#E2E8F0] font-['Poppins']">{playerName}</h3>
+              {isDiscordVerified && <DiscordVerifiedIcon username={discordUsername} />}
+            </div>
             <p className="text-xs text-[#E2E8F0]/60">
               {completedCount}/9 complete
               {pendingCount > 0 && ` • ${pendingCount} pending`}

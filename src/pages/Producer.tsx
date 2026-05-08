@@ -73,6 +73,8 @@ function ProducerContent() {
           <BingoBoard
             playerId={currentPlayerId}
             playerName={player.name}
+            isDiscordVerified={player.isDiscordVerified}
+            discordUsername={player.discordUsername}
             boardData={player.board}
             onTileClick={handleTileClick}
             isInteractive={true}

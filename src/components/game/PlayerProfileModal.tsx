@@ -6,8 +6,9 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Music2, Trophy, TrendingUp, Wifi, WifiOff, Loader2 } from 'lucide-react';
 import { Player, ScoreInfo, GenrePerformance } from '@/types/game';
 import { gameApi } from '@/services/api';
-import { GenreHeatmap } from './GenreHeatmap';
+import { PlayerStatsRadar } from './PlayerStatsRadar';
 import { TitleBadge } from './TitleBadge';
+import { DiscordVerifiedIcon } from './DiscordVerifiedIcon';
 import { toast } from 'sonner';
 
 interface PlayerProfileModalProps {
@@ -15,13 +16,15 @@ interface PlayerProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
   scoreInfo?: ScoreInfo | null;
+  roomGenres?: string[]; // Optional: genres from current room's theme
 }
 
 export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
   player,
   isOpen,
   onClose,
-  scoreInfo
+  scoreInfo,
+  roomGenres
 }) => {
   const isConnected = player.isConnected ?? true;
   const [genrePerformance, setGenrePerformance] = useState<GenrePerformance[]>([]);
@@ -92,8 +95,11 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
                 <div className="flex-1">
                   <div className="flex min-w-0 items-center gap-2">
                     <CardTitle className="truncate text-xl text-white">{player.name}</CardTitle>
-                    <TitleBadge title={player.currentTitle} />
+                    {player.isDiscordVerified && (
+                      <DiscordVerifiedIcon username={player.discordUsername} />
+                    )}
                   </div>
+                  <TitleBadge title={player.currentTitle} />
                   <div className="flex items-center gap-2 mt-1">
                     {isConnected ? (
                       <div className="flex items-center gap-1 text-green-400 text-sm">
@@ -185,7 +191,7 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
               <Loader2 className="h-6 w-6 animate-spin text-[#7C3AED]" />
             </div>
           ) : (
-            <GenreHeatmap genrePerformance={genrePerformance} />
+            <PlayerStatsRadar player={player} genrePerformance={genrePerformance} roomGenres={roomGenres} />
           )}
 
           {!player.isSpectator && (

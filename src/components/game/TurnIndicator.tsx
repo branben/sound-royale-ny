@@ -44,7 +44,7 @@ export function TurnIndicator({
             <div className="flex items-center gap-1 text-green-500">
               <Mic2 className="h-4 w-4" />
               <span className="text-sm font-medium">
-                Creating beat for: {activeGenre || 'Unknown'}
+                {activeGenre || 'Unknown'}
               </span>
             </div>
           ) : (

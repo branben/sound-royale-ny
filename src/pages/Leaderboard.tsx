@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Trophy, Search, Loader2 } from 'lucide-react';
+import { ArrowLeft, Trophy, Search, Loader2, Flame } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,11 +8,11 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Player, GenrePerformance } from '@/types/game';
 import { gameApi } from '@/services/api';
-import { GenreHeatmap } from '@/components/game/GenreHeatmap';
 import { TitleBadge } from '@/components/game/TitleBadge';
 import { toast } from 'sonner';
+import { PlayerProfileModal } from '@/components/game/PlayerProfileModal';
 
-interface PlayerWithHeatmap extends Player {
+interface PlayerWithGenrePerformance extends Player {
   genrePerformance: GenrePerformance[];
 }
 
@@ -24,10 +24,11 @@ const titlePriority: Record<NonNullable<Player['currentTitle']>, number> = {
 };
 
 export default function Leaderboard() {
-  const [players, setPlayers] = useState<PlayerWithHeatmap[]>([]);
-  const [filteredPlayers, setFilteredPlayers] = useState<PlayerWithHeatmap[]>([]);
+  const [players, setPlayers] = useState<PlayerWithGenrePerformance[]>([]);
+  const [filteredPlayers, setFilteredPlayers] = useState<PlayerWithGenrePerformance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
 
   useEffect(() => {
     loadLeaderboard();
@@ -50,7 +51,7 @@ export default function Leaderboard() {
       const allPlayers = await gameApi.getAllPlayers();
 
       // Fetch genre performance for each player
-      const playersWithHeatmap = await Promise.all(
+      const playersWithGenrePerformance = await Promise.all(
         allPlayers.map(async (player) => {
           try {
             const genrePerformance = await gameApi.getGenrePerformance(player.id);
@@ -62,7 +63,7 @@ export default function Leaderboard() {
         })
       );
 
-      const sorted = playersWithHeatmap.sort((a, b) => {
+      const sorted = playersWithGenrePerformance.sort((a, b) => {
         const eloDelta = (b.eloRating ?? 1200) - (a.eloRating ?? 1200);
         if (eloDelta !== 0) return eloDelta;
         const titleDelta = titlePriority[b.currentTitle ?? 'NONE'] - titlePriority[a.currentTitle ?? 'NONE'];
@@ -86,6 +87,14 @@ export default function Leaderboard() {
       .join('')
       .toUpperCase()
       .slice(0, 2);
+  };
+
+  const handlePlayerClick = (player: Player) => {
+    setSelectedPlayer(player);
+  };
+
+  const handleCloseProfile = () => {
+    setSelectedPlayer(null);
   };
 
   return (
@@ -138,7 +147,12 @@ export default function Leaderboard() {
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <div className="flex min-w-0 items-center gap-2">
-                        <CardTitle className="truncate text-lg text-white">{player.name}</CardTitle>
+                        <button
+                          onClick={() => handlePlayerClick(player)}
+                          className="truncate text-lg text-white hover:text-[#7C3AED] transition-colors cursor-pointer text-left font-bold"
+                        >
+                          {player.name}
+                        </button>
                         <TitleBadge title={player.currentTitle} compact />
                       </div>
                       <div className="flex items-center gap-2 mt-1">
@@ -168,7 +182,31 @@ export default function Leaderboard() {
                       <div className="text-sm font-bold text-white">{player.eloMatches ?? 0}</div>
                     </div>
                   </div>
-                  <GenreHeatmap genrePerformance={player.genrePerformance} compact />
+                  <div className="mt-3">
+                    <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
+                      <Flame className="h-3 w-3 text-[#7C3AED]" />
+                      Top Genres
+                    </div>
+                    {player.genrePerformance.length > 0 ? (
+                      <div className="space-y-1">
+                        {player.genrePerformance
+                          .filter(g => g.total_rounds > 0)
+                          .sort((a, b) => b.win_rate - a.win_rate)
+                          .slice(0, 3)
+                          .map((genre) => (
+                            <div key={genre.genre} className="flex items-center justify-between text-xs">
+                              <span className="text-gray-300">{genre.genre}</span>
+                              <div className="flex items-center gap-2">
+                                <span data-testid={`genre-grade-${genre.genre}`} className="text-[#7C3AED] font-bold">{genre.grade}</span>
+                                <span className="text-gray-400">{genre.win_rate.toFixed(0)}%</span>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-gray-500 italic">No genre data</div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             ))}
@@ -182,6 +220,16 @@ export default function Leaderboard() {
           </div>
         )}
       </div>
+
+      {/* Player Profile Modal */}
+      {selectedPlayer && (
+        <PlayerProfileModal
+          player={selectedPlayer}
+          isOpen={!!selectedPlayer}
+          onClose={handleCloseProfile}
+          scoreInfo={selectedPlayer.scoreInfo}
+        />
+      )}
     </div>
   );
 }

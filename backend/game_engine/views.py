@@ -18,7 +18,8 @@ import logging
 logger = logging.getLogger(__name__)
 audit_logger = logging.getLogger("game_audit")
 
-from .models import Room, Player, Tile, Round, Vote, ThemeRotation
+from .models import Room, Player, Tile, Round, Vote, ThemeRotation, DiscordAccount
+from .discord_service import DiscordOAuthService
 from .serializers import (
     RoomSerializer,
     RoomDetailSerializer,
@@ -54,14 +55,30 @@ DEFAULT_THEME_ROTATIONS = {
 }
 
 
+# Core genres that match the frontend GENRES constant
+CORE_GENRES = ["phonk", "trap", "lofi", "house", "drill", "rnb", "edm", "jazz", "ambient"]
+
+
 def build_genre_performance(player):
     """Build FIFA-style genre performance stats for a player."""
     player_rooms = Room.objects.filter(players=player)
     rounds = Round.objects.filter(room__in=player_rooms)
 
+    # Get all distinct genres from rounds (historical genres)
+    historical_genres = list(
+        rounds.values_list("current_tile_genre", flat=True)
+        .distinct()
+        .order_by("current_tile_genre")
+    )
+
+    # Union with core genres from Tile.Genre.choices
+    all_genres = set(Tile.Genre.choices[i][0] for i in range(len(Tile.Genre.choices)))
+    all_genres.update(historical_genres)
+
     genre_stats = {}
-    for genre_choice in Tile.Genre.choices:
-        genre = genre_choice[0]
+    for genre in all_genres:
+        # Normalize genre to lowercase for legacy check (case-insensitive comparison)
+        genre_lower = genre.lower()
         genre_rounds = rounds.filter(current_tile_genre=genre)
 
         total_rounds = genre_rounds.count()
@@ -72,6 +89,7 @@ def build_genre_performance(player):
                 "total_rounds": 0,
                 "win_rate": 0.0,
                 "grade": "N/A",
+                "is_legacy": genre_lower not in CORE_GENRES,
             }
             continue
 
@@ -99,10 +117,22 @@ def build_genre_performance(player):
             "total_rounds": total_rounds,
             "win_rate": win_rate,
             "grade": grade,
+            "is_legacy": genre_lower not in CORE_GENRES,
         }
 
     performance_data = list(genre_stats.values())
-    performance_data.sort(key=lambda x: x["genre"])
+
+    # Sort: core genres first (in CORE_GENRES order), then historical by total_rounds descending
+    def sort_key(item):
+        genre_lower = item["genre"].lower()
+        if genre_lower in CORE_GENRES:
+            # Core genres: sort by CORE_GENRES order
+            return (0, CORE_GENRES.index(genre_lower))
+        else:
+            # Historical genres: sort by total_rounds descending
+            return (1, -item["total_rounds"])
+
+    performance_data.sort(key=sort_key)
     return performance_data
 
 
@@ -187,6 +217,44 @@ def has_ranked_three_round_sweep(room, winner, current_round, is_ranked):
 def ensure_theme_rotations():
     for key, defaults in DEFAULT_THEME_ROTATIONS.items():
         ThemeRotation.objects.get_or_create(key=key, defaults=defaults)
+
+
+def get_discord_account_from_session(data):
+    """Return a DiscordAccount verified by stable browser session fields."""
+    discord_user_id = data.get("discord_user_id")
+    discord_session_secret = data.get("discord_session_secret")
+
+    if not discord_user_id and not discord_session_secret:
+        return None, None
+
+    if not discord_user_id or not discord_session_secret:
+        return None, Response(
+            {"error": "discord_user_id and discord_session_secret are required together"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        return DiscordAccount.objects.get(
+            discord_user_id=discord_user_id,
+            session_secret=discord_session_secret,
+        ), None
+    except DiscordAccount.DoesNotExist:
+        return None, Response(
+            {"error": "Invalid Discord session"},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+
+
+def attach_discord_identity_from_session(player, data):
+    discord_account, error_response = get_discord_account_from_session(data)
+    if error_response is not None:
+        return error_response
+
+    if discord_account is not None:
+        player.discord_identity = discord_account
+        player.save(update_fields=["discord_identity"])
+
+    return None
 
 
 def broadcast_game_update(room):
@@ -343,6 +411,11 @@ class RoomViewSet(viewsets.ModelViewSet):
         player = Player.objects.create(
             room=room, name=player_name, is_spectator=False, is_host=True
         )
+        discord_error = attach_discord_identity_from_session(player, request.data)
+        if discord_error is not None:
+            player.delete()
+            room.delete()
+            return discord_error
 
         # Use theme-based genre selection
         theme_genres = get_theme_genres(room)
@@ -415,6 +488,9 @@ class RoomViewSet(viewsets.ModelViewSet):
                 serializer = PlayerCreateSerializer(data=data, context={"room": room})
                 if serializer.is_valid():
                     player = serializer.save()
+                    discord_error = attach_discord_identity_from_session(player, data)
+                    if discord_error is not None:
+                        return discord_error
 
                     if not player.is_spectator:
                         # Use theme-based genre selection
@@ -516,9 +592,29 @@ class RoomViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def start_game(self, request, pk=None, code=None):
         """
-        Start the game in a room.
+        Start the game in a room. Only host can start.
         """
         room = self.get_object()
+
+        requester_secret = request.data.get("player_secret")
+        if not requester_secret:
+            return Response(
+                {"error": "player_secret is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            host = room.host
+            if not host or str(host.player_secret) != requester_secret:
+                return Response(
+                    {"error": "Only host can start game"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+        except Exception as e:
+            return Response(
+                {"error": "Failed to verify host permissions"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
         if room.status != Room.Status.LOBBY:
             return Response(
@@ -655,10 +751,10 @@ class RoomViewSet(viewsets.ModelViewSet):
                 if room.status == Room.Status.PLAYING:
                     # Check if there are active tiles that shouldn't be deleted
                     active_tiles = Tile.objects.filter(
-                        player__room=room, 
+                        player__room=room,
                         status=Tile.Status.COMPLETE
                     ).count()
-                    
+
                     if active_tiles > 0:
                         return Response(
                             {
@@ -671,37 +767,37 @@ class RoomViewSet(viewsets.ModelViewSet):
                 # Store original state for potential rollback logging
                 original_round = room.current_round
                 original_status = room.status
-                
+
                 # Step 1: Delete existing tiles (atomic operation)
                 deleted_count, _ = Tile.objects.filter(player__room=room).delete()
-                
+
                 # Step 2: Update room state
                 room.status = Room.Status.LOBBY
                 room.current_round += 1
                 room.winner = None
                 room.save()
-                
+
                 # Step 3: Get players and validate
                 players = room.players.filter(is_spectator=False)
                 if players.count() == 0:
                     raise ValueError("No active players found in room")
-                
+
                 # Step 4: Create new tiles for each player
                 created_tiles = []
                 # Use theme-based genre selection
                 theme_genres = get_theme_genres(room)
-                
+
                 for player in players:
                     # Create a copy of genres for each player to ensure uniqueness
                     player_genres = theme_genres.copy()
                     random.shuffle(player_genres)
-                    
+
                     # Take first 9 genres for this player
                     selected_genres = player_genres[:9]
-                    
+
                     if len(selected_genres) < 9:
                         raise ValueError(f"Insufficient genres available for player {player.name}")
-                    
+
                     # Create tiles for this player
                     for position in range(9):
                         try:
@@ -715,12 +811,12 @@ class RoomViewSet(viewsets.ModelViewSet):
                         except IntegrityError as e:
                             # This shouldn't happen with our validation, but handle it gracefully
                             raise ValueError(f"Failed to create tile at position {position} for player {player.name}: {str(e)}")
-                
+
                 # Step 5: Validate all tiles were created successfully
                 expected_tiles = players.count() * 9
                 if len(created_tiles) != expected_tiles:
                     raise ValueError(f"Expected {expected_tiles} tiles, only created {len(created_tiles)}")
-                
+
                 # Step 6: Broadcast update (outside of database operations but within transaction)
                 try:
                     broadcast_game_update(room)
@@ -747,7 +843,7 @@ class RoomViewSet(viewsets.ModelViewSet):
                 {"error": str(e)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-            
+
         except IntegrityError as e:
             # Database constraint violation - transaction will automatically rollback
             logger.error(f"Database integrity error in reset_game for room {room.code}: {str(e)}")
@@ -755,7 +851,7 @@ class RoomViewSet(viewsets.ModelViewSet):
                 {"error": "Database constraint violation. Please try again."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-            
+
         except Exception as e:
             # Any other exception - transaction will automatically rollback
             logger.exception(f"Unexpected error in reset_game for room {room.code}")
@@ -1101,7 +1197,7 @@ class RoomViewSet(viewsets.ModelViewSet):
 
         next_genre = random.choice(available_genres)
         next_round_number = room.current_round + 1
-        
+
         if room.total_rounds and next_round_number > room.total_rounds:
             room.status = Room.Status.FINISHED
             room.save(update_fields=["status"])
@@ -1242,7 +1338,7 @@ class RoomViewSet(viewsets.ModelViewSet):
 
         next_genre = random.choice(available_genres)
         next_round_number = room.current_round + 1
-        
+
         if room.total_rounds and next_round_number > room.total_rounds:
             room.status = Room.Status.FINISHED
             room.save(update_fields=["status"])
@@ -1320,7 +1416,7 @@ class PlayerViewSet(viewsets.ModelViewSet):
         Toggle player ready status in lobby.
         """
         player = self.get_object()
-        
+
         # Verify player_secret matches
         provided_secret = request.data.get("player_secret")
         if not provided_secret or str(player.player_secret) != str(provided_secret):
@@ -1328,14 +1424,14 @@ class PlayerViewSet(viewsets.ModelViewSet):
                 {"error": "Invalid player_secret"},
                 status=status.HTTP_403_FORBIDDEN
             )
-        
+
         # Toggle ready status
         player.is_ready = not player.is_ready
         player.save()
-        
+
         # Broadcast update to all players
         broadcast_game_update(player.room)
-        
+
         return Response(
             {
                 "player_id": str(player.id),
@@ -1350,14 +1446,14 @@ class PlayerViewSet(viewsets.ModelViewSet):
         Update player score (for future ELO implementation)
         """
         player = self.get_object()
-        
+
         score_delta = request.data.get('score_delta', 0)
         if not isinstance(score_delta, (int, float)):
             return Response(
                 {"error": "score_delta must be a number"},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         # For now, just return success - ELO implementation would go here
         return Response(
             {
@@ -1374,13 +1470,13 @@ class PlayerViewSet(viewsets.ModelViewSet):
         Toggle player connection status
         """
         player = self.get_object()
-        
+
         # Toggle connection status
         player.is_connected = not player.is_connected
         player.save()
-        
+
         broadcast_game_update(player.room)
-        
+
         return Response(
             {
                 "status": "Connection toggled",
@@ -1583,3 +1679,257 @@ class TileViewSet(viewsets.ModelViewSet):
         # Return updated game state
         game_serializer = GameStateSerializer(room)
         return Response(game_serializer.data, status=status.HTTP_200_OK)
+
+
+# Discord OAuth2 Endpoints
+@api_view(["GET"])
+def discord_auth(request):
+    """
+    Initiate Discord OAuth2 flow.
+    Returns the authorization URL for the frontend to redirect to.
+    """
+    import secrets
+    from django.core.cache import cache
+
+    # Generate a state parameter for CSRF protection
+    state = secrets.token_urlsafe(32)
+
+    # Store state in cache for validation during callback
+    cache.set(f"discord_oauth_state_{state}", True, timeout=600)  # 10 minutes
+
+    discord_service = DiscordOAuthService()
+    auth_url = discord_service.get_authorization_url(state)
+
+    return Response(
+        {"authorization_url": auth_url, "state": state},
+        status=status.HTTP_200_OK,
+    )
+
+
+@api_view(["GET"])
+def discord_callback(request):
+    """
+    Handle Discord OAuth2 callback.
+    Exchanges the authorization code for tokens and retrieves user info.
+    """
+    code = request.GET.get("code")
+    state = request.GET.get("state")
+
+    if not code or not state:
+        return Response(
+            {"error": "Missing code or state parameter"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Validate state parameter
+    from django.core.cache import cache
+    if not cache.get(f"discord_oauth_state_{state}"):
+        return Response(
+            {"error": "Invalid or expired state parameter"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Clear the state from cache
+    cache.delete(f"discord_oauth_state_{state}")
+
+    try:
+        discord_service = DiscordOAuthService()
+
+        # Exchange code for tokens
+        token_data = discord_service.exchange_code_for_token(code)
+
+        # Get user info from Discord
+        user_info = discord_service.get_user_info(token_data["access_token"])
+
+        return Response(
+            {
+                "discord_user_id": user_info["id"],
+                "discord_username": user_info["username"],
+                "discriminator": user_info.get("discriminator", ""),
+                "avatar": user_info.get("avatar"),
+                "access_token": token_data["access_token"],
+                "refresh_token": token_data.get("refresh_token"),
+                "expires_in": token_data.get("expires_in", 3600),
+            },
+            status=status.HTTP_200_OK,
+        )
+    except Exception as e:
+        logger.error(f"Discord OAuth callback error: {e}", exc_info=True)
+        return Response(
+            {"error": "Failed to complete OAuth flow"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+
+@api_view(["POST"])
+def discord_link_account(request):
+    """
+    Link Discord account to a Sound Royale player.
+    """
+    player_id = request.data.get("player_id")
+    player_secret = request.data.get("player_secret")
+    discord_user_id = request.data.get("discord_user_id")
+    discord_username = request.data.get("discord_username")
+    discord_avatar_url = request.data.get("discord_avatar_url")
+    access_token = request.data.get("access_token")
+    refresh_token = request.data.get("refresh_token")
+    expires_in = request.data.get("expires_in", 3600)
+
+    if not all([player_id, player_secret, discord_user_id, access_token]):
+        return Response(
+            {"error": "Missing required fields"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        # Verify player credentials
+        player = Player.objects.get(id=player_id, player_secret=player_secret)
+    except Player.DoesNotExist:
+        return Response(
+            {"error": "Invalid player credentials"},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    try:
+        discord_service = DiscordOAuthService()
+
+        # Generate Discord avatar URL if avatar hash provided
+        avatar_url = None
+        if discord_avatar_url:
+            avatar_url = f"https://cdn.discordapp.com/avatars/{discord_user_id}/{discord_avatar_url}.png"
+
+        # Link the Discord account
+        discord_account = discord_service.link_discord_account(
+            player=player,
+            discord_user_id=discord_user_id,
+            discord_username=discord_username,
+            discord_avatar_url=avatar_url,
+            access_token=access_token,
+            refresh_token=refresh_token,
+            expires_in=expires_in,
+        )
+
+        return Response(
+            {
+                "status": "Discord account linked successfully",
+                "discord_user_id": discord_account.discord_user_id,
+                "discord_username": discord_account.discord_username,
+                "discord_avatar_url": discord_account.discord_avatar_url,
+                "discord_session_secret": str(discord_account.session_secret),
+                "linked_at": discord_account.linked_at,
+            },
+            status=status.HTTP_200_OK,
+        )
+    except Exception as e:
+        logger.error(f"Discord account linking error: {e}", exc_info=True)
+        return Response(
+            {"error": "Failed to link Discord account"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+
+@api_view(["POST"])
+def discord_unlink_account(request):
+    """
+    Unlink Discord account from a Sound Royale player.
+    """
+    player_id = request.data.get("player_id")
+    player_secret = request.data.get("player_secret")
+
+    if not player_id or not player_secret:
+        return Response(
+            {"error": "player_id and player_secret are required"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        # Verify player credentials
+        player = Player.objects.get(id=player_id, player_secret=player_secret)
+    except Player.DoesNotExist:
+        return Response(
+            {"error": "Invalid player credentials"},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    try:
+        discord_service = DiscordOAuthService()
+        success = discord_service.unlink_discord_account(player)
+
+        if success:
+            return Response(
+                {"status": "Discord account unlinked successfully"},
+                status=status.HTTP_200_OK,
+            )
+        else:
+            return Response(
+                {"error": "No Discord account linked to this player"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+    except Exception as e:
+        logger.error(f"Discord account unlinking error: {e}", exc_info=True)
+        return Response(
+            {"error": "Failed to unlink Discord account"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+
+@api_view(["GET"])
+def discord_account_status(request):
+    """
+    Get Discord account linking status for a player.
+    """
+    player_id = request.GET.get("player_id")
+    player_secret = request.GET.get("player_secret")
+    discord_user_id = request.GET.get("discord_user_id")
+    discord_session_secret = request.GET.get("discord_session_secret")
+
+    discord_account = None
+    if discord_user_id or discord_session_secret:
+        discord_account, error_response = get_discord_account_from_session(request.GET)
+        if error_response is not None:
+            return error_response
+    else:
+        if not player_id or not player_secret:
+            return Response(
+                {"error": "player_id and player_secret are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            # Verify player credentials
+            player = Player.objects.get(id=player_id, player_secret=player_secret)
+        except Player.DoesNotExist:
+            return Response(
+                {"error": "Invalid player credentials"},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        discord_service = DiscordOAuthService()
+        discord_account = discord_service.get_discord_account(player)
+
+    try:
+        if discord_account:
+            return Response(
+                {
+                    "is_linked": True,
+                    "discord_user_id": discord_account.discord_user_id,
+                    "discord_username": discord_account.discord_username,
+                    "discord_avatar_url": discord_account.discord_avatar_url,
+                    "discord_session_secret": str(discord_account.session_secret),
+                    "linked_at": discord_account.linked_at,
+                    "last_sync_at": discord_account.last_sync_at,
+                    "privacy_settings": discord_account.privacy_settings,
+                },
+                status=status.HTTP_200_OK,
+            )
+        else:
+            return Response(
+                {"is_linked": False},
+                status=status.HTTP_200_OK,
+            )
+    except Exception as e:
+        logger.error(f"Discord account status check error: {e}", exc_info=True)
+        return Response(
+            {"error": "Failed to check Discord account status"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )

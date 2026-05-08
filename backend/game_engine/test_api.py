@@ -7,7 +7,7 @@ from rest_framework.test import APIRequestFactory
 from unittest.mock import patch, MagicMock
 from django.db import transaction
 from django.utils import timezone
-from .models import Room, Player, Tile, Round, Vote, ThemeRotation
+from .models import Room, Player, Tile, Round, Vote, ThemeRotation, DiscordAccount
 from .views import RoomViewSet
 
 
@@ -230,6 +230,110 @@ class RoomAPITestCase(TestCase):
             'Bounce', 'Jersey', 'Club', 'Garage', 'Amapiano',
             'Hyperpop', 'Grime', 'Afrobeats', 'Footwork'
         })
+
+    def test_discord_link_returns_reusable_session_secret(self):
+        """Discord linking returns a stable session secret for future rooms."""
+        url = reverse('discord-link')
+        response = self.client.post(url, {
+            'player_id': str(self.host.id),
+            'player_secret': str(self.host.player_secret),
+            'discord_user_id': 'discord-123',
+            'discord_username': 'verified_user',
+            'discord_avatar_url': 'avatar-hash',
+            'access_token': 'access-token',
+            'refresh_token': 'refresh-token',
+            'expires_in': 3600,
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('discord_session_secret', response.data)
+        account = DiscordAccount.objects.get(discord_user_id='discord-123')
+        self.assertEqual(response.data['discord_session_secret'], str(account.session_secret))
+
+    def test_discord_status_accepts_stable_session_without_player_credentials(self):
+        """Discord status can be checked after leaving a room player session."""
+        account = DiscordAccount.objects.create(
+            player=self.host,
+            discord_user_id='discord-456',
+            discord_username='stable_user',
+            discord_avatar_url='https://cdn.discordapp.com/avatar.png',
+            access_token='encrypted-access',
+            refresh_token='encrypted-refresh',
+        )
+
+        response = self.client.get(reverse('discord-status'), {
+            'discord_user_id': account.discord_user_id,
+            'discord_session_secret': str(getattr(account, 'session_secret', uuid.uuid4())),
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['is_linked'])
+        self.assertEqual(response.data['discord_username'], 'stable_user')
+        self.assertEqual(response.data['discord_avatar_url'], 'https://cdn.discordapp.com/avatar.png')
+
+    def test_room_create_attaches_verified_discord_session_to_host(self):
+        """Creating a new room with a stable Discord session attaches it to the host player."""
+        account = DiscordAccount.objects.create(
+            player=self.host,
+            discord_user_id='discord-789',
+            discord_username='host_verified',
+            access_token='encrypted-access',
+            refresh_token='encrypted-refresh',
+        )
+
+        response = self.client.post(reverse('room-list'), {
+            'name': 'Verified Host Room',
+            'player_name': 'VerifiedHost',
+            'discord_user_id': account.discord_user_id,
+            'discord_session_secret': str(getattr(account, 'session_secret', uuid.uuid4())),
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        player = Player.objects.get(name='VerifiedHost')
+        self.assertEqual(getattr(player, 'discord_identity', None), account)
+
+    def test_join_game_attaches_verified_discord_session_to_player(self):
+        """Joining a room with a stable Discord session attaches it to the new player."""
+        account = DiscordAccount.objects.create(
+            player=self.host,
+            discord_user_id='discord-999',
+            discord_username='join_verified',
+            access_token='encrypted-access',
+            refresh_token='encrypted-refresh',
+        )
+
+        response = self.client.post(reverse('room-join-game', kwargs={'code': '1234'}), {
+            'player_name': 'VerifiedJoiner',
+            'is_spectator': False,
+            'discord_user_id': account.discord_user_id,
+            'discord_session_secret': str(account.session_secret),
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        player = Player.objects.get(name='VerifiedJoiner')
+        self.assertEqual(player.discord_identity, account)
+
+    def test_game_state_includes_verified_discord_metadata(self):
+        """Game state exposes verified Discord metadata for player display."""
+        account = DiscordAccount.objects.create(
+            player=self.host,
+            discord_user_id='discord-meta',
+            discord_username='meta_verified',
+            discord_avatar_url='https://cdn.discordapp.com/meta.png',
+            access_token='encrypted-access',
+            refresh_token='encrypted-refresh',
+        )
+        self.host.discord_identity = account
+        self.host.save(update_fields=['discord_identity'])
+
+        response = self.client.get(reverse('room-game-state', kwargs={'code': '1234'}))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        player_data = response.data['players'][str(self.host.id)]
+        self.assertIn('isDiscordVerified', player_data)
+        self.assertTrue(player_data['isDiscordVerified'])
+        self.assertEqual(player_data['discordUsername'], 'meta_verified')
+        self.assertEqual(player_data['discordAvatarUrl'], 'https://cdn.discordapp.com/meta.png')
 
     @override_settings(THEME_ADMIN_SECRET='admin-pin')
     def test_theme_rotation_update_requires_admin_secret(self):
