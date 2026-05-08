@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "qodo": {
-      "command": "curl",
-      "args": ["-s", "http://localhost:7778/mcp"],
-      "env": {}
-    }
-  }
-}
