@@ -38,3 +38,18 @@ export function DiscordProfileCard({
           <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
         </div>
         <p className="text-xs text-gray-400">
+          Linked {formatDate(linkedAt)}
+        </p>
+      </div>
+
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={onManage}
+        className="text-gray-400 hover:text-white"
+      >
+        <Settings className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
