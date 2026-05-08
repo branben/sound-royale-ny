@@ -1,0 +1,250 @@
+import { Page, expect } from '@playwright/test';
+import { joinRoom, submitTile, nextTurn, castVote, getGameState, toggleReady, openVoting } from '../helpers';
+import axios from 'axios';
+
+const API_BASE_URL = process.env.LIVE_API_BASE_URL || 'http://localhost:8000/api';
+
+export type PlayerRole = 'host' | 'producer' | 'spectator';
+
+export interface PlayerConfig {
+  name: string;
+  role: PlayerRole;
+}
+
+export class PlayerPage {
+  public page: Page;
+  public name: string;
+  public role: PlayerRole;
+  public playerSecret: string = '';
+  public playerId: string = '';
+  public roomCode: string = '';
+  public boardTiles: Array<{ id: string; genre: string; position: number; status?: string }> = [];
+
+  constructor(page: Page, name: string, role: PlayerRole) {
+    this.page = page;
+    this.name = name;
+    this.role = role;
+  }
+
+  async createRoom(): Promise<string> {
+    // Use backend API directly for reliable room creation (avoids UI flakiness)
+    let response;
+    for (let i = 0; i < 3; i++) {
+      try {
+        response = await axios.post(`${API_BASE_URL}/rooms/`, {
+          name: 'Test Room',
+          player_name: this.name
+        });
+        break;
+      } catch (error: any) {
+        if (i === 2) throw error;
+        if (error.response?.status === 500) {
+          console.log(`createRoom 500 error, retrying in 500ms... (${i + 1}/3)`);
+          await new Promise(r => setTimeout(r, 500));
+          continue;
+        }
+        throw error;
+      }
+    }
+    if (!response) throw new Error('createRoom failed after retries');
+    const data = response.data;
+    this.roomCode = data.room_code || data.room?.code || '';
+    this.playerId = data.player_id || '';
+    this.playerSecret = data.player_secret || '';
+
+    // Inject session and navigate so React loads correctly
+    await this.page.goto('/');
+    await this.page.evaluate(({ id, secret, name }) => {
+      localStorage.setItem('playerId', id);
+      localStorage.setItem('playerSecret', secret);
+      localStorage.setItem('playerName', name);
+    }, { id: this.playerId, secret: this.playerSecret, name: this.name });
+    await this.page.goto(`/room/${this.roomCode}`);
+    // Wait for lobby to confirm render
+    await this.page.waitForSelector('text=/Room Code:/', { timeout: 15000 });
+
+    return this.roomCode;
+  }
+
+  async joinRoom(roomCode: string, isSpectator: boolean = false): Promise<void> {
+    this.roomCode = roomCode;
+
+    if (isSpectator) {
+      // Spectators must join via API — no UI checkbox exists
+      // Backend auto-assigns spectator names ("Spectator 1", "Spectator 2", etc.)
+      const response = await joinRoom(roomCode, this.name, true);
+      // Find the spectator we just joined (last spectator by join order)
+      const spectators = Object.values(response.players as Record<string, any>)
+        .filter((p: any) => p.is_spectator || p.isSpectator);
+      const joinedPlayer = spectators[spectators.length - 1];
+      if (!joinedPlayer) {
+        throw new Error('Failed to find spectator player in room response');
+      }
+      this.playerId = joinedPlayer.id;
+      this.playerSecret = response.player_secret;
+      this.name = joinedPlayer.name; // Update to auto-assigned name
+      // Inject session so React loads correctly
+      await this.page.goto('/');
+      await this.page.evaluate(({ id, secret, name }) => {
+        localStorage.setItem('playerId', id);
+        localStorage.setItem('playerSecret', secret);
+        localStorage.setItem('playerName', name);
+      }, { id: this.playerId, secret: this.playerSecret, name: this.name });
+      await this.page.goto(`/?code=${roomCode}`);
+    } else {
+      // Producer / host join via API for reliability
+      const response = await joinRoom(roomCode, this.name, false);
+      const joinedPlayer = Object.values(response.players as Record<string, any>)
+        .find((p: any) => p.name === this.name || p.id === response.player_id);
+      if (!joinedPlayer) {
+        throw new Error('Failed to find joined player in room response');
+      }
+      this.playerId = joinedPlayer.id;
+      this.playerSecret = response.player_secret;
+      // Inject session and navigate so React loads correctly
+      await this.page.goto('/');
+      await this.page.evaluate(({ id, secret, name }) => {
+        localStorage.setItem('playerId', id);
+        localStorage.setItem('playerSecret', secret);
+        localStorage.setItem('playerName', name);
+      }, { id: this.playerId, secret: this.playerSecret, name: this.name });
+      await this.page.goto(`/room/${roomCode}`);
+      await this.page.waitForSelector('text=/Room Code:/', { timeout: 15000 });
+    }
+  }
+
+  async toggleReady(): Promise<void> {
+    // Use backend API — host has no ready button UI
+    if (!this.playerSecret) {
+      throw new Error('playerSecret required for toggleReady');
+    }
+    await toggleReady(this.roomCode, this.playerSecret);
+    await this.page.waitForTimeout(500);
+  }
+
+  async startGame(): Promise<void> {
+    if (this.role !== 'host') {
+      throw new Error('Only host can start the game');
+    }
+    // Use API directly for reliability — works regardless of current page
+    const { startGame } = await import('../helpers');
+    await startGame(this.roomCode);
+    // Give React time to sync state
+    await this.page.waitForTimeout(1000);
+  }
+
+  async playTile(audioFilePath: string): Promise<void> {
+    // Backend doesn't validate genre — submit any incomplete tile via API
+    // Backend Tile.Status values: 'empty', 'pending', 'complete'
+    const incompleteTile = this.boardTiles.find(t => t.status !== 'complete');
+    if (!incompleteTile) {
+      throw new Error('No incomplete tiles found');
+    }
+
+    try {
+      await submitTile(incompleteTile.id, audioFilePath, this.playerSecret);
+    } catch (error: any) {
+      const msg = error.response?.data?.error || error.message || '';
+      if (msg.includes('Game is not in progress')) {
+        console.log(`Game already finished before ${this.name} could play tile`);
+        return;
+      }
+      console.error(`submitTile failed for ${this.name}: ${msg}`);
+      throw error;
+    }
+    
+    // Mark as completed locally
+    incompleteTile.status = 'complete';
+    
+    // Wait for submission to propagate
+    await this.page.waitForTimeout(500);
+  }
+
+  async advanceTurn(): Promise<void> {
+    if (this.role !== 'host') {
+      throw new Error('Only host can advance turn');
+    }
+    await nextTurn(this.roomCode, this.playerSecret);
+    await this.page.waitForTimeout(500);
+  }
+
+  async openVoting(): Promise<void> {
+    if (this.role !== 'host') {
+      throw new Error('Only host can open voting');
+    }
+    await openVoting(this.roomCode, this.playerSecret);
+    await this.page.waitForTimeout(500);
+  }
+
+  async voteFor(playerId: string): Promise<void> {
+    if (this.role !== 'spectator') {
+      throw new Error('Only spectators can vote');
+    }
+    await castVote(this.roomCode, this.playerSecret, playerId);
+    await this.page.waitForTimeout(500);
+  }
+
+  async waitForState(expected: 'lobby' | 'playing' | 'voting' | 'finished'): Promise<void> {
+    const maxWait = 30000; // 30 seconds
+    const startTime = Date.now();
+    
+    while (Date.now() - startTime < maxWait) {
+      const state = await getGameState(this.roomCode);
+      if (state.status === expected) {
+        return;
+      }
+      await this.page.waitForTimeout(500);
+    }
+    
+    throw new Error(`Timed out waiting for state: ${expected}`);
+  }
+
+  async loadBoardTiles(): Promise<void> {
+    // Spectators don't get tiles assigned
+    if (this.role === 'spectator') return;
+    const state = await getGameState(this.roomCode);
+    // Backend returns players as a dictionary keyed by player ID
+    // GameStateSerializer nests tiles under player.board.tiles
+    const playerData = state.players[this.playerId];
+    if (!playerData) {
+      const keys = Object.keys(state.players || {});
+      throw new Error(
+        `loadBoardTiles: player ${this.playerId} not found in state.players. ` +
+        `Keys: [${keys.join(', ')}], playerName: ${this.name}, role: ${this.role}`
+      );
+    }
+    const tiles = playerData.board?.tiles || playerData.tiles || [];
+    if (tiles.length === 0) {
+      throw new Error(
+        `loadBoardTiles: player ${this.playerId} (${this.name}) has no tiles. ` +
+        `playerData keys: [${Object.keys(playerData).join(', ')}]`
+      );
+    }
+    this.boardTiles = tiles.map((t: any) => ({
+      id: t.id,
+      genre: t.genre,
+      position: t.position,
+      status: t.status
+    }));
+  }
+
+  // --- Spectator UI assertions (for live POM tests) ---
+
+  async assertBoardVisible(): Promise<void> {
+    await expect(this.page.getByTestId('game-board').first()).toBeVisible({ timeout: 15000 });
+  }
+
+  async assertVotingPanelVisible(): Promise<void> {
+    await expect(this.page.getByTestId('voting-panel')).toBeVisible({ timeout: 15000 });
+  }
+
+  async assertWinnerVisible(winnerName: string): Promise<void> {
+    const announcement = this.page.getByTestId('winner-announcement');
+    await expect(announcement).toBeVisible({ timeout: 15000 });
+    await expect(announcement).toContainText(winnerName);
+  }
+
+  async assertRoundNumber(n: number): Promise<void> {
+    await expect(this.page.getByText(`Round ${n}`).first()).toBeVisible({ timeout: 15000 });
+  }
+}
