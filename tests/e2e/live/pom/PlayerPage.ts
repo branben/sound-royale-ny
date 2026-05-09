@@ -1,5 +1,6 @@
 import { Page, expect } from '@playwright/test';
 import { joinRoom, submitTile, nextTurn, castVote, getGameState, toggleReady, openVoting } from '../helpers';
+import { setupPlayerSession } from '../../helpers';
 import axios from 'axios';
 
 const API_BASE_URL = process.env.LIVE_API_BASE_URL || 'http://localhost:8000/api';
@@ -52,15 +53,14 @@ export class PlayerPage {
     this.playerId = data.player_id || '';
     this.playerSecret = data.player_secret || '';
 
-    // Inject session using the modern soundRoyaleSessions format
-    await this.page.goto('/');
-    await this.page.evaluate(({ id, secret, name, roomCode }) => {
-      const sessionKey = `${roomCode}:${id}`;
-      localStorage.setItem('soundRoyaleSessions', JSON.stringify({
-        [sessionKey]: { roomCode, playerName: name, playerId: id, playerSecret: secret, isSpectator: false },
-      }));
-      sessionStorage.setItem('soundRoyaleActiveSessionKey', sessionKey);
-    }, { id: this.playerId, secret: this.playerSecret, name: this.name, roomCode: this.roomCode });
+    // Inject session via the shared helper (uses addInitScript)
+    await setupPlayerSession(this.page, {
+      playerName: this.name,
+      playerId: this.playerId,
+      playerSecret: this.playerSecret,
+      roomCode: this.roomCode,
+      isSpectator: false,
+    });
     await this.page.goto(`/room/${this.roomCode}`);
     // Wait for lobby to confirm render
     await this.page.waitForSelector('text=/Room Code:/', { timeout: 15000 });
@@ -85,15 +85,14 @@ export class PlayerPage {
       this.playerId = joinedPlayer.id;
       this.playerSecret = response.player_secret;
       this.name = joinedPlayer.name; // Update to auto-assigned name
-      // Inject session using the modern soundRoyaleSessions format
-      await this.page.goto('/');
-      await this.page.evaluate(({ id, secret, name, roomCode }) => {
-        const sessionKey = `${roomCode}:${id}`;
-        localStorage.setItem('soundRoyaleSessions', JSON.stringify({
-          [sessionKey]: { roomCode, playerName: name, playerId: id, playerSecret: secret, isSpectator: true },
-        }));
-        sessionStorage.setItem('soundRoyaleActiveSessionKey', sessionKey);
-      }, { id: this.playerId, secret: this.playerSecret, name: this.name, roomCode });
+      // Inject session via the shared helper (uses addInitScript)
+      await setupPlayerSession(this.page, {
+        playerName: this.name,
+        playerId: this.playerId,
+        playerSecret: this.playerSecret,
+        roomCode,
+        isSpectator: true,
+      });
       await this.page.goto(`/?code=${roomCode}`);
     } else {
       // Producer / host join via API for reliability
@@ -105,15 +104,14 @@ export class PlayerPage {
       }
       this.playerId = joinedPlayer.id;
       this.playerSecret = response.player_secret;
-      // Inject session using the modern soundRoyaleSessions format
-      await this.page.goto('/');
-      await this.page.evaluate(({ id, secret, name, roomCode }) => {
-        const sessionKey = `${roomCode}:${id}`;
-        localStorage.setItem('soundRoyaleSessions', JSON.stringify({
-          [sessionKey]: { roomCode, playerName: name, playerId: id, playerSecret: secret, isSpectator: false },
-        }));
-        sessionStorage.setItem('soundRoyaleActiveSessionKey', sessionKey);
-      }, { id: this.playerId, secret: this.playerSecret, name: this.name, roomCode });
+      // Inject session via the shared helper (uses addInitScript)
+      await setupPlayerSession(this.page, {
+        playerName: this.name,
+        playerId: this.playerId,
+        playerSecret: this.playerSecret,
+        roomCode,
+        isSpectator: false,
+      });
       await this.page.goto(`/room/${roomCode}`);
       await this.page.waitForSelector('text=/Room Code:/', { timeout: 15000 });
     }
