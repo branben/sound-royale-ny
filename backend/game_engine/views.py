@@ -263,6 +263,65 @@ def normalize_genre(value):
     return "rb" if normalized == "rnb" else normalized
 
 
+def _resolve_bingo_and_winner(room, player):
+    all_players_with_tiles = room.players.filter(
+        is_spectator=False
+    ).prefetch_related(
+        Prefetch(
+            "tiles",
+            queryset=Tile.objects.filter(status=Tile.Status.COMPLETE),
+            to_attr="completed_tiles",
+        )
+    )
+
+    current_player_tiles = next(
+        (
+            p.completed_tiles
+            for p in all_players_with_tiles
+            if p.id == player.id
+        ),
+        [],
+    )
+
+    if len(current_player_tiles) >= 5:
+        player_tiles = list(current_player_tiles)
+        completed_lines = check_bingo_lines(player_tiles)
+
+        if completed_lines:
+            score_info = calculate_bingo_score(player, completed_lines)
+
+            player_scores = []
+
+            for other_player in all_players_with_tiles:
+                if other_player.id == player.id:
+                    continue
+
+                other_completed_tiles = other_player.completed_tiles
+
+                if other_completed_tiles:
+                    other_tiles_list = list(other_completed_tiles)
+                    other_completed_lines = check_bingo_lines(other_tiles_list)
+
+                    if other_completed_lines:
+                        other_score_info = calculate_bingo_score(
+                            other_player, other_completed_lines
+                        )
+                        player_scores.append((other_player, other_score_info))
+
+            if len(player_scores) == 0:
+                room.status = Room.Status.FINISHED
+                room.winner = player
+                room.save()
+            else:
+                player_scores.append((player, score_info))
+                winner = check_tie_breaker(player_scores)
+
+                if winner:
+                    room.status = Room.Status.FINISHED
+                    room.winner = winner
+                    room.save()
+
+
 def broadcast_game_update(room):
     """
     Helper to broadcast game state updates to the room's channel group.
@@ -1606,13 +1665,6 @@ class TileViewSet(viewsets.ModelViewSet):
                     {"error": f"Tile genre '{tile.genre}' does not match current round genre '{current_round.current_tile_genre}'"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-                return Response(
-                    {
-                        "error": f"This round is for {current_round.current_tile_genre}",
-                        "current_tile_genre": current_round.current_tile_genre,
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
 
         with transaction.atomic():
             # Update tile
@@ -1736,12 +1788,18 @@ def discord_link_account(request):
     # Find existing player or create one on-the-fly for Discord linking
     player = Player.objects.filter(id=player_id, player_secret=player_secret).first()
     if not player:
-        player = Player.objects.create(
-            id=player_id,
-            player_secret=player_secret,
-            name=discord_username or "Discord User",
-            room=None,
-        )
+        try:
+            player = Player.objects.create(
+                id=player_id,
+                player_secret=player_secret,
+                name=discord_username or "Discord User",
+                room=None,
+            )
+        except IntegrityError:
+            return Response(
+                {"error": "Player ID exists with different credentials"},
+                status=status.HTTP_409_CONFLICT,
+            )
 
     try:
         discord_service = DiscordOAuthService()

@@ -41,6 +41,7 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
   const isMounted = useRef(true);
   // Fetch real data from backend when not in E2E mode and roomCode is provided
   useEffect(() => {
+    isMounted.current = true;
     if (isE2E) {
       return; // Use mock data in E2E mode only
     }

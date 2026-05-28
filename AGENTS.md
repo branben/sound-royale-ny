@@ -2,6 +2,39 @@
 
 **Generated:** 2026-02-16 | **Branch:** main
 
+> **Layered atop:** [Karpathy Behavioral Guidelines](https://github.com/multica-ai/andrej-karpathy-skills) — four principles to reduce common LLM coding mistakes.
+
+---
+
+## Behavioral Principles (apply before project rules)
+
+### 1. Think Before Coding
+Don't assume. Don't hide confusion. Surface tradeoffs.
+- State assumptions explicitly. If uncertain, ask.
+- Present multiple interpretations — don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+### 2. Simplicity First
+Minimum code that solves the problem. Nothing speculative.
+- No features beyond what was asked. No abstractions for single-use code.
+- No flexibility/configurability that wasn't requested. No error handling for impossible scenarios.
+- If 200 lines could be 50, rewrite it. Would a senior engineer call this overcomplicated?
+
+### 3. Surgical Changes
+Touch only what you must. Clean up only your own mess.
+- Don't improve adjacent code, comments, or formatting. Don't refactor what isn't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it — don't delete it.
+- Remove imports/variables/functions *your* changes made unused. Don't remove pre-existing dead code.
+- **The test:** Every changed line traces directly to the request.
+
+### 4. Goal-Driven Execution
+Define success criteria. Loop until verified.
+- Transform imperatives into verifiable goals: "Fix bug" → "Write a repro test, make it pass"
+- For multi-step tasks, state a brief plan: `1. [Step] → verify: [check]`
+- Strong criteria let you loop independently. Weak criteria ("make it work") requires constant hand-holding.
+
 ---
 
 ## Key Anti-Patterns (MUST REMEMBER)

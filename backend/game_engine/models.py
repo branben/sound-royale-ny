@@ -154,7 +154,9 @@ class Player(models.Model):
         unique_together = ["room", "name"]  # Prevent duplicate names in same room
 
     def __str__(self):
-        return f"{self.name} in {self.room.id}"
+        if self.room:
+            return f"{self.name} in {self.room.id}"
+        return f"{self.name} (no room)"
 
     @property
     def current_title(self):
