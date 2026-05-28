@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { discordApi } from '@/services/api';
-import { clearDiscordSession, getDiscordSession } from '@/services/discordSession';
+import { clearDiscordSession, getDiscordSession, saveDiscordOAuthState } from '@/services/discordSession';
 import { useUser } from '@/context/UserContext';
 import { Loader2, Link as LinkIcon, Unlink, CheckCircle, XCircle, Shield } from 'lucide-react';
 import { PrivacySettings } from './PrivacySettings';
@@ -78,10 +78,8 @@ export function DiscordLinkModal({ isOpen, onClose, onStatusChange }: DiscordLin
       // Get OAuth authorization URL
       const { authorization_url, state } = await discordApi.getAuthUrl();
 
-      // Store state in sessionStorage for callback validation
-      sessionStorage.setItem('discord_oauth_state', state);
-      sessionStorage.setItem('discord_player_id', userSession.playerId);
-      sessionStorage.setItem('discord_player_secret', userSession.playerSecret);
+      // Store state in localStorage (with sessionStorage fallback) for callback validation
+      saveDiscordOAuthState(state, userSession.playerId!, userSession.playerSecret!);
 
       // Redirect to Discord OAuth
       window.location.href = authorization_url;
@@ -228,10 +226,10 @@ export function DiscordLinkModal({ isOpen, onClose, onStatusChange }: DiscordLin
               </Button>
             </div>
           ) : (
-            <Button
-              onClick={handleLinkDiscord}
-              className="bg-[#5865F2] hover:bg-[#4752C4] gap-2"
-            >
+              <Button
+                onClick={handleLinkDiscord}
+                className="bg-[#5865F2] hover:bg-[#4752C4] gap-2"
+              >
               <LinkIcon className="h-4 w-4" />
               Link Discord Account
             </Button>

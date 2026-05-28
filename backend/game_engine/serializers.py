@@ -30,8 +30,10 @@ class TileCreateSerializer(serializers.ModelSerializer):
         player = attrs['player']
         position = attrs['position']
         genre = attrs['genre']
-        room = attrs.get('room', player.room)  # Use room from attrs or fallback to player.room
-        attrs['room'] = room  # Ensure room is in attrs for model creation
+        room = attrs.get('room', player.room)
+        if not room:
+            raise serializers.ValidationError("room is required when player has no room")
+        attrs['room'] = room
         
         # Validation 1: Position must be within valid range (0-8)
         if not 0 <= position <= 8:

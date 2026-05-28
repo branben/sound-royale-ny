@@ -78,6 +78,8 @@ class GameSessionViewSet(viewsets.ModelViewSet):
                 raise ValueError("Invalid player secret format")
             
             player = get_object_or_404(Player, player_secret=self.kwargs['player_secret'])
+            if not player.room:
+                raise ValueError("Player has not joined a room")
             return player.room
         
         elif self.lookup_field in self.kwargs:
@@ -97,6 +99,8 @@ class GameSessionViewSet(viewsets.ModelViewSet):
             # When looking up by player secret, filter to that player's room
             try:
                 player = Player.objects.get(player_secret=self.kwargs['player_secret'])
+                if not player.room:
+                    return Room.objects.none()
                 return Room.objects.filter(id=player.room.id)
             except Player.DoesNotExist:
                 return Room.objects.none()
@@ -134,6 +138,11 @@ class GameSessionViewSet(viewsets.ModelViewSet):
         """
         try:
             player = get_object_or_404(Player, player_secret=player_secret)
+            if not player.room:
+                return Response(
+                    {"error": "Player has not joined a room"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
             room = player.room
             serializer = self.get_serializer(room)
             return Response({

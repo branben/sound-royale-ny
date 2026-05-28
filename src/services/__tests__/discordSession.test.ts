@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   clearDiscordSession,
+  clearDiscordOAuthState,
   createDiscordSessionFromLinkResponse,
   getDiscordSession,
+  getDiscordOAuthState,
   saveDiscordSession,
+  saveDiscordOAuthState,
 } from '../discordSession';
 
 describe('Discord session storage', () => {
@@ -66,5 +69,87 @@ describe('Discord session storage', () => {
       avatarUrl: 'https://cdn.discordapp.com/avatar.png',
       linkedAt: '2026-05-08T18:00:00Z',
     });
+  });
+});
+
+describe('Discord OAuth flow state', () => {
+  afterEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+
+  it('persists OAuth state to localStorage so it survives HMR reload', () => {
+    saveDiscordOAuthState('oauth-state-abc', 'player-1', 'secret-xyz');
+    sessionStorage.clear();
+
+    const result = getDiscordOAuthState();
+    expect(result).toEqual({
+      state: 'oauth-state-abc',
+      playerId: 'player-1',
+      playerSecret: 'secret-xyz',
+    });
+  });
+
+  it('reads from sessionStorage when available (happy path)', () => {
+    saveDiscordOAuthState('oauth-state-abc', 'player-1', 'secret-xyz');
+
+    const result = getDiscordOAuthState();
+    expect(result).toEqual({
+      state: 'oauth-state-abc',
+      playerId: 'player-1',
+      playerSecret: 'secret-xyz',
+    });
+  });
+
+  it('returns null when no OAuth state exists', () => {
+    expect(getDiscordOAuthState()).toBeNull();
+  });
+
+  it('clears OAuth state from both stores', () => {
+    saveDiscordOAuthState('oauth-state-abc', 'player-1', 'secret-xyz');
+    clearDiscordOAuthState();
+
+    expect(getDiscordOAuthState()).toBeNull();
+  });
+
+  it('returns null for expired OAuth state', () => {
+    const elapsed = 11 * 60 * 1000;
+    const expiredPayload = JSON.stringify({
+      state: 'old-state',
+      savedAt: Date.now() - elapsed,
+    });
+    localStorage.setItem('soundRoyaleDiscordOAuthState', expiredPayload);
+    localStorage.setItem('soundRoyaleDiscordOAuthPlayerId', 'player-1');
+    localStorage.setItem('soundRoyaleDiscordOAuthPlayerSecret', 'secret-xyz');
+
+    expect(getDiscordOAuthState()).toBeNull();
+  });
+
+  it('returns valid OAuth state within TTL window', () => {
+    const savedAt = Date.now() - 5 * 60 * 1000;
+    const freshPayload = JSON.stringify({ state: 'fresh-state', savedAt });
+    localStorage.setItem('soundRoyaleDiscordOAuthState', freshPayload);
+    localStorage.setItem('soundRoyaleDiscordOAuthPlayerId', 'player-1');
+    localStorage.setItem('soundRoyaleDiscordOAuthPlayerSecret', 'secret-xyz');
+
+    const result = getDiscordOAuthState();
+    expect(result).toEqual({
+      state: 'fresh-state',
+      playerId: 'player-1',
+      playerSecret: 'secret-xyz',
+    });
+  });
+
+  it('does not clear the Discord session when clearing OAuth state', () => {
+    saveDiscordSession({
+      discordUserId: 'discord-123',
+      sessionSecret: 'session-secret',
+      username: 'verified_user',
+    });
+    saveDiscordOAuthState('oauth-state', 'player-1', 'secret-xyz');
+    clearDiscordOAuthState();
+
+    expect(getDiscordSession()).not.toBeNull();
+    expect(getDiscordSession()!.discordUserId).toBe('discord-123');
   });
 });

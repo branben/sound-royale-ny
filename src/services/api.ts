@@ -350,4 +350,21 @@ export function normalizeRoomWinner(winner: RoomResponse['winner']): string | un
   return typeof winner === 'string' ? winner : winner.id;
 }
 
+export interface LeaderboardUser {
+  id: string;
+  display_name: string;
+  elo_rating: number;
+  elo_wins: number;
+  elo_losses: number;
+  elo_matches: number;
+  is_verified: boolean;
+}
+
+export const leaderboardApi = {
+  global: async (): Promise<{ leaderboard: LeaderboardUser[] }> => {
+    const response = await api.get('/leaderboard/');
+    return response.data;
+  },
+};
+
 export default api;

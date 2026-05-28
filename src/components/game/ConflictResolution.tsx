@@ -8,10 +8,10 @@ interface ConflictResolutionProps {
     type: 'tile_submittion' | 'simultaneous_action';
     message: string;
     affectedPlayers: string[];
-    onResolve: () => void;
-    onRetry?: () => void;
   };
   isVisible: boolean;
+  onResolve: () => void;
+  onRetry?: () => void;
 }
 
 export function ConflictResolution({ 

@@ -25,7 +25,7 @@ interface Player {
 
 export default function Lobby() {
   const navigate = useNavigate();
-  const { userSession, setPlayerName, setPlayerCredentials, setActiveRoomSession } = useUser();
+  const { userSession, setPlayerName, setPlayerCredentials, setActiveRoomSession, ensureAnonymousSession } = useUser();
   const [roomCode, setRoomCode] = useState('');
   const [isJoined, setIsJoined] = useState(false);
   const [isHost, setIsHost] = useState(false);
@@ -64,13 +64,13 @@ export default function Lobby() {
     const checkDiscordStatus = async () => {
       try {
         const storedDiscordSession = getDiscordSession();
-        const status = userSession.playerId && userSession.playerSecret
-          ? await discordApi.getAccountStatus(userSession.playerId, userSession.playerSecret)
-          : storedDiscordSession
-            ? await discordApi.getAccountStatusBySession(
-              storedDiscordSession.discordUserId,
-              storedDiscordSession.sessionSecret
-            )
+        const status = storedDiscordSession
+          ? await discordApi.getAccountStatusBySession(
+            storedDiscordSession.discordUserId,
+            storedDiscordSession.sessionSecret
+          )
+          : userSession.playerId && userSession.playerSecret
+            ? await discordApi.getAccountStatus(userSession.playerId, userSession.playerSecret)
             : null;
         if (!status) {
           setDiscordAccountStatus(null);
@@ -100,13 +100,13 @@ export default function Lobby() {
     const checkDiscordStatus = async () => {
       try {
         const storedDiscordSession = getDiscordSession();
-        const status = userSession.playerId && userSession.playerSecret
-          ? await discordApi.getAccountStatus(userSession.playerId, userSession.playerSecret)
-          : storedDiscordSession
-            ? await discordApi.getAccountStatusBySession(
-              storedDiscordSession.discordUserId,
-              storedDiscordSession.sessionSecret
-            )
+        const status = storedDiscordSession
+          ? await discordApi.getAccountStatusBySession(
+            storedDiscordSession.discordUserId,
+            storedDiscordSession.sessionSecret
+          )
+          : userSession.playerId && userSession.playerSecret
+            ? await discordApi.getAccountStatus(userSession.playerId, userSession.playerSecret)
             : null;
         if (!status) {
           setDiscordAccountStatus(null);
@@ -464,7 +464,7 @@ export default function Lobby() {
                     />
                   ) : (
                     <Button
-                      onClick={() => setShowDiscordModal(true)}
+                      onClick={() => { ensureAnonymousSession?.(); setShowDiscordModal(true); }}
                       variant="ghost"
                       size="sm"
                       className="w-full text-sm text-[#5865F2] hover:text-[#7C3AED] hover:bg-[#5865F2]/10 gap-2"
