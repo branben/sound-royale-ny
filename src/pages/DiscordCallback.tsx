@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { discordApi } from '@/services/api';
-import { createDiscordSessionFromLinkResponse, saveDiscordSession } from '@/services/discordSession';
+import { clearDiscordOAuthState, createDiscordSessionFromLinkResponse, getDiscordOAuthState, saveDiscordSession } from '@/services/discordSession';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -15,15 +15,13 @@ export default function DiscordCallback() {
       const code = urlParams.get('code');
       const state = urlParams.get('state');
 
-      // Retrieve stored OAuth state and player credentials
-      const storedState = sessionStorage.getItem('discord_oauth_state');
-      const playerId = sessionStorage.getItem('discord_player_id');
-      const playerSecret = sessionStorage.getItem('discord_player_secret');
+      // Retrieve stored OAuth state and player credentials (localStorage-first, sessionStorage fallback)
+      const oauthState = getDiscordOAuthState();
+      clearDiscordOAuthState();
 
-      // Clear session storage
-      sessionStorage.removeItem('discord_oauth_state');
-      sessionStorage.removeItem('discord_player_id');
-      sessionStorage.removeItem('discord_player_secret');
+      const storedState = oauthState?.state ?? null;
+      const playerId = oauthState?.playerId ?? null;
+      const playerSecret = oauthState?.playerSecret ?? null;
 
       if (!code || !state || !storedState || state !== storedState) {
         setStatus('error');

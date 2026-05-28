@@ -8,9 +8,36 @@ export type GameSocketMessage =
   | { type: 'timer_tick'; payload: { timeRemaining: number } }
   | { type: 'turn_change'; payload: { round: RoundState } }
   | { type: 'player_joined'; payload: { playerId: string; playerName: string; isSpectator: boolean } }
-  | { type: 'player_left'; payload: { playerId: string; playerName: string } };
+  | { type: 'player_left'; payload: { playerId: string; playerName: string } }
+  | { type: 'error'; payload: { code: string; message: string } };
+
+export type MessageType = GameSocketMessage['type'];
 
 export type MessageHandler = (message: GameSocketMessage) => void;
+
+const MESSAGE_TYPES: readonly string[] = [
+  'game_state_update',
+  'bingo_achievement',
+  'victory_celebration',
+  'vote_submitted',
+  'timer_tick',
+  'turn_change',
+  'player_joined',
+  'player_left',
+  'error',
+] as const;
+
+function isValidMessageType(type: unknown): type is MessageType {
+  return typeof type === 'string' && (MESSAGE_TYPES as readonly string[]).includes(type);
+}
+
+function parseGameSocketMessage(data: string): GameSocketMessage | null {
+  const parsed = JSON.parse(data);
+  if (parsed && typeof parsed === 'object' && isValidMessageType(parsed.type)) {
+    return parsed as GameSocketMessage;
+  }
+  return null;
+}
 
 export interface GameSocketOptions {
   gameId: string;
@@ -112,8 +139,10 @@ class GameSocketService {
 
       this.ws.onmessage = (event) => {
         try {
-          const data = JSON.parse(event.data) as GameSocketMessage;
-          this.options?.onMessage(data);
+          const message = parseGameSocketMessage(event.data);
+          if (message) {
+            this.options?.onMessage(message);
+          }
         } catch (err) {
           console.error('[GameSocket] Failed to parse message:', err);
         }
@@ -173,16 +202,11 @@ class GameSocketService {
     this.options = null;
   }
 
-  send(messageType: string, payload?: unknown): void {
+  send(message: GameSocketMessage): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       console.warn('[GameSocket] Cannot send - not connected');
       return;
     }
-
-    const message = {
-      type: messageType,
-      payload,
-    };
 
     this.ws.send(JSON.stringify(message));
   }

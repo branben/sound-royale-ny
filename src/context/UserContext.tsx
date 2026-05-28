@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import { Player } from '@/types/game';
 
 interface VerifiedUser {
@@ -29,6 +30,7 @@ interface StoredRoomSession extends RoomSessionInput {
 }
 
 interface UserContextType {
+  ensureAnonymousSession: () => void;
   userSession: UserSession;
   setPlayerName: (name: string) => void;
   setPlayerCredentials: (id: string, secret: string) => void;
@@ -209,6 +211,31 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 export function UserProvider({ children }: { children: ReactNode }) {
   const [userSession, setUserSession] = useState<UserSession>(readInitialSession);
 
+
+  // Ensure an anonymous player session exists on first load
+  useEffect(() => {
+    if (!userSession.playerId) {
+      const id = uuidv4();
+      const secret = uuidv4();
+      setPlayerCredentials(id, secret);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Internal helper to generate and set anonymous credentials
+  const createAnonymousSession = () => {
+    const id = uuidv4();
+    const secret = uuidv4();
+    setPlayerCredentials(id, secret);
+  };
+
+  // Public helper to guarantee an anonymous session on demand
+  const ensureAnonymousSession = () => {
+    if (!userSession.playerId) {
+      createAnonymousSession();
+    }
+  };
+
   const setActiveRoomSession = (roomCode: string, session: RoomSessionInput) => {
     const storedSession: StoredRoomSession = {
       roomCode,
@@ -227,14 +254,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
   };
 
   const persistActiveSession = (next: UserSession): void => {
-    if (!next.roomCode || !next.playerId || !next.playerSecret || !next.playerName) {
+    // Require player credentials and name; allow anonymous sessions without a room
+    if (!next.playerId || !next.playerSecret || !next.playerName) {
       return;
     }
-
-    const sessionKey = getSessionKey(next.roomCode, next.playerId);
+    const roomCode = next.roomCode ?? '__ANON__';
+    const sessionKey = getSessionKey(roomCode, next.playerId);
     const sessions = readStoredSessions();
     sessions[sessionKey] = {
-      roomCode: next.roomCode,
+      roomCode,
       playerName: next.playerName,
       playerId: next.playerId,
       playerSecret: next.playerSecret,
@@ -313,6 +341,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       setSpectatorMode,
       setActiveRoomSession,
       clearSession,
+      ensureAnonymousSession,
       isAuthenticated: userSession.isAuthenticated,
       isHost,
       requestLoginCode,

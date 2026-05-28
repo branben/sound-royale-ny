@@ -257,6 +257,12 @@ def attach_discord_identity_from_session(player, data):
     return None
 
 
+def normalize_genre(value):
+    """Normalize a genre string for comparison. Pure utility, no side effects."""
+    normalized = "".join(char for char in str(value).lower() if char.isalnum())
+    return "rb" if normalized == "rnb" else normalized
+
+
 def broadcast_game_update(room):
     """
     Helper to broadcast game state updates to the room's channel group.
@@ -1436,7 +1442,8 @@ class PlayerViewSet(viewsets.ModelViewSet):
         player.save()
 
         # Broadcast update to all players
-        broadcast_game_update(player.room)
+        if player.room:
+            broadcast_game_update(player.room)
 
         return Response(
             {
@@ -1481,7 +1488,8 @@ class PlayerViewSet(viewsets.ModelViewSet):
         player.is_connected = not player.is_connected
         player.save()
 
-        broadcast_game_update(player.room)
+        if player.room:
+            broadcast_game_update(player.room)
 
         return Response(
             {
@@ -1524,6 +1532,10 @@ class PlayerViewSet(viewsets.ModelViewSet):
         Leave a game room.
         """
         player = self.get_object()
+        if not player.room:
+            player.delete()
+            return Response({"status": "Left"}, status=status.HTTP_200_OK)
+
         room = player.room
 
         if room.status == Room.Status.PLAYING and not player.is_spectator:
@@ -1589,13 +1601,11 @@ class TileViewSet(viewsets.ModelViewSet):
             round_number=room.current_round,
         ).first()
         if current_round:
-            def normalize_genre(value):
-                normalized = "".join(
-                    char for char in str(value).lower() if char.isalnum()
-                )
-                return "rb" if normalized == "rnb" else normalized
-
             if normalize_genre(tile.genre) != normalize_genre(current_round.current_tile_genre):
+                return Response(
+                    {"error": f"Tile genre '{tile.genre}' does not match current round genre '{current_round.current_tile_genre}'"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
                 return Response(
                     {
                         "error": f"This round is for {current_round.current_tile_genre}",
@@ -1612,72 +1622,8 @@ class TileViewSet(viewsets.ModelViewSet):
                 tile.audio_file = audio_file
             tile.save()
 
-            # Check for bingo lines (proper bingo logic) - OPTIMIZED
-            # Bulk fetch all completed tiles for room players with prefetch
-
-            all_players_with_tiles = room.players.filter(
-                is_spectator=False
-            ).prefetch_related(
-                Prefetch(
-                    "tiles",
-                    queryset=Tile.objects.filter(status=Tile.Status.COMPLETE),
-                    to_attr="completed_tiles",
-                )
-            )
-
-            # Get current player's completed tiles from prefetched data
-            current_player_tiles = next(
-                (
-                    p.completed_tiles
-                    for p in all_players_with_tiles
-                    if p.id == player.id
-                ),
-                [],
-            )
-
-            if len(current_player_tiles) >= 5:
-                # Check if current player has completed any bingo lines
-                player_tiles = list(current_player_tiles)
-                completed_lines = check_bingo_lines(player_tiles)
-
-                if completed_lines:
-                    # Calculate score based on completed lines
-                    score_info = calculate_bingo_score(player, completed_lines)
-
-                    # Check for multiple winners in this round (NO N+1 queries)
-                    player_scores = []
-
-                    for other_player in all_players_with_tiles:
-                        if other_player.id == player.id:
-                            continue
-
-                        other_completed_tiles = other_player.completed_tiles
-
-                        if other_completed_tiles:
-                            other_tiles_list = list(other_completed_tiles)
-                            other_completed_lines = check_bingo_lines(other_tiles_list)
-
-                            if other_completed_lines:
-                                other_score_info = calculate_bingo_score(
-                                    other_player, other_completed_lines
-                                )
-                                player_scores.append((other_player, other_score_info))
-
-                    # Check if this player is the sole winner or needs tie-breaking
-                    if len(player_scores) == 0:
-                        # Solo winner
-                        room.status = Room.Status.FINISHED
-                        room.winner = player
-                        room.save()
-                    else:
-                        # Multiple players completed lines - apply tie-breaking
-                        player_scores.append((player, score_info))
-                        winner = check_tie_breaker(player_scores)
-
-                        if winner:
-                            room.status = Room.Status.FINISHED
-                            room.winner = winner
-                            room.save()
+            # Check for bingo lines and resolve winner
+            _resolve_bingo_and_winner(room, player)
 
             # Broadcast update
             broadcast_game_update(room)
@@ -1787,13 +1733,14 @@ def discord_link_account(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    try:
-        # Verify player credentials
-        player = Player.objects.get(id=player_id, player_secret=player_secret)
-    except Player.DoesNotExist:
-        return Response(
-            {"error": "Invalid player credentials"},
-            status=status.HTTP_401_UNAUTHORIZED,
+    # Find existing player or create one on-the-fly for Discord linking
+    player = Player.objects.filter(id=player_id, player_secret=player_secret).first()
+    if not player:
+        player = Player.objects.create(
+            id=player_id,
+            player_secret=player_secret,
+            name=discord_username or "Discord User",
+            room=None,
         )
 
     try:
@@ -1902,12 +1849,11 @@ def discord_account_status(request):
             )
 
         try:
-            # Verify player credentials
             player = Player.objects.get(id=player_id, player_secret=player_secret)
         except Player.DoesNotExist:
             return Response(
-                {"error": "Invalid player credentials"},
-                status=status.HTTP_401_UNAUTHORIZED,
+                {"is_linked": False},
+                status=status.HTTP_200_OK,
             )
 
         discord_service = DiscordOAuthService()

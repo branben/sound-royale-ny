@@ -122,7 +122,9 @@ class Player(models.Model):
     )  # Secret for reconnection
     name = models.CharField(max_length=50)
     avatar = models.URLField(blank=True, null=True)
-    room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name="players")
+    room = models.ForeignKey(
+        Room, on_delete=models.CASCADE, related_name="players", null=True, blank=True
+    )
     discord_identity = models.ForeignKey(
         "DiscordAccount",
         on_delete=models.SET_NULL,
