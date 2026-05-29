@@ -17,8 +17,18 @@ jobs:
       pull-requests: write
       issues: write
       contents: read
+    defaults:
+      run:
+        shell: bash
     steps:
-      - uses: the-pr-agent/pr-agent@main
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pr-agent
+        run: pip install pr-agent
+      - name: Run PR Agent
+        run: python -m pr_agent.servers.github_action_runner
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI__API_BASE: http://localhost:20128/v1
