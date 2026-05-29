@@ -3,6 +3,9 @@ model = "coding-unlimited"
 # combo auto-routes: NVIDIA OSS 120B (97.4%) -> Mistral Devstral (100%) -> Groq OSS 120B -> OpenRouter OWL Alpha
 fallback_models = ["openrouter/meta-llama/llama-3.3-70b-instruct", "openrouter/deepseek/deepseek-chat"]
 custom_model_max_tokens = 64000
+auto_review = true
+auto_describe = true
+auto_improve = true
 
 [pr_reviewer]
 require_tests_review = false
