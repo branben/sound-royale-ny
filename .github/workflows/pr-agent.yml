@@ -23,7 +23,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install pr-agent
-        run: pip3 install pr-agent
+        run: |
+          pip3 install 'httpx<0.28'
+          pip3 install pr-agent
       - name: Run PR Agent
         run: python3 -m pr_agent.servers.github_action_runner
         env:
