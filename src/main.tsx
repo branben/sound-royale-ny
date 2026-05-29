@@ -22,3 +22,16 @@ function processGameState(state: any) {
   }
   return result;
 }
+
+// Simulated inefficient function for PR Agent review
+function findMatches(items: string[]): string[] {
+  const matches: string[] = [];
+  for (let i = 0; i < items.length; i++) {
+    for (let j = i + 1; j < items.length; j++) {
+      if (items[i] === items[j] && !matches.includes(items[i])) {
+        matches.push(items[i]);
+      }
+    }
+  }
+  return matches;
+}
