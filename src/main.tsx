@@ -8,3 +8,4 @@ createRoot(document.getElementById("root")!).render(
     <App />
   </UserProvider>
 );
+// PR Agent E2E verification comment
