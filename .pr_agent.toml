@@ -1,0 +1,29 @@
+[config]
+model = "coding-unlimited"
+# combo auto-routes: NVIDIA OSS 120B (97.4%) -> Mistral Devstral (100%) -> Groq OSS 120B -> OpenRouter OWL Alpha
+fallback_models = ["openrouter/meta-llama/llama-3.3-70b-instruct", "openrouter/deepseek/deepseek-chat"]
+custom_model_max_tokens = 64000
+
+[pr_reviewer]
+require_tests_review = false
+require_security_review = true
+require_estimate_effort_to_review = true
+require_ticket_analysis_review = false
+num_max_findings = 5
+persistent_comment = true
+enable_intro_text = true
+
+[pr_description]
+use_bullet_points = true
+enable_pr_type = true
+enable_semantic_files_types = true
+collapsible_file_list = 'adaptive'
+
+[pr_code_suggestions]
+focus_only_on_problems = true
+suggestions_score_threshold = 0
+num_code_suggestions_per_chunk = 3
+persistent_comment = true
+
+[github]
+deployment_type = "user"

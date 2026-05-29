@@ -1,0 +1,81 @@
+name: PR Agent Feedback Loop
+
+on:
+  workflow_run:
+    workflows: ["PR Agent"]
+    types: [completed]
+
+jobs:
+  pr-agent-feedback:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+      SPAWN_POLECAT: "0"
+      WRITE_BEADS: "0"
+      GITHUB_ACTIONS: "true"
+      BOT_NAME: "github-actions[bot]"
+      SOURCE_NAME: "pr-agent"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check required tools
+        run: |
+          MISSING=""
+          for tool in jq python3 curl; do
+            if ! command -v "$tool" &>/dev/null; then
+              MISSING="$MISSING $tool"
+            fi
+          done
+          if ! command -v gh &>/dev/null; then
+            MISSING="$MISSING gh"
+          fi
+          if [ -n "$MISSING" ]; then
+            echo "❌ Missing required tools:$MISSING"
+            exit 1
+          fi
+          echo "✅ All required tools present"
+
+      - name: Process PR Agent feedback
+        run: |
+          OWNER="${{ github.repository_owner }}"
+          REPO="${{ github.event.repository.name }}"
+
+          # Extract PR numbers from the triggering workflow run
+          PRS=$(gh api "repos/$OWNER/$REPO/actions/runs/${{ github.event.workflow_run.id }}" \
+            --jq '.pull_requests[].number' 2>/dev/null || true)
+
+          if [ -z "$PRS" ]; then
+            echo "✅ No PRs associated with this workflow run — nothing to do"
+            exit 0
+          fi
+
+          for pr in $PRS; do
+            echo "▶ Processing PR #$pr"
+            bash scripts/qodo-feedback-loop.sh "$OWNER" "$REPO" "$pr" || {
+              echo "⚠️ Feedback loop failed for PR #$pr (exit $?); continuing"
+            }
+          done
+
+      - name: Verify repo hygiene
+        if: always()
+        run: |
+          DIRTY=$(git status --porcelain | grep -v '^\?\?' || true)
+          if [ -n "$DIRTY" ]; then
+            echo "❌ Script left tracked files dirty:"
+            echo "$DIRTY"
+            echo "$DIRTY" | grep -E '^(M|A|D) +(dist/|\.serena/|test-results/)' && \
+              { echo "🚨 Forbidden path modified — reverting"; git checkout -- .; exit 1; } || true
+            echo "⚠️ Non-forbidden dirty files — inspect manually"
+            exit 1
+          fi
+          echo "✅ Repo hygiene: clean"
