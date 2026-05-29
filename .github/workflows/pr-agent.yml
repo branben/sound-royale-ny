@@ -13,6 +13,10 @@ jobs:
   pr-agent:
     if: ${{ github.event.sender.type != 'Bot' }}
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
+      contents: read
     steps:
       - uses: the-pr-agent/pr-agent@main
         env:
