@@ -12,7 +12,7 @@ concurrency:
 jobs:
   pr-agent:
     if: ${{ github.event.sender.type != 'Bot' }}
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       pull-requests: write
       issues: write
@@ -21,5 +21,5 @@ jobs:
       - uses: the-pr-agent/pr-agent@main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OPENAI__API_BASE: ${{ secrets.OMNIROUTE_URL }}/v1
+          OPENAI__API_BASE: http://localhost:20128/v1
           OPENAI__KEY: ${{ secrets.OMNIROUTE_KEY }}
