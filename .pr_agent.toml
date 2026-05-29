@@ -1,7 +1,10 @@
 [config]
-model = "coding-unlimited"
-# combo auto-routes: NVIDIA OSS 120B (97.4%) -> Mistral Devstral (100%) -> Groq OSS 120B -> OpenRouter OWL Alpha
-fallback_models = ["openrouter/meta-llama/llama-3.3-70b-instruct", "openrouter/deepseek/deepseek-chat"]
+model = "gpt-4o-mini"
+# LiteLLM routes gpt-4o-mini via OpenAI provider (respects api_base/api_key from env).
+# OmniRoute model_combo_mapping routes gpt-4o-mini → coding-unlimited combo:
+#   NVIDIA OSS 120B → Mistral Devstral → Groq OSS 120B → OpenRouter OWL Alpha
+# No LiteLLM fallbacks needed — OmniRoute combo handles provider failover.
+fallback_models = []
 custom_model_max_tokens = 64000
 
 [github_action_config]
