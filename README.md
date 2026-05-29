@@ -1,6 +1,6 @@
 # Sound Royale 🎹
 
-The High-Stakes Game Show for Music Producers.
+The High-Stakes Game Show for Music Producers
 
 ## Quick Start
 
