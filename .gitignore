@@ -78,6 +78,11 @@ backend/skills-hardening-program.md
 backend/test_discovery_report.py
 tests/gaia/
 
+# Old CI pipelines (untracked local artifacts)
+.github/workflows/linear-poll.yml
+.github/workflows/pr-agent*.yml
+.github/workflows/qodo-feedback.yml
+
 # --- AI / Dev Tooling (local state only) ---
 .beads/
 .beadsignore
