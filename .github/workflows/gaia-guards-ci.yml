@@ -1,0 +1,353 @@
+name: GAIA Guards CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ "**" ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.job }}-${{ github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Run GAIA guard unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies (minimal)
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+          if [ -f backend/requirements.txt ]; then pip install -r backend/requirements.txt || true; fi
+
+      - name: Run GAIA guard tests (pytest)
+        env:
+          PYTHONPATH: ".:backend"
+        run: |
+          # Run main GAIA guard tests
+          pytest -v tests/gaia/test_gaia_guards.py
+          # Also run pytest tests in backend/gaia/
+          pytest -v backend/gaia/tests/
+
+  django-tests:
+    name: Django Backend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install pytest pytest-django
+
+      - name: Verify test file exists
+        run: |
+          echo "Checking for test file..."
+          ls -la backend/game_engine/tests.py || (echo "WARNING: tests.py not found!" && exit 0)
+          echo "Checking for migrations..."
+          ls -la backend/game_engine/migrations/
+
+      - name: Run pytest tests
+        working-directory: ./backend
+        env:
+          DJANGO_SETTINGS_MODULE: sound_royale_api.settings_test
+          PYTHONPATH: ..
+        run: |
+          echo "Running comprehensive Django test suite..."
+          set +e
+          TEST_OUTPUT=$(pytest -v --tb=short 2>&1)
+          PYTEST_EXIT=$?
+          set -e
+          echo "$TEST_OUTPUT"
+
+          # Verify tests were collected/executed (avoid false-green on 0 tests)
+          if ! echo "$TEST_OUTPUT" | grep -qE "collected [1-9][0-9]* items"; then
+            echo "ERROR: No tests were collected!"
+            exit 1
+          fi
+
+          # Verify minimum test count (should have > 70 tests total)
+          TEST_COUNT=$(echo "$TEST_OUTPUT" | grep -oE "collected [0-9]+ items" | grep -oE "[0-9]+")
+          if [ "$TEST_COUNT" -lt 70 ]; then
+            echo "ERROR: Insufficient test count: $TEST_COUNT (expected > 70)"
+            exit 1
+          fi
+
+          # Fail CI if pytest failed
+          if [ "$PYTEST_EXIT" -ne 0 ]; then
+            echo "ERROR: Pytest failed!"
+            exit "$PYTEST_EXIT"
+          fi
+
+          echo "SUCCESS: $TEST_COUNT tests collected and executed"
+
+  security-integrity:
+    name: GAIA Integrity & Signing Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: "Guardrails: forbid tracked beads + absolute file URLs"
+        run: |
+          set -euo pipefail
+
+          if git ls-files .beads | grep -q .; then
+            echo "ERROR: .beads is tracked by git. Beads must be local/private and gitignored."
+            git ls-files .beads
+            exit 1
+          fi
+
+          # Exclude docs/skills that legitimately explain the policy
+          if git grep -n "file:///Users/" -- . \
+              ':!package-lock.json' ':!package.json' \
+              ':!.gaia_skills/' ':!README.md' \
+              ':!.github/workflows/gaia-guards-ci.yml' >/dev/null 2>&1; then
+            echo "ERROR: Found absolute file URLs (file:///Users/...) committed to repo. Use repo-relative paths."
+            git grep -n "file:///Users/" -- . \
+              ':!package-lock.json' ':!package.json' \
+              ':!.gaia_skills/' ':!README.md' \
+              ':!.github/workflows/gaia-guards-ci.yml' || true
+            exit 1
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run GAIA Integrity Scanner (CI + JSON)
+        id: scan
+        run: |
+          set -euo pipefail
+          python backend/gaia/integrity_scanner.py --ci --json --scan-beads > integrity_report.json
+          echo "generated_report=integrity_report.json" >> $GITHUB_OUTPUT
+
+      - name: Upload integrity scan report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gaia-integrity-report
+          path: integrity_report.json
+
+      - name: Node setup
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install frontend deps
+        run: |
+          rm -rf node_modules
+          npm install --legacy-peer-deps
+          npm rebuild
+
+      - name: TypeScript typecheck
+        run: |
+          npx tsc --noEmit --incremental --tsBuildInfoFile .tsbuildinfo
+
+      - name: Upload TS build info (cache)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ts-buildinfo
+          path: .tsbuildinfo
+
+      - name: Frontend build
+        run: |
+          npm run build --if-present
+
+      - name: Secret grep checks (CI Gate #4)
+        id: secrets
+        run: |
+          set -euo pipefail
+          
+          VIOLATIONS=0
+          
+          check_pattern() {
+            local pattern="$1"
+            local description="$2"
+            local files="$3"
+            
+            echo "Checking: $description"
+            if command -v rg >/dev/null 2>&1; then
+              matches=$(rg -n "$pattern" $files 2>/dev/null || true)
+              if [ -n "$matches" ]; then
+                echo "❌ VIOLATION: $description"
+                echo "$matches"
+                VIOLATIONS=$((VIOLATIONS + 1))
+              else
+                echo "✓ PASS: $description"
+              fi
+            else
+              matches=$(grep -R -n "$pattern" $files 2>/dev/null || true)
+              if [ -n "$matches" ]; then
+                echo "❌ VIOLATION: $description"
+                echo "$matches"
+                VIOLATIONS=$((VIOLATIONS + 1))
+              else
+                echo "✓ PASS: $description"
+              fi
+            fi
+          }
+          
+          readarray -t TS_FILES < <(find src -type f \( -name '*.ts' -o -name '*.tsx' \))
+          
+          check_pattern 'console\.log[^\n]*playerSecret' "playerSecret in console.log (log exposure)" "${TS_FILES[@]}"
+          
+          check_pattern '(["\'']playerSecret["'\'']\s*:\s*["'\''][^"\'']+["'\''])' "playerSecret literal value in API objects" "${TS_FILES[@]}"
+          check_pattern 'playerSecret\s*:\s*[^,)}]+(?!\s*string\s*\?|\s*\?)' "playerSecret field surface (non-literal, excluding type declarations)" "${TS_FILES[@]}"
+          
+          check_pattern 'error[^\n]*playerSecret' "playerSecret in error context" "${TS_FILES[@]}"
+          
+          check_pattern 'playerSecret' "playerSecret in GameContext" "src/context/GameContext.tsx"
+          check_pattern 'print.*player_secret' "print() exposing player_secret" "backend/**/*.py"
+          check_pattern 'print.*playerSecret' "print() exposing playerSecret" "backend/**/*.py"
+          check_pattern 'logger.*player_secret' "logger exposing player_secret" "backend/**/*.py"
+          
+          echo ""
+          echo "========================================="
+          if [ $VIOLATIONS -gt 0 ]; then
+            echo "❌ FAILED: Found $VIOLATIONS secret exposure violation(s)"
+            echo "Refer to AGENTS.md security policy: Never expose playerSecret in logs or API responses"
+            exit 1
+          else
+            echo "✓ PASSED: CI Gate #4 - No secret exposures detected"
+            echo "========================================="
+          fi
+
+      - name: Install Cosign
+        run: |
+          set -euo pipefail
+          COSIGN_VERSION=v2.2.4
+          curl -sSL -o cosign.tgz "https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}/cosign-linux-amd64.tar.gz" || { echo "Cosign download failed, skipping installation"; exit 0; }
+          tar -xzf cosign.tgz || { echo "Cosign extraction failed, skipping installation"; rm -f cosign.tgz; exit 0; }
+          sudo mv cosign /usr/local/bin/cosign || { echo "Cosign install failed, skipping"; exit 0; }
+          cosign version || echo "Cosign verify skipped"
+
+      - name: Cosign verify (keyless, optional gate)
+        env:
+          COSIGN_EXPERIMENTAL: 'true'
+          COSIGN_VERIFY_SUBJECT: ${{ secrets.COSIGN_VERIFY_SUBJECT }}
+          COSIGN_VERIFY_IMAGE: ${{ secrets.COSIGN_VERIFY_IMAGE }}
+        run: |
+          set -euo pipefail
+          if ! command -v cosign >/dev/null 2>&1; then
+            echo "Cosign verify skipped: cosign not installed"
+            exit 0
+          fi
+          if [ -z "${COSIGN_VERIFY_IMAGE:-}" ] || [ -z "${COSIGN_VERIFY_SUBJECT:-}" ]; then
+            echo "Cosign verify skipped: missing COSIGN_VERIFY_IMAGE or COSIGN_VERIFY_SUBJECT"
+            exit 0
+          fi
+          cosign verify \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-identity "${COSIGN_VERIFY_SUBJECT}" \
+            "${COSIGN_VERIFY_IMAGE}"
+
+  playwright-tests:
+    name: Playwright E2E Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install frontend dependencies
+        run: |
+          npm ci --legacy-peer-deps
+
+      - name: Install backend dependencies
+        run: |
+          pip install -r backend/requirements.txt
+
+      - name: Install Playwright browsers
+        run: |
+          npx playwright install --with-deps chromium
+
+      - name: Run migrations
+        run: |
+          cd backend && python manage.py migrate
+
+      - name: Start servers
+        run: |
+          cd backend && python manage.py runserver 8000 &
+          npm run dev:frontend &
+          npx wait-on http://localhost:8080 --timeout 120000
+
+      - name: Run E2E tests
+        run: |
+          npx playwright test --project=chromium --reporter=line --forbid-only
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+      - name: Upload test-results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results/
+          retention-days: 7
+
+      - name: Verify test collection
+        if: always()
+        run: |
+          COUNT=$(npx playwright test --list --reporter=json 2>/dev/null | grep -o '"total":[0-9]*' | grep -o '[0-9]*' || echo "0")
+          if [ "$COUNT" -lt 1 ]; then
+            echo "ERROR: 0 Playwright tests collected!"
+            exit 1
+          fi
+          echo "✓ $COUNT Playwright tests collected"
+
+      - name: Run E2E guard checks
+        if: always()
+        run: npm run test:e2e:guard
+
+      - name: Cleanup
+        if: always()
+        run: |
+          pkill -f "manage.py runserver" 2>/dev/null || true
+          pkill -f "vite" 2>/dev/null || true

@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.env
+venv/
+db.sqlite3
+cpn.pdf
+output/
+error_log.jsonl
