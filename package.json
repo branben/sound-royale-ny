@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "npm run dev:all",
     "dev:frontend": "vite",
-    "dev:backend": "cd backend && python manage.py runserver",
+    "dev:backend": "cd backend && python3.11 manage.py runserver",
     "dev:all": "npm run dev:frontend & npm run dev:backend",
     "build": "vite build",
     "build:dev": "vite build --mode development",

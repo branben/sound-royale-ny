@@ -34,7 +34,7 @@ export default function GlobalLeaderboardPage() {
       </header>
 
       <main className="container mx-auto max-w-4xl">
-        <Card className="border-border/30 bg-card/50 backdrop-blur-sm">
+        <Card className="border-border/30 bg-card/50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Trophy className="h-5 w-5 text-yellow-500" />

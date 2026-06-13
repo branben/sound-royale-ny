@@ -84,7 +84,7 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent
         data-testid="player-profile-modal"
-        className="max-h-[90dvh] max-w-[calc(100vw-2rem)] overflow-y-auto border-border bg-background/95 backdrop-blur-xl sm:max-w-md p-0 gap-0"
+        className="max-h-[90dvh] max-w-[calc(100vw-2rem)] overflow-y-auto border-border bg-background sm:max-w-md p-0 gap-0"
       >
         {/* Animated backdrop overlay */}
         <motion.div

@@ -1,388 +1,107 @@
-# Lobby Page Design Overrides
+# Lobby Page — Design Spec
 
-> **OVERRIDE RULE:** These rules take precedence over MASTER.md for the Lobby page.
+> **OVERRIDE RULE:** These rules supplement MASTER.md for the Lobby page. Anything not specified here falls back to MASTER.md.
 
 ---
 
 ## Page Context
 
-The Lobby page is the entry point for players to join or create game rooms. It features:
-- Room code input (4-digit numeric)
-- Player list display
-- Host controls (start match button)
-- Join/Create room flow
+The Lobby is the entry point. A single focused card in the center of a dark stage. Three modes:
+- **Landing** — Quick Match / Create / Join buttons
+- **Join** — 4-digit room code input
+- **Create** — Room name + theme selector
 
 ---
 
-## Page-Specific Colors
+## Layout
 
-While following the global palette, the Lobby uses these specific accents:
-
-| Element | Color | Hex | Usage |
-|---------|-------|-----|-------|
-| Room Code Display | Primary neon | `#7C3AED` | Room code text, highlights |
-| Host Crown | Yellow accent | `#EAB308` | Crown icon for host player |
-| Player Ready | Green glow | `#10B981` | Ready status indicator |
-| Empty Slots | Muted | `#64748B` | Waiting indicator |
-| Error States | Rose | `#F43F5E` | Error messages |
+- Full-screen centered. Single card, max-width `28rem`.
+- Background: `#09090b` — solid. No blur orbs, no ambient effects.
+- Content scales with viewport. Padding: `1rem` mobile, `2rem` desktop.
 
 ---
 
-## Component Specifications
+## Components
 
-### Room Code Input
+### Logo / Title
 
-```css
-.lobby-room-code-input {
-  /* Typography */
-  font-family: 'Poppins', monospace;
-  font-size: 2.5rem;
-  font-weight: 600;
-  letter-spacing: 0.5em;
-  text-align: center;
-  
-  /* Visual */
-  background: rgba(15, 15, 35, 0.8);
-  border: 2px solid #7C3AED;
-  border-radius: 12px;
-  padding: 1rem;
-  
-  /* Effects */
-  box-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
-  transition: all 200ms ease;
-}
+- "Sound Royale" in Righteous, `text-3xl`
+- Color: `#fafafa` (white)
+- No icon, no decorative element. The typography is the logo.
 
-.lobby-room-code-input:focus {
-  border-color: #A78BFA;
-  box-shadow: 
-    0 0 30px rgba(124, 58, 237, 0.5),
-    inset 0 0 20px rgba(124, 58, 237, 0.1);
-  outline: none;
-}
-```
+### Player Name Input
 
-### Player Card
+- Standard input per MASTER.md
+- Centered text, `text-xl`
+- Placeholder: "Enter your name"
+- Max 20 chars
 
-```css
-.lobby-player-card {
-  /* Layout */
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  
-  /* Visual */
-  background: rgba(15, 15, 35, 0.6);
-  border: 1px solid rgba(124, 58, 237, 0.3);
-  border-radius: 12px;
-  
-  /* Effects */
-  transition: all 200ms ease;
-  cursor: pointer;
-}
+### Action Buttons (Landing Mode)
 
-.lobby-player-card:hover {
-  border-color: rgba(124, 58, 237, 0.6);
-  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.2);
-  transform: translateY(-2px);
-}
+**Quick Match (Primary CTA):**
+- Solid `#EF4444` (red-500), white text
+- Full width, `h-12`
+- Only primary CTA on this view
 
-.lobby-player-card.host {
-  border-color: rgba(234, 179, 8, 0.5);
-  box-shadow: 0 0 15px rgba(234, 179, 8, 0.2);
-}
-```
+**Create / Join (Secondary):**
+- Outline variant (transparent bg, `#3f3f46` border, white text)
+- Equal width, side by side
 
-### Player Avatar
+**Browse Rooms / How to Play / View Leaderboard:**
+- Ghost variant (no border, transparent bg)
+- Grouped at the bottom of the card
 
-```css
-.lobby-player-avatar {
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 50%;
-  border: 2px solid rgba(124, 58, 237, 0.5);
-  background: rgba(124, 58, 237, 0.2);
-  
-  /* Typography */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: 'Righteous', cursive;
-  font-size: 1.25rem;
-  color: #7C3AED;
-}
+### Room Code Input (Join Mode)
 
-.lobby-player-avatar.host {
-  border-color: rgba(234, 179, 8, 0.8);
-  background: rgba(234, 179, 8, 0.2);
-  color: #EAB308;
-}
-```
+- Monospace font, `text-4xl`
+- Centered, `tracking-[0.5em]`
+- Standard input styling (no glow, no neon border)
+- Helper text: "Enter 4-digit room code" in `text-xs text-secondary`
 
-### Empty Slot
+### Player List (Joined State)
 
-```css
-.lobby-empty-slot {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  
-  /* Visual */
-  background: rgba(100, 116, 139, 0.1);
-  border: 2px dashed rgba(100, 116, 139, 0.4);
-  border-radius: 12px;
-  
-  /* Typography */
-  color: #64748B;
-  font-style: italic;
-}
+- Each player in a row: avatar circle → name → status indicator
+- Player 1 avatar border = `#EF4444`, Player 2 = `#3B82F6`
+- Host crown: yellow `#EAB308` static icon, no animation
+- Ready indicator: green dot (`#22C55E`), no glow
+- Empty slots: dashed border, `#52525b` text "Waiting for player..."
 
-/* Animated pulse for waiting state */
-.lobby-empty-slot::before {
-  content: '';
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 50%;
-  border: 2px dashed rgba(100, 116, 139, 0.4);
-  animation: pulse-waiting 2s ease-in-out infinite;
-}
+### Ready / Start Buttons
 
-@keyframes pulse-waiting {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.8; }
-}
-```
+- Host: "Start Match" — primary CTA (`#EF4444` solid), full width
+- Player: "Click When Ready" — green when ready (`#22C55E` solid)
 
-### Start Match Button (Host Only)
+### Room Code Display (Joined State)
 
-```css
-.lobby-start-match-btn {
-  /* Layout */
-  width: 100%;
-  padding: 1rem;
-  
-  /* Visual */
-  background: linear-gradient(135deg, #7C3AED 0%, #F43F5E 100%);
-  border: none;
-  border-radius: 12px;
-  
-  /* Typography */
-  font-family: 'Righteous', cursive;
-  font-size: 1.25rem;
-  color: white;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  
-  /* Effects */
-  box-shadow: 
-    0 4px 15px rgba(124, 58, 237, 0.4),
-    0 0 30px rgba(244, 63, 94, 0.2);
-  transition: all 200ms ease;
-  cursor: pointer;
-}
-
-.lobby-start-match-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 
-    0 6px 20px rgba(124, 58, 237, 0.5),
-    0 0 40px rgba(244, 63, 94, 0.3);
-}
-
-.lobby-start-match-btn:active {
-  transform: translateY(0);
-}
-```
+- Mono font, centered
+- Label: "Room Code" in caption style
+- Value: large mono text
 
 ---
 
-## Layout Guidelines
+## Modals
 
-### Lobby Container
-
-```css
-.lobby-container {
-  /* Center the card */
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  
-  /* Background with effects */
-  background: #0F0F23;
-  position: relative;
-  overflow: hidden;
-}
-
-/* Background ambient glow */
-.lobby-container::before {
-  content: '';
-  position: fixed;
-  top: 25%;
-  left: 25%;
-  width: 24rem;
-  height: 24rem;
-  background: radial-gradient(circle, rgba(124, 58, 237, 0.15) 0%, transparent 70%);
-  border-radius: 50%;
-  filter: blur(40px);
-  pointer-events: none;
-}
-
-.lobby-container::after {
-  content: '';
-  position: fixed;
-  bottom: 25%;
-  right: 25%;
-  width: 24rem;
-  height: 24rem;
-  background: radial-gradient(circle, rgba(244, 63, 94, 0.1) 0%, transparent 70%);
-  border-radius: 50%;
-  filter: blur(40px);
-  pointer-events: none;
-}
-```
-
-### Main Card
-
-```css
-.lobby-card {
-  width: 100%;
-  max-width: 28rem;
-  
-  /* Visual */
-  background: rgba(15, 15, 35, 0.8);
-  border: 1px solid rgba(124, 58, 237, 0.2);
-  border-radius: 16px;
-  
-  /* Effects */
-  backdrop-filter: blur(20px);
-  box-shadow: 
-    0 25px 50px rgba(0, 0, 0, 0.5),
-    0 0 0 1px rgba(124, 58, 237, 0.1);
-}
-```
+- Onboarding, Room Browser, Discord Link — all use the standard Dialog component
+- No decorative animations on open/close
+- Simple fade + scale in (200ms)
 
 ---
 
-## Animations
+## Responsive
 
-### Card Entrance
-
-```css
-@keyframes lobby-card-enter {
-  0% {
-    opacity: 0;
-    transform: translateY(20px) scale(0.95);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.lobby-card {
-  animation: lobby-card-enter 400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-```
-
-### Player List Stagger
-
-```css
-@keyframes player-item-enter {
-  0% {
-    opacity: 0;
-    transform: translateX(-10px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.lobby-player-card {
-  animation: player-item-enter 300ms ease-out forwards;
-  animation-delay: calc(var(--index) * 100ms);
-}
-```
-
-### Host Crown Glow
-
-```css
-@keyframes crown-glow {
-  0%, 100% {
-    filter: drop-shadow(0 0 5px rgba(234, 179, 8, 0.5));
-  }
-  50% {
-    filter: drop-shadow(0 0 15px rgba(234, 179, 8, 0.8));
-  }
-}
-
-.lobby-crown-icon {
-  animation: crown-glow 2s ease-in-out infinite;
-}
-```
+| Breakpoint | Behavior |
+|------------|----------|
+| < 640px | Card fills viewport width minus `1rem` padding |
+| 640px+ | Card centered, `28rem` max-width |
 
 ---
 
-## Responsive Breakpoints
+## Pre-Delivery
 
-| Breakpoint | Card Width | Padding | Font Scale |
-|------------|------------|---------|------------|
-| < 375px | 100% | 1rem | 0.875x |
-| 375px - 767px | 100% | 1.5rem | 1x |
-| 768px+ | 28rem max | 2rem | 1x |
-
----
-
-## Accessibility
-
-### Focus States
-
-```css
-.lobby-room-code-input:focus-visible,
-.lobby-start-match-btn:focus-visible {
-  outline: 2px solid #A78BFA;
-  outline-offset: 2px;
-}
-```
-
-### Reduced Motion
-
-```css
-@media (prefers-reduced-motion: reduce) {
-  .lobby-card,
-  .lobby-player-card,
-  .lobby-empty-slot::before,
-  .lobby-crown-icon {
-    animation: none;
-  }
-  
-  .lobby-start-match-btn:hover,
-  .lobby-player-card:hover {
-    transform: none;
-  }
-}
-```
-
-### Contrast Requirements
-
-- Room code text on dark background: 7:1 ratio ✓
-- Player names on card background: 8:1 ratio ✓
-- Host crown on player card: 4.6:1 ratio ✓
-- Empty slot text: 4.5:1 ratio ✓
-
----
-
-## Pre-Delivery Checklist
-
-- [ ] Room code input has neon glow on focus
-- [ ] Player cards have hover lift effect
-- [ ] Host crown has pulsing glow animation
-- [ ] Empty slots show animated waiting indicator
-- [ ] Start button has gradient + glow effect
-- [ ] Background ambient effects present
-- [ ] All transitions use 200ms duration
-- [ ] Reduced motion preferences respected
-- [ ] Focus states visible and prominent
-- [ ] No emojis used (Lucide icons only)
+- [ ] No ambient blur orbs or decorative overlays
+- [ ] All player cards show correct player color
+- [ ] Host crown is static (no animation)
+- [ ] Join/Create flow uses outline buttons, not filled
+- [ ] Quick Match is the only primary CTA on landing
+- [ ] Empty slots use dashed border style
+- [ ] Reduced motion respected

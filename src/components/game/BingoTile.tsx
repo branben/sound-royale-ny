@@ -10,14 +10,61 @@ interface BingoTileProps {
   onClick: () => void;
   isInteractive?: boolean;
   isActiveRoundTile?: boolean;
+  playerColorIndex?: number;
 }
 
-export const BingoTile = memo(function BingoTile({ tile, onClick, isInteractive = false, isActiveRoundTile }: BingoTileProps) {
+// Complete tailwind class strings so Tailwind JIT scanner finds them
+const TILE_ACCENT = [
+  {
+    ring: 'ring-player-1/70',
+    pendingBg: 'bg-player-1/10',
+    pendingBorder: 'border-player-1/60',
+    pendingText: 'text-player-1',
+    emptyHoverBorder: 'hover:border-player-1/50',
+    playBtn: 'bg-player-1/80 hover:bg-player-1',
+  },
+  {
+    ring: 'ring-player-2/70',
+    pendingBg: 'bg-player-2/10',
+    pendingBorder: 'border-player-2/60',
+    pendingText: 'text-player-2',
+    emptyHoverBorder: 'hover:border-player-2/50',
+    playBtn: 'bg-player-2/80 hover:bg-player-2',
+  },
+  {
+    ring: 'ring-player-3/70',
+    pendingBg: 'bg-player-3/10',
+    pendingBorder: 'border-player-3/60',
+    pendingText: 'text-player-3',
+    emptyHoverBorder: 'hover:border-player-3/50',
+    playBtn: 'bg-player-3/80 hover:bg-player-3',
+  },
+  {
+    ring: 'ring-player-4/70',
+    pendingBg: 'bg-player-4/10',
+    pendingBorder: 'border-player-4/60',
+    pendingText: 'text-player-4',
+    emptyHoverBorder: 'hover:border-player-4/50',
+    playBtn: 'bg-player-4/80 hover:bg-player-4',
+  },
+] as const;
+
+export const BingoTile = memo(function BingoTile({
+  tile,
+  onClick,
+  isInteractive = false,
+  isActiveRoundTile,
+  playerColorIndex,
+}: BingoTileProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [prevStatus, setPrevStatus] = useState(tile.status);
   const [justCompleted, setJustCompleted] = useState(false);
   const playCountRef = useRef(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const accent = playerColorIndex !== undefined && playerColorIndex < TILE_ACCENT.length
+    ? TILE_ACCENT[playerColorIndex]
+    : null;
 
   useEffect(() => {
     if (tile.audioUrl) {
@@ -59,15 +106,20 @@ export const BingoTile = memo(function BingoTile({ tile, onClick, isInteractive 
   };
 
   const statusStyles = {
-    empty: 'bg-muted/30 border-muted-foreground/30 hover:border-primary/50',
-    pending: 'bg-primary/10 border-primary/60',
-    complete: 'bg-green-500/15 border-green-500/60'
+    empty: cn(
+      'bg-muted/30 border-muted-foreground/30',
+      accent ? accent.emptyHoverBorder : 'hover:border-primary/50'
+    ),
+    pending: accent
+      ? `${accent.pendingBg} ${accent.pendingBorder}`
+      : 'bg-primary/10 border-primary/60',
+    complete: 'bg-green-500/15 border-green-500/60',
   };
 
   const iconStyles = {
     empty: 'text-muted-foreground',
-    pending: 'text-primary',
-    complete: 'text-green-500'
+    pending: accent ? accent.pendingText : 'text-primary',
+    complete: 'text-green-500',
   };
 
   return (
@@ -89,7 +141,10 @@ export const BingoTile = memo(function BingoTile({ tile, onClick, isInteractive 
     >
       {isActiveRoundTile && tile.status === 'empty' && (
         <motion.div
-          className="absolute inset-0 rounded-lg ring-2 ring-primary/70 ring-offset-2 ring-offset-card"
+          className={cn(
+            'absolute inset-0 rounded-lg ring-2 ring-offset-2 ring-offset-card',
+            accent ? accent.ring : 'ring-primary/70'
+          )}
           animate={{ opacity: [0.5, 1, 0.5] }}
           transition={{ duration: 2, repeat: 3, ease: 'easeInOut' }}
         />
@@ -98,7 +153,6 @@ export const BingoTile = memo(function BingoTile({ tile, onClick, isInteractive 
       <div className={cn(
         'flex h-10 w-10 items-center justify-center rounded-full',
         'bg-background/50 transition-colors duration-300',
-        tile.status === 'pending' && 'animate-spin-slow'
       )}>
         <AnimatePresence mode="wait">
           {tile.status === 'empty' && (
@@ -141,8 +195,8 @@ export const BingoTile = memo(function BingoTile({ tile, onClick, isInteractive 
         <button
           onClick={handlePlayClick}
           className={cn(
-            'absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full',
-            'bg-primary/80 hover:bg-primary transition-colors',
+            'absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full transition-colors',
+            accent ? `${accent.playBtn}` : 'bg-primary/80 hover:bg-primary',
             isPlaying && 'animate-pulse'
           )}
         >
@@ -158,7 +212,7 @@ export const BingoTile = memo(function BingoTile({ tile, onClick, isInteractive 
         className={cn(
           'text-xs font-semibold uppercase tracking-wider font-["Poppins"]',
           tile.status === 'empty' && 'text-muted-foreground',
-          tile.status === 'pending' && 'text-primary',
+          tile.status === 'pending' && (accent ? accent.pendingText : 'text-primary'),
           tile.status === 'complete' && 'text-green-500'
         )}
         animate={justCompleted ? { scale: [1, 1.15, 1] } : { scale: 1 }}

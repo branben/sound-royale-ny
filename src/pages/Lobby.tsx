@@ -608,7 +608,7 @@ export default function Lobby() {
                   {players.map((player, index) => (
                     <div
                       key={player.id}
-                      className="flex items-center gap-3 p-3 rounded-lg bg-card/50 border border-border hover:border-muted-foreground hover:-translate-y-0.5 transition-all duration-200 stagger-enter"
+                      className="flex items-center gap-3 p-3 rounded-lg bg-card/50 border border-border hover:border-muted-foreground transition-colors duration-200"
                       style={{ animationDelay: `${index * 100}ms` }}
                     >
                       <Avatar className="h-10 w-10 border-2 border-primary/30">
@@ -637,7 +637,7 @@ export default function Lobby() {
                     key={`empty-${i}`}
                     className="flex items-center gap-3 p-3 rounded-lg border border-dashed border-[#64748B]/40 bg-[#64748B]/10"
                   >
-                    <div className="h-10 w-10 rounded-full border-2 border-dashed border-[#64748B]/40 flex items-center justify-center pulse-waiting">
+                    <div className="h-10 w-10 rounded-full border-2 border-dashed border-[#64748B]/40 flex items-center justify-center">
                       <Users className="h-5 w-5 text-[#64748B]/60" />
                     </div>
                     <p className="text-sm text-[#64748B]/70 italic">Waiting for player...</p>

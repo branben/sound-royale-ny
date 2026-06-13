@@ -15,7 +15,16 @@ interface BingoBoardProps {
   isInteractive?: boolean;
   isTileInteractive?: (tileId: string) => boolean;
   className?: string;
+  playerColorIndex?: number; // 0-3, maps to player color palette
 }
+
+// Player color accent lookup — complete strings so Tailwind's scanner finds them
+const PLAYER_ACCENT = [
+  { bg: 'bg-player-1/20', border: 'border-player-1/30', text: 'text-player-1', dot: 'bg-player-1' },
+  { bg: 'bg-player-2/20', border: 'border-player-2/30', text: 'text-player-2', dot: 'bg-player-2' },
+  { bg: 'bg-player-3/20', border: 'border-player-3/30', text: 'text-player-3', dot: 'bg-player-3' },
+  { bg: 'bg-player-4/20', border: 'border-player-4/30', text: 'text-player-4', dot: 'bg-player-4' },
+] as const;
 
 export const BingoBoard = memo(function BingoBoard({
   playerId,
@@ -26,12 +35,17 @@ export const BingoBoard = memo(function BingoBoard({
   onTileClick,
   isInteractive = false,
   isTileInteractive,
-  className
+  className,
+  playerColorIndex,
 }: BingoBoardProps) {
   const completedCount = boardData.tiles.filter(t => t.status === 'complete').length;
   const pendingCount = boardData.tiles.filter(t => t.status === 'pending').length;
   const prevCompletedRef = useRef(completedCount);
   const [shudder, setShudder] = useState(false);
+
+  const accent = playerColorIndex !== undefined && playerColorIndex < PLAYER_ACCENT.length
+    ? PLAYER_ACCENT[playerColorIndex]
+    : null;
 
   useEffect(() => {
     if (completedCount > prevCompletedRef.current && completedCount >= 5) {
@@ -56,7 +70,10 @@ export const BingoBoard = memo(function BingoBoard({
     >
       <div className="flex min-w-0 items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 border border-primary/30 text-primary">
+          <div className={cn(
+            'flex h-10 w-10 items-center justify-center rounded-full border',
+            accent ? `${accent.bg} ${accent.border} ${accent.text}` : 'bg-primary/20 border-primary/30 text-primary'
+          )}>
             <span className="text-lg font-bold font-['Righteous']">{playerName.charAt(0)}</span>
           </div>
           <div className="min-w-0">
@@ -79,7 +96,7 @@ export const BingoBoard = memo(function BingoBoard({
               className={cn(
                 'h-2 w-2 rounded-full transition-colors',
                 tile.status === 'empty' && 'bg-muted/50',
-                tile.status === 'pending' && 'bg-primary',
+                tile.status === 'pending' && (accent ? `${accent.dot}` : 'bg-primary'),
                 tile.status === 'complete' && 'bg-green-500'
               )}
             />
@@ -95,6 +112,7 @@ export const BingoBoard = memo(function BingoBoard({
             onClick={() => onTileClick?.(tile.id)}
             isInteractive={isInteractive && (isTileInteractive?.(tile.id) ?? true)}
             isActiveRoundTile={isTileInteractive?.(tile.id)}
+            playerColorIndex={playerColorIndex}
           />
         ))}
       </div>

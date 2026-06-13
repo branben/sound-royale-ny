@@ -27,7 +27,7 @@ export function ConflictResolution({
       case 'tile_submittion':
         return <AlertTriangle className="h-5 w-5 text-yellow-500" />;
       case 'simultaneous_action':
-        return <RotateCw className="h-5 w-5 text-orange-500 animate-spin-slow" />;
+        return <RotateCw className="h-5 w-5 text-orange-500 animate-spin" />;
       default:
         return <AlertTriangle className="h-5 w-5 text-red-500" />;
     }
@@ -46,7 +46,7 @@ export function ConflictResolution({
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50 backdrop-blur-sm">
-      <div className="animate-bounce-in">
+      <div>
         <Card className="w-full max-w-md mx-4">
           <CardContent className="p-6 space-y-4">
             {/* Header */}

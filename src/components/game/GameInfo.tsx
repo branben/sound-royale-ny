@@ -15,6 +15,7 @@ import { DiscordVerifiedIcon } from '@/components/game/DiscordVerifiedIcon';
 import type { GameState } from '@/types/game';
 import { motion, AnimatePresence } from 'framer-motion';
 import { transitions, variants, stagger } from '@/lib/motion';
+import { usePlayerColors } from '@/hooks/usePlayerColors';
 
 interface GameInfoProps {
   roomId: string;
@@ -24,6 +25,7 @@ interface GameInfoProps {
 export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
   const { gameState, setGameState, timeRemaining } = useGame();
   const { userSession } = useUser();
+  const playerColors = usePlayerColors(gameState.players);
   const [showVictory, setShowVictory] = useState(false);
   const [displayTimeLeft, setDisplayTimeLeft] = useState<number | null>(null);
   const [isAdvancingRound, setIsAdvancingRound] = useState(false);
@@ -85,8 +87,8 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
       ).length;
       toast.message(
         spectatorCount >= 3
-          ? "Time's up — voting is open."
-          : "Time's up — casual round, no spectator voting."
+          ? "Time's up - voting is open."
+          : "Time's up - casual round, no spectator voting."
       );
     }
   }, [gameState.status, gameState.currentRound, displayTimeLeft, gameState.players]);
@@ -208,6 +210,27 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
   const isRankedRound = spectators.length >= 3;
   const hasRoundTimedOut = gameState.status === 'playing' && displayTimeLeft === 0;
 
+  const playerBorder = (playerId: string) => {
+    const idx = playerColors.get(playerId) ?? 0;
+    return [`border-player-1/20`, `border-player-2/20`, `border-player-3/20`, `border-player-4/20`][idx];
+  };
+  const playerBorderHover = (playerId: string) => {
+    const idx = playerColors.get(playerId) ?? 0;
+    return [`hover:border-player-1/40`, `hover:border-player-2/40`, `hover:border-player-3/40`, `hover:border-player-4/40`][idx];
+  };
+  const playerRing = (playerId: string) => {
+    const idx = playerColors.get(playerId) ?? 0;
+    return [`ring-player-1/50`, `ring-player-2/50`, `ring-player-3/50`, `ring-player-4/50`][idx];
+  };
+  const playerText = (playerId: string) => {
+    const idx = playerColors.get(playerId) ?? 0;
+    return [`text-player-1`, `text-player-2`, `text-player-3`, `text-player-4`][idx];
+  };
+  const playerTextHover = (playerId: string) => {
+    const idx = playerColors.get(playerId) ?? 0;
+    return [`hover:text-player-1`, `hover:text-player-2`, `hover:text-player-3`, `hover:text-player-4`][idx];
+  };
+
   return (
     <Card className="border-border bg-card mb-6">
       <CardContent className="p-4">
@@ -246,8 +269,10 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
                     transition={transitions.smooth}
                     layout
                     className={cn(
-                      "flex items-center justify-between p-2 rounded-lg bg-background/60 border border-primary/20 hover:border-primary/40 transition-all duration-200",
-                      player.name === currentPlayerName && "ring-2 ring-primary/50 ",
+                      "flex items-center justify-between p-2 rounded-lg bg-background/60 border transition-all duration-200",
+                      playerBorder(player.id),
+                      playerBorderHover(player.id),
+                      player.name === currentPlayerName && "ring-2 " + playerRing(player.id),
                       !player.isConnected && "border-red-500/30 opacity-70"
                     )}
                   >
@@ -257,8 +282,9 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
                           data-testid={`player-name-${player.name}`}
                           onClick={() => handlePlayerClick(player)}
                           className={cn(
-                            "min-w-0 break-words text-left text-sm font-['Poppins'] hover:text-primary transition-colors cursor-pointer",
-                            player.name === currentPlayerName && "font-semibold text-primary"
+                            "min-w-0 break-words text-left text-sm font-['Poppins'] transition-colors cursor-pointer",
+                            playerTextHover(player.id),
+                            player.name === currentPlayerName && "font-semibold " + playerText(player.id)
                           )}
                         >
                           {player.name} {player.name === currentPlayerName && "(You)"}
@@ -372,7 +398,7 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
               <div className="text-xs text-muted-foreground">
                 {gameState.status === 'lobby' && 'Waiting for at least 2 players to start the game'}
                 {gameState.status === 'playing' && 'Game in progress'}
-                {gameState.status === 'finished' && `🎉 ${players.find((p: Player) => p.id === gameState.winner)?.name} wins the battle!`}
+                {gameState.status === 'finished' && `${players.find((p: Player) => p.id === gameState.winner)?.name} wins!`}
               </div>
             </div>
             <div className="text-sm text-muted-foreground">

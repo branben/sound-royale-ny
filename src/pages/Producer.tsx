@@ -7,10 +7,12 @@ import { UploadDrawer } from '@/components/game/UploadDrawer';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Eye } from 'lucide-react';
 import { Tile } from '@/types/game';
+import { usePlayerColors } from '@/hooks/usePlayerColors';
 
 function ProducerContent() {
   const navigate = useNavigate();
   const { gameState, setTileAudio } = useGame();
+  const playerColors = usePlayerColors(gameState.players);
   const [selectedTile, setSelectedTile] = useState<Tile | null>(null);
   
   // Current producer (mock: player_1)
@@ -35,7 +37,7 @@ function ProducerContent() {
     <div className="min-h-screen flex flex-col bg-background">
       {/* Background effects */}
       {/* Header */}
-      <header className="relative z-10 flex items-center justify-between p-4 border-b border-border bg-background backdrop-blur-md">
+      <header className="relative z-10 flex items-center justify-between p-4 border-b border-border bg-background">
         <Button
           variant="ghost"
           size="sm"
@@ -74,6 +76,7 @@ function ProducerContent() {
             onTileClick={handleTileClick}
             isInteractive={true}
             className="shadow-2xl"
+            playerColorIndex={playerColors.get(currentPlayerId) ?? 0}
           />
           
           {/* Instructions */}

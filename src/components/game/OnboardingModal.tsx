@@ -107,7 +107,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
 
           {/* Quick Tips */}
           <div className="rounded-lg border border-primary/20 bg-card p-4">
-            <h4 className="font-semibold text-primary mb-3">💡 Quick Tips</h4>
+            <h4 className="font-semibold text-primary mb-3">Quick Tips</h4>
             <ul className="space-y-2 text-sm text-gray-300">
               <li>• Enter your name to get started</li>
               <li>• Create a room to host, or join with a 4-digit code</li>

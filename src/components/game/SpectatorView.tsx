@@ -7,12 +7,28 @@ import { WinnerAnnouncement } from './WinnerAnnouncement';
 import { GameOverScreen } from './GameOverScreen';
 import { Player } from '@/types/game';
 import { cn } from '@/lib/utils';
+import { usePlayerColors } from '@/hooks/usePlayerColors';
 import { Trophy, Eye, Vote } from 'lucide-react';
 import { DiscordVerifiedIcon } from './DiscordVerifiedIcon';
+
+const PLAYER_BAR = [
+  'bg-player-1',
+  'bg-player-2',
+  'bg-player-3',
+  'bg-player-4',
+] as const;
+
+const PLAYER_RING = [
+  'ring-player-1/70',
+  'ring-player-2/70',
+  'ring-player-3/70',
+  'ring-player-4/70',
+] as const;
 
 export function SpectatorView() {
   const { gameState } = useGame();
   const { userSession } = useUser();
+  const playerColors = usePlayerColors(gameState.players);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
 
   const players = Object.values(gameState.players);
@@ -93,7 +109,7 @@ export function SpectatorView() {
                   <div className="flex items-center gap-2 mt-0.5">
                     <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
                       <div 
-                        className="h-full bg-primary rounded-full transition-all"
+                        className={`h-full rounded-full transition-all ${PLAYER_BAR[playerColors.get(entry.player.id) ?? 0]}`}
                         style={{ width: `${entry.progress}%` }}
                       />
                     </div>
@@ -126,38 +142,45 @@ export function SpectatorView() {
 
         <div className="mb-4 flex items-center gap-2 overflow-x-auto pb-2">
           <span className="text-sm text-muted-foreground shrink-0">Jump to:</span>
-          {producers.map(player => (
-            <button
-              key={player.id}
-              onClick={() => {
-                setSelectedPlayerId(player.id);
-                boardRefs[player.id]?.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              }}
-              className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-medium transition-colors ${
-                selectedPlayerId === player.id 
-                  ? 'bg-primary text-primary-foreground' 
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
-              }`}
-            >
-              {player.name}
-            </button>
-          ))}
+          {producers.map(player => {
+            const colorIndex = playerColors.get(player.id) ?? 0;
+            return (
+              <button
+                key={player.id}
+                onClick={() => {
+                  setSelectedPlayerId(player.id);
+                  boardRefs[player.id]?.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }}
+                className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-medium transition-colors ${
+                  selectedPlayerId === player.id 
+                    ? `${PLAYER_BAR[colorIndex]} text-white` 
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                }`}
+              >
+                {player.name}
+              </button>
+            );
+          })}
         </div>
 
         <div className="relative">
           <div className="grid min-w-0 gap-4 md:grid-cols-2">
-            {producers.map((player) => (
-              <div ref={boardRefs[player.id]} key={player.id} className={cn('min-w-0', selectedPlayerId === player.id && 'rounded-lg ring-2 ring-primary')}>
-                <BingoBoard
-                  playerId={player.id}
-                  playerName={player.name}
-                  isDiscordVerified={player.isDiscordVerified}
-                  discordUsername={player.discordUsername}
-                  boardData={player.board}
-                  isInteractive={false}
-                />
-              </div>
-            ))}
+            {producers.map((player) => {
+              const colorIndex = playerColors.get(player.id) ?? 0;
+              return (
+                <div ref={boardRefs[player.id]} key={player.id} className={cn('min-w-0', selectedPlayerId === player.id && 'rounded-lg ring-2', selectedPlayerId === player.id && PLAYER_RING[colorIndex])}>
+                  <BingoBoard
+                    playerId={player.id}
+                    playerName={player.name}
+                    isDiscordVerified={player.isDiscordVerified}
+                    discordUsername={player.discordUsername}
+                    boardData={player.board}
+                    isInteractive={false}
+                    playerColorIndex={colorIndex}
+                  />
+                </div>
+              );
+            })}
           </div>
         </div>
 

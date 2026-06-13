@@ -1,71 +1,99 @@
-# Design System Master File — Sound Royale
+# Design System — Sound Royale
 
-> **LOGIC:** When building a specific page, first check `design-system/pages/[page-name].md`.
+> **LOGIC:** For page-specific overrides, check `design-system/pages/[page-name].md`.
 > If that file exists, its rules **override** this Master file.
 > If not, strictly follow the rules below.
 
 ---
 
 **Project:** Sound Royale
-**Redesign:** 2026-05-29
-**Category:** Multiplayer Music Bingo Game
-**Aesthetic:** Dark tech — competitive, social, energizing
+**Redesign:** 2026-06-13
+**Game:** Multiplayer Music Bingo (Jackbox-style)
+**Aesthetic:** Polished Jackbox — premium game-show energy with intentional character. Clean, bold, flat.
 
 ---
 
 ## Design Direction
 
-**Vibe:** Jackbox Party Pack meets fighting game UI. Premium, competitive, social. Dark surfaces, sharp accents, zero decorative effects.
+**Vibe:** You're watching a premium game-show broadcast. Dark stage, bold player colors, clean typography, zero visual noise. Every element has a reason to exist.
 
-**What this is NOT:** No retro-futurism, no synthwave, no neon glow, no CRT scanlines, no cyberpunk, no gradients, no glassmorphism, no blur orbs.
+**What this IS:** Flat colors on near-black, per-player color identity, purposeful animations, TV broadcast framing, bold typography, generous whitespace.
+
+**What this is NOT:** Dark tech UI, cyberpunk, synthwave, neon glow, gradients, glassmorphism, blur orbs, CRT scanlines, decorative animations, "gamer" aesthetics.
 
 ---
 
-## Global Rules
+## Color System
 
-### Color Palette
+### Global Palette
 
 | Role | Hex | Usage |
 |------|-----|-------|
-| Background | `#09090b` | Page background (zinc-950) |
-| Surface | `#18181b` | Cards, panels (zinc-900) |
-| Surface Elevated | `#27272a` | Hover states, nested surfaces (zinc-800) |
-| Border | `#3f3f46` | Card borders, dividers (zinc-700) |
-| Text Primary | `#fafafa` | Headlines, body (zinc-50) |
-| Text Secondary | `#a1a1aa` | Captions, metadata (zinc-400) |
-| Accent | `#22D3EE` | Primary CTAs, active states only (cyan-400) |
-| Success | `#22c55e` | Completed tiles, wins (green-500) |
-| Warning | `#eab308` | Timer low, host crown (yellow-500) |
+| Background | `#09090b` | Page background |
+| Surface | `#18181b` | Cards, panels |
+| Surface Elevated | `#27272a` | Hover states, inputs |
+| Border | `#3f3f46` | Card borders, dividers |
+| Text Primary | `#fafafa` | Headlines, body |
+| Text Secondary | `#a1a1aa` | Captions, metadata |
+| Text Muted | `#52525b` | Placeholder, disabled |
 
-**Color Rules:**
-- Accent (`#22D3EE`) is for PRIMARY CTAs only. Not for decorative borders, backgrounds, or text highlights.
-- NEVER use gradients. Every color is solid.
-- NEVER use glow effects (box-shadow glows, text-shadow glows, drop-shadows).
-- Surface colors are always solid — no opacity, no backdrop-blur on in-flow cards.
+### Player Colors (assigned on room join)
 
-### Typography
+| Player | Hex | Usage |
+|--------|-----|-------|
+| Player 1 | `#EF4444` red-500 | Avatar border, active tiles, highlights |
+| Player 2 | `#3B82F6` blue-500 | Avatar border, active tiles, highlights |
+| Player 3 | `#EAB308` yellow-500 | Avatar border, active tiles, highlights |
+| Player 4 | `#22C55E` green-500 | Avatar border, active tiles, highlights |
 
-- **Heading Font:** Righteous — used for brand name, page titles, player initials only
-- **Body Font:** Poppins — used for everything else
-- **Mood:** Competitive, clean, confident, modern
-- **Loading:** Self-hosted with `font-display: swap`. No Google Fonts `<link>` in production.
+**Rules:**
+- Player color infuses avatar border, tile borders, name highlights, progress indicators
+- Never use player colors for background fills or large surfaces
+- Player colors are for accents and highlights only
+- Non-player UI elements use the global palette
 
-### Type Scale
+### Accent (for CTAs & interactive elements)
 
-| Level | Size | Weight | Usage |
-|-------|------|--------|-------|
-| Display | `text-3xl md:text-4xl` | 700 | Page titles, brand |
-| Heading | `text-xl md:text-2xl` | 600 | Section headers |
-| Body | `text-sm md:text-base` | 400 | Default text |
-| Caption | `text-xs` | 400 | Metadata, timestamps |
-| Mono | `text-sm font-mono` | 400 | Room codes, timer, stats |
+| Role | Hex | Usage |
+|------|-----|-------|
+| Primary Action | `#EF4444` | Primary buttons (Start Match, Join Room — the "go" action) |
+| Interactive Hover | `#27272a` | Hover state for interactive elements |
 
-**Typography Rules:**
-- Control hierarchy through weight + color, NEVER through glow effects.
-- No gradient text. No text-shadow. Ever.
-- Maximum 2 font sizes per component for clear hierarchy.
+**Rules:**
+- Use PRIMARY color for the ONE main action per page
+- All other buttons use `outline` variant (transparent bg, border only)
+- Never use accent colors for decorative elements
 
-### Spacing Scale
+### Status Colors
+
+| Role | Hex | Usage |
+|------|-----|-------|
+| Success | `#22C55E` | Completed tiles, ready state, wins |
+| Warning | `#EAB308` | Timer low, host crown, pending state |
+| Error | `#EF4444` | Errors, disconnections |
+
+---
+
+## Typography
+
+| Level | Font | Size | Weight | Usage |
+|-------|------|------|--------|-------|
+| Display | Righteous | `text-3xl md:text-4xl` | 400 | Brand name, page titles |
+| Heading | Poppins | `text-xl md:text-2xl` | 600 | Section headers |
+| Body | Poppins | `text-sm md:text-base` | 400 | Default text |
+| Caption | Poppins | `text-xs` | 400 | Metadata, timestamps |
+| Mono | SF Mono | `text-sm` | 400 | Room codes, timer, stats |
+
+**Rules:**
+- Righteous for BRAND and TITLES only — never for body text
+- Poppins for everything else
+- No gradient text, no text-shadow, no letter-spacing gimmicks
+- Max 2 font sizes per component for clear hierarchy
+- Control hierarchy through weight and color, not size alone
+
+---
+
+## Spacing
 
 | Token | Value | Usage |
 |-------|-------|-------|
@@ -75,20 +103,19 @@
 | lg | `24px` | Between sections |
 | xl | `32px` | Page-level padding |
 
-### Shadow System
+---
 
-All shadows are pure black, no color tints:
+## Shadows
 
-| Level | Value | Usage |
-|-------|-------|-------|
-| sm | `0 1px 2px rgba(0,0,0,0.3)` | Subtle card lift |
-| md | `0 4px 12px rgba(0,0,0,0.5)` | Cards, dropdowns |
-| lg | `0 8px 24px rgba(0,0,0,0.6)` | Modals |
+All shadows are pure black, no color tints, no glow:
 
-**Shadow Rules:**
-- NEVER use colored shadows (no purple glow, no rose glow).
-- NEVER use box-shadow as a border replacement.
-- NEVER use text-shadow.
+| Level | Value |
+|-------|-------|
+| sm | `0 1px 2px rgba(0,0,0,0.3)` |
+| md | `0 4px 12px rgba(0,0,0,0.5)` |
+| lg | `0 8px 24px rgba(0,0,0,0.6)` |
+
+**Rules:** No colored shadows. No text-shadow. No box-shadow glow effects.
 
 ---
 
@@ -96,83 +123,180 @@ All shadows are pure black, no color tints:
 
 ### Buttons
 
-**Primary (solid accent):**
-- Background: `#F43F5E`
+**Primary (solid):**
+- Background: `#EF4444` (red-500)
 - Text: White
-- Hover: `opacity: 0.9` + `translateY(-1px)`
-- Active: `scale(0.98)` — tactile feedback
+- Hover: `opacity-90`
+- Active: `scale(0.97)` — tactile feedback
 - Border-radius: `8px`
 
-**Secondary (outline):**
+**Secondary / Outline:**
 - Background: transparent
-- Border: `1px solid #3f3f46`
+- Border: `1px solid #3f3f46` (zinc-700)
 - Text: `#fafafa`
 - Hover: background `#27272a`
 
 **Rules:**
-- NEVER use gradient backgrounds on buttons.
-- NEVER use glow shadows on hover.
-- Button text must fit on one line at desktop — max 3 words for primary CTAs.
-- One label per CTA intent across the entire app.
+- One primary CTA per view. All other buttons are outline or ghost.
+- No gradients. No glow on hover.
+- Button text fits on one line (max 3 words for primary CTAs).
 
 ### Cards
 
 ```css
 /* Standard Card */
 .surface {
-  background: #18181b;      /* solid zinc-900 */
-  border: 1px solid #3f3f46; /* zinc-700 border */
+  background: #18181b;
+  border: 1px solid #3f3f46;
   border-radius: 12px;
   padding: 24px;
 }
 ```
 
-**Card Rules:**
-- NEVER use `backdrop-blur` on cards in the document flow. Only on true overlays (modals, drawers, tooltips).
-- NEVER use opacity on card backgrounds. Always solid.
-- NEVER use colored borders for default state. Use `--border` (`#3f3f46`).
-- Border-radius: `12px` for all cards. `8px` for inputs. `6px` for small elements. `full` for avatars, badges. Pick one scale and stick to it.
+**Rules:**
+- Solid backgrounds only. No backdrop-blur on in-flow cards.
+- Border is always `#3f3f46` in default state.
+- Border-radius: `12px` for cards, `8px` for inputs, `6px` for small elements, `full` for avatars/badges.
+- Never mix border-radius scales within the same component.
 
 ### Inputs
 
-- Background: `#27272a` (surface elevated)
+- Background: `#27272a`
 - Border: `1px solid #3f3f46`
-- Focus: `border-color: #F43F5E` + `ring: 2px solid #F43F5E at 20% opacity`
-- NEVER use glow shadows on focus. Ring only.
+- Focus: `ring-2 ring-primary/30` (no glow, ring only)
 - Border-radius: `8px`
 
 ---
 
+## Player Color System
+
+### How It Works
+
+1. When a room loads and players are fetched, assign colors in join order:
+   - First non-spectator player → Player 1 (`#EF4444`)
+   - Second non-spectator player → Player 2 (`#3B82F6`)
+   - Third → Player 3 (`#EAB308`)
+   - Fourth → Player 4 (`#22C55E`)
+2. Spectators get no player color
+3. The color assignment is stable for the duration of the room session
+
+### Where Player Color Appears
+
+| Element | Usage |
+|---------|-------|
+| Avatar circle | Border color = player color |
+| Player name | Colored text |
+| Bingo tile (when active for this player) | Border = player color |
+| Progress dots | Fill = player color |
+| Score display | Accent = player color |
+| Player cards in lobby/room | Left border accent = player color |
+
+### Implementation
+
+Player color is stored in a `playerColors` map in the game context:
+```typescript
+const PLAYER_COLOR_PALETTE = ['#EF4444', '#3B82F6', '#EAB308', '#22C55E'];
+// Assigned in join order, skipping spectators
+```
+
+---
+
 ## Game-Specific Components
+
+### Bingo Board
+
+- Background: `#18181b` (solid)
+- Border: `1px solid #3f3f46`
+- Player name in their color at the top
+- Progress: `completedCount/9` in text secondary
 
 ### Bingo Tile States
 
 | State | Background | Border |
 |-------|-----------|--------|
 | Empty | `#27272a` | `#3f3f46` |
-| Pending | `#27272a` | `#F43F5E` (solid, no glow) |
-| Complete | `#22c55e at 15%` | `#22c55e` (solid, no glow) |
-| Active Round | `#27272a` | `#F43F5E` at 60%, `2px` |
+| Pending | `#27272a` | Player color (solid, no glow) |
+| Complete | Player color at 10% opacity | Player color (solid, no glow) |
+| Active Round | `#27272a` | Player color, `2px` |
 
 **Tile Rules:**
-- NEVER use glow/shadow on tiles. Border color only.
-- Pending state: border highlight only, no pulse animation.
-- Completed state: solid green border + tinted background, no glow.
+- No glow/shadow on tiles. Border color only.
+- No pulse animation on tiles.
+- Completed state: solid border + tinted bg. No glow. No checkmark circle.
 
 ### Host Crown
 
-- Color: `#eab308` (yellow-500)
-- NO animation. NO glow. Static icon.
+- Color: `#EAB308` (yellow-500)
+- Static icon. No animation. No glow.
+
+### Round Stage / Timer
+
+- Displayed as a banner across the top of the game area
+- Shows: round number, current genre, timer countdown
+- Timer uses mono font, large when < 10s
+- No pulsing, no color change urgency
 
 ---
 
 ## Animation Rules
 
-- Default: STATIC. No animation unless it communicates game state.
-- Allowed animations: card entry (fade in once), tile state changes (border color transition), timer countdown.
-- NEVER use infinite pulse, glow, or spin animations for decoration.
-- ALL animations MUST be gated under `@media (prefers-reduced-motion: reduce)`.
-- Animation duration: 200-300ms max. Use `ease-out`.
+### Philosophy
+
+Animations communicate **state changes only**, not decoration. If it doesn't help the player understand what happened, it shouldn't animate.
+
+### Allowed
+
+| Animation | Where | Duration |
+|-----------|-------|----------|
+| Fade in | Page transitions, new content appearing | 200ms |
+| Scale in | Tiles appearing, modals opening | 250ms |
+| Slide up | Drawers, bottom sheets | 300ms |
+| Card entry | Cards appearing on initial load | 300ms |
+| Timer tick | Countdown number change | 100ms |
+| Bingo celebration | When a player gets bingo | 500ms (one-shot, not looped) |
+
+### Forbidden
+
+- Infinite pulse / spin / glow animations
+- Decorative entrance sequences
+- Staggered reveals (every element entering one-by-one)
+- Any animation that delays the user's ability to interact
+- Hover animations that change layout (no translateY lifts on cards)
+
+### Implementation
+
+```typescript
+// All animations gated behind prefers-reduced-motion
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+```
+
+- Use `framer-motion` for JS-driven animations
+- Default to `static` — no animation unless explicitly needed
+- Duration range: 100ms–400ms for most animations, up to 600ms for celebrations
+
+---
+
+## Page Layout Principles
+
+- Every page has a single focused task. No split attention.
+- Content is centered horizontally, max-width controlled.
+- Mobile-first by default. Desktop gets more space, not more content.
+- Bottom sheets / drawers for mobile menus (game info, audience list).
+- Desktop sidebar for persistent info (game info, leaderboard).
+
+### Max Content Widths
+
+| Context | Max Width |
+|---------|-----------|
+| Lobby card | `28rem` |
+| Game area | `72rem` |
+| Admin pages | `56rem` |
 
 ---
 
@@ -180,27 +304,29 @@ All shadows are pure black, no color tints:
 
 | Value | Usage |
 |-------|-------|
-| `z-10` | Sticky navigation headers |
-| `z-40` | Mobile dock, fixed bottom bars |
-| `z-50` | Modals, drawers, toasts, overlays |
+| `z-10` | Sticky headers |
+| `z-40` | Mobile dock |
+| `z-50` | Modals, drawers, toasts |
 
-NEVER use arbitrary z-index values.
+No arbitrary z-index values.
 
 ---
 
 ## Anti-Patterns (Forbidden)
 
-- ❌ Gradients of any kind (text, background, border)
-- ❌ Neon glow, box-shadow glow, text-shadow, drop-shadow
-- ❌ CRT scanlines or any decorative overlay
-- ❌ Ambient blur orbs / mesh gradients
-- ❌ Glassmorphism (backdrop-blur on non-overlay surfaces)
+- ❌ Gradients (text, background, border)
+- ❌ Glow/neon effects (box-shadow glow, drop-shadow, text-shadow)
+- ❌ Glassmorphism / backdrop-blur on in-flow elements
+- ❌ Decorative infinite animations
+- ❌ Staggered entrance sequences
+- ❌ CRT scanlines, noise overlays, decorative textures
+- ❌ Opacity on card backgrounds (always solid)
 - ❌ Colored shadows
-- ❌ Infinite pulse/spin animations
-- ❌ Opacity on card backgrounds (solid only)
-- ❌ Google Fonts `<link>` tag (use @font-face)
+- ❌ Google Fonts `<link>` tag (use `@font-face`)
 - ❌ Mixed border-radius scales
-- ❌ Emojis as icons
+- ❌ Emojis as icons (use Lucide or custom SVGs)
+- ❌ Gradient text
+- ❌ Neon borders on non-interactive elements
 
 ---
 
@@ -209,10 +335,12 @@ NEVER use arbitrary z-index values.
 - [ ] Zero gradients in component code
 - [ ] Zero glow/neon effects
 - [ ] Zero backdrop-blur on non-overlay elements
+- [ ] Player colors assigned dynamically from palette
 - [ ] All animations gated under `prefers-reduced-motion: reduce`
 - [ ] Button contrast ≥ 4.5:1 (WCAG AA)
 - [ ] All cards use solid backgrounds
-- [ ] All borders use `#3f3f46` (neutral) unless indicating game state
-- [ ] Accent color used for CTAs and interactive states only
+- [ ] All borders use `#3f3f46` unless indicating player/game state
+- [ ] Player colors used for accents only, not full backgrounds
+- [ ] One primary CTA per page
 - [ ] Font-family matches config (Poppins for body, Righteous for display)
 - [ ] Build passes (`npx tsc --noEmit`)

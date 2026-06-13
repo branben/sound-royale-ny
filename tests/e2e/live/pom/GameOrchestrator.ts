@@ -182,7 +182,7 @@ export class GameOrchestrator {
 
   async waitForNewRound(timeout = 30000): Promise<void> {
     const startTime = Date.now();
-    let lastRoundNumber = (await getGameState(this.roomCode)).current_round;
+    const lastRoundNumber = (await getGameState(this.roomCode)).current_round;
 
     while (Date.now() - startTime < timeout) {
       const state = await getGameState(this.roomCode);

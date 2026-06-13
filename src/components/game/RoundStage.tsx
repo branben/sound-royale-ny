@@ -156,7 +156,7 @@ export function RoundStage({
           <div className="flex min-h-20 items-center gap-4">
             <div className={cn(
               "flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-border bg-card",
-              isRouletting && "animate-spin-slow"
+              isRouletting && "animate-spin"
             )}>
               <Disc3 className="h-8 w-8 text-muted-foreground" />
             </div>

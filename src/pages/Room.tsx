@@ -126,7 +126,7 @@ function MobileGameDock({ roomId, currentPlayerName }: MobileGameDockProps) {
   ];
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-2 backdrop-blur-xl lg:hidden">
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-2 lg:hidden">
       <div className="mx-auto grid max-w-md grid-cols-4 gap-2">
         {actions.map(action => {
           const Icon = action.icon;
@@ -405,7 +405,7 @@ export default function Room() {
   if (loading || isReconnecting) {
     return (
       <div className="min-h-screen bg-background p-4">
-        <header className="border-b border-border bg-background backdrop-blur-md">
+        <header className="border-b border-border bg-background">
           <div className="container mx-auto flex h-12 items-center justify-between">
             <h1 className="text-2xl font-bold text-foreground md:text-3xl">Sound Royale</h1>
             <div className="flex items-center gap-2">

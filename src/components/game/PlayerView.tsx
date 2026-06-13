@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { Tile } from '@/types/game';
 import { useGame } from '@/context/useGame';
 import { gameApi } from '@/services/api';
+import { usePlayerColors } from '@/hooks/usePlayerColors';
 import { Wifi, WifiOff, Music } from 'lucide-react';
 
 interface PlayerViewProps {
@@ -19,6 +20,7 @@ interface PlayerViewProps {
 
 export const PlayerView = memo(function PlayerView({ roomId, playerName }: PlayerViewProps) {
   const { gameState, setGameState } = useGame();
+  const playerColors = usePlayerColors(gameState.players ?? {});
   const [selectedTile, setSelectedTile] = useState<{ tile: Tile } | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showBingoNotification, setShowBingoNotification] = useState(false);
@@ -100,6 +102,8 @@ export const PlayerView = memo(function PlayerView({ roomId, playerName }: Playe
     }
   };
 
+  const currentPlayerColorIndex = playerData ? playerColors.get(playerData.id) : undefined;
+
   const handleTimeUp = () => {
     toast.info('Time\'s up! Moving to next turn...');
   };
@@ -131,13 +135,28 @@ export const PlayerView = memo(function PlayerView({ roomId, playerName }: Playe
     );
   };
 
+  const PLAYER_ACCENT = [
+    'bg-player-1/15 text-player-1',
+    'bg-player-2/15 text-player-2',
+    'bg-player-3/15 text-player-3',
+    'bg-player-4/15 text-player-4',
+  ] as const;
+
+  const playerAccentClasses = currentPlayerColorIndex !== undefined && currentPlayerColorIndex < PLAYER_ACCENT.length
+    ? PLAYER_ACCENT[currentPlayerColorIndex]
+    : 'bg-primary/15 text-primary';
+
+  const playerTextAccent = currentPlayerColorIndex !== undefined
+    ? `text-player-${currentPlayerColorIndex + 1}`
+    : 'text-primary';
+
   return (
     <div className={`grid grid-cols-1 lg:grid-cols-[14rem_1fr] gap-6 ${!playerData.isConnected ? 'opacity-60' : ''}`}>
       {/* Player Info Column */}
       <div className="order-2 space-y-4 lg:order-1">
-        <div className="rounded-xl border border-border/50 bg-card/50 p-4 space-y-4">
+        <div className="rounded-xl border border-border bg-card p-4 space-y-4">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-primary">
+            <div className={`flex h-8 w-8 items-center justify-center rounded-full ${playerAccentClasses}`}>
               <Music className="h-4 w-4" />
             </div>
             <div>
@@ -151,7 +170,7 @@ export const PlayerView = memo(function PlayerView({ roomId, playerName }: Playe
 
           {gameState.status === 'playing' && gameState.roundState?.currentTileGenre && (
             <p className="text-xs text-muted-foreground">
-              Your turn: Upload a beat for <span className="text-primary font-semibold">{gameState.roundState.currentTileGenre}</span>
+              Your turn: Upload a beat for <span className={`${playerTextAccent} font-semibold`}>{gameState.roundState.currentTileGenre}</span>
             </p>
           )}
 
@@ -169,21 +188,22 @@ export const PlayerView = memo(function PlayerView({ roomId, playerName }: Playe
 
       {/* Game Board Column */}
       <div className="order-1 lg:order-2">
-        <BingoBoard
-          playerId={playerData.id}
-          playerName={playerData.name}
-          isDiscordVerified={playerData.isDiscordVerified}
-          discordUsername={playerData.discordUsername}
-          boardData={{
-            tiles: playerData.tiles || []
-          }}
-          onTileClick={handleTileClick}
-          isInteractive={gameState.status === 'playing' && !currentPlayer?.isSpectator}
-          isTileInteractive={(tileId) => {
-            const tile = playerData.tiles.find(entry => entry.id === tileId);
-            return !!tile && tile.status === 'empty' && isCurrentRoundTile(tile);
-          }}
-        />
+          <BingoBoard
+            playerId={playerData.id}
+            playerName={playerData.name}
+            isDiscordVerified={playerData.isDiscordVerified}
+            discordUsername={playerData.discordUsername}
+            boardData={{
+              tiles: playerData.tiles || []
+            }}
+            onTileClick={handleTileClick}
+            isInteractive={gameState.status === 'playing' && !currentPlayer?.isSpectator}
+            isTileInteractive={(tileId) => {
+              const tile = playerData.tiles.find(entry => entry.id === tileId);
+              return !!tile && tile.status === 'empty' && isCurrentRoundTile(tile);
+            }}
+            playerColorIndex={currentPlayerColorIndex}
+          />
 
         <UploadDrawer
           isOpen={isDrawerOpen}

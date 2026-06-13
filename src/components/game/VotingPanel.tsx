@@ -6,6 +6,8 @@ import { Vote, CheckCircle2, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { hover, transitions } from '@/lib/motion';
+import { usePlayerColors } from '@/hooks/usePlayerColors';
+import { useGame } from '@/context/useGame';
 
 interface VotingPanelProps {
   roomId: string;
@@ -32,11 +34,25 @@ export function VotingPanel({
   isSpectator = false,
   className,
 }: VotingPanelProps) {
+  const { gameState } = useGame();
+  const playerColors = usePlayerColors(gameState.players);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [isVoting, setIsVoting] = useState(false);
   const [hasVoted, setHasVoted] = useState(false);
 
   const isRanked = spectatorCount >= 3;
+
+  const playerCardColor = (playerId: string) => {
+    const idx = playerColors.get(playerId) ?? 0;
+    return {
+      bg: [`bg-player-1/20`, `bg-player-2/20`, `bg-player-3/20`, `bg-player-4/20`][idx],
+      text: [`text-player-1`, `text-player-2`, `text-player-3`, `text-player-4`][idx],
+      borderHover: [`hover:border-player-1/50`, `hover:border-player-2/50`, `hover:border-player-3/50`, `hover:border-player-4/50`][idx],
+      bgHover: [`hover:bg-player-1/5`, `hover:bg-player-2/5`, `hover:bg-player-3/5`, `hover:bg-player-4/5`][idx],
+      borderSelected: [`border-player-1`, `border-player-2`, `border-player-3`, `border-player-4`][idx],
+      bgSelected: [`bg-player-1/10`, `bg-player-2/10`, `bg-player-3/10`, `bg-player-4/10`][idx],
+    };
+  };
 
   const handleVote = async (producerId: string) => {
     if (!votingOpen || hasVoted || isVoting) return;
@@ -108,41 +124,44 @@ export function VotingPanel({
         <div className="grid grid-cols-2 gap-3">
           {producers
             .filter(producer => !(isSpectator && producer.id === currentPlayerId))
-            .map((producer) => (
-            <motion.button
-              key={producer.id}
-              onClick={() => handleVote(producer.id)}
-              disabled={isVoting}
-              whileHover={{ scale: 1.06, rotateZ: 2 }}
-              whileTap={{ scale: 0.95 }}
-              transition={transitions.spring}
-              className={cn(
-                'flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all',
-                'hover:border-primary/50 hover:bg-primary/5',
-                'disabled:opacity-50 disabled:cursor-not-allowed',
-                selectedPlayerId === producer.id
-                  ? 'border-primary bg-primary/10'
-                  : 'border-border'
-              )}
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/20">
-                <span className="text-lg font-bold text-primary">
-                  {producer.name.charAt(0)}
-                </span>
-              </div>
-              <div className="text-center">
-                <p className="font-medium text-foreground">{producer.name}</p>
-                {producer.eloRating && (
-                  <p className="text-xs text-muted-foreground">
-                    ELO: {producer.eloRating}
-                  </p>
+            .map((producer) => {
+              const card = playerCardColor(producer.id);
+              return (
+              <motion.button
+                key={producer.id}
+                onClick={() => handleVote(producer.id)}
+                disabled={isVoting}
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.95 }}
+                transition={transitions.spring}
+                className={cn(
+                  'flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all',
+                  card.borderHover, card.bgHover,
+                  'disabled:opacity-50 disabled:cursor-not-allowed',
+                  selectedPlayerId === producer.id
+                    ? card.borderSelected + ' ' + card.bgSelected
+                    : 'border-border'
                 )}
-              </div>
-              {isVoting && selectedPlayerId === producer.id && (
-                <Loader2 className="h-4 w-4 animate-spin text-primary" />
-              )}
-            </motion.button>
-          ))}
+              >
+                <div className={cn('flex h-12 w-12 items-center justify-center rounded-full', card.bg)}>
+                  <span className={cn('text-lg font-bold', card.text)}>
+                    {producer.name.charAt(0)}
+                  </span>
+                </div>
+                <div className="text-center">
+                  <p className="font-medium text-foreground">{producer.name}</p>
+                  {producer.eloRating && (
+                    <p className="text-xs text-muted-foreground">
+                      ELO: {producer.eloRating}
+                    </p>
+                  )}
+                </div>
+                {isVoting && selectedPlayerId === producer.id && (
+                  <Loader2 className={cn('h-4 w-4 animate-spin', card.text)} />
+                )}
+              </motion.button>
+              );
+          })}
         </div>
       )}
 

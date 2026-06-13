@@ -78,7 +78,7 @@ export function UploadDrawer({ isOpen, onClose, tile, onUpload }: UploadDrawerPr
 
   return (
     <Drawer open={isOpen} onOpenChange={handleClose}>
-      <DrawerContent className="border-border/30 bg-card/95 backdrop-blur-xl">
+      <DrawerContent className="border-border bg-card">
         <div className="mx-auto w-full max-w-md">
           <DrawerHeader>
             <DrawerTitle className="flex items-center gap-2 text-foreground">

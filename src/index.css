@@ -1,5 +1,5 @@
 /* Sound Royale — Design System Tokens */
-/* Self-hosted fonts loaded via font-loader.tsx at runtime */
+/* Polished Jackbox — clean, flat, per-player color identity */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -10,24 +10,23 @@
     --background: 240 5% 4%;       /* #09090b zinc-950 */
     --foreground: 240 5% 98%;       /* #fafafa zinc-50 */
 
-    /* ── Surfaces ── */
+    /* ── Surfaces (solid only) ── */
     --card: 240 4% 10%;             /* #18181b zinc-900 */
     --card-foreground: 240 5% 98%;
     --popover: 240 4% 10%;
     --popover-foreground: 240 5% 98%;
 
-    /* ── Accent (CTAs, active states) ── */
-    --primary: 189 95% 49%;         /* #22D3EE cyan-400 */
+    /* ── Interactive ── */
+    --primary: 0 84% 60%;           /* #EF4444 red-500 — primary CTAs */
     --primary-foreground: 0 0% 100%;
 
-    /* ── Secondary / Muted ── */
     --secondary: 240 4% 16%;       /* #27272a zinc-800 */
     --secondary-foreground: 240 5% 98%;
-    --muted: 240 4% 16%;           /* #27272a zinc-800 */
+    --muted: 240 4% 16%;
     --muted-foreground: 240 4% 65%; /* #a1a1aa zinc-400 */
 
-    /* ── Accent (use sparingly) ── */
-    --accent: 189 95% 49%;          /* #22D3EE — same as primary, intentional */
+    /* ── Accent = primary (intentional — only one action color) ── */
+    --accent: 0 84% 60%;
     --accent-foreground: 0 0% 100%;
 
     /* ── Destructive ── */
@@ -37,27 +36,38 @@
     /* ── Borders ── */
     --border: 240 5% 24%;           /* #3f3f46 zinc-700 */
     --input: 240 4% 16%;            /* #27272a zinc-800 */
-    --ring: 189 95% 49%;            /* #22D3EE */
+    --ring: 0 84% 60%;              /* #EF4444 — focus ring matches primary */
 
     /* ── Radius ── */
-    --radius: 0.5rem;               /* 8px base */
+    --radius: 0.5rem;
 
-    /* ── Sidebar (unused but required by shadcn) ── */
+    /* ── Sidebar (required by shadcn) ── */
     --sidebar-background: 240 4% 10%;
     --sidebar-foreground: 240 5% 98%;
-    --sidebar-primary: 347 83% 60%;
+    --sidebar-primary: 0 84% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 240 4% 16%;
     --sidebar-accent-foreground: 240 5% 98%;
     --sidebar-border: 240 5% 24%;
-    --sidebar-ring: 347 83% 60%;
+    --sidebar-ring: 0 84% 60%;
 
     /* ── Chart tokens (required by shadcn charts) ── */
-    --chart-1: 347 83% 60%;
-    --chart-2: 347 70% 45%;
-    --chart-3: 347 55% 30%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 43 89% 53%;
+    --chart-1: 0 84% 60%;
+    --chart-2: 217 91% 60%;
+    --chart-3: 48 96% 53%;
+    --chart-4: 142 71% 45%;
+    --chart-5: 0 0% 100%;
+
+    /* ── Player Colors (assigned dynamically at runtime) ── */
+    --player-1: 0 84% 60%;          /* #EF4444 red */
+    --player-2: 217 91% 60%;        /* #3B82F6 blue */
+    --player-3: 48 96% 53%;         /* #EAB308 yellow */
+    --player-4: 142 71% 45%;        /* #22C55E green */
+
+    /* ── Status Colors ── */
+    --success: 142 71% 45%;         /* #22C55E green */
+    --warning: 48 96% 53%;          /* #EAB308 yellow */
+    --error: 0 84% 60%;             /* #EF4444 red */
 
     /* ── Fonts ── */
     --font-sans: 'Poppins', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
@@ -65,17 +75,10 @@
     --font-mono: 'SF Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 
     /* ── Shadows (pure black, no color tints) ── */
-    --shadow-2xs: 0 1px 2px 0px rgba(0, 0, 0, 0.2);
-    --shadow-xs: 0 1px 2px 0px rgba(0, 0, 0, 0.3);
-    --shadow-sm: 0 1px 3px 0px rgba(0, 0, 0, 0.4), 0 1px 2px -1px rgba(0, 0, 0, 0.3);
+    --shadow-sm: 0 1px 2px 0px rgba(0, 0, 0, 0.3);
     --shadow: 0 4px 12px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
     --shadow-md: 0 8px 16px -2px rgba(0, 0, 0, 0.5), 0 4px 8px -2px rgba(0, 0, 0, 0.3);
     --shadow-lg: 0 16px 24px -4px rgba(0, 0, 0, 0.6), 0 8px 12px -4px rgba(0, 0, 0, 0.3);
-    --shadow-xl: 0 24px 48px -8px rgba(0, 0, 0, 0.6);
-    --shadow-2xl: 0 32px 64px -12px rgba(0, 0, 0, 0.7);
-
-    --tracking-normal: 0em;
-    --spacing: 0.25rem;
   }
 }
 
@@ -87,49 +90,29 @@
   body {
     @apply bg-background text-foreground;
     font-family: 'Poppins', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 
-/* ── Card Entrance ── */
+/* ── Card Entrance (one-shot) ── */
 @keyframes card-enter {
-  0% {
-    opacity: 0;
-    transform: translateY(12px) scale(0.98);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+  0% { opacity: 0; transform: translateY(12px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .card-enter {
   animation: card-enter 250ms ease-out forwards;
 }
 
-/* ── Stagger List Entrance ── */
-@keyframes stagger-enter {
-  0% {
-    opacity: 0;
-    transform: translateX(-6px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateX(0);
-  }
+/* ── Timer urgency ── */
+@keyframes timer-urgent {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
-.stagger-enter {
-  animation: stagger-enter 200ms ease-out forwards;
-}
-
-/* ── Waiting State Pulse ── */
-@keyframes pulse-waiting {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 0.6; }
-}
-
-.pulse-waiting {
-  animation: pulse-waiting 2s ease-in-out infinite;
+.timer-urgent {
+  animation: timer-urgent 1s ease-in-out infinite;
 }
 
 /* ── Reduced Motion: Disable ALL animations ── */

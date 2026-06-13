@@ -1,0 +1,21 @@
+#!/bin/sh
+# GAIA Pre-Push Hook
+# The polecat checks your code before it reaches origin.
+# All gates must pass for the push to proceed.
+
+# Git sends pre-push refs on stdin: <local ref> <local sha> <remote ref> <remote sha>
+# We capture the range of commits being pushed so the gate validates the right code.
+while read local_ref local_sha remote_ref remote_sha; do
+    if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+        # Branch deletion — skip validation
+        exit 0
+    fi
+    # Pass the SHA range to the gate
+    ./scripts/gaia-gate.sh --push-ref "$local_sha"
+    exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+        exit $exit_code
+    fi
+done
+
+exit 0

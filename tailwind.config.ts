@@ -57,12 +57,17 @@ export default {
           border: 'hsl(var(--sidebar-border))',
           ring: 'hsl(var(--sidebar-ring))'
         },
-        tile: {
-          empty: 'hsl(var(--tile-empty))',
-          pending: 'hsl(var(--tile-pending))',
-          complete: 'hsl(var(--tile-complete))',
-          glow: 'hsl(var(--tile-glow))'
-        }
+        /* ── Player Colors (assigned at runtime) ── */
+        player: {
+          1: 'hsl(var(--player-1))',
+          2: 'hsl(var(--player-2))',
+          3: 'hsl(var(--player-3))',
+          4: 'hsl(var(--player-4))',
+        },
+        /* ── Status ── */
+        success: 'hsl(var(--success))',
+        warning: 'hsl(var(--warning))',
+        error: 'hsl(var(--error))',
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -70,80 +75,38 @@ export default {
         sm: 'calc(var(--radius) - 4px)'
       },
       keyframes: {
-        'accordion-down': {
-          from: { height: '0' },
-          to: { height: 'var(--radix-accordion-content-height)' }
+        'card-enter': {
+          '0%': { opacity: '0', transform: 'translateY(12px) scale(0.98)' },
+          '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
         },
-        'accordion-up': {
-          from: { height: 'var(--radix-accordion-content-height)' },
-          to: { height: '0' }
+        'fade-in': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
         },
-        'spin-slow': {
-          '0%': { transform: 'rotate(0deg)' },
-          '100%': { transform: 'rotate(360deg)' },
+        'scale-in': {
+          '0%': { opacity: '0', transform: 'scale(0.95)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
         },
-        'pulse-subtle': {
+        'slide-up': {
+          '0%': { opacity: '0', transform: 'translateY(10px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        'timer-urgent': {
           '0%, 100%': { opacity: '1' },
-          '50%': { opacity: '0.7' },
-        },
-        'bounce-in': {
-          '0%': { transform: 'scale(0.3)', opacity: '0' },
-          '50%': { transform: 'scale(1.05)' },
-          '70%': { transform: 'scale(0.9)' },
-          '100%': { transform: 'scale(1)', opacity: '1' },
-        },
-        'shimmer': {
-          '0%': { transform: 'translateX(-100%)' },
-          '100%': { transform: 'translateX(100%)' },
-        },
-        'border-pulse': {
-          '0%, 100%': { boxShadow: '0 0 0 0 rgba(239, 68, 68, 0)' },
-          '50%': { boxShadow: '0 0 0 4px rgba(239, 68, 68, 0.4)' },
+          '50%': { opacity: '0.5' },
         },
       },
       animation: {
-        'accordion-down': 'accordion-down 0.2s ease-out',
-        'accordion-up': 'accordion-up 0.2s ease-out',
-        'spin-slow': 'spin-slow 3s linear infinite',
-        'pulse-subtle': 'pulse-subtle 2s ease-in-out infinite',
-        'bounce-in': 'bounce-in 0.5s ease-out',
-        'shimmer': 'shimmer 1.5s ease-in-out infinite',
-        'border-pulse': 'border-pulse 1s ease-in-out 3',
-      },
-      boxShadow: {
-        '2xs': 'var(--shadow-2xs)',
-        xs: 'var(--shadow-xs)',
-        sm: 'var(--shadow-sm)',
-        md: 'var(--shadow-md)',
-        lg: 'var(--shadow-lg)',
-        xl: 'var(--shadow-xl)',
-        '2xl': 'var(--shadow-2xl)'
+        'card-enter': 'card-enter 250ms ease-out forwards',
+        'fade-in': 'fade-in 200ms ease-out forwards',
+        'scale-in': 'scale-in 250ms ease-out forwards',
+        'slide-up': 'slide-up 200ms ease-out forwards',
+        'timer-urgent': 'timer-urgent 1s ease-in-out infinite',
       },
       fontFamily: {
-        sans: [
-          'Poppins',
-          'ui-sans-serif',
-          'system-ui',
-          '-apple-system',
-          'BlinkMacSystemFont',
-          'Segoe UI',
-          'Roboto',
-          'Helvetica Neue',
-          'Arial',
-          'Noto Sans',
-          'sans-serif'
-        ],
-        mono: [
-          'SF Mono',
-          'ui-monospace',
-          'SFMono-Regular',
-          'Menlo',
-          'Monaco',
-          'Consolas',
-          'Liberation Mono',
-          'Courier New',
-          'monospace'
-        ]
+        sans: ['Poppins', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'Noto Sans', 'sans-serif'],
+        display: ['Righteous', 'cursive'],
+        mono: ['SF Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'],
       }
     }
   },
