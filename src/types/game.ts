@@ -155,7 +155,8 @@ export interface BackendTile {
 
 export interface BackendPlayer {
   id: string;
-  name: string;
+  name?: string;
+  player_name?: string;
   avatar?: string;
   is_discord_verified?: boolean;
   discord_username?: string;

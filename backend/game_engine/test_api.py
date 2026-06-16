@@ -116,19 +116,19 @@ class RoomAPITestCase(TestCase):
         self.room.save()
         
         data = {
-            'player_name': 'NewPlayer',
+            'name': 'NewPlayer',
             'is_spectator': False
         }
         url = reverse('room-join-game', kwargs={'code': '1234'})
         response = self.client.post(url, data, format='json')
-        
+
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Player.objects.filter(room=self.room).count(), 3)
-        
+
         new_player = Player.objects.get(name='NewPlayer')
         self.assertFalse(new_player.is_spectator)
         self.assertEqual(new_player.room, self.room)
-        
+
         # Check that tiles were created for the new player
         self.assertEqual(Tile.objects.filter(player=new_player).count(), 9)
 
@@ -136,22 +136,22 @@ class RoomAPITestCase(TestCase):
         """Test joining a game as a spectator successfully"""
         self.room.status = Room.Status.LOBBY
         self.room.save()
-        
+
         data = {
-            'player_name': 'NewSpectator',
+            'name': 'NewSpectator',
             'is_spectator': True
         }
         url = reverse('room-join-game', kwargs={'code': '1234'})
         response = self.client.post(url, data, format='json')
-        
+
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Player.objects.filter(room=self.room).count(), 3)
-        
+
         # API auto-generates spectator names, so check for any new spectator
         new_spectator = Player.objects.filter(is_spectator=True).last()
         self.assertTrue(new_spectator.is_spectator)
         self.assertEqual(new_spectator.room, self.room)
-        
+
         # Check that no tiles were created for the spectator
         self.assertEqual(Tile.objects.filter(player=new_spectator).count(), 0)
 
@@ -159,14 +159,14 @@ class RoomAPITestCase(TestCase):
         """Test joining a game as producer after start is blocked"""
         self.room.status = Room.Status.PLAYING
         self.room.save()
-        
+
         data = {
-            'player_name': 'NewPlayer',
+            'name': 'NewPlayer',
             'is_spectator': False
         }
         url = reverse('room-join-game', kwargs={'code': '1234'})
         response = self.client.post(url, data, format='json')
-        
+
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('Only spectators can join after a game has started', response.data['error'])
 
@@ -176,7 +176,7 @@ class RoomAPITestCase(TestCase):
         self.room.save()
 
         data = {
-            'player_name': 'LateSpectator',
+            'name': 'LateSpectator',
             'is_spectator': True
         }
         url = reverse('room-join-game', kwargs={'code': '1234'})
@@ -303,7 +303,7 @@ class RoomAPITestCase(TestCase):
         )
 
         response = self.client.post(reverse('room-join-game', kwargs={'code': '1234'}), {
-            'player_name': 'VerifiedJoiner',
+            'name': 'VerifiedJoiner',
             'is_spectator': False,
             'discord_user_id': account.discord_user_id,
             'discord_session_secret': str(account.session_secret),
@@ -416,17 +416,15 @@ class RoomAPITestCase(TestCase):
         """Test joining a game with a duplicate name"""
         self.room.status = Room.Status.LOBBY
         self.room.save()
-        
+
         data = {
-            'player_name': 'HostPlayer',  # Same name as existing host
+            'name': 'HostPlayer',  # Same name as existing host
             'is_spectator': False
         }
         url = reverse('room-join-game', kwargs={'code': '1234'})
-        
-        # The API should handle duplicate names with appropriate error response
-        # In practice, this may result in a 500 error due to IntegrityError at serializer level
-        with self.assertRaises(Exception):  # IntegrityError or other exception
-            response = self.client.post(url, data, format='json')
+        response = self.client.post(url, data, format='json')
+
+        self.assertIn(response.status_code, [status.HTTP_409_CONFLICT, status.HTTP_400_BAD_REQUEST])
 
     def test_join_game_spectator_limit_reached(self):
         """Test joining as spectator when limit is reached"""
@@ -442,12 +440,12 @@ class RoomAPITestCase(TestCase):
             )
         
         data = {
-            'player_name': 'NewSpectator',
+            'name': 'NewSpectator',
             'is_spectator': True
         }
         url = reverse('room-join-game', kwargs={'code': '1234'})
         response = self.client.post(url, data, format='json')
-        
+
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('Spectator limit reached', response.data['error'])
 
@@ -464,14 +462,14 @@ class RoomAPITestCase(TestCase):
         self.room.save()
         
         url = reverse('room-start-game', kwargs={'code': '1234'})
-        response = self.client.post(url, format='json')
-        
+        response = self.client.post(url, {'player_secret': str(self.host.player_secret)}, format='json')
+
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('Game started', response.data['status'])
-        
+
         self.room.refresh_from_db()
         self.assertEqual(self.room.status, Room.Status.PLAYING)
-        
+
         # Check that a round was created
         self.assertEqual(Round.objects.filter(room=self.room).count(), 1)
         round = Round.objects.get(room=self.room)
@@ -482,21 +480,31 @@ class RoomAPITestCase(TestCase):
         """Test starting a game with not enough players"""
         self.room.status = Room.Status.LOBBY
         self.room.save()
-        
+
         url = reverse('room-start-game', kwargs={'code': '1234'})
-        response = self.client.post(url, format='json')
-        
+        response = self.client.post(url, {'player_secret': str(self.host.player_secret)}, format='json')
+
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('Need at least 2 players', response.data['error'])
 
     def test_start_game_already_started(self):
         """Test starting a game that has already started"""
-        self.room.status = Room.Status.PLAYING
+        # Add a second player so we can start the game first
+        Player.objects.create(
+            room=self.room,
+            name='Player2',
+            is_spectator=False
+        )
+        self.room.status = Room.Status.LOBBY
         self.room.save()
-        
+
+        # First start the game successfully
         url = reverse('room-start-game', kwargs={'code': '1234'})
-        response = self.client.post(url, format='json')
-        
+        self.client.post(url, {'player_secret': str(self.host.player_secret)}, format='json')
+
+        # Now try to start again
+        response = self.client.post(url, {'player_secret': str(self.host.player_secret)}, format='json')
+
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('Game has already started', response.data['error'])
 
@@ -512,6 +520,7 @@ class RoomAPITestCase(TestCase):
         self.assertEqual(response.data['name'], 'HostPlayer')
         self.assertEqual(response.data['id'], str(self.host.id))
         self.assertEqual(response.data['isSpectator'], False)
+        self.assertEqual(response.data['is_host'], True)
 
     def test_rejoin_game_missing_secret(self):
         """Test rejoining a game without providing player_secret"""
@@ -854,11 +863,11 @@ class APIErrorHandlingTestCase(TestCase):
         mock_transaction.side_effect = Exception("Database error")
         
         data = {
-            'player_name': 'NewPlayer',
+            'name': 'NewPlayer',
             'is_spectator': False
         }
         url = reverse('room-join-game', kwargs={'code': '1234'})
         response = self.client.post(url, data, format='json')
-        
+
         self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
         mock_transaction.assert_called_once()

@@ -64,7 +64,8 @@ test.describe('Lobby', () => {
         status: 201,
         json: {
           id: 'player-2',
-          player_name: 'Second Producer',
+          name: 'Second Producer',
+          is_host: false,
           is_spectator: false,
           player_secret: 'player-2-secret',
         },

@@ -183,3 +183,490 @@ class VotingAPITestCase(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("Need at least 3 spectators", response.json()["error"])
+
+
+class RoomDetailSerializerTestCase(TestCase):
+    """Tests for RoomDetailSerializer is_host field serialization."""
+
+    def setUp(self):
+        self.client = APIClient()
+
+        self.room = Room.objects.create(
+            code="5678", name="Serializer Test Room", status=Room.Status.LOBBY
+        )
+
+        self.host_player = Player.objects.create(
+            room=self.room,
+            name="HostPlayer",
+            is_spectator=False,
+            is_host=True,
+        )
+
+        self.non_host_player = Player.objects.create(
+            room=self.room,
+            name="JoinPlayer",
+            is_spectator=False,
+            is_host=False,
+        )
+
+    def test_room_detail_returns_is_host_for_each_player(self):
+        """Room detail endpoint must include is_host on every player object."""
+        url = f"/api/rooms/{self.room.code}/"
+        response = self.client.get(url, format="json")
+
+        self.assertEqual(response.status_code, 200)
+
+        players = response.json()["players"]
+        self.assertEqual(len(players), 2)
+
+        # Every player object must have an is_host key
+        for player in players:
+            self.assertIn("is_host", player)
+
+    def test_room_detail_host_player_has_is_host_true(self):
+        """The host player must have is_host: true in the detail response."""
+        url = f"/api/rooms/{self.room.code}/"
+        response = self.client.get(url, format="json")
+
+        self.assertEqual(response.status_code, 200)
+
+        players = response.json()["players"]
+        host = next(p for p in players if p["id"] == str(self.host_player.id))
+        self.assertTrue(host["is_host"])
+
+    def test_room_detail_non_host_player_has_is_host_false(self):
+        """Non-host players must have is_host: false in the detail response."""
+        url = f"/api/rooms/{self.room.code}/"
+        response = self.client.get(url, format="json")
+
+        self.assertEqual(response.status_code, 200)
+
+        players = response.json()["players"]
+        non_host = next(p for p in players if p["id"] == str(self.non_host_player.id))
+        self.assertFalse(non_host["is_host"])
+
+    def test_room_detail_multiple_players_correct_is_host(self):
+        """Room with multiple players returns correct is_host for each."""
+        # Add a third player
+        third_player = Player.objects.create(
+            room=self.room,
+            name="ThirdPlayer",
+            is_spectator=False,
+            is_host=False,
+        )
+
+        url = f"/api/rooms/{self.room.code}/"
+        response = self.client.get(url, format="json")
+
+        self.assertEqual(response.status_code, 200)
+
+        players = response.json()["players"]
+        self.assertEqual(len(players), 3)
+
+        host = next(p for p in players if p["id"] == str(self.host_player.id))
+        joiner = next(p for p in players if p["id"] == str(self.non_host_player.id))
+        third = next(p for p in players if p["id"] == str(third_player.id))
+
+        self.assertTrue(host["is_host"])
+        self.assertFalse(joiner["is_host"])
+        self.assertFalse(third["is_host"])
+
+
+class PlayerCreateSerializerTestCase(TestCase):
+    """Tests for PlayerCreateSerializer field naming and is_host inclusion."""
+
+    def setUp(self):
+        self.client = APIClient()
+
+        self.room = Room.objects.create(
+            code="9999", name="Join Test Room", status=Room.Status.LOBBY
+        )
+
+        # Create a host player (needed for room to be joinable)
+        Player.objects.create(
+            room=self.room,
+            name="ExistingHost",
+            is_spectator=False,
+            is_host=True,
+        )
+
+    def test_join_room_returns_player_name_not_name(self):
+        """Join response must use 'player_name' key (matching frontend expectation)."""
+        url = f"/api/rooms/{self.room.code}/join_game/"
+        response = self.client.post(
+            url,
+            {"player_name": "NewPlayer", "is_spectator": False},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        # The response should have 'player_name' as the key
+        self.assertIn("player_name", response.json())
+        self.assertEqual(response.json()["player_name"], "NewPlayer")
+
+    def test_join_room_returns_is_host_false_for_joiner(self):
+        """Non-host player joining must have is_host: false in response."""
+        url = f"/api/rooms/{self.room.code}/join_game/"
+        response = self.client.post(
+            url,
+            {"player_name": "JoinerPlayer", "is_spectator": False},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIn("is_host", response.json())
+        self.assertFalse(response.json()["is_host"])
+
+    def test_join_room_returns_player_secret(self):
+        """Join response must include player_secret for session auth."""
+        url = f"/api/rooms/{self.room.code}/join_game/"
+        response = self.client.post(
+            url,
+            {"player_name": "SecretPlayer", "is_spectator": False},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIn("player_secret", response.json())
+
+    def test_join_room_returns_id(self):
+        """Join response must include player id."""
+        url = f"/api/rooms/{self.room.code}/join_game/"
+        response = self.client.post(
+            url,
+            {"player_name": "IdPlayer", "is_spectator": False},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIn("id", response.json())
+
+    def test_join_spectator_returns_is_host_false(self):
+        """Spectator joining must have is_host: false."""
+        url = f"/api/rooms/{self.room.code}/join_game/"
+        response = self.client.post(
+            url,
+            {"player_name": "SpectatorJoin", "is_spectator": True},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIn("is_host", response.json())
+        self.assertFalse(response.json()["is_host"])
+        self.assertTrue(response.json()["is_spectator"])
+
+
+class PlayerCreateSerializerTestCase(TestCase):
+    """Tests for PlayerCreateSerializer field naming and is_host inclusion."""
+
+    def setUp(self):
+        self.client = APIClient()
+
+        self.room = Room.objects.create(
+            code="9999", name="Join Test Room", status=Room.Status.LOBBY
+        )
+
+        # Create a host player (needed for room to be joinable)
+        Player.objects.create(
+            room=self.room,
+            name="ExistingHost",
+            is_spectator=False,
+            is_host=True,
+        )
+
+    def test_join_room_returns_player_name_not_name(self):
+        """Join response must use 'player_name' key (matching frontend expectation)."""
+        url = f"/api/rooms/{self.room.code}/join_game/"
+        response = self.client.post(
+            url,
+            {"player_name": "NewPlayer", "is_spectator": False},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        # The response should have 'player_name' as the key
+        self.assertIn("player_name", response.json())
+        self.assertEqual(response.json()["player_name"], "NewPlayer")
+
+    def test_join_room_returns_is_host_false_for_joiner(self):
+        """Non-host player joining must have is_host: false in response."""
+        url = f"/api/rooms/{self.room.code}/join_game/"
+        response = self.client.post(
+            url,
+            {"player_name": "JoinerPlayer", "is_spectator": False},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIn("is_host", response.json())
+        self.assertFalse(response.json()["is_host"])
+
+    def test_join_room_returns_player_secret(self):
+        """Join response must include player_secret for session auth."""
+        url = f"/api/rooms/{self.room.code}/join_game/"
+        response = self.client.post(
+            url,
+            {"player_name": "SecretPlayer", "is_spectator": False},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIn("player_secret", response.json())
+
+    def test_join_room_returns_id(self):
+        """Join response must include player id."""
+        url = f"/api/rooms/{self.room.code}/join_game/"
+        response = self.client.post(
+            url,
+            {"player_name": "IdPlayer", "is_spectator": False},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIn("id", response.json())
+
+    def test_join_spectator_returns_is_host_false(self):
+        """Spectator joining must have is_host: false."""
+        url = f"/api/rooms/{self.room.code}/join_game/"
+        response = self.client.post(
+            url,
+            {"player_name": "SpectatorJoin", "is_spectator": True},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIn("is_host", response.json())
+        self.assertFalse(response.json()["is_host"])
+        self.assertTrue(response.json()["is_spectator"])
+
+
+class RejoinGameTestCase(TestCase):
+    """Tests for rejoin_game endpoint is_host inclusion."""
+
+    def setUp(self):
+        self.client = APIClient()
+
+        self.room = Room.objects.create(
+            code="7777", name="Rejoin Test Room", status=Room.Status.LOBBY
+        )
+
+        self.host_player = Player.objects.create(
+            room=self.room,
+            name="HostPlayer",
+            is_spectator=False,
+            is_host=True,
+        )
+
+        self.non_host_player = Player.objects.create(
+            room=self.room,
+            name="JoinPlayer",
+            is_spectator=False,
+            is_host=False,
+        )
+
+    def test_rejoin_as_host_returns_is_host_true(self):
+        """Rejoining as host must return is_host: true."""
+        response = self.client.post(
+            f"/api/rooms/{self.room.code}/rejoin_game/",
+            {"player_secret": str(self.host_player.player_secret)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("is_host", data)
+        self.assertTrue(data["is_host"])
+
+    def test_rejoin_as_non_host_returns_is_host_false(self):
+        """Rejoining as non-host must return is_host: false."""
+        response = self.client.post(
+            f"/api/rooms/{self.room.code}/rejoin_game/",
+            {"player_secret": str(self.non_host_player.player_secret)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("is_host", data)
+        self.assertFalse(data["is_host"])
+
+    def test_rejoin_invalid_secret_returns_404(self):
+        """Rejoining with invalid player_secret must return 404."""
+        response = self.client.post(
+            f"/api/rooms/{self.room.code}/rejoin_game/",
+            {"player_secret": "00000000-0000-0000-0000-000000000000"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_rejoin_response_has_required_fields(self):
+        """Rejoin response must include id, name, isSpectator, is_host, is_checked_in."""
+        response = self.client.post(
+            f"/api/rooms/{self.room.code}/rejoin_game/",
+            {"player_secret": str(self.host_player.player_secret)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("id", data)
+        self.assertIn("name", data)
+        self.assertIn("isSpectator", data)
+        self.assertIn("is_host", data)
+        self.assertIn("is_checked_in", data)
+
+
+class PlayerCreateSerializerTestCase(TestCase):
+    """Tests for PlayerCreateSerializer field naming and is_host inclusion."""
+
+    def setUp(self):
+        self.client = APIClient()
+
+        self.room = Room.objects.create(
+            code="9999", name="Create Test Room", status=Room.Status.LOBBY
+        )
+
+    def test_create_room_returns_name_not_player_name(self):
+        """Room creation response must use 'name' key, not 'player_name'."""
+        response = self.client.post(
+            "/api/rooms/",
+            {"name": "Test Room", "player_name": "TestPlayer"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        # The create endpoint returns room_code/player_id/player_secret
+        # The player_name is used internally; verify room was created
+        self.assertIn("room_code", response.json())
+        self.assertIn("player_id", response.json())
+        self.assertIn("player_secret", response.json())
+
+    def test_join_returns_name_not_player_name(self):
+        """Joining a room must return 'name' key, not 'player_name'."""
+        response = self.client.post(
+            f"/api/rooms/{self.room.code}/join_game/",
+            {"name": "JoinPlayer"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        data = response.json()
+        self.assertIn("name", data)
+        self.assertNotIn("player_name", data)
+        self.assertEqual(data["name"], "JoinPlayer")
+
+    def test_join_returns_is_host_false(self):
+        """Joining a room as non-host must return is_host: false."""
+        response = self.client.post(
+            f"/api/rooms/{self.room.code}/join_game/",
+            {"name": "JoinPlayer"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        data = response.json()
+        self.assertIn("is_host", data)
+        self.assertFalse(data["is_host"])
+
+    def test_join_returns_player_secret(self):
+        """Joining a room must return player_secret for session auth."""
+        response = self.client.post(
+            f"/api/rooms/{self.room.code}/join_game/",
+            {"name": "JoinPlayer"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        data = response.json()
+        self.assertIn("player_secret", data)
+
+    def test_join_with_special_characters_in_name(self):
+        """Player name with special characters serializes correctly under 'name' key."""
+        response = self.client.post(
+            f"/api/rooms/{self.room.code}/join_game/",
+            {"name": "Player <script>alert('xss')</script> & Co."},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        data = response.json()
+        self.assertIn("name", data)
+        self.assertNotIn("player_name", data)
+
+
+class RejoinGameTestCase(TestCase):
+    """Tests for rejoin_game endpoint is_host inclusion."""
+
+    def setUp(self):
+        self.client = APIClient()
+
+        self.room = Room.objects.create(
+            code="7777", name="Rejoin Test Room", status=Room.Status.LOBBY
+        )
+
+        self.host_player = Player.objects.create(
+            room=self.room,
+            name="HostPlayer",
+            is_spectator=False,
+            is_host=True,
+        )
+
+        self.non_host_player = Player.objects.create(
+            room=self.room,
+            name="JoinPlayer",
+            is_spectator=False,
+            is_host=False,
+        )
+
+    def test_rejoin_as_host_returns_is_host_true(self):
+        """Rejoining as host must return is_host: true."""
+        response = self.client.post(
+            f"/api/rooms/{self.room.code}/rejoin_game/",
+            {"player_secret": str(self.host_player.player_secret)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("is_host", data)
+        self.assertTrue(data["is_host"])
+
+    def test_rejoin_as_non_host_returns_is_host_false(self):
+        """Rejoining as non-host must return is_host: false."""
+        response = self.client.post(
+            f"/api/rooms/{self.room.code}/rejoin_game/",
+            {"player_secret": str(self.non_host_player.player_secret)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("is_host", data)
+        self.assertFalse(data["is_host"])
+
+    def test_rejoin_invalid_secret_returns_404(self):
+        """Rejoining with invalid player_secret must return 404."""
+        response = self.client.post(
+            f"/api/rooms/{self.room.code}/rejoin_game/",
+            {"player_secret": "00000000-0000-0000-0000-000000000000"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_rejoin_response_has_required_fields(self):
+        """Rejoin response must include id, name, isSpectator, is_host, is_checked_in."""
+        response = self.client.post(
+            f"/api/rooms/{self.room.code}/rejoin_game/",
+            {"player_secret": str(self.host_player.player_secret)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("id", data)
+        self.assertIn("name", data)
+        self.assertIn("isSpectator", data)
+        self.assertIn("is_host", data)
+        self.assertIn("is_checked_in", data)

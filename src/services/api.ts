@@ -121,7 +121,7 @@ export const gameApi = {
     discordSession?: DiscordSession
   ): Promise<Player> => {
     const response = await api.post(`/rooms/${roomId}/join_game/`, {
-      player_name: playerName,
+      name: playerName,
       is_spectator: isSpectator || false,
       ...discordSessionPayload(discordSession),
     });
@@ -307,7 +307,7 @@ export const discordApi = {
 function transformPlayer(backendPlayer: BackendPlayer): Player {
   return {
     id: backendPlayer.id,
-    name: backendPlayer.name ?? '',
+    name: backendPlayer.name ?? backendPlayer.player_name ?? '',
     avatar: backendPlayer.avatar,
     isDiscordVerified: backendPlayer.is_discord_verified,
     discordUsername: backendPlayer.discord_username,

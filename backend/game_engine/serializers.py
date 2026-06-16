@@ -352,12 +352,12 @@ class PlayerCreateSerializer(serializers.ModelSerializer):
     """Serializer for players joining a room - returns player_secret on creation"""
 
     player_secret = serializers.UUIDField(read_only=True)
-    player_name = serializers.CharField(source="name")
+    name = serializers.CharField()
 
     class Meta:
         model = Player
-        fields = ["id", "player_name", "is_spectator", "player_secret"]
-        read_only_fields = ["id", "player_secret"]
+        fields = ["id", "name", "is_spectator", "is_host", "player_secret"]
+        read_only_fields = ["id", "player_secret", "is_host"]
 
     def create(self, validated_data):
         """Create a new player"""

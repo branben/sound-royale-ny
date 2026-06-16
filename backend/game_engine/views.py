@@ -533,7 +533,7 @@ class RoomViewSet(viewsets.ModelViewSet):
                     spectator_num = 1
                     while f"Spectator {spectator_num}" in existing_names:
                         spectator_num += 1
-                    data["player_name"] = f"Spectator {spectator_num}"
+                    data["name"] = f"Spectator {spectator_num}"
                 else:
                     existing_names = set(
                         Player.objects.filter(room=room).values_list("name", flat=True)
@@ -759,6 +759,7 @@ class RoomViewSet(viewsets.ModelViewSet):
                     "id": str(player.id),
                     "name": player.name,
                     "isSpectator": player.is_spectator,
+                    "is_host": player.is_host,
                     "is_checked_in": player.is_checked_in,
                     "current_title": player.current_title,
                 },

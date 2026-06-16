@@ -12,7 +12,7 @@ export async function joinRoom(roomCode: string, playerName: string, isSpectator
   for (let i = 0; i < retries; i++) {
     try {
       const response = await axios.post(`${API_BASE_URL}/rooms/${roomCode}/join_game/`, {
-        player_name: playerName,
+        name: playerName,
         is_spectator: isSpectator
       });
       return response.data;

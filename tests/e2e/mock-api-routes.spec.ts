@@ -29,7 +29,7 @@ test.describe('mockApiRoutes', () => {
       },
       joinGame: async (route) => {
         calls.joinGame += 1;
-        await route.fulfill({ status: 201, json: { id: 'player-1', player_name: 'Player', is_spectator: false, player_secret: 'secret' } });
+        await route.fulfill({ status: 201, json: { id: 'player-1', name: 'Player', is_spectator: false, is_host: false, player_secret: 'secret' } });
       },
       startGame: async (route) => {
         calls.startGame += 1;

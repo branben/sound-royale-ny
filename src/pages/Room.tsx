@@ -183,10 +183,21 @@ export default function Room() {
   };
 
   const isHost = useMemo(() => {
-    if (!gameState.players) return false;
-    const players = Object.values(gameState.players);
-    return isHostFunction(players);
-  }, [gameState.players, isHostFunction]);
+    // Primary: derive from gameState.players (populated by fetchRoom / GameContext)
+    if (gameState.players) {
+      const players = Object.values(gameState.players);
+      if (players.length > 0 && isHostFunction(players)) {
+        return true;
+      }
+    }
+    // Fallback: check raw room data from API (handles refresh before GameContext loads)
+    if (room?.players && userSession.playerId) {
+      return room.players.some(
+        p => p.id === userSession.playerId && p.is_host === true
+      );
+    }
+    return false;
+  }, [gameState.players, isHostFunction, room, userSession.playerId]);
 
   const hasCurrentPlayer = useMemo(() => {
     if (!userSession.playerId) return false;
@@ -481,7 +492,7 @@ export default function Room() {
                   {isHost && activePlayersCount >= 2 ? (
                     <div className="space-y-4 mt-4">
                       <p className="text-muted-foreground">Ready to start battle!</p>
-                      <Button onClick={handleStartGame} className="h-12 w-full">
+                      <Button data-testid="start-battle" onClick={handleStartGame} className="h-12 w-full">
                         <Play className="mr-2 h-5 w-5" />
                         Start Battle
                       </Button>

@@ -329,8 +329,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   const isHost = (players: Player[]): boolean => {
     if (!userSession.playerId) return false;
-    
-    return players.some(p => p.id === userSession.playerId && p.isHost === true);
+
+    const currentPlayer = players.find(p => p.id === userSession.playerId);
+    if (!currentPlayer) return false;
+
+    return currentPlayer.isHost === true;
   };
 
   // TODO: Implement verified identity when backend API is ready
