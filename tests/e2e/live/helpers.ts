@@ -1,17 +1,19 @@
 import axios from 'axios';
 import * as fs from 'fs';
 
-const API_BASE_URL = process.env.LIVE_API_BASE_URL || 'http://localhost:8000/api';
+function getApiBaseUrl(): string {
+  return process.env.LIVE_API_BASE_URL || 'http://localhost:8000/api';
+}
 
 export async function getGameState(roomCode: string) {
-  const response = await axios.get(`${API_BASE_URL}/rooms/${roomCode}/game_state/`);
+  const response = await axios.get(`${getApiBaseUrl()}/rooms/${roomCode}/game_state/`);
   return response.data;
 }
 
 export async function joinRoom(roomCode: string, playerName: string, isSpectator: boolean = false, retries = 3) {
   for (let i = 0; i < retries; i++) {
     try {
-      const response = await axios.post(`${API_BASE_URL}/rooms/${roomCode}/join_game/`, {
+      const response = await axios.post(`${getApiBaseUrl()}/rooms/${roomCode}/join_game/`, {
         name: playerName,
         is_spectator: isSpectator
       });
@@ -30,7 +32,7 @@ export async function joinRoom(roomCode: string, playerName: string, isSpectator
 }
 
 export async function startGame(roomCode: string) {
-  const response = await axios.post(`${API_BASE_URL}/rooms/${roomCode}/start_game/`);
+  const response = await axios.post(`${getApiBaseUrl()}/rooms/${roomCode}/start_game/`);
   return response.data;
 }
 
@@ -41,26 +43,26 @@ export async function submitTile(tileId: string, audioFilePath: string, playerSe
   formData.append('player_secret', playerSecret);
 
   // Let axios set Content-Type with boundary automatically
-  const response = await axios.post(`${API_BASE_URL}/tiles/${tileId}/play_tile/`, formData);
+  const response = await axios.post(`${getApiBaseUrl()}/tiles/${tileId}/play_tile/`, formData);
   return response.data;
 }
 
 export async function nextTurn(roomCode: string, playerSecret: string) {
-  const response = await axios.post(`${API_BASE_URL}/rooms/${roomCode}/next_turn/`, {
+  const response = await axios.post(`${getApiBaseUrl()}/rooms/${roomCode}/next_turn/`, {
     player_secret: playerSecret
   });
   return response.data;
 }
 
 export async function openVoting(roomCode: string, playerSecret: string) {
-  const response = await axios.post(`${API_BASE_URL}/rooms/${roomCode}/open_voting/`, {
+  const response = await axios.post(`${getApiBaseUrl()}/rooms/${roomCode}/open_voting/`, {
     player_secret: playerSecret
   });
   return response.data;
 }
 
 export async function castVote(roomCode: string, playerSecret: string, votedForPlayerId: string) {
-  const response = await axios.post(`${API_BASE_URL}/rooms/${roomCode}/vote/`, {
+  const response = await axios.post(`${getApiBaseUrl()}/rooms/${roomCode}/vote/`, {
     player_secret: playerSecret,
     voted_for_player_id: votedForPlayerId
   });
@@ -68,7 +70,7 @@ export async function castVote(roomCode: string, playerSecret: string, votedForP
 }
 
 export async function toggleReady(roomCode: string, playerSecret: string) {
-  const response = await axios.post(`${API_BASE_URL}/rooms/${roomCode}/toggle_ready/`, {
+  const response = await axios.post(`${getApiBaseUrl()}/rooms/${roomCode}/toggle_ready/`, {
     player_secret: playerSecret,
   });
   return response.data;

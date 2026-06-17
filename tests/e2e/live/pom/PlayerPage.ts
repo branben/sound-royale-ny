@@ -3,7 +3,9 @@ import { joinRoom, submitTile, nextTurn, castVote, getGameState, toggleReady, op
 import { setupPlayerSession } from '../../helpers';
 import axios from 'axios';
 
-const API_BASE_URL = process.env.LIVE_API_BASE_URL || 'http://localhost:8000/api';
+function getApiBaseUrl(): string {
+  return process.env.LIVE_API_BASE_URL || 'http://localhost:8000/api';
+}
 
 export type PlayerRole = 'host' | 'producer' | 'spectator';
 
@@ -32,7 +34,7 @@ export class PlayerPage {
     let response;
     for (let i = 0; i < 3; i++) {
       try {
-        response = await axios.post(`${API_BASE_URL}/rooms/`, {
+        response = await axios.post(`${getApiBaseUrl()}/rooms/`, {
           name: 'Test Room',
           player_name: this.name
         });
