@@ -1,26 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Gamepad2, Trophy, HelpCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Card } from '@/components/ui/card';
 import { roomApi, gameApi, discordApi } from '@/services/api';
 import { useUser } from '@/context/UserContext';
-import { ThemeId } from '@/types/game';
-import { OnboardingModal } from '@/components/game/OnboardingModal';
-import { RoomBrowser } from '@/components/game/RoomBrowser';
-import { DiscordLinkModal } from '@/components/game/DiscordLinkModal';
+import { ThemeId, DiscordAccountStatus } from '@/types/game';
 import { getDiscordSession } from '@/services/discordSession';
-import { PlayerNameInput } from '@/components/lobby/PlayerNameInput';
-import { LobbyLanding } from '@/components/lobby/LobbyLanding';
-import { JoinRoomForm } from '@/components/lobby/JoinRoomForm';
-import { CreateRoomForm } from '@/components/lobby/CreateRoomForm';
-
-interface DiscordAccountStatus {
-  is_linked: boolean;
-  discord_username?: string;
-  discord_avatar_url?: string;
-  linked_at?: string;
-}
+import { LobbyHeader } from '@/components/lobby/LobbyHeader';
+import { LobbyModeSwitcher } from '@/components/lobby/LobbyModeSwitcher';
+import { LobbyModals } from '@/components/lobby/LobbyModals';
 
 export default function Lobby() {
   const navigate = useNavigate();
@@ -113,7 +100,8 @@ export default function Lobby() {
   };
 
   const handleJoin = async () => {
-    if (roomCode.length !== 4 || !playerNameInput.trim()) return;
+    const activeName = playerNameInput.trim() || userSession.playerName?.trim() || '';
+    if (roomCode.length !== 4 || !activeName) return;
 
     setIsLoading(true);
     setError(null);
@@ -123,12 +111,12 @@ export default function Lobby() {
       const isSpectatorJoin = room.status === 'playing';
       const player = await gameApi.joinRoom(
         roomCode,
-        playerNameInput.trim(),
+        activeName,
         isSpectatorJoin,
         getDiscordSession() ?? undefined
       );
 
-      const activePlayerName = isSpectatorJoin ? player.name : playerNameInput.trim();
+      const activePlayerName = isSpectatorJoin ? player.name : activeName;
       setPlayerName(activePlayerName);
       setPlayerCredentials(player.id, player.playerSecret!);
       setActiveRoomSession(roomCode, {
@@ -255,91 +243,44 @@ export default function Lobby() {
   return (
     <div data-testid="lobby" className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
       <Card className="w-full max-w-md border-border bg-card card-enter">
-        <CardHeader className="text-center space-y-4">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-            <Gamepad2 className="h-8 w-8 text-primary" />
-          </div>
-          <CardTitle className="text-3xl font-bold tracking-tight font-['Righteous'] text-foreground">
-            Sound Royale
-          </CardTitle>
-          <CardDescription className="text-foreground/70">
-            Enter a room code to join the battle
-          </CardDescription>
-          <div className="flex items-center justify-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowOnboarding(true)}
-              className="text-primary hover:text-primary hover:bg-primary/10"
-            >
-              <HelpCircle className="mr-2 h-4 w-4" />
-              How to Play
-            </Button>
-            <Link to="/leaderboard">
-              <Button variant="ghost" size="sm" className="text-primary hover:text-primary hover:bg-primary/10">
-                <Trophy className="mr-2 h-4 w-4" />
-                View Leaderboard
-              </Button>
-            </Link>
-          </div>
-        </CardHeader>
+        <LobbyHeader onShowOnboarding={() => setShowOnboarding(true)} />
 
-        <CardContent className="space-y-6">
-          <PlayerNameInput
-            value={playerNameInput}
-            onChange={setPlayerNameInput}
-          />
-
-          {mode === 'landing' && (
-            <LobbyLanding
-              playerNameInput={playerNameInput}
-              isLoading={isLoading}
-              discordAccountStatus={discordAccountStatus}
-              onQuickMatch={handleQuickMatch}
-              onCreateMode={() => setMode('create')}
-              onJoinMode={() => setMode('join')}
-              onBrowseRooms={() => setShowRoomBrowser(true)}
-              onLinkDiscord={handleLinkDiscord}
-              onManageDiscord={() => setShowDiscordModal(true)}
-            />
-          )}
-
-          {mode === 'join' && (
-            <JoinRoomForm
-              roomCode={roomCode}
-              isLoading={isLoading}
-              error={error}
-              onCodeChange={handleCodeChange}
-              onJoin={handleJoin}
-              onBack={() => { setMode('landing'); setError(null); }}
-            />
-          )}
-
-          {mode === 'create' && (
-            <CreateRoomForm
-              roomNameInput={roomNameInput}
-              selectedThemeId={selectedThemeId}
-              selectedCustomGenres={selectedCustomGenres}
-              isLoading={isLoading}
-              error={error}
-              onRoomNameChange={setRoomNameInput}
-              onThemeChange={setSelectedThemeId}
-              onCustomGenresChange={setSelectedCustomGenres}
-              onCreate={handleCreateRoom}
-              onBack={() => setMode('landing')}
-            />
-          )}
-        </CardContent>
+        <LobbyModeSwitcher
+          mode={mode}
+          playerNameInput={playerNameInput}
+          roomCode={roomCode}
+          roomNameInput={roomNameInput}
+          selectedThemeId={selectedThemeId}
+          selectedCustomGenres={selectedCustomGenres}
+          isLoading={isLoading}
+          error={error}
+          discordAccountStatus={discordAccountStatus}
+          onPlayerNameChange={setPlayerNameInput}
+          onRoomNameChange={setRoomNameInput}
+          onThemeChange={setSelectedThemeId}
+          onCustomGenresChange={setSelectedCustomGenres}
+          onCodeChange={handleCodeChange}
+          onJoin={handleJoin}
+          onCreate={handleCreateRoom}
+          onQuickMatch={handleQuickMatch}
+          onCreateMode={() => setMode('create')}
+          onJoinMode={() => setMode('join')}
+          onBack={() => { setMode('landing'); setError(null); }}
+          onBrowseRooms={() => setShowRoomBrowser(true)}
+          onLinkDiscord={handleLinkDiscord}
+          onManageDiscord={() => setShowDiscordModal(true)}
+        />
       </Card>
 
-      <OnboardingModal isOpen={showOnboarding} onClose={handleOnboardingClose} />
-
-      <RoomBrowser isOpen={showRoomBrowser} onClose={() => setShowRoomBrowser(false)} onRoomJoined={handleRoomJoined} />
-
-      <DiscordLinkModal
-        isOpen={showDiscordModal}
-        onClose={() => setShowDiscordModal(false)}
-        onStatusChange={handleDiscordStatusChange}
+      <LobbyModals
+        showOnboarding={showOnboarding}
+        showRoomBrowser={showRoomBrowser}
+        showDiscordModal={showDiscordModal}
+        onOnboardingClose={handleOnboardingClose}
+        onRoomBrowserClose={() => setShowRoomBrowser(false)}
+        onRoomJoined={handleRoomJoined}
+        onDiscordModalClose={() => setShowDiscordModal(false)}
+        onDiscordStatusChange={handleDiscordStatusChange}
       />
     </div>
   );

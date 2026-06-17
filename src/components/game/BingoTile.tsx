@@ -68,18 +68,20 @@ export const BingoTile = memo(function BingoTile({
 
   useEffect(() => {
     if (tile.audioUrl) {
-      audioRef.current = new Audio(tile.audioUrl);
-      audioRef.current.addEventListener('ended', () => {
+      const audio = new Audio(tile.audioUrl);
+      audioRef.current = audio;
+      const onEnded = () => {
         setIsPlaying(false);
         playCountRef.current++;
-      });
-    }
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
+      };
+      audio.addEventListener('ended', onEnded);
+      return () => {
+        audio.removeEventListener('ended', onEnded);
+        audio.pause();
         audioRef.current = null;
-      }
-    };
+      };
+    }
+    return undefined;
   }, [tile.audioUrl]);
 
   useEffect(() => {

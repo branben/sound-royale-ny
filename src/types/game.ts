@@ -197,6 +197,13 @@ export interface RoomResponse {
   }>;
 }
 
+export interface DiscordAccountStatus {
+  is_linked: boolean;
+  discord_username?: string;
+  discord_avatar_url?: string;
+  linked_at?: string;
+}
+
 export interface CreateRoomResponse {
   room_code: string;
   player_id: string;

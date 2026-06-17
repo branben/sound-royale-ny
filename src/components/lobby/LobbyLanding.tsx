@@ -2,13 +2,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Gamepad2, Plus, Users, Loader2 } from 'lucide-react';
 import { DiscordProfileCard } from '@/components/game/DiscordProfileCard';
-
-interface DiscordAccountStatus {
-  is_linked: boolean;
-  discord_username?: string;
-  discord_avatar_url?: string;
-  linked_at?: string;
-}
+import { DiscordAccountStatus } from '@/types/game';
 
 interface LobbyLandingProps {
   playerNameInput: string;
