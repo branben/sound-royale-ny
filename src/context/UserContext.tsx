@@ -15,6 +15,7 @@ interface UserSession {
   playerSecret: string | null;
   isSpectator: boolean;
   isAuthenticated: boolean;
+  isHost: boolean;
   verifiedUser?: VerifiedUser | null;
 }
 
@@ -23,10 +24,12 @@ interface RoomSessionInput {
   playerId: string;
   playerSecret: string;
   isSpectator: boolean;
+  isHost?: boolean;
 }
 
 interface StoredRoomSession extends RoomSessionInput {
   roomCode: string;
+  isHost?: boolean;
 }
 
 interface UserContextType {
@@ -39,6 +42,7 @@ interface UserContextType {
   clearSession: () => void;
   isAuthenticated: boolean;
   isHost: (players: Player[]) => boolean;
+  setHostStatus: (isHost: boolean) => void;
   requestLoginCode: (email: string) => Promise<void>;
   verifyLoginCode: (email: string, code: string, displayName?: string) => Promise<void>;
   logoutVerifiedUser: () => void;
@@ -56,6 +60,7 @@ const initialSession: UserSession = {
   playerSecret: null,
   isSpectator: false,
   isAuthenticated: false,
+  isHost: false,
 };
 
 const safeLocalStorage = {
@@ -117,7 +122,8 @@ function isStoredRoomSession(value: unknown): value is StoredRoomSession {
     typeof value.playerName === 'string' &&
     typeof value.playerId === 'string' &&
     typeof value.playerSecret === 'string' &&
-    typeof value.isSpectator === 'boolean'
+    typeof value.isSpectator === 'boolean' &&
+    (value.isHost === undefined || typeof value.isHost === 'boolean')
   );
 }
 
@@ -129,6 +135,7 @@ function toUserSession(session: StoredRoomSession): UserSession {
     playerSecret: session.playerSecret,
     isSpectator: session.isSpectator,
     isAuthenticated: true,
+    isHost: session.isHost === true,
   };
 }
 
@@ -190,6 +197,7 @@ function readLegacySession(): UserSession {
     playerSecret,
     isSpectator,
     isAuthenticated: Boolean(playerId && playerSecret),
+    isHost: false,
   };
 }
 
@@ -244,6 +252,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       playerId: session.playerId,
       playerSecret: session.playerSecret,
       isSpectator: session.isSpectator,
+      isHost: session.isHost,
     };
     const sessionKey = getSessionKey(roomCode, session.playerId);
     const sessions = readStoredSessions();
@@ -268,6 +277,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const playerName: string = next.playerName;
     const playerSecret: string = next.playerSecret;
     const isSpectator = next.isSpectator;
+    const isHost = next.isHost;
 
     persistTimeoutRef.current = setTimeout(() => {
       const sessionKey = getSessionKey(roomCode, playerId);
@@ -278,6 +288,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         playerId,
         playerSecret,
         isSpectator,
+        isHost,
       };
       writeStoredSessions(sessions);
       safeSessionStorage.setItem(ACTIVE_SESSION_KEY, sessionKey);
@@ -327,13 +338,25 @@ export function UserProvider({ children }: { children: ReactNode }) {
     setUserSession(initialSession);
   };
 
+  const setHostStatus = (isHost: boolean) => {
+    setUserSession(prev => {
+      const next = { ...prev, isHost };
+      persistActiveSession(next);
+      return next;
+    });
+  };
+
   const isHost = (players: Player[]): boolean => {
-    if (!userSession.playerId) return false;
-
-    const currentPlayer = players.find(p => p.id === userSession.playerId);
-    if (!currentPlayer) return false;
-
-    return currentPlayer.isHost === true;
+    // Primary: derive from server-provided players array
+    if (players && players.length > 0) {
+      const currentPlayer = players.find(p => p.id === userSession.playerId);
+      if (currentPlayer) {
+        return currentPlayer.isHost === true;
+      }
+    }
+    // Fallback: use session-stored host flag (survives page refresh before
+    // gameState.players is repopulated)
+    return userSession.isHost === true;
   };
 
   // TODO: Implement verified identity when backend API is ready
@@ -360,6 +383,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       ensureAnonymousSession,
       isAuthenticated: userSession.isAuthenticated,
       isHost,
+      setHostStatus,
       requestLoginCode,
       verifyLoginCode,
       logoutVerifiedUser,

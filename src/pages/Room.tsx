@@ -165,7 +165,7 @@ export default function Room() {
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
 
-  const { userSession, setPlayerName, setPlayerCredentials, setSpectatorMode, setActiveRoomSession, clearSession, isHost: isHostFunction } = useUser();
+  const { userSession, setPlayerName, setPlayerCredentials, setSpectatorMode, setActiveRoomSession, clearSession, isHost: isHostFunction, setHostStatus } = useUser();
   const { setForceRefresh } = useGameRefresh();
   const { gameState, setGameState, timeRemaining } = useGame();
   const autoSpectatorJoinAttempted = useRef(false);
@@ -182,6 +182,17 @@ export default function Room() {
     localStorage.setItem('hasSeenGameTutorial', 'true');
   };
 
+  // Sync host status from server data to persisted session so it survives refresh
+  useEffect(() => {
+    if (gameState.players && userSession.playerId) {
+      const players = Object.values(gameState.players);
+      const currentPlayer = players.find(p => p.id === userSession.playerId);
+      if (currentPlayer && currentPlayer.isHost === true) {
+        setHostStatus(true);
+      }
+    }
+  }, [gameState.players, userSession.playerId, setHostStatus]);
+
   const isHost = useMemo(() => {
     // Primary: derive from gameState.players (populated by fetchRoom / GameContext)
     if (gameState.players) {
@@ -190,21 +201,32 @@ export default function Room() {
         return true;
       }
     }
-    // Fallback: check raw room data from API (handles refresh before GameContext loads)
+    // Fallback 1: check raw room data from API (handles refresh before GameContext loads)
     if (room?.players && userSession.playerId) {
-      return room.players.some(
+      const isHostFromRoom = room.players.some(
         p => p.id === userSession.playerId && p.is_host === true
       );
+      if (isHostFromRoom) return true;
     }
+    // Fallback 2: use persisted session host status (set during room creation or server sync)
+    if (userSession.isHost) return true;
     return false;
-  }, [gameState.players, isHostFunction, room, userSession.playerId]);
+  }, [gameState.players, isHostFunction, room, userSession.playerId, userSession.isHost]);
 
   const hasCurrentPlayer = useMemo(() => {
     if (!userSession.playerId) return false;
-    return Object.values(gameState.players ?? {}).some(player =>
-      player.id === userSession.playerId
-    );
-  }, [gameState.players, userSession.playerId]);
+    // Primary: check gameState.players (populated by fetchRoom / GameContext)
+    if (gameState.players) {
+      if (Object.values(gameState.players).some(player => player.id === userSession.playerId)) {
+        return true;
+      }
+    }
+    // Fallback: check raw room data from API
+    if (room?.players) {
+      return room.players.some(p => p.id === userSession.playerId);
+    }
+    return false;
+  }, [gameState.players, userSession.playerId, room]);
 
   const activePlayersCount = useMemo(() => {
     if (!gameState.players) return 0;
@@ -483,7 +505,7 @@ export default function Room() {
               <CardTitle>Join Battle</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {gameState.players && Object.values(gameState.players).some(p => p.name === userSession.playerName) ? (
+              {hasCurrentPlayer ? (
                 <div className="text-center py-8">
                   <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-500/20 mb-4">
                     <Users className="h-6 w-6 text-green-500" />

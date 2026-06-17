@@ -5,6 +5,47 @@ import { normalizeRoomWinner, roomApi } from '@/services/api';
 import gameSocket, { GameSocketMessage } from '@/services/gameSocket';
 import { useUser } from './UserContext';
 
+// ---------------------------------------------------------------------------
+// State context — game state, players, status, rounds, winner
+// ---------------------------------------------------------------------------
+
+interface GameStateContextType {
+  gameState: GameState;
+  setGameState: React.Dispatch<React.SetStateAction<GameState>>;
+  isLoading: boolean;
+  error: string | null;
+  roomCode: string | null;
+}
+
+export const GameStateContext = createContext<GameStateContextType | undefined>(undefined);
+
+// ---------------------------------------------------------------------------
+// Timer context — timeRemaining (updated every second via timer_tick)
+// ---------------------------------------------------------------------------
+
+interface GameTimerContextType {
+  timeRemaining: number | null;
+}
+
+export const GameTimerContext = createContext<GameTimerContextType | undefined>(undefined);
+
+// ---------------------------------------------------------------------------
+// Actions context — stable callbacks for mutating game state
+// ---------------------------------------------------------------------------
+
+interface GameActionsContextType {
+  updateTileStatus: (playerId: string, tileId: string, status: TileStatus) => void;
+  setTileAudio: (playerId: string, tileId: string, audioUrl: string) => void;
+  toggleReady: (playerId: string) => void;
+  incrementScore: (playerId: string, points: number) => void;
+}
+
+export const GameActionsContext = createContext<GameActionsContextType | undefined>(undefined);
+
+// ---------------------------------------------------------------------------
+// Legacy combined context — kept for backward compatibility
+// ---------------------------------------------------------------------------
+
 interface GameContextType {
   gameState: GameState;
   setGameState: React.Dispatch<React.SetStateAction<GameState>>;
@@ -20,7 +61,10 @@ interface GameContextType {
 
 export const GameContext = createContext<GameContextType | undefined>(undefined);
 
-// Baseline state to keep UI stable before room data loads.
+// ---------------------------------------------------------------------------
+// Baseline state
+// ---------------------------------------------------------------------------
+
 const emptyGameState: GameState = {
   gameId: '',
   roomCode: '',
@@ -28,6 +72,10 @@ const emptyGameState: GameState = {
   players: {},
   currentRound: 0,
 };
+
+// ---------------------------------------------------------------------------
+// Provider
+// ---------------------------------------------------------------------------
 
 export function GameProvider({ children, roomCode }: { children: ReactNode; roomCode?: string }) {
   const isE2E = import.meta.env.VITE_E2E_TESTING === 'true' || (typeof window !== 'undefined' && window.__E2E_TESTING__ === true);
@@ -39,11 +87,12 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
 
   const isMounted = useRef(true);
+
   // Fetch real data from backend when not in E2E mode and roomCode is provided
   useEffect(() => {
     isMounted.current = true;
     if (isE2E) {
-      return; // Use mock data in E2E mode only
+      return;
     }
 
     if (!roomCode) {
@@ -60,7 +109,6 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
       try {
         const roomData: RoomResponse = await roomApi.getRoom(roomCode);
 
-        // Transform backend data to GameState format
         const players: GameState['players'] = {};
         roomData.players.forEach(player => {
           const tiles = player.board?.tiles ?? player.tiles?.map(tile => ({
@@ -216,7 +264,7 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
     };
   }, [roomCode, isE2E, userSession.playerId, userSession.playerSecret]);
 
-  const updateTileStatus = (playerId: string, tileId: string, status: TileStatus) => {
+  const updateTileStatus = useCallback((playerId: string, tileId: string, status: TileStatus) => {
     setGameState(prev => ({
       ...prev,
       players: {
@@ -232,9 +280,9 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
         }
       }
     }));
-  };
+  }, []);
 
-  const setTileAudio = (playerId: string, tileId: string, audioUrl: string) => {
+  const setTileAudio = useCallback((playerId: string, tileId: string, audioUrl: string) => {
     setGameState(prev => ({
       ...prev,
       players: {
@@ -250,9 +298,9 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
         }
       }
     }));
-  };
+  }, []);
 
-  const toggleReady = (playerId: string) => {
+  const toggleReady = useCallback((playerId: string) => {
     setGameState(prev => ({
       ...prev,
       players: {
@@ -263,10 +311,9 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
         }
       }
     }));
-  };
+  }, []);
 
-  // PR ERROR 2: Direct state mutation - anti-pattern from Gas Town #660
-  const incrementScore = (playerId: string, points: number) => {
+  const incrementScore = useCallback((playerId: string, points: number) => {
     setGameState(prev => ({
       ...prev,
       players: {
@@ -277,9 +324,31 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
         }
       }
     }));
-  };
+  }, []);
 
-  const contextValue = useMemo(() => ({
+  // Split context values — each memoized independently so consumers only
+  // re-render when the slice they depend on changes.
+  const stateValue = useMemo(() => ({
+    gameState,
+    setGameState,
+    isLoading,
+    error,
+    roomCode: roomCode || null,
+  }), [gameState, setGameState, isLoading, error, roomCode]);
+
+  const timerValue = useMemo(() => ({
+    timeRemaining,
+  }), [timeRemaining]);
+
+  const actionsValue = useMemo(() => ({
+    updateTileStatus,
+    setTileAudio,
+    toggleReady,
+    incrementScore,
+  }), [updateTileStatus, setTileAudio, toggleReady, incrementScore]);
+
+  // Legacy combined value — for existing consumers that use useGame()
+  const legacyValue = useMemo(() => ({
     gameState,
     setGameState,
     updateTileStatus,
@@ -293,13 +362,22 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
   }), [gameState, setGameState, updateTileStatus, setTileAudio, toggleReady, incrementScore, isLoading, error, roomCode, timeRemaining]);
 
   return (
-    <GameContext.Provider value={contextValue}>
-      {children}
-    </GameContext.Provider>
+    <GameStateContext.Provider value={stateValue}>
+      <GameTimerContext.Provider value={timerValue}>
+        <GameActionsContext.Provider value={actionsValue}>
+          <GameContext.Provider value={legacyValue}>
+            {children}
+          </GameContext.Provider>
+        </GameActionsContext.Provider>
+      </GameTimerContext.Provider>
+    </GameStateContext.Provider>
   );
 }
 
-// Refresh context for forcing game state updates
+// ---------------------------------------------------------------------------
+// Refresh context — unchanged
+// ---------------------------------------------------------------------------
+
 export const GameRefreshContext = createContext<{
   forceRefresh: number;
   setForceRefresh: (timestamp: number) => void;

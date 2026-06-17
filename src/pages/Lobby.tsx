@@ -171,6 +171,7 @@ export default function Lobby() {
         playerId: player_id,
         playerSecret: player_secret,
         isSpectator: false,
+        isHost: true,
       });
       setRoomCode(room_code);
       navigate(`/room/${room_code}`);
@@ -232,6 +233,7 @@ export default function Lobby() {
           playerId: player_id,
           playerSecret: player_secret,
           isSpectator: false,
+          isHost: true,
         });
         setRoomCode(room_code);
         navigate(`/room/${room_code}`);
