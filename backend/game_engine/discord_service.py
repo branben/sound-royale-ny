@@ -4,6 +4,7 @@ import json
 import base64
 import logging
 from datetime import timedelta
+from typing import Optional
 from cryptography.fernet import Fernet
 from django.conf import settings
 from django.utils import timezone
@@ -105,7 +106,7 @@ class DiscordOAuthService:
         discord_username: str,
         discord_avatar_url: str,
         access_token: str,
-        refresh_token: str | None,
+        refresh_token: Optional[str],
         expires_in: int,
     ) -> DiscordAccount:
         """Link a Discord account to a Sound Royale player."""
@@ -147,7 +148,7 @@ class DiscordOAuthService:
             discord_account.delete()
         return True
 
-    def get_discord_account(self, player: Player) -> DiscordAccount | None:
+    def get_discord_account(self, player: Player) -> Optional[DiscordAccount]:
         """Get the Discord account linked to a player."""
         return player.discord_identity
 

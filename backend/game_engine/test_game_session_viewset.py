@@ -324,6 +324,7 @@ class GameSessionViewSetTestCase(APITestCase):
         self.assertEqual(len(response.data['active_sessions']), 1)
         self.assertEqual(response.data['active_sessions'][0]['code'], self.room.code)
     
+    @patch.dict('os.environ', {'ADMIN_SECRET': 'DEBUG_ADMIN_SECRET'})
     def test_force_cleanup_action_success(self):
         """Test force cleanup action with proper admin authentication"""
         viewset = GameSessionViewSet()

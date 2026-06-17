@@ -1,6 +1,7 @@
 import pytest
 from django.test import TestCase
 from django.urls import reverse
+from django.db import transaction, IntegrityError
 from rest_framework import status
 from rest_framework.test import APITestCase
 from .models import Room, Player, Tile
@@ -122,30 +123,29 @@ class PlayerViewSetTestCase(APITestCase):
         """Test creating a new player"""
         url = reverse('player-list')
         data = {
-            'player_name': 'NewPlayer',
-            'room_id': str(self.room.id),  # Use room_id as expected by perform_create
+            'name': 'NewPlayer',
+            'room_id': str(self.room.id),
             'is_spectator': False
         }
         response = self.client.post(url, data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data['player_name'], 'NewPlayer')
+        self.assertEqual(response.data['name'], 'NewPlayer')
         
-        # Verify player was created
         self.assertTrue(Player.objects.filter(name='NewPlayer').exists())
     
     def test_player_create_duplicate_name_in_room(self):
         """Test creating player with duplicate name in same room"""
         url = reverse('player-list')
         data = {
-            'player_name': 'TestPlayer',  # Same name as existing player
+            'name': 'TestPlayer',
             'room_id': str(self.room.id),
             'is_spectator': False
         }
         
-        # This should fail due to unique constraint at database level
-        with self.assertRaises(Exception):  # IntegrityError or similar
-            response = self.client.post(url, data, format='json')
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                self.client.post(url, data, format='json')
     
     def test_action_urls_use_player_secret(self):
         """Test that action URLs use player_secret parameter"""

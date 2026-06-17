@@ -231,8 +231,28 @@ class RoomAPITestCase(TestCase):
             'Hyperpop', 'Grime', 'Afrobeats', 'Footwork'
         })
 
-    def test_discord_link_returns_reusable_session_secret(self):
+    @patch('game_engine.views.DiscordOAuthService')
+    def test_discord_link_returns_reusable_session_secret(self, MockDiscordService):
         """Discord linking returns a stable session secret for future rooms."""
+        # Configure the mock so link_discord_account creates a real DB record
+        def _fake_link(player, discord_user_id, discord_username,
+                       discord_avatar_url, access_token, refresh_token, expires_in):
+            account, _ = DiscordAccount.objects.update_or_create(
+                discord_user_id=discord_user_id,
+                defaults={
+                    'player': player,
+                    'discord_username': discord_username,
+                    'discord_avatar_url': discord_avatar_url or '',
+                    'access_token': 'encrypted-stub',
+                    'refresh_token': 'encrypted-stub',
+                },
+            )
+            player.discord_identity = account
+            player.save(update_fields=['discord_identity'])
+            return account
+
+        MockDiscordService.return_value.link_discord_account.side_effect = _fake_link
+
         url = reverse('discord-link')
         response = self.client.post(url, {
             'player_id': str(self.host.id),
@@ -449,7 +469,10 @@ class RoomAPITestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('Spectator limit reached', response.data['error'])
 
-    def test_start_game_success(self):
+    @patch('game_engine.views.start_timer_broadcast')
+    @patch('game_engine.views.broadcast_timer_tick')
+    @patch('game_engine.views.broadcast_game_update')
+    def test_start_game_success(self, mock_broadcast, mock_timer_tick, mock_timer_start):
         """Test starting a game successfully"""
         # Add another player to meet minimum requirement
         Player.objects.create(
@@ -487,7 +510,10 @@ class RoomAPITestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('Need at least 2 players', response.data['error'])
 
-    def test_start_game_already_started(self):
+    @patch('game_engine.views.start_timer_broadcast')
+    @patch('game_engine.views.broadcast_timer_tick')
+    @patch('game_engine.views.broadcast_game_update')
+    def test_start_game_already_started(self, mock_broadcast, mock_timer_tick, mock_timer_start):
         """Test starting a game that has already started"""
         # Add a second player so we can start the game first
         Player.objects.create(
