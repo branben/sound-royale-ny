@@ -11,10 +11,29 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import logging
 import os
 from pathlib import Path
 from decouple import config
 from corsheaders.defaults import default_headers
+
+# ── Sentry Error Tracking ──────────────────────────────────────────────
+SENTRY_DSN = config('SENTRY_DSN', default='')
+if SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+    from sentry_sdk.integrations.redis import RedisIntegration
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[
+            DjangoIntegration(),
+            RedisIntegration(),
+        ],
+        environment=config('SENTRY_ENVIRONMENT', default='development'),
+        traces_sample_rate=config('SENTRY_TRACES_SAMPLE_RATE', default=0.1, cast=float),
+        send_default_pii=True,
+    )
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -143,16 +162,22 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
     "x-theme-admin-secret",
 ]
 
-SECURE_HSTS_SECONDS = config('SECURE_HSTS_SECONDS', default=0, cast=int)
-SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=False, cast=bool)
-SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=False, cast=bool)
-CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=False, cast=bool)
+SECURE_HSTS_SECONDS = config('SECURE_HSTS_SECONDS', default=31536000, cast=int)
+SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=True, cast=bool)
+SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=True, cast=bool)
+CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=True, cast=bool)
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_BROWSER_XSS_FILTER = True
 X_FRAME_OPTIONS = 'DENY'
 
+# Trust X-Forwarded-Proto from nginx reverse proxy so Django knows
+# the original request was HTTPS. Required when nginx terminates TLS.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https') if config('SECURE_PROXY_SSL_HEADER', default='1', cast=bool) else None
+
 # CSRF settings for frontend
 CSRF_TRUSTED_ORIGINS = [
+    "https://localhost",
+    "https://127.0.0.1",
     "http://localhost:8080",
     "http://127.0.0.1:8080",
     "http://localhost:8081",
@@ -197,6 +222,25 @@ LINEAR_WEBHOOK_SECRET = config('LINEAR_WEBHOOK_SECRET', default='')
 # Lightweight admin gate for editing public theme rotations from the React app.
 THEME_ADMIN_SECRET = config('THEME_ADMIN_SECRET', default='')
 
+class JSONFormatter(logging.Formatter):
+    """Structured JSON log formatter for production log aggregation."""
+
+    def format(self, record):
+        import json
+        log_entry = {
+            "timestamp": self.formatTime(record, self.datefmt),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+            "module": record.module,
+            "funcName": record.funcName,
+            "lineno": record.lineno,
+        }
+        if record.exc_info and record.exc_info[0] is not None:
+            log_entry["exception"] = self.formatException(record.exc_info)
+        return json.dumps(log_entry)
+
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -205,22 +249,21 @@ LOGGING = {
             'format': '{levelname} {asctime} {module} {message}',
             'style': '{',
         },
-        'simple': {
-            'format': '{levelname} {message}',
-            'style': '{',
+        'json': {
+            '()': JSONFormatter,
         },
     },
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
-            'formatter': 'simple',
+            'formatter': 'verbose' if DEBUG else 'json',
         },
         'file': {
             'class': 'logging.handlers.RotatingFileHandler',
             'filename': BASE_DIR / 'logs' / 'django.log',
             'maxBytes': 10485760,
             'backupCount': 5,
-            'formatter': 'verbose',
+            'formatter': 'json',
         },
     },
     'root': {
