@@ -234,6 +234,9 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
   return (
     <Card className="border-border bg-card mb-6">
       <CardContent className="p-4">
+        <div className="text-sm font-bold uppercase tracking-[0.2em] text-primary pb-2 mb-4 border-b border-primary/20">
+          Scoreboard
+        </div>
         <div className="flex items-center gap-2 mb-3">
           <div className={cn(
             "h-2 w-2 rounded-full",
@@ -244,14 +247,17 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
             {gameState.status === 'lobby' ? 'Waiting' : gameState.status === 'playing' ? 'Live' : 'Ended'}
           </span>
-          <span className="text-xs text-muted-foreground">Round {gameState.currentRound}</span>
+          <span className="ml-2 px-3 py-1 rounded-full bg-secondary text-secondary-foreground text-xs font-semibold uppercase tracking-wide">
+            Round {gameState.currentRound}
+          </span>
           {displayTimeLeft !== null && gameState.status === 'playing' && (
-            <span className={cn(
-              "ml-auto px-2 py-0.5 rounded-full text-xs font-mono font-medium",
-              displayTimeLeft <= 30 ? "bg-red-500/20 text-red-400" : "bg-primary/15 text-primary"
-            )}>
-              {formatTime(displayTimeLeft)}
-            </span>
+              <span className={cn(
+                "ml-auto px-3 py-1 rounded-full text-base font-mono font-bold flex items-center gap-1",
+                displayTimeLeft !== null && displayTimeLeft <= 30 ? "bg-destructive/30 text-destructive animate-pulse" : "bg-primary/15 text-primary"
+              )}>
+                {displayTimeLeft !== null && displayTimeLeft <= 30 && <Clock className="h-4 w-4" />}
+                {displayTimeLeft !== null && formatTime(displayTimeLeft)}
+              </span>
           )}
         </div>
         <div className="grid grid-cols-1 gap-4">
@@ -269,7 +275,7 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
                     transition={transitions.smooth}
                     layout
                     className={cn(
-                      "flex items-center justify-between p-2 rounded-lg bg-background/60 border transition-all duration-200",
+                      "flex items-center justify-between p-2 rounded-lg bg-background/60 border transition-all duration-200 border-l-4",
                       playerBorder(player.id),
                       playerBorderHover(player.id),
                       player.name === currentPlayerName && "ring-2 " + playerRing(player.id),
@@ -342,23 +348,107 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 font-semibold text-foreground">
-                <Users className="h-4 w-4" />
-                Spectators ({spectators.length})
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleCopySpectatorLink}
-                className="h-8 gap-1.5 px-3"
-                aria-label="Copy spectator invite link"
-              >
-                <Share2 className="h-3.5 w-3.5" />
-                <span className="text-xs">Share</span>
-              </Button>
+            <div className="flex items-center gap-2 font-semibold text-foreground">
+              <Users className="h-4 w-4" />
+              Players ({activePlayers.length})
             </div>
+            <AnimatePresence mode="popLayout">
+              <motion.div variants={stagger.container} initial="hidden" animate="visible">
+                {activePlayers.map((player: Player) => (
+                  <motion.div
+                    key={player.id}
+                    variants={variants.slideInLeft}
+                    transition={transitions.smooth}
+                    layout
+                    className={cn(
+                      "flex items-center justify-between p-2 rounded-lg bg-background/60 border transition-all duration-200 border-l-4",
+                      playerBorder(player.id),
+                      playerBorderHover(player.id),
+                      player.name === currentPlayerName && "ring-2 " + playerRing(player.id),
+                      !player.isConnected && "border-red-500/30 opacity-70"
+                    )}
+                  >
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <button
+                          data-testid={`player-name-${player.name}`}
+                          onClick={() => handlePlayerClick(player)}
+                          className={cn(
+                            "min-w-0 break-words text-left text-sm font-['Poppins'] transition-colors cursor-pointer",
+                            playerTextHover(player.id),
+                            player.name === currentPlayerName && "font-semibold " + playerText(player.id)
+                          )}
+                        >
+                          {player.name} {player.name === currentPlayerName && "(You)"}
+                        </button>
+                        {player.isDiscordVerified && (
+                          <DiscordVerifiedIcon username={player.discordUsername} />
+                        )}
+                        <motion.div
+                          animate={{ opacity: player.isConnected ? 0 : 1 }}
+                          transition={{ duration: 0.2 }}
+                          className="inline-flex h-3 w-3 shrink-0 items-center justify-center text-red-500"
+                        >
+                          {!player.isConnected && (
+                            <span data-testid="disconnected-indicator">
+                              <WifiOff className="h-3 w-3" />
+                            </span>
+                          )}
+                        </motion.div>
+                        {gameState.winner === player.id && (
+                          <Crown className="h-4 w-4" />
+                        )}
+                      </div>
+                      <TitleBadge title={player.currentTitle} compact />
+                      {player.eloRating !== undefined && (
+                        <div
+                          data-testid={`player-elo-stats-${player.id}`}
+                          className="text-xs text-muted-foreground"
+                        >
+                          {formatPlayerEloStats(player)}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {gameState.status === 'playing' && gameState.roundState?.votingOpen && (
+                        <span className="text-xs text-gray-400" data-testid="vote-count">
+                          {gameState.roundState.votesRecorded || 0}/{Object.values(gameState.players).filter(p => !p.isSpectator).length || 0} votes
+                        </span>
+                      )}
+                      {isHost && player.id !== userSession.playerId && (
+                        <Button
+                          data-testid="kick-player"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleKickPlayer(player.id, player.name)}
+                          className="h-6 w-6 p-0 text-red-500 hover:text-red-600"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
+                  </motion.div>
+                ))}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 font-semibold text-foreground">
+              <Users className="h-4 w-4" />
+              Spectators ({spectators.length})
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleCopySpectatorLink}
+              className="h-8 gap-1.5 px-3 ml-auto"
+              aria-label="Copy spectator invite link"
+            >
+              <Share2 className="h-3.5 w-3.5" />
+              <span className="text-xs">Share</span>
+            </Button>
             {spectators.map((spectator: Player) => (
               <div key={spectator.id} className="flex items-center justify-between text-sm p-2 rounded bg-background/50">
                 <div className="min-w-0">
@@ -406,11 +496,10 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
                 <span>Round: {gameState.currentRound}</span>
                 {displayTimeLeft !== null && gameState.status === 'playing' && (
                   <span className={cn(
-                    "flex items-center gap-1 ml-2 px-2 py-0.5 rounded-full text-xs font-mono",
-                    displayTimeLeft <= 30 && "bg-red-500/20 text-red-400 animate-pulse",
-                    displayTimeLeft > 30 && "bg-primary/20 text-primary"
+                    "flex items-center gap-1 ml-2 px-3 py-1 rounded-full text-base font-mono font-bold",
+                    displayTimeLeft <= 30 ? "bg-destructive/30 text-destructive animate-pulse" : "bg-primary/15 text-primary"
                   )}>
-                    <Clock className="h-3 w-3" />
+                    {displayTimeLeft <= 30 && <Clock className="h-4 w-4" />}
                     {formatTime(displayTimeLeft)}
                   </span>
                 )}
@@ -435,13 +524,14 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
               </div>
             )}
             {gameState.winner && (
-              <div className="flex items-center gap-2 mt-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+              <div className="relative flex items-center gap-2 mt-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 animate-glow">
+                <div className="absolute inset-0 -z-10 rounded-lg bg-yellow-500 opacity-20 blur-md animate-pulse" />
                 <div className="flex items-center gap-2">
                   <div>
-                    <Trophy className="h-8 w-8 text-yellow-500" />
+                    <Trophy className="h-10 w-10 text-yellow-500" />
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-lg font-bold text-yellow-500">Round Winner!</span>
+                    <span className="text-xl font-bold text-yellow-500">Round Winner!</span>
                     <span className="text-foreground font-semibold">
                       {players.find((p: Player) => p.id === gameState.winner)?.name}
                     </span>

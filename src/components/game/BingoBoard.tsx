@@ -1,5 +1,5 @@
 import { memo, useEffect, useState, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { BoardData } from '@/types/game';
 import { BingoTile } from './BingoTile';
 import { cn } from '@/lib/utils';
@@ -15,6 +15,7 @@ interface BingoBoardProps {
   isInteractive?: boolean;
   isTileInteractive?: (tileId: string) => boolean;
   className?: string;
+  isPlayersTurn?: boolean; // Added for 'Your Turn' badge
   playerColorIndex?: number; // 0-3, maps to player color palette
 }
 
@@ -37,6 +38,7 @@ export const BingoBoard = memo(function BingoBoard({
   isTileInteractive,
   className,
   playerColorIndex,
+  isPlayersTurn, // Added to destructuring
 }: BingoBoardProps) {
   const completedCount = boardData.tiles.filter(t => t.status === 'complete').length;
   const pendingCount = boardData.tiles.filter(t => t.status === 'pending').length;
@@ -64,6 +66,7 @@ export const BingoBoard = memo(function BingoBoard({
       transition={{ duration: 0.3 }}
       className={cn(
         'flex flex-col gap-4 rounded-xl border border-border bg-card p-4',
+        accent ? `border-l-4 ${accent.border}` : '', // Added conditional left border
         'shadow-lg',
         className
       )}
@@ -71,15 +74,32 @@ export const BingoBoard = memo(function BingoBoard({
       <div className="flex min-w-0 items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <div className={cn(
-            'flex h-10 w-10 items-center justify-center rounded-full border',
+            'flex h-14 w-14 items-center justify-center rounded-full border',
             accent ? `${accent.bg} ${accent.border} ${accent.text}` : 'bg-primary/20 border-primary/30 text-primary'
           )}>
-            <span className="text-lg font-bold font-['Righteous']">{playerName.charAt(0)}</span>
+            <span className="text-2xl font-bold font-['Righteous']">{playerName.charAt(0)}</span>
           </div>
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-2">
-              <h3 className="truncate font-semibold text-foreground font-['Poppins']">{playerName}</h3>
+              <h3 className="truncate text-lg font-bold text-foreground font-['Poppins']">{playerName}</h3>
               {isDiscordVerified && <DiscordVerifiedIcon username={discordUsername} />}
+              {isPlayersTurn && accent && ( // 'YOUR TURN' badge
+                <AnimatePresence>
+                  <motion.span
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    transition={{ duration: 0.2 }}
+                    className={cn(
+                      'ml-2 rounded-full px-3 py-1 text-xs font-bold uppercase',
+                      accent.bg,
+                      accent.text
+                    )}
+                  >
+                    Your Turn
+                  </motion.span>
+                </AnimatePresence>
+              )}
             </div>
             <p className="text-xs text-foreground/60">
               {completedCount}/9 complete
@@ -94,7 +114,7 @@ export const BingoBoard = memo(function BingoBoard({
               key={tile.id}
               layout
               className={cn(
-                'h-2 w-2 rounded-full transition-colors',
+                'h-3 w-3 rounded-full transition-colors',
                 tile.status === 'empty' && 'bg-muted/50',
                 tile.status === 'pending' && (accent ? `${accent.dot}` : 'bg-primary'),
                 tile.status === 'complete' && 'bg-green-500'
@@ -104,7 +124,7 @@ export const BingoBoard = memo(function BingoBoard({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-3">
         {boardData.tiles.map((tile) => (
           <BingoTile
             key={tile.id}

@@ -62,6 +62,9 @@ export function SpectatorView() {
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-background md:bg-background">
+      <span className="bg-primary/90 text-primary-foreground text-xs font-bold uppercase tracking-[0.2em] px-3 py-1 rounded-full inline-block mb-4 md:hidden">
+        Spectator View
+      </span>
       {/* Main Content - Split Screen */}
       <main className="container mx-auto max-w-full px-0 py-2 md:p-8">
         <div className="mb-4 flex items-center justify-between md:hidden">
@@ -80,47 +83,53 @@ export function SpectatorView() {
         <div className="mb-6 hidden rounded-lg border border-border/30 bg-card/40 p-4 md:block">
           <div className="flex items-center gap-2 mb-3">
             <Trophy className="h-5 w-5 text-yellow-500" />
-            <h3 className="font-semibold text-foreground">Leaderboard</h3>
+            <h3 className="text-lg font-bold uppercase tracking-wider text-foreground">Leaderboard</h3>
           </div>
           <div className="space-y-1.5 max-h-48 overflow-y-auto">
             {leaderboard.map((entry, index) => (
-              <button
+              <div 
                 key={entry.player.id}
-                onClick={() => setSelectedPlayerId(entry.player.id)}
-                className={`grid w-full grid-cols-[2rem_minmax(0,1fr)_4rem] items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-muted/40 ${
-                  selectedPlayerId === entry.player.id ? 'bg-primary/10 ring-1 ring-primary/50' : ''
-                }`}
               >
-                <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
-                  index === 0 ? 'bg-yellow-500 text-black' :
-                  index === 1 ? 'bg-gray-400 text-black' :
-                  index === 2 ? 'bg-orange-600 text-white' :
-                  'bg-muted text-muted-foreground'
-                }`}>
-                  {index + 1}
-                </span>
-                <div className="min-w-0">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <p className="truncate text-sm font-medium text-foreground">{entry.player.name}</p>
-                    {entry.player.isDiscordVerified && (
-                      <DiscordVerifiedIcon username={entry.player.discordUsername} />
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-                      <div 
-                        className={`h-full rounded-full transition-all ${PLAYER_BAR[playerColors.get(entry.player.id) ?? 0]}`}
-                        style={{ width: `${entry.progress}%` }}
-                      />
+                <button
+                  onClick={() => setSelectedPlayerId(entry.player.id)}
+                  className={`grid w-full grid-cols-[2rem_minmax(0,1fr)_4rem] items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-muted/40 ${
+                    selectedPlayerId === entry.player.id ? 'bg-primary/10 ring-1 ring-primary/50' : ''
+                  }`}
+                >
+                  <span className={`flex h-7 w-7 items-center justify-center rounded-full text-2xl font-bold ${
+                    index === 0 ? 'bg-[#FFD700] text-black' :
+                    index === 1 ? 'bg-[#C0C0C0] text-black' :
+                    index === 2 ? 'bg-[#CD7F32] text-white' :
+                    'bg-muted text-muted-foreground'
+                  }`}>
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <p className={`truncate text-sm font-medium ${PLAYER_BAR[playerColors.get(entry.player.id) ?? 0]} `}>{entry.player.name}</p>
+                      {entry.player.isDiscordVerified && (
+                        <DiscordVerifiedIcon username={entry.player.discordUsername} />
+                      )}
                     </div>
-                    <span className="text-xs text-muted-foreground">{entry.progress}%</span>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                        <div 
+                          className={`h-full rounded-full transition-all ${PLAYER_BAR[playerColors.get(entry.player.id) ?? 0]}`}
+                          style={{ width: `${entry.progress}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-muted-foreground">{entry.progress}%</span>
+                    </div>
                   </div>
-                </div>
-                <div className="text-right text-xs text-muted-foreground">
-                  <div><span className="text-green-400">{entry.completeTiles}</span>/9</div>
-                  <div>{entry.pendingTiles} pending</div>
-                </div>
-              </button>
+                  <div className="text-right text-base font-bold text-muted-foreground">
+                    <div><span className="text-green-400">{entry.completeTiles}</span>/9</div>
+                    <div>{entry.pendingTiles} pending</div>
+                  </div>
+                </button>
+                {index < leaderboard.length - 1 ? (
+                  <div className="my-2 h-px bg-border/30" />
+                ) : null}
+              </div>
             ))}
           </div>
         </div>

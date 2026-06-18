@@ -125,11 +125,7 @@ export const PlayerView = memo(function PlayerView({ roomId, playerName }: Playe
     const isConnected = playerData.isConnected;
     return (
       <div data-testid="connection-status" className={`flex items-center gap-1 text-xs ${isConnected ? 'text-green-500' : 'text-gray-500'}`}>
-        {isConnected ? (
-          <Wifi className="h-3 w-3" />
-        ) : (
-          <WifiOff className="h-3 w-3" />
-        )}
+        <span className={`h-2 w-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></span>
         <span>{isConnected ? 'Online' : 'Offline'}</span>
       </div>
     );
@@ -154,13 +150,13 @@ export const PlayerView = memo(function PlayerView({ roomId, playerName }: Playe
     <div className={`grid grid-cols-1 lg:grid-cols-[14rem_1fr] gap-6 ${!playerData.isConnected ? 'opacity-60' : ''}`}>
       {/* Player Info Column */}
       <div className="order-2 space-y-4 lg:order-1">
-        <div className="rounded-xl border border-border bg-card p-4 space-y-4">
+        <div className={`rounded-xl border border-border bg-card p-4 space-y-4 border-l-4 ${playerTextAccent.replace('text-', 'border-')}`}>
           <div className="flex items-center gap-2">
             <div className={`flex h-8 w-8 items-center justify-center rounded-full ${playerAccentClasses}`}>
               <Music className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-foreground">{playerData.name}</p>
+              <p className="text-xl font-bold text-foreground">{playerData.name}</p>
               <div className="flex items-center gap-2">
                 <TitleBadge title={playerData.currentTitle} compact />
                 <ConnectionStatus />
@@ -169,9 +165,12 @@ export const PlayerView = memo(function PlayerView({ roomId, playerName }: Playe
           </div>
 
           {gameState.status === 'playing' && gameState.roundState?.currentTileGenre && (
-            <p className="text-xs text-muted-foreground">
-              Your turn: Upload a beat for <span className={`${playerTextAccent} font-semibold`}>{gameState.roundState.currentTileGenre}</span>
-            </p>
+            <>
+              <p className="text-base font-semibold text-muted-foreground">
+                Your turn: Upload a beat for <span className={`${playerTextAccent} font-bold`}>{gameState.roundState.currentTileGenre}</span>
+              </p>
+              <div className="border-t border-border my-4" /> {/* Visual Separator */}
+            </>
           )}
 
           <ScoreDisplay

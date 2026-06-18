@@ -97,10 +97,7 @@ export function VotingPanel({
   return (
     <div data-testid="voting-panel" className={cn('rounded-xl border border-primary/30 bg-card p-4', className)}>
       <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <Vote className="h-5 w-5 text-primary" />
-          <h3 className="font-semibold text-foreground">Vote for the Best Beat</h3>
-        </div>
+        <h3 className="text-xl font-bold uppercase tracking-wider text-primary">Vote: {currentGenre}</h3>
         <div className="text-sm text-muted-foreground" data-testid="vote-count-display">
           {votesRecorded}/{spectatorCount} votes
         </div>
@@ -117,8 +114,8 @@ export function VotingPanel({
           transition={transitions.spring}
           className="flex items-center gap-2 text-green-500 justify-center py-4"
         >
-          <CheckCircle2 className="h-5 w-5" />
-          <span className="font-medium">Vote submitted!</span>
+          <CheckCircle2 className="h-6 w-6" />
+          <span className="font-bold text-lg">Vote submitted!</span>
         </motion.div>
       ) : (
         <div className="grid grid-cols-2 gap-3">
@@ -135,11 +132,11 @@ export function VotingPanel({
                 whileTap={{ scale: 0.95 }}
                 transition={transitions.spring}
                 className={cn(
-                  'flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all',
+                  'flex flex-col items-center gap-2 p-6 rounded-lg border-2 border-l-4 transition-all',
                   card.borderHover, card.bgHover,
                   'disabled:opacity-50 disabled:cursor-not-allowed',
                   selectedPlayerId === producer.id
-                    ? card.borderSelected + ' ' + card.bgSelected
+                    ? card.borderSelected + ' ' + card.bgSelected + ' scale-[1.02]'
                     : 'border-border'
                 )}
               >
@@ -149,7 +146,7 @@ export function VotingPanel({
                   </span>
                 </div>
                 <div className="text-center">
-                  <p className="font-medium text-foreground">{producer.name}</p>
+                  <p className="font-medium text-foreground text-lg font-bold">{producer.name}</p>
                   {producer.eloRating && (
                     <p className="text-xs text-muted-foreground">
                       ELO: {producer.eloRating}

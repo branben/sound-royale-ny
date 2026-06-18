@@ -242,7 +242,7 @@ export default function Lobby() {
 
   return (
     <div data-testid="lobby" className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
-      <Card className="w-full max-w-md border-border bg-card card-enter">
+      <Card className="w-full max-w-lg border-2 border-muted-foreground/20 bg-card card-enter shadow-2xl">
         <LobbyHeader onShowOnboarding={() => setShowOnboarding(true)} />
 
         <LobbyModeSwitcher

@@ -484,7 +484,7 @@ export default function Room() {
     <div className="min-h-screen bg-background p-4 relative">
       <header className="border-b border-border bg-background mb-4 relative z-10">
         <div className="container mx-auto flex h-14 items-center justify-between">
-          <h1 className="text-2xl font-bold font-['Righteous'] text-foreground md:text-3xl">
+            <h1 className="font-['Righteous'] text-4xl md:text-5xl tracking-tight text-primary">
             Sound Royale
           </h1>
           <Button 
@@ -502,25 +502,31 @@ export default function Room() {
         {gameState.status === 'lobby' ? (
           <Card data-testid="lobby" className="border-border bg-card w-full max-w-4xl mx-auto">
             <CardHeader>
-              <CardTitle>Join Battle</CardTitle>
+              <CardTitle className="text-2xl font-bold">Join Battle</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {hasCurrentPlayer ? (
                 <div className="text-center py-8">
-                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-500/20 mb-4">
-                    <Users className="h-6 w-6 text-green-500" />
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 mb-4 ring-4 ring-green-500/50">
+                    <Users className="h-8 w-8 text-green-500" />
                   </div>
                   <h3 className="text-lg font-semibold mb-2">You're in battle!</h3>
                   {isHost && activePlayersCount >= 2 ? (
                     <div className="space-y-4 mt-4">
                       <p className="text-muted-foreground">Ready to start battle!</p>
-                      <Button data-testid="start-battle" onClick={handleStartGame} className="h-12 w-full">
-                        <Play className="mr-2 h-5 w-5" />
+                      <Button data-testid="start-battle" onClick={handleStartGame} className="h-14 text-xl font-bold shadow-lg w-full">
+                        <Play className="mr-2 h-6 w-6" />
                         Start Battle
                       </Button>
                     </div>
                   ) : (
-                    <p className="text-muted-foreground">Waiting for more players to join and host to start game.</p>
+                    <p className="text-muted-foreground flex items-center justify-center space-x-2">
+                      <span>Waiting for contestants</span>
+                      <span className="relative flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
+                      </span>
+                    </p>
                   )}
                 </div>
               ) : (
@@ -535,8 +541,10 @@ export default function Room() {
                   </Button>
                 </div>
               )}
-              <div className="text-center text-sm text-muted-foreground">
-                <p>Room Code: {room.code}</p>
+              <div className="text-center text-sm text-muted-foreground space-y-4">
+                <p className="font-mono text-5xl font-bold tracking-[0.3em] text-primary bg-card/50 rounded-lg px-6 py-3 inline-block">
+                  {room.code}
+                </p>
                 <p>Round: {room.current_round}</p>
               </div>
             </CardContent>

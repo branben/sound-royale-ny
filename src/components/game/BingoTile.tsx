@@ -135,25 +135,27 @@ export const BingoTile = memo(function BingoTile({
       whileTap={isInteractive ? hover.tap : undefined}
       className={cn(
         'relative aspect-square w-full rounded-lg border-2 transition-colors duration-300',
-        'flex flex-col items-center justify-center gap-2 p-2',
+        isInteractive && 'hover:scale-[1.03]', // Added hover scale for interactive tiles
+        'flex flex-col items-center justify-center gap-2 p-4',
         'group',
         statusStyles[tile.status],
+        tile.status === 'empty' && 'shadow-[inset_0_2px_8px_rgba(0,0,0,0.3)]', // Added inner shadow for empty tiles
         !isInteractive && 'cursor-not-allowed opacity-45',
       )}
     >
       {isActiveRoundTile && tile.status === 'empty' && (
         <motion.div
           className={cn(
-            'absolute inset-0 rounded-lg ring-2 ring-offset-2 ring-offset-card',
+            'absolute inset-0 rounded-lg ring-3 ring-offset-2 ring-offset-card',
             accent ? accent.ring : 'ring-primary/70'
           )}
           animate={{ opacity: [0.5, 1, 0.5] }}
-          transition={{ duration: 2, repeat: 3, ease: 'easeInOut' }}
+          transition={{ duration: 1, repeat: 3, ease: 'easeInOut' }}
         />
       )}
 
       <div className={cn(
-        'flex h-10 w-10 items-center justify-center rounded-full',
+        'flex h-12 w-12 items-center justify-center rounded-full',
         'bg-background/50 transition-colors duration-300',
       )}>
         <AnimatePresence mode="wait">
@@ -165,7 +167,7 @@ export const BingoTile = memo(function BingoTile({
               exit={{ scale: 0.5, opacity: 0 }}
               transition={transitions.smooth}
             >
-              <Music className={cn('h-5 w-5', iconStyles.empty)} />
+              <Music className={cn('h-6 w-6', iconStyles.empty)} />
             </motion.div>
           )}
           {tile.status === 'pending' && (
@@ -176,7 +178,7 @@ export const BingoTile = memo(function BingoTile({
               exit={{ scale: 0.5, opacity: 0 }}
               transition={transitions.smooth}
             >
-              <Loader2 className={cn('h-5 w-5', iconStyles.pending)} />
+              <Loader2 className={cn('h-6 w-6', iconStyles.pending)} />
             </motion.div>
           )}
           {tile.status === 'complete' && (
@@ -187,7 +189,7 @@ export const BingoTile = memo(function BingoTile({
               exit={{ scale: 0.5, opacity: 0 }}
               transition={transitions.springBouncy}
             >
-              <Check className={cn('h-5 w-5', iconStyles.complete)} />
+              <Check className={cn('h-6 w-6', iconStyles.complete)} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -212,7 +214,7 @@ export const BingoTile = memo(function BingoTile({
 
       <motion.span
         className={cn(
-          'text-xs font-semibold uppercase tracking-wider font-["Poppins"]',
+          'text-sm font-bold uppercase tracking-wider font-["Poppins"]',
           tile.status === 'empty' && 'text-muted-foreground',
           tile.status === 'pending' && (accent ? accent.pendingText : 'text-primary'),
           tile.status === 'complete' && 'text-green-500'
@@ -226,7 +228,7 @@ export const BingoTile = memo(function BingoTile({
       <AnimatePresence>
         {tile.status === 'complete' && (
           <motion.div
-            className="absolute inset-0 rounded-lg bg-green-500/10"
+            className="absolute inset-0 rounded-lg bg-success/25"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

@@ -95,6 +95,10 @@ export default {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.5' },
         },
+        glow: {
+          '0%, 100%': { opacity: '0.2', transform: 'scale(1)' },
+          '50%': { opacity: '0.6', transform: 'scale(1.05)' },
+        },
       },
       animation: {
         'card-enter': 'card-enter 250ms ease-out forwards',
@@ -102,6 +106,7 @@ export default {
         'scale-in': 'scale-in 250ms ease-out forwards',
         'slide-up': 'slide-up 200ms ease-out forwards',
         'timer-urgent': 'timer-urgent 1s ease-in-out infinite',
+        glow: 'glow 1.5s ease-in-out infinite',
       },
       fontFamily: {
         sans: ['Poppins', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'Noto Sans', 'sans-serif'],
