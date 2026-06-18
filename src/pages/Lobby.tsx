@@ -17,7 +17,7 @@ export default function Lobby() {
   const titleRef = useRef(null);
   const taglineRef = useRef(null);
   const mainCardRef = useRef(null);
-  const buttonRefs = useRef([]); // To hold references for dynamic buttons
+  const [isLoading, setIsLoading] = useState(false);
   const [roomCode, setRoomCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [selectedThemeId, setSelectedThemeId] = useState<ThemeId>('classic');
@@ -110,7 +110,6 @@ export default function Lobby() {
       if (titleRef.current) gsap.set(titleRef.current, { y: 0, opacity: 1 });
       if (taglineRef.current) gsap.set(taglineRef.current, { y: 0, opacity: 1 });
       if (mainCardRef.current) gsap.set(mainCardRef.current, { y: 0, opacity: 1 });
-      buttonRefs.current.forEach(btn => btn && gsap.set(btn, { scale: 1, opacity: 1 }));
       return;
     }
 
@@ -153,14 +152,6 @@ export default function Lobby() {
       });
     }
 
-    // Each button staggers in with a slight scale pop
-    gsap.from(buttonRefs.current, {
-      scale: 0.8,
-      opacity: 0,
-      stagger: 0.08,
-      duration: 0.4,
-      delay: 0.4,
-    });
   }, []);
 
   const handleRoomJoined = (joinedRoomCode: string) => {
@@ -309,73 +300,76 @@ export default function Lobby() {
   };
 
   return (
-    <div data-testid="lobby" className="min-h-screen bg-background relative overflow-hidden">
-      {/* Subtle background pattern */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-background to-background pointer-events-none" />
+    <div data-testid="lobby" className="min-h-screen bg-background relative overflow-hidden flex flex-col">
+      {/* Background */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-primary/8 via-transparent to-transparent pointer-events-none" />
 
-       <div className="relative z-10 max-w-2xl mx-auto px-4 py-4 md:py-6">
-        {/* Header */}
-        <div className="text-center mb-5">
-          <div ref={iconRef} className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 border-2 border-primary/20 mb-6">
-            <Gamepad2 className="h-8 w-8 text-primary" />
+      {/* Top bar */}
+      <header className="relative z-10 flex items-center justify-between px-6 py-4">
+        <div className="flex items-center gap-3">
+          <div ref={iconRef} className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 border border-primary/20">
+            <Gamepad2 className="h-5 w-5 text-primary" />
           </div>
-          <h1 ref={titleRef} className="text-4xl md:text-5xl font-['Righteous'] tracking-tight text-primary mb-2">
-            SOUND ROYALE
-          </h1>
-          <p ref={taglineRef} className="text-sm text-muted-foreground italic">
-            The High-Stakes Game Show for Music Producers
-          </p>
-          <div className="flex items-center justify-center gap-4 mt-3">
-            <Button
-              ref={(el) => (buttonRefs.current[0] = el)}
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowOnboarding(true)}
-              className="text-muted-foreground hover:text-primary"
-            >
-              <HelpCircle className="mr-1.5 h-4 w-4" />
-              How to Play
+          <span className="text-xl font-['Righteous'] tracking-tight text-primary">SOUND ROYALE</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => setShowOnboarding(true)} className="text-muted-foreground hover:text-foreground text-xs">
+            <HelpCircle className="mr-1 h-3 w-3" /> How to Play
+          </Button>
+          <Link to="/leaderboard">
+            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground text-xs">
+              <Trophy className="mr-1 h-3 w-3" /> Leaderboard
             </Button>
-            <Link to="/leaderboard">
-              <Button ref={(el) => (buttonRefs.current[1] = el)} variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
-                <Trophy className="mr-1.5 h-4 w-4" />
-                Leaderboard
-              </Button>
-            </Link>
+          </Link>
+        </div>
+      </header>
+
+      {/* Main content — fills remaining space, centered */}
+      <main className="relative z-10 flex-1 flex items-center justify-center px-4 pb-8">
+        <div className="w-full max-w-md">
+          {/* Title area */}
+          <div className="text-center mb-8">
+            <div className="inline-block px-4 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-bold uppercase tracking-[0.2em] mb-4">
+              Music Bingo Battle
+            </div>
+            <h1 ref={titleRef} className="text-5xl md:text-6xl font-['Righteous'] tracking-tight text-foreground leading-none mb-3">
+              SOUND ROYALE
+            </h1>
+            <p ref={taglineRef} className="text-base text-muted-foreground max-w-xs mx-auto">
+              Compete head-to-head. Upload beats. Claim tiles. Win bingo.
+            </p>
+          </div>
+
+          {/* Action card */}
+          <div ref={mainCardRef} className="bg-card/80 backdrop-blur-sm border border-muted-foreground/20 rounded-2xl p-6 shadow-2xl">
+            <LobbyModeSwitcher
+              mode={mode}
+              playerNameInput={playerNameInput}
+              roomCode={roomCode}
+              roomNameInput={roomNameInput}
+              selectedThemeId={selectedThemeId}
+              selectedCustomGenres={selectedCustomGenres}
+              isLoading={isLoading}
+              error={error}
+              discordAccountStatus={discordAccountStatus}
+              onPlayerNameChange={setPlayerNameInput}
+              onRoomNameChange={setRoomNameInput}
+              onThemeChange={setSelectedThemeId}
+              onCustomGenresChange={setSelectedCustomGenres}
+              onCodeChange={handleCodeChange}
+              onJoin={handleJoin}
+              onCreate={handleCreateRoom}
+              onQuickMatch={handleQuickMatch}
+              onCreateMode={() => setMode('create')}
+              onJoinMode={() => setMode('join')}
+              onBack={() => { setMode('landing'); setError(null); }}
+              onBrowseRooms={() => setShowRoomBrowser(true)}
+              onLinkDiscord={handleLinkDiscord}
+              onManageDiscord={() => setShowDiscordModal(true)}
+            />
           </div>
         </div>
-
-        {/* Main content card */}
-        <div ref={mainCardRef} className="bg-card border-2 border-muted-foreground/20 rounded-xl p-5 md:p-6 shadow-xl card-enter">
-          <LobbyModeSwitcher
-            mode={mode}
-            playerNameInput={playerNameInput}
-            roomCode={roomCode}
-            roomNameInput={roomNameInput}
-            selectedThemeId={selectedThemeId}
-            selectedCustomGenres={selectedCustomGenres}
-            isLoading={isLoading}
-            error={error}
-            discordAccountStatus={discordAccountStatus}
-            onPlayerNameChange={setPlayerNameInput}
-            onRoomNameChange={setRoomNameInput}
-            onThemeChange={setSelectedThemeId}
-            onCustomGenresChange={setSelectedCustomGenres}
-            onCodeChange={handleCodeChange}
-            onJoin={handleJoin}
-            onCreate={handleCreateRoom}
-            onQuickMatch={handleQuickMatch}
-            onCreateMode={() => setMode('create')}
-            onJoinMode={() => setMode('join')}
-            onBack={() => { setMode('landing'); setError(null); }}
-            onBrowseRooms={() => setShowRoomBrowser(true)}
-            onLinkDiscord={handleLinkDiscord}
-            onManageDiscord={() => setShowDiscordModal(true)}
-          />
-        </div>
-
-
-      </div>
+      </main>
 
       <LobbyModals
         showOnboarding={showOnboarding}
