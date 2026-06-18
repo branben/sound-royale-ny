@@ -27,7 +27,7 @@ const PLAYER_ACCENT = [
   { bg: 'bg-player-4/20', border: 'border-player-4/30', text: 'text-player-4', dot: 'bg-player-4' },
 ] as const;
 
-export const BingoBoard = memo(function BingoBoard({
+export const BingoBoard = memo(React.forwardRef(function BingoBoard({
   playerId,
   playerName,
   isDiscordVerified,
@@ -39,7 +39,7 @@ export const BingoBoard = memo(function BingoBoard({
   className,
   playerColorIndex,
   isPlayersTurn, // Added to destructuring
-}: BingoBoardProps) {
+}: BingoBoardProps, ref: React.ForwardedRef<HTMLDivElement>) {
   const completedCount = boardData.tiles.filter(t => t.status === 'complete').length;
   const pendingCount = boardData.tiles.filter(t => t.status === 'pending').length;
   const prevCompletedRef = useRef(completedCount);
@@ -60,7 +60,8 @@ export const BingoBoard = memo(function BingoBoard({
   }, [completedCount]);
 
   return (
-    <motion.div 
+    <motion.div
+      ref={ref}
       data-testid="game-board"
       animate={shudder ? { x: [0, -4, 4, -2, 2, 0] } : { x: 0 }}
       transition={{ duration: 0.3 }}
@@ -138,4 +139,4 @@ export const BingoBoard = memo(function BingoBoard({
       </div>
     </motion.div>
   );
-});
+}));

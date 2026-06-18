@@ -19,6 +19,7 @@ import { DiscordVerifiedIcon } from '@/components/game/DiscordVerifiedIcon';
 import { useGame, useGameRefresh, useGameRefreshEffect } from '@/context/useGame';
 import { useUser } from '@/context/UserContext';
 import type { GameState, RoomResponse, Player } from '@/types/game';
+import { gsap } from 'gsap';
 
 interface MobileGameDockProps {
   roomId: string;
@@ -169,6 +170,12 @@ export default function Room() {
   const { setForceRefresh } = useGameRefresh();
   const { gameState, setGameState, timeRemaining } = useGame();
   const autoSpectatorJoinAttempted = useRef(false);
+  const roomCodeRef = useRef(null);
+  const joinBattleCardRef = useRef(null);
+  const actionButtonRefs = useRef([]);
+  const roundStageRef = useRef(null);
+  const bingoBoardRefs = useRef([]);
+  const gameInfoRef = useRef(null);
 
   // Show tutorial for first-time players when game starts
   useEffect(() => {
@@ -433,7 +440,88 @@ export default function Room() {
     }
   }, [roomId, userSession.playerSecret, attemptRejoin, navigate, setGameState, hasLoaded, error]);
 
+
   useGameRefreshEffect(fetchRoom);
+
+  useEffect(() => {
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (prefersReducedMotion) {
+      // Lobby State
+      if (roomCodeRef.current) gsap.set(roomCodeRef.current, { scale: 1, opacity: 1 });
+      if (joinBattleCardRef.current) gsap.set(joinBattleCardRef.current, { y: 0, opacity: 1 });
+      actionButtonRefs.current.forEach(btn => btn && gsap.set(btn, { y: 0, opacity: 1 }));
+
+      // Playing State
+      if (roundStageRef.current) gsap.set(roundStageRef.current, { y: 0, opacity: 1 });
+      bingoBoardRefs.current.forEach(board => board && gsap.set(board, { x: 0, opacity: 1 }));
+      if (gameInfoRef.current) gsap.set(gameInfoRef.current, { x: 0, opacity: 1 });
+      return;
+    }
+
+    if (gameState.status === 'lobby') {
+      // Room code does a dramatic reveal
+      if (roomCodeRef.current) {
+        gsap.from(roomCodeRef.current, {
+          scale: 0.5,
+          opacity: 0,
+          ease: "elastic.out(1, 0.5)",
+          duration: 0.8,
+        });
+      }
+
+      // "Join Battle" card fades in and slides up
+      if (joinBattleCardRef.current) {
+        gsap.from(joinBattleCardRef.current, {
+          y: 20,
+          opacity: 0,
+          duration: 0.5,
+          delay: 0.2,
+        });
+      }
+
+      // Action buttons stagger in
+      gsap.from(actionButtonRefs.current, {
+        y: 20,
+        opacity: 0,
+        stagger: 0.1,
+        duration: 0.4,
+        delay: 0.3,
+      });
+    } else if (gameState.status === 'playing') {
+      // RoundStage slides in from the top
+      if (roundStageRef.current) {
+        gsap.from(roundStageRef.current, {
+          y: -20,
+          opacity: 0,
+          duration: 0.4,
+        });
+      }
+
+      // Each BingoBoard staggers in from the left with a slight delay between players
+      // Ensure there are actual producers before attempting to animate
+      const producers = Object.values(gameState.players).filter(player => !player.isSpectator);
+      if (producers.length > 0) {
+        gsap.from(bingoBoardRefs.current, {
+          x: -30,
+          opacity: 0,
+          stagger: 0.15,
+          duration: 0.5,
+          delay: 0.1,
+        });
+      }
+
+      // GameInfo sidebar slides in from the right
+      if (gameInfoRef.current) {
+        gsap.from(gameInfoRef.current, {
+          x: 30,
+          opacity: 0,
+          duration: 0.5,
+          delay: 0.2,
+        });
+      }
+    }
+  }, [gameState.status, gameState.players]); // Rerun animations when game state changes to 'lobby' or 'playing'
 
   if (loading || isReconnecting) {
     return (
@@ -470,7 +558,7 @@ export default function Room() {
         <Card className="w-full max-w-md">
           <CardContent className="text-center py-8">
             <p className="text-destructive mb-4">{error || 'Room not found'}</p>
-            <Button onClick={() => navigate('/')}>
+            <Button onClick={() => navigate('/')} >
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Lobby
             </Button>
@@ -483,8 +571,8 @@ export default function Room() {
   return (
     <div className="min-h-screen bg-background p-4 relative">
       <header className="border-b border-border bg-background mb-4 relative z-10">
-        <div className="container mx-auto flex h-14 items-center justify-between">
-            <h1 className="font-['Righteous'] text-4xl md:text-5xl tracking-tight text-primary">
+        <div className="container mx-auto flex h-10 items-center justify-between">
+            <h1 className="font-['Righteous'] text-2xl md:text-3xl tracking-tight text-primary">
             Sound Royale
           </h1>
           <Button 
@@ -498,23 +586,20 @@ export default function Room() {
         </div>
       </header>
 
-      <main className="container mx-auto p-4 pb-28 lg:p-6">
+      <main className="container mx-auto p-2 pb-20 lg:p-3">
         {gameState.status === 'lobby' ? (
-          <Card data-testid="lobby" className="border-border bg-card w-full max-w-4xl mx-auto">
-            <CardHeader>
-              <CardTitle className="text-2xl font-bold">Join Battle</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <div ref={joinBattleCardRef} data-testid="lobby" className="border-border bg-card w-full max-w-4xl mx-auto rounded-xl p-5 md:p-6 shadow-xl">
+            <h2 className="text-2xl font-bold mb-4">Join Battle</h2>
               {hasCurrentPlayer ? (
-                <div className="text-center py-8">
-                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 mb-4 ring-4 ring-green-500/50">
+                <div className="text-center py-4">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-500/20 mb-4 ring-4 ring-green-500/50">
                     <Users className="h-8 w-8 text-green-500" />
                   </div>
                   <h3 className="text-lg font-semibold mb-2">You're in battle!</h3>
                   {isHost && activePlayersCount >= 2 ? (
                     <div className="space-y-4 mt-4">
                       <p className="text-muted-foreground">Ready to start battle!</p>
-                      <Button data-testid="start-battle" onClick={handleStartGame} className="h-14 text-xl font-bold shadow-lg w-full">
+                      <Button ref={(el) => (actionButtonRefs.current[0] = el)} data-testid="start-battle" onClick={handleStartGame} className="h-12 text-xl font-bold shadow-lg w-full">
                         <Play className="mr-2 h-6 w-6" />
                         Start Battle
                       </Button>
@@ -531,31 +616,29 @@ export default function Room() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Button onClick={handleJoinAsPlayer} className="h-16">
+                  <Button ref={(el) => (actionButtonRefs.current[1] = el)} onClick={handleJoinAsPlayer} className="h-12">
                     <Users className="mr-2 h-5 w-5" />
                     Join as Player
                   </Button>
-                  <Button onClick={handleJoinAsSpectator} variant="outline" className="h-16">
+                  <Button ref={(el) => (actionButtonRefs.current[2] = el)} onClick={handleJoinAsSpectator} variant="outline" className="h-12">
                     <Settings className="mr-2 h-5 w-5" />
                     Join as Spectator
                   </Button>
                 </div>
               )}
-              <div className="text-center text-sm text-muted-foreground space-y-4">
-                <p className="font-mono text-5xl font-bold tracking-[0.3em] text-primary bg-card/50 rounded-lg px-6 py-3 inline-block">
+              <div className="text-center text-sm text-muted-foreground space-y-2">
+                <p ref={roomCodeRef} className="font-mono text-3xl md:text-4xl font-bold tracking-[0.3em] text-primary bg-card/50 rounded-lg px-4 py-2 inline-block">
                   {room.code}
                 </p>
-                <p>Round: {room.current_round}</p>
               </div>
-            </CardContent>
-          </Card>
+          </div>
         ) : (
-          <div className="flex flex-col lg:flex-row gap-4">
-            <div className="hidden lg:block lg:w-80 lg:order-1">
+          <div className="flex flex-col lg:flex-row gap-3">
+            <div ref={gameInfoRef} className="hidden lg:block lg:w-80 lg:order-1">
               <GameInfo roomId={roomId!} currentPlayerName={userSession.playerName ?? undefined} />
             </div>
 
-            <div className="flex-1 space-y-5 lg:order-2">
+            <div className="flex-1 space-y-3 lg:order-2">
               {!hasCurrentPlayer ? (
                 <Card className="border-border bg-card">
                   <CardHeader>
@@ -575,6 +658,7 @@ export default function Room() {
                 <>
               {gameState.status === 'playing' && (
                 <RoundStage
+                  ref={roundStageRef}
                   roundNumber={gameState.currentRound || 1}
                   genre={gameState.roundState?.currentTileGenre}
                   timeRemaining={timeRemaining}
@@ -590,10 +674,10 @@ export default function Room() {
                 />
               )}
               {userSession.isSpectator ? (
-                <SpectatorView />
+                <SpectatorView bingoBoardRefs={bingoBoardRefs} />
               ) : (
                 <div className="flex flex-col">
-                  <PlayerView roomId={roomId!} playerName={userSession.playerName ?? undefined} />
+                  <PlayerView bingoBoardRef={bingoBoardRefs.current[0]} roomId={roomId!} playerName={userSession.playerName ?? undefined} />
                 </div>
               )}
                 </>

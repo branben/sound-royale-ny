@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useState, forwardRef } from 'react';
 import { BingoBoard } from '@/components/game/BingoBoard';
 import { UploadDrawer } from '@/components/game/UploadDrawer';
 import { ScoreDisplay } from '@/components/game/ScoreDisplay';
@@ -16,9 +16,10 @@ import { Wifi, WifiOff, Music } from 'lucide-react';
 interface PlayerViewProps {
   roomId: string;
   playerName?: string;
+  bingoBoardRef?: React.ForwardedRef<HTMLDivElement>;
 }
 
-export const PlayerView = memo(function PlayerView({ roomId, playerName }: PlayerViewProps) {
+export const PlayerView = memo(forwardRef(function PlayerView({ roomId, playerName, bingoBoardRef }, ref: React.ForwardedRef<HTMLDivElement>) {
   const { gameState, setGameState } = useGame();
   const playerColors = usePlayerColors(gameState.players ?? {});
   const [selectedTile, setSelectedTile] = useState<{ tile: Tile } | null>(null);
@@ -147,7 +148,7 @@ export const PlayerView = memo(function PlayerView({ roomId, playerName }: Playe
     : 'text-primary';
 
   return (
-    <div className={`grid grid-cols-1 lg:grid-cols-[14rem_1fr] gap-6 ${!playerData.isConnected ? 'opacity-60' : ''}`}>
+      <div ref={ref} className={`grid grid-cols-1 lg:grid-cols-[14rem_1fr] gap-6 ${!playerData.isConnected ? 'opacity-60' : ''}`}>
       {/* Player Info Column */}
       <div className="order-2 space-y-4 lg:order-1">
         <div className={`rounded-xl border border-border bg-card p-4 space-y-4 border-l-4 ${playerTextAccent.replace('text-', 'border-')}`}>
@@ -188,6 +189,7 @@ export const PlayerView = memo(function PlayerView({ roomId, playerName }: Playe
       {/* Game Board Column */}
       <div className="order-1 lg:order-2">
           <BingoBoard
+            ref={bingoBoardRef}
             playerId={playerData.id}
             playerName={playerData.name}
             isDiscordVerified={playerData.isDiscordVerified}
@@ -240,4 +242,4 @@ export const PlayerView = memo(function PlayerView({ roomId, playerName }: Playe
       )}
     </div>
   );
-});
+}));

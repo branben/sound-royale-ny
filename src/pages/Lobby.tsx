@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Gamepad2, HelpCircle, Trophy } from 'lucide-react';
@@ -8,12 +8,17 @@ import { ThemeId, DiscordAccountStatus } from '@/types/game';
 import { getDiscordSession } from '@/services/discordSession';
 import { LobbyModeSwitcher } from '@/components/lobby/LobbyModeSwitcher';
 import { LobbyModals } from '@/components/lobby/LobbyModals';
+import { gsap } from 'gsap';
 
 export default function Lobby() {
   const navigate = useNavigate();
   const { userSession, setPlayerName, setPlayerCredentials, setActiveRoomSession, ensureAnonymousSession } = useUser();
+  const iconRef = useRef(null);
+  const titleRef = useRef(null);
+  const taglineRef = useRef(null);
+  const mainCardRef = useRef(null);
+  const buttonRefs = useRef([]); // To hold references for dynamic buttons
   const [roomCode, setRoomCode] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedThemeId, setSelectedThemeId] = useState<ThemeId>('classic');
   const [selectedCustomGenres, setSelectedCustomGenres] = useState<string[]>([]);
@@ -70,6 +75,7 @@ export default function Lobby() {
     localStorage.setItem('hasSeenOnboarding', 'true');
   };
 
+
   const handleDiscordStatusChange = () => {
     const checkDiscordStatus = async () => {
       try {
@@ -94,6 +100,68 @@ export default function Lobby() {
 
     checkDiscordStatus();
   };
+
+  useEffect(() => {
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (prefersReducedMotion) {
+      // Skip animations if reduced motion is preferred
+      if (iconRef.current) gsap.set(iconRef.current, { scale: 1 });
+      if (titleRef.current) gsap.set(titleRef.current, { y: 0, opacity: 1 });
+      if (taglineRef.current) gsap.set(taglineRef.current, { y: 0, opacity: 1 });
+      if (mainCardRef.current) gsap.set(mainCardRef.current, { y: 0, opacity: 1 });
+      buttonRefs.current.forEach(btn => btn && gsap.set(btn, { scale: 1, opacity: 1 }));
+      return;
+    }
+
+    // Header icon scales up from 0 with a bounce
+    if (iconRef.current) {
+      gsap.from(iconRef.current, {
+        scale: 0,
+        ease: "back.out(1.7)",
+        duration: 0.6,
+      });
+    }
+
+    // Title slides down from y: -30 with fade
+    if (titleRef.current) {
+      gsap.from(titleRef.current, {
+        y: -30,
+        opacity: 0,
+        duration: 0.5,
+        delay: 0.2,
+      });
+    }
+
+    // Tagline slides down from y: -20 with fade
+    if (taglineRef.current) {
+      gsap.from(taglineRef.current, {
+        y: -20,
+        opacity: 0,
+        duration: 0.5,
+        delay: 0.25, // Slightly after title
+      });
+    }
+
+    // Main content card slides up from y: 40 with fade
+    if (mainCardRef.current) {
+      gsap.from(mainCardRef.current, {
+        y: 40,
+        opacity: 0,
+        duration: 0.5,
+        delay: 0.3,
+      });
+    }
+
+    // Each button staggers in with a slight scale pop
+    gsap.from(buttonRefs.current, {
+      scale: 0.8,
+      opacity: 0,
+      stagger: 0.08,
+      duration: 0.4,
+      delay: 0.4,
+    });
+  }, []);
 
   const handleRoomJoined = (joinedRoomCode: string) => {
     setRoomCode(joinedRoomCode);
@@ -245,20 +313,21 @@ export default function Lobby() {
       {/* Subtle background pattern */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-background to-background pointer-events-none" />
 
-      <div className="relative z-10 max-w-2xl mx-auto px-4 py-8 md:py-16">
+       <div className="relative z-10 max-w-2xl mx-auto px-4 py-4 md:py-6">
         {/* Header */}
-        <div className="text-center mb-10">
-          <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-primary/10 border-2 border-primary/20 mb-6">
-            <Gamepad2 className="h-12 w-12 text-primary" />
+        <div className="text-center mb-5">
+          <div ref={iconRef} className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 border-2 border-primary/20 mb-6">
+            <Gamepad2 className="h-8 w-8 text-primary" />
           </div>
-          <h1 className="text-5xl md:text-7xl font-['Righteous'] tracking-tight text-primary mb-2">
+          <h1 ref={titleRef} className="text-4xl md:text-5xl font-['Righteous'] tracking-tight text-primary mb-2">
             SOUND ROYALE
           </h1>
-          <p className="text-base md:text-lg text-muted-foreground italic">
+          <p ref={taglineRef} className="text-sm text-muted-foreground italic">
             The High-Stakes Game Show for Music Producers
           </p>
-          <div className="flex items-center justify-center gap-4 mt-5">
+          <div className="flex items-center justify-center gap-4 mt-3">
             <Button
+              ref={(el) => (buttonRefs.current[0] = el)}
               variant="ghost"
               size="sm"
               onClick={() => setShowOnboarding(true)}
@@ -268,7 +337,7 @@ export default function Lobby() {
               How to Play
             </Button>
             <Link to="/leaderboard">
-              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
+              <Button ref={(el) => (buttonRefs.current[1] = el)} variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
                 <Trophy className="mr-1.5 h-4 w-4" />
                 Leaderboard
               </Button>
@@ -277,7 +346,7 @@ export default function Lobby() {
         </div>
 
         {/* Main content card */}
-        <div className="bg-card border-2 border-muted-foreground/20 rounded-xl p-6 md:p-8 shadow-xl card-enter">
+        <div ref={mainCardRef} className="bg-card border-2 border-muted-foreground/20 rounded-xl p-5 md:p-6 shadow-xl card-enter">
           <LobbyModeSwitcher
             mode={mode}
             playerNameInput={playerNameInput}
@@ -305,10 +374,7 @@ export default function Lobby() {
           />
         </div>
 
-        {/* Footer */}
-        <p className="text-center text-xs text-muted-foreground/50 mt-8">
-          v0.1.0 · Made with ❤️ for music producers
-        </p>
+
       </div>
 
       <LobbyModals

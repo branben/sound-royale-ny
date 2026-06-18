@@ -1,4 +1,4 @@
-import { useState, useMemo, createRef } from 'react';
+import { useState, useMemo, memo, forwardRef } from 'react';
 import { useGame } from '@/context/useGame';
 import { useUser } from '@/context/UserContext';
 import { BingoBoard } from './BingoBoard';
@@ -10,6 +10,10 @@ import { cn } from '@/lib/utils';
 import { usePlayerColors } from '@/hooks/usePlayerColors';
 import { Trophy, Eye, Vote } from 'lucide-react';
 import { DiscordVerifiedIcon } from './DiscordVerifiedIcon';
+
+interface SpectatorViewProps {
+  bingoBoardRefs?: React.MutableRefObject<HTMLDivElement[]>;
+}
 
 const PLAYER_BAR = [
   'bg-player-1',
@@ -25,7 +29,7 @@ const PLAYER_RING = [
   'ring-player-4/70',
 ] as const;
 
-export function SpectatorView() {
+export const SpectatorView = memo(forwardRef(function SpectatorView({ bingoBoardRefs }: SpectatorViewProps, ref: React.ForwardedRef<HTMLDivElement>) {
   const { gameState } = useGame();
   const { userSession } = useUser();
   const playerColors = usePlayerColors(gameState.players);
@@ -37,13 +41,6 @@ export function SpectatorView() {
   const producers = players.filter(player => !isSpectatorPlayer(player));
   const spectators = players.filter(isSpectatorPlayer);
   const isCurrentUserSpectator = spectators.some(p => p.id === userSession.playerId);
-
-  const boardRefs = useMemo(() => {
-    return producers.reduce((acc, player) => {
-      acc[player.id] = createRef<HTMLDivElement>();
-      return acc;
-    }, {} as Record<string, React.RefObject<HTMLDivElement>>);
-  }, [producers]);
 
   const leaderboard = useMemo(() => {
     return Object.values(gameState.players).filter(player => !isSpectatorPlayer(player)).map(player => {
@@ -158,7 +155,10 @@ export function SpectatorView() {
                 key={player.id}
                 onClick={() => {
                   setSelectedPlayerId(player.id);
-                  boardRefs[player.id]?.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  const playerIndex = producers.findIndex(p => p.id === player.id);
+                  if (bingoBoardRefs?.current[playerIndex]) {
+                    bingoBoardRefs.current[playerIndex]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }
                 }}
                 className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-medium transition-colors ${
                   selectedPlayerId === player.id 
@@ -174,11 +174,12 @@ export function SpectatorView() {
 
         <div className="relative">
           <div className="grid min-w-0 gap-4 md:grid-cols-2">
-            {producers.map((player) => {
+            {producers.map((player, index) => {
               const colorIndex = playerColors.get(player.id) ?? 0;
               return (
-                <div ref={boardRefs[player.id]} key={player.id} className={cn('min-w-0', selectedPlayerId === player.id && 'rounded-lg ring-2', selectedPlayerId === player.id && PLAYER_RING[colorIndex])}>
+                <div key={player.id} className={cn('min-w-0', selectedPlayerId === player.id && 'rounded-lg ring-2', selectedPlayerId === player.id && PLAYER_RING[colorIndex])}>
                   <BingoBoard
+                    ref={(el) => { if (bingoBoardRefs && bingoBoardRefs.current) bingoBoardRefs.current[index] = el; }}
                     playerId={player.id}
                     playerName={player.name}
                     isDiscordVerified={player.isDiscordVerified}
@@ -222,4 +223,4 @@ export function SpectatorView() {
       )}
     </div>
   );
-}
+}));
