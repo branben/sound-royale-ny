@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Users, Loader2 } from 'lucide-react';
+import { Users, Loader2, ArrowLeft } from 'lucide-react';
 
 interface JoinRoomFormProps {
   roomCode: string;
@@ -21,8 +21,11 @@ export function JoinRoomForm({
   onBack,
 }: JoinRoomFormProps) {
   return (
-    <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
-      <div className="space-y-2">
+    <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2">
+      <div className="space-y-3">
+        <label className="text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground text-center block">
+          Room Code
+        </label>
         <Input
           data-testid="room-code-input"
           type="text"
@@ -30,11 +33,11 @@ export function JoinRoomForm({
           placeholder="0000"
           value={roomCode}
           onChange={onCodeChange}
-          className="text-center text-4xl font-mono tracking-[0.5em] h-16 bg-card/50 border-primary/30 focus:border-primary focus:ring-2 focus:ring-ring transition-all duration-200"
+          className="text-center text-5xl font-mono tracking-[0.4em] h-20 bg-background/50 border-2 border-muted-foreground/30 focus:border-primary focus:ring-2 focus:ring-ring transition-all duration-200 font-bold"
           maxLength={4}
         />
-        <p className="text-xs text-foreground/50 text-center">
-          Enter 4-digit room code
+        <p className="text-xs text-muted-foreground text-center">
+          Enter the 4-digit code from the host
         </p>
       </div>
 
@@ -42,7 +45,7 @@ export function JoinRoomForm({
         data-testid="join-room-button"
         onClick={onJoin}
         disabled={roomCode.length !== 4 || isLoading}
-        className="w-full h-12 text-lg font-semibold"
+        className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-lg hover:shadow-xl transition-all duration-200"
         size="lg"
       >
         {isLoading ? (
@@ -54,17 +57,20 @@ export function JoinRoomForm({
       </Button>
 
       {error && (
-        <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-sm text-center">
+        <div className="p-3 rounded-lg bg-destructive/10 border-2 border-destructive/30 text-destructive text-sm text-center font-medium">
           {error}
         </div>
       )}
 
-      <button
+      <Button
         onClick={onBack}
-        className="w-full text-sm text-foreground/50 hover:text-foreground transition-colors"
+        variant="ghost"
+        size="sm"
+        className="w-full text-sm text-muted-foreground hover:text-foreground"
       >
-        &larr; Back
-      </button>
+        <ArrowLeft className="mr-2 h-4 w-4" />
+        Back to Lobby
+      </Button>
     </div>
   );
 }

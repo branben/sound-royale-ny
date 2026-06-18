@@ -1,5 +1,4 @@
 import React from 'react';
-import { CardContent } from '@/components/ui/card';
 import { PlayerNameInput } from '@/components/lobby/PlayerNameInput';
 import { LobbyLanding } from '@/components/lobby/LobbyLanding';
 import { JoinRoomForm } from '@/components/lobby/JoinRoomForm';
@@ -58,7 +57,7 @@ export function LobbyModeSwitcher({
   onManageDiscord,
 }: LobbyModeSwitcherProps) {
   return (
-    <CardContent className="space-y-6">
+    <div className="space-y-5">
       <PlayerNameInput
         value={playerNameInput}
         onChange={onPlayerNameChange}
@@ -103,6 +102,6 @@ export function LobbyModeSwitcher({
           onBack={onBack}
         />
       )}
-    </CardContent>
+    </div>
   );
 }

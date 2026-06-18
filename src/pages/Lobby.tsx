@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Card } from '@/components/ui/card';
+import { useNavigate, Link } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Gamepad2, HelpCircle, Trophy } from 'lucide-react';
 import { roomApi, gameApi, discordApi } from '@/services/api';
 import { useUser } from '@/context/UserContext';
 import { ThemeId, DiscordAccountStatus } from '@/types/game';
 import { getDiscordSession } from '@/services/discordSession';
-import { LobbyHeader } from '@/components/lobby/LobbyHeader';
 import { LobbyModeSwitcher } from '@/components/lobby/LobbyModeSwitcher';
 import { LobbyModals } from '@/components/lobby/LobbyModals';
 
@@ -241,36 +241,75 @@ export default function Lobby() {
   };
 
   return (
-    <div data-testid="lobby" className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
-      <Card className="w-full max-w-lg border-2 border-muted-foreground/20 bg-card card-enter shadow-2xl">
-        <LobbyHeader onShowOnboarding={() => setShowOnboarding(true)} />
+    <div data-testid="lobby" className="min-h-screen bg-background relative overflow-hidden">
+      {/* Subtle background pattern */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-background to-background pointer-events-none" />
 
-        <LobbyModeSwitcher
-          mode={mode}
-          playerNameInput={playerNameInput}
-          roomCode={roomCode}
-          roomNameInput={roomNameInput}
-          selectedThemeId={selectedThemeId}
-          selectedCustomGenres={selectedCustomGenres}
-          isLoading={isLoading}
-          error={error}
-          discordAccountStatus={discordAccountStatus}
-          onPlayerNameChange={setPlayerNameInput}
-          onRoomNameChange={setRoomNameInput}
-          onThemeChange={setSelectedThemeId}
-          onCustomGenresChange={setSelectedCustomGenres}
-          onCodeChange={handleCodeChange}
-          onJoin={handleJoin}
-          onCreate={handleCreateRoom}
-          onQuickMatch={handleQuickMatch}
-          onCreateMode={() => setMode('create')}
-          onJoinMode={() => setMode('join')}
-          onBack={() => { setMode('landing'); setError(null); }}
-          onBrowseRooms={() => setShowRoomBrowser(true)}
-          onLinkDiscord={handleLinkDiscord}
-          onManageDiscord={() => setShowDiscordModal(true)}
-        />
-      </Card>
+      <div className="relative z-10 max-w-2xl mx-auto px-4 py-8 md:py-16">
+        {/* Header */}
+        <div className="text-center mb-10">
+          <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-primary/10 border-2 border-primary/20 mb-6">
+            <Gamepad2 className="h-12 w-12 text-primary" />
+          </div>
+          <h1 className="text-5xl md:text-7xl font-['Righteous'] tracking-tight text-primary mb-2">
+            SOUND ROYALE
+          </h1>
+          <p className="text-base md:text-lg text-muted-foreground italic">
+            The High-Stakes Game Show for Music Producers
+          </p>
+          <div className="flex items-center justify-center gap-4 mt-5">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowOnboarding(true)}
+              className="text-muted-foreground hover:text-primary"
+            >
+              <HelpCircle className="mr-1.5 h-4 w-4" />
+              How to Play
+            </Button>
+            <Link to="/leaderboard">
+              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
+                <Trophy className="mr-1.5 h-4 w-4" />
+                Leaderboard
+              </Button>
+            </Link>
+          </div>
+        </div>
+
+        {/* Main content card */}
+        <div className="bg-card border-2 border-muted-foreground/20 rounded-xl p-6 md:p-8 shadow-xl card-enter">
+          <LobbyModeSwitcher
+            mode={mode}
+            playerNameInput={playerNameInput}
+            roomCode={roomCode}
+            roomNameInput={roomNameInput}
+            selectedThemeId={selectedThemeId}
+            selectedCustomGenres={selectedCustomGenres}
+            isLoading={isLoading}
+            error={error}
+            discordAccountStatus={discordAccountStatus}
+            onPlayerNameChange={setPlayerNameInput}
+            onRoomNameChange={setRoomNameInput}
+            onThemeChange={setSelectedThemeId}
+            onCustomGenresChange={setSelectedCustomGenres}
+            onCodeChange={handleCodeChange}
+            onJoin={handleJoin}
+            onCreate={handleCreateRoom}
+            onQuickMatch={handleQuickMatch}
+            onCreateMode={() => setMode('create')}
+            onJoinMode={() => setMode('join')}
+            onBack={() => { setMode('landing'); setError(null); }}
+            onBrowseRooms={() => setShowRoomBrowser(true)}
+            onLinkDiscord={handleLinkDiscord}
+            onManageDiscord={() => setShowDiscordModal(true)}
+          />
+        </div>
+
+        {/* Footer */}
+        <p className="text-center text-xs text-muted-foreground/50 mt-8">
+          v0.1.0 · Made with ❤️ for music producers
+        </p>
+      </div>
 
       <LobbyModals
         showOnboarding={showOnboarding}
