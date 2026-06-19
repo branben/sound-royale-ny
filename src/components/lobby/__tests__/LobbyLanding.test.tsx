@@ -8,11 +8,11 @@ vi.mock('framer-motion', () => ({
   motion: {
     div: React.forwardRef(
       ({ children, ...props }: Record<string, unknown>, ref: React.Ref<HTMLDivElement>) =>
-        React.createElement('div', { ...props, ref }, children)
+        React.createElement('div', { ...props, ref }, children as React.ReactNode),
     ),
     button: React.forwardRef(
       ({ children, ...props }: Record<string, unknown>, ref: React.Ref<HTMLButtonElement>) =>
-        React.createElement('button', { ...props, ref }, children)
+        React.createElement('button', { ...props, ref }, children as React.ReactNode),
     ),
   },
   AnimatePresence: ({ children }: { children: React.ReactNode }) => children,
@@ -34,7 +34,7 @@ describe('LobbyLanding', () => {
   it('renders Quick Match button', () => {
     render(<LobbyLanding {...defaultProps} />);
     expect(screen.getByTestId('quick-match-button')).toBeInTheDocument();
-    expect(screen.getByText('Quick Match')).toBeInTheDocument();
+    expect(screen.getByText('QUICK MATCH')).toBeInTheDocument();
   });
 
   it('renders Create and Join buttons', () => {
@@ -45,7 +45,7 @@ describe('LobbyLanding', () => {
 
   it('renders Browse Rooms button', () => {
     render(<LobbyLanding {...defaultProps} />);
-    expect(screen.getByText('Browse Rooms')).toBeInTheDocument();
+    expect(screen.getByText('Browse active rooms')).toBeInTheDocument();
   });
 
   it('calls onQuickMatch when Quick Match is clicked', () => {
@@ -68,7 +68,7 @@ describe('LobbyLanding', () => {
 
   it('calls onBrowseRooms when Browse Rooms is clicked', () => {
     render(<LobbyLanding {...defaultProps} />);
-    fireEvent.click(screen.getByText('Browse Rooms'));
+    fireEvent.click(screen.getByText('Browse active rooms'));
     expect(defaultProps.onBrowseRooms).toHaveBeenCalledTimes(1);
   });
 
@@ -112,7 +112,7 @@ describe('LobbyLanding', () => {
           is_linked: true,
           discord_username: 'testuser',
         }}
-      />
+      />,
     );
     expect(screen.queryByText('Link Discord')).not.toBeInTheDocument();
   });

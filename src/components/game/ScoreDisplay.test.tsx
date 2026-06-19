@@ -29,14 +29,24 @@ describe('ScoreDisplay', () => {
 
     it('hides player name when showPlayerName is false', () => {
       render(
-        <ScoreDisplay scoreInfo={null} playerName="Player1" isCurrentPlayer={false} showPlayerName={false} />
+        <ScoreDisplay
+          scoreInfo={null}
+          playerName="Player1"
+          isCurrentPlayer={false}
+          showPlayerName={false}
+        />,
       );
       expect(screen.queryByText('Player1')).not.toBeInTheDocument();
     });
 
     it('renders ELO rating in null state when provided', () => {
       render(
-        <ScoreDisplay scoreInfo={null} playerName="Player1" isCurrentPlayer={false} eloRating={1400} />
+        <ScoreDisplay
+          scoreInfo={null}
+          playerName="Player1"
+          isCurrentPlayer={false}
+          eloRating={1400}
+        />,
       );
       expect(screen.getByTestId('elo-rating')).toBeInTheDocument();
       expect(screen.getByText('ELO: 1400')).toBeInTheDocument();
@@ -69,7 +79,12 @@ describe('ScoreDisplay', () => {
 
     it('hides player name when showPlayerName is false', () => {
       render(
-        <ScoreDisplay scoreInfo={scoreInfo} playerName="Player1" isCurrentPlayer={false} showPlayerName={false} />
+        <ScoreDisplay
+          scoreInfo={scoreInfo}
+          playerName="Player1"
+          isCurrentPlayer={false}
+          showPlayerName={false}
+        />,
       );
       expect(screen.queryByText('Player1')).not.toBeInTheDocument();
     });
@@ -102,7 +117,9 @@ describe('ScoreDisplay', () => {
 
     it('does not render bonus badges when no bonuses', () => {
       const noBonusScore = { ...scoreInfo, bonuses: [] };
-      render(<ScoreDisplay scoreInfo={noBonusScore} playerName="Player1" isCurrentPlayer={false} />);
+      render(
+        <ScoreDisplay scoreInfo={noBonusScore} playerName="Player1" isCurrentPlayer={false} />,
+      );
       expect(screen.queryByText('Multi-Line')).not.toBeInTheDocument();
       expect(screen.queryByText('Speed')).not.toBeInTheDocument();
     });
@@ -116,7 +133,9 @@ describe('ScoreDisplay', () => {
 
     it('shows "None yet" when no lines completed', () => {
       const noLinesScore = { ...scoreInfo, lines: [] };
-      render(<ScoreDisplay scoreInfo={noLinesScore} playerName="Player1" isCurrentPlayer={false} />);
+      render(
+        <ScoreDisplay scoreInfo={noLinesScore} playerName="Player1" isCurrentPlayer={false} />,
+      );
       expect(screen.getByText('None yet')).toBeInTheDocument();
     });
 
@@ -140,17 +159,38 @@ describe('ScoreDisplay', () => {
     };
 
     it('shows WINNER badge when hasWon is true', () => {
-      render(<ScoreDisplay scoreInfo={winScoreInfo} playerName="Player1" isCurrentPlayer={false} hasWon={true} />);
+      render(
+        <ScoreDisplay
+          scoreInfo={winScoreInfo}
+          playerName="Player1"
+          isCurrentPlayer={false}
+          hasWon={true}
+        />,
+      );
       expect(screen.getByText('WINNER')).toBeInTheDocument();
     });
 
     it('does not show WINNER badge when hasWon is false', () => {
-      render(<ScoreDisplay scoreInfo={winScoreInfo} playerName="Player1" isCurrentPlayer={false} hasWon={false} />);
+      render(
+        <ScoreDisplay
+          scoreInfo={winScoreInfo}
+          playerName="Player1"
+          isCurrentPlayer={false}
+          hasWon={false}
+        />,
+      );
       expect(screen.queryByText('WINNER')).not.toBeInTheDocument();
     });
 
     it('sets data-victory-celebration attribute when hasWon', () => {
-      render(<ScoreDisplay scoreInfo={winScoreInfo} playerName="Player1" isCurrentPlayer={false} hasWon={true} />);
+      render(
+        <ScoreDisplay
+          scoreInfo={winScoreInfo}
+          playerName="Player1"
+          isCurrentPlayer={false}
+          hasWon={true}
+        />,
+      );
       const display = screen.getByTestId('score-display');
       expect(display.getAttribute('data-victory-celebration')).toBe('true');
     });
@@ -163,7 +203,7 @@ describe('ScoreDisplay', () => {
           isCurrentPlayer={false}
           hasWon={true}
           eloDelta={25}
-        />
+        />,
       );
       expect(screen.getByTestId('elo-delta')).toBeInTheDocument();
       expect(screen.getByText('+25')).toBeInTheDocument();
@@ -177,7 +217,7 @@ describe('ScoreDisplay', () => {
           isCurrentPlayer={false}
           hasWon={false}
           eloDelta={25}
-        />
+        />,
       );
       expect(screen.queryByTestId('elo-delta')).not.toBeInTheDocument();
     });
@@ -190,7 +230,7 @@ describe('ScoreDisplay', () => {
           isCurrentPlayer={false}
           hasWon={true}
           eloDelta={-15}
-        />
+        />,
       );
       expect(screen.getByText('-15')).toBeInTheDocument();
     });
@@ -198,7 +238,14 @@ describe('ScoreDisplay', () => {
 
   describe('ELO rating', () => {
     it('renders ELO rating when provided', () => {
-      render(<ScoreDisplay scoreInfo={scoreInfo} playerName="Player1" isCurrentPlayer={false} eloRating={1350} />);
+      render(
+        <ScoreDisplay
+          scoreInfo={scoreInfo}
+          playerName="Player1"
+          isCurrentPlayer={false}
+          eloRating={1350}
+        />,
+      );
       expect(screen.getByTestId('elo-rating')).toBeInTheDocument();
       expect(screen.getByText('ELO: 1350')).toBeInTheDocument();
     });
@@ -215,7 +262,12 @@ describe('ScoreDisplay', () => {
       const mockFn = vi.fn(handleClick);
 
       render(
-        <ScoreDisplay scoreInfo={scoreInfo} playerName="Player1" isCurrentPlayer={false} onPlayerClick={mockFn} />
+        <ScoreDisplay
+          scoreInfo={scoreInfo}
+          playerName="Player1"
+          isCurrentPlayer={false}
+          onPlayerClick={mockFn}
+        />,
       );
 
       fireEvent.click(screen.getByTestId('score-display'));
@@ -240,7 +292,9 @@ describe('ScoreDisplay', () => {
           { type: 'diagonal', positions: [0, 4, 8] },
         ],
       };
-      render(<ScoreDisplay scoreInfo={allLineTypes} playerName="Player1" isCurrentPlayer={false} />);
+      render(
+        <ScoreDisplay scoreInfo={allLineTypes} playerName="Player1" isCurrentPlayer={false} />,
+      );
       expect(screen.getByText('Completed Lines:')).toBeInTheDocument();
     });
 
@@ -253,7 +307,12 @@ describe('ScoreDisplay', () => {
 
     it('applies cursor-pointer class when onPlayerClick is provided', () => {
       render(
-        <ScoreDisplay scoreInfo={scoreInfo} playerName="Player1" isCurrentPlayer={false} onPlayerClick={() => {}} />
+        <ScoreDisplay
+          scoreInfo={scoreInfo}
+          playerName="Player1"
+          isCurrentPlayer={false}
+          onPlayerClick={() => {}}
+        />,
       );
       const clickable = screen.getByTestId('score-display');
       expect(clickable.onclick).not.toBeNull();

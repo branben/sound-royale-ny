@@ -1,4 +1,4 @@
-import { useContext, useEffect } from 'react';
+import { useContext, useEffect, useRef } from 'react';
 import {
   GameContext,
   GameStateContext,
@@ -52,8 +52,10 @@ export function useGameRefresh() {
 
 export function useGameRefreshEffect(callback: () => void) {
   const { forceRefresh } = useGameRefresh();
+  const callbackRef = useRef(callback);
+  callbackRef.current = callback;
 
   useEffect(() => {
-    callback();
-  }, [forceRefresh, callback]);
+    callbackRef.current();
+  }, [forceRefresh]);
 }

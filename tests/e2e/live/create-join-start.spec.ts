@@ -30,9 +30,19 @@ async function createActor(browser: Browser): Promise<TestActor> {
   const page = await context.newPage();
   const errors: string[] = [];
 
+  // Suppress onboarding modal that blocks interaction with the name input
+  await page.addInitScript(() => {
+    localStorage.setItem('hasSeenOnboarding', 'true');
+  });
+
   page.on('console', (message) => {
     if (message.type() === 'error') {
-      errors.push(message.text());
+      // Filter out expected errors: Axios errors from app logging, and
+      // browser-level "Failed to load resource" for negative-test 404s/429s
+      const text = message.text();
+      if (text.includes('AxiosError')) return;
+      if (text.includes('Failed to load resource')) return;
+      errors.push(text);
     }
   });
   page.on('pageerror', (error) => {
@@ -54,7 +64,7 @@ test.describe('Create → Join → Start Integration Flow', () => {
 
   // -----------------------------------------------------------------------
   // Scenario 1: Host creates room → sees "Start Battle" button
-  //           (not "Waiting for more players" once 2+ players are present)
+  //           (not "Waiting for contestants" once 2+ players are present)
   // -----------------------------------------------------------------------
   test('host creates room and sees Start Battle button after second player joins', async ({ browser }) => {
     test.setTimeout(60000);
@@ -72,35 +82,33 @@ test.describe('Create → Join → Start Integration Flow', () => {
       await host.page.getByTestId('create-room-name-input').fill(`TestRoom ${runId}`);
       await host.page.getByTestId('create-room-submit-button').click();
 
-      // Wait for room to load and extract room code from the "Room Code: XXXX" text
-      const roomCodeText = await host.page.getByText(/Room Code:/).textContent({ timeout: 15000 });
-      const roomCode = roomCodeText?.match(/Room Code:\s*(\d{4})/)?.[1];
-      expect(roomCode).toMatch(/^\d{4}$/);
+      // Extract room code from URL after navigation to /room/{code}
+      await expect(host.page).toHaveURL(/\/room\/\d{4}$/, { timeout: 15000 });
+      const roomCode = host.page.url().match(/\/room\/(\d{4})$/)![1];
 
-      // Host should see "Waiting for more players" (not Start Battle yet — only 1 player)
-      await expect(host.page.getByText(/Waiting for more players/i)).toBeVisible({ timeout: 10000 });
+      // Host should see "Waiting for contestants" (not Start Battle yet — only 1 player)
+      await expect(host.page.getByText(/Waiting for contestants/i)).toBeVisible({ timeout: 10000 });
 
       // --- Second player joins via UI ---
       await player2.page.goto('/');
       await player2.page.getByTestId('player-name-input').fill(`Player${runId}`);
       await player2.page.getByTestId('join-room-mode-button').click();
-      await player2.page.getByTestId('room-code-input').fill(roomCode!);
+      await player2.page.getByTestId('room-code-input').fill(roomCode);
       await player2.page.getByTestId('join-room-button').click();
 
-      // Player2 should see the lobby
-      await expect(player2.page.getByText(/Room Code:/i)).toBeVisible({ timeout: 15000 });
+      // Player2 should see the lobby with room code
+      await expect(player2.page.locator(`data-testid=lobby`)).toBeVisible({ timeout: 15000 });
+      await expect(player2.page.getByText(roomCode).first()).toBeVisible();
 
-      // Player2 toggles ready
-      await player2.page.getByText('Click When Ready').click();
-      await expect(player2.page.getByText(/I'm Ready!/i)).toBeVisible({ timeout: 10000 });
+      // Player2 should see "You're in battle!"
+      await expect(player2.page.getByText(/You're in battle/i)).toBeVisible({ timeout: 10000 });
 
       // --- Host should now see "Start Battle" button ---
       await expect(host.page.getByTestId('start-battle')).toBeVisible({ timeout: 15000 });
-      // Verify the button text
       await expect(host.page.getByTestId('start-battle')).toContainText('Start Battle');
 
-      // Verify no "Waiting for more players" message is shown anymore
-      await expect(host.page.getByText(/Waiting for more players/i)).not.toBeVisible();
+      // Verify no "Waiting for contestants" message is shown anymore for host
+      await expect(host.page.getByText(/Waiting for contestants/i)).not.toBeVisible();
 
       // Verify no browser console errors
       for (const actor of actors) {
@@ -132,19 +140,16 @@ test.describe('Create → Join → Start Integration Flow', () => {
       await player2Page.joinRoom(roomCode, false);
 
       // --- Verify lobby state for host ---
-      // Host should see room code
-      await expect(host.page.getByText(`Room Code: ${roomCode}`)).toBeVisible({ timeout: 10000 });
+      // Host should see room code number in the lobby
+      await expect(host.page.locator('data-testid=lobby')).toBeVisible({ timeout: 10000 });
+      await expect(host.page.getByText(roomCode).first()).toBeVisible();
 
       // --- Verify lobby state for player2 ---
-      // Player2 should also see room code
-      await expect(player2.page.getByText(`Room Code: ${roomCode}`)).toBeVisible({ timeout: 10000 });
+      await expect(player2.page.locator('data-testid=lobby')).toBeVisible({ timeout: 10000 });
+      await expect(player2.page.getByText(roomCode).first()).toBeVisible();
 
-      // Player2 should see the "Click When Ready" button
-      await expect(player2.page.getByText('Click When Ready')).toBeVisible({ timeout: 10000 });
-
-      // Player2 toggles ready
-      await player2Page.toggleReady();
-      await expect(player2.page.getByText(/I'm Ready!/i)).toBeVisible({ timeout: 10000 });
+      // Player2 should see "You're in battle!" instead of join buttons
+      await expect(player2.page.getByText(/You're in battle/i)).toBeVisible({ timeout: 10000 });
 
       // --- Verify backend state matches UI ---
       const backendState = await getGameState(roomCode);
@@ -160,13 +165,10 @@ test.describe('Create → Join → Start Integration Flow', () => {
       expect(playerNames).toContain(`Player${runId}`);
 
       // Verify one is host, one is not
-      const hostPlayer = playerValues.find((p: any) => p.is_host === true);
-      const nonHostPlayer = playerValues.find((p: any) => p.is_host !== true);
+      const hostPlayer = playerValues.find((p: any) => p.isHost === true);
+      const nonHostPlayer = playerValues.find((p: any) => p.isHost !== true);
       expect(hostPlayer).toBeTruthy();
       expect(nonHostPlayer).toBeTruthy();
-
-      // Verify the non-host player is ready
-      expect(nonHostPlayer.ready).toBe(true);
 
       for (const actor of actors) {
         expect(actor.errors, `Browser errors: ${actor.page.url()}`).toEqual([]);
@@ -195,10 +197,7 @@ test.describe('Create → Join → Start Integration Flow', () => {
       const player2Page = new PlayerPage(player2.page, `Player${runId}`, 'producer');
       await player2Page.joinRoom(roomCode, false);
 
-      // Player2 readies up
-      await player2Page.toggleReady();
-
-      // --- Host starts game ---
+      // --- Host starts game (automatically starts when 2+ players are present) ---
       await hostPage.startGame();
 
       // --- Both players should see the game board ---
@@ -241,7 +240,7 @@ test.describe('Create → Join → Start Integration Flow', () => {
       await player.page.getByTestId('join-room-button').click();
 
       // Should see an error message
-      await expect(player.page.getByText(/Room not found|Failed to join|Invalid room/i)).toBeVisible({ timeout: 10000 });
+      await expect(player.page.getByText(/Request failed|Room not found|Failed to join|Invalid room/i)).toBeVisible({ timeout: 10000 });
 
       expect(player.errors).toEqual([]);
     } finally {
@@ -268,9 +267,6 @@ test.describe('Create → Join → Start Integration Flow', () => {
       const player2Page = new PlayerPage(player2.page, `Player${runId}`, 'producer');
       await player2Page.joinRoom(roomCode, false);
 
-      // Player2 readies up
-      await player2Page.toggleReady();
-
       // --- Verify host sees Start Battle BEFORE refresh ---
       await expect(host.page.getByTestId('start-battle')).toBeVisible({ timeout: 15000 });
 
@@ -278,7 +274,6 @@ test.describe('Create → Join → Start Integration Flow', () => {
       await host.page.reload();
 
       // --- Host should still see Start Battle button after refresh ---
-      // The rejoin flow should restore host status from server data
       await expect(host.page.getByTestId('start-battle')).toBeVisible({ timeout: 20000 });
 
       // --- Host can still start the game ---

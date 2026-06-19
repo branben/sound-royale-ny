@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { discordApi } from '@/services/api';
-import { clearDiscordOAuthState, createDiscordSessionFromLinkResponse, getDiscordOAuthState, saveDiscordSession } from '@/services/discordSession';
+import {
+  clearDiscordOAuthState,
+  createDiscordSessionFromLinkResponse,
+  getDiscordOAuthState,
+  saveDiscordSession,
+} from '@/services/discordSession';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 

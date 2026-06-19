@@ -19,7 +19,7 @@ export const WinnerAnnouncement: React.FC<WinnerAnnouncementProps> = ({
   score,
   eloDeltas,
   isVisible,
-  className
+  className,
 }) => {
   return (
     <AnimatePresence>
@@ -27,8 +27,8 @@ export const WinnerAnnouncement: React.FC<WinnerAnnouncementProps> = ({
         <motion.div
           data-testid="winner-announcement"
           className={cn(
-            "fixed inset-0 flex items-center justify-center z-50 bg-black/60 backdrop-blur-sm",
-            className
+            'fixed inset-0 flex items-center justify-center z-50 bg-black/60 backdrop-blur-sm',
+            className,
           )}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

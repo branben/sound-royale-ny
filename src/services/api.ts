@@ -1,5 +1,13 @@
 import axios from 'axios';
-import { Player, RoomResponse, CreateRoomResponse, ThemeRotation, GenrePerformance, BackendPlayer, GameState } from '@/types/game';
+import {
+  Player,
+  RoomResponse,
+  CreateRoomResponse,
+  ThemeRotation,
+  GenrePerformance,
+  BackendPlayer,
+  GameState,
+} from '@/types/game';
 import { DiscordLinkResponse, DiscordSession } from '@/services/discordSession';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
@@ -20,22 +28,20 @@ api.interceptors.response.use(
     const config = error.config || {};
     if (!config.__skipErrorLog) {
       try {
-        await api.post(
-          "/errors/log/",
-          {
-            path: config.url || "",
-            method: (config.method || "").toUpperCase(),
+        await api
+          .post('/errors/log/', {
+            path: config.url || '',
+            method: (config.method || '').toUpperCase(),
             status: error.response?.status || 0,
-            message: error.response?.data?.error || error.message || "Unknown error",
-            stack: error.stack || "",
-          }
-        ).catch((err) => console.error('Failed to log error:', err));
+            message: error.response?.data?.error || error.message || 'Unknown error',
+            stack: error.stack || '',
+          })
+          .catch((err) => console.error('Failed to log error:', err));
       } catch {}
     }
     return Promise.reject(error);
-  }
+  },
 );
-
 
 function discordSessionPayload(discordSession?: DiscordSession): {
   discord_user_id?: string;
@@ -65,7 +71,7 @@ export const roomApi = {
     totalRounds?: number,
     theme?: string,
     customGenres?: string[],
-    discordSession?: DiscordSession
+    discordSession?: DiscordSession,
   ): Promise<CreateRoomResponse> => {
     const response = await api.post('/rooms/', {
       name: roomName,
@@ -86,7 +92,7 @@ export const roomApi = {
   updateThemeRotation: async (
     key: ThemeRotation['key'],
     rotation: Pick<ThemeRotation, 'name' | 'description' | 'genres'>,
-    adminSecret: string
+    adminSecret: string,
   ): Promise<ThemeRotation> => {
     const response = await api.put(`/theme-rotations/${key}/`, rotation, {
       headers: {
@@ -102,7 +108,9 @@ export const roomApi = {
       const response = await api.get(`/rooms/${roomId}/stats/`);
       return response.data;
     } catch (error) {
-      console.error(`Failed to fetch stats for room ${roomId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(
+        `Failed to fetch stats for room ${roomId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
       throw error;
     }
   },
@@ -118,7 +126,7 @@ export const gameApi = {
     roomId: string,
     playerName: string,
     isSpectator?: boolean,
-    discordSession?: DiscordSession
+    discordSession?: DiscordSession,
   ): Promise<Player> => {
     const response = await api.post(`/rooms/${roomId}/join_game/`, {
       name: playerName,
@@ -143,11 +151,17 @@ export const gameApi = {
   },
 
   startGame: async (roomId: string, playerSecret: string): Promise<{ status: string }> => {
-    const response = await api.post(`/rooms/${roomId}/start_game/`, { player_secret: playerSecret });
+    const response = await api.post(`/rooms/${roomId}/start_game/`, {
+      player_secret: playerSecret,
+    });
     return response.data;
   },
 
-  submitTile: async (tileId: string, audioFile: File, playerId: string): Promise<{ status: string }> => {
+  submitTile: async (
+    tileId: string,
+    audioFile: File,
+    playerId: string,
+  ): Promise<{ status: string }> => {
     const formData = new FormData();
     formData.append('audio_file', audioFile);
     formData.append('player_id', playerId);
@@ -160,14 +174,21 @@ export const gameApi = {
     return response.data;
   },
 
-  resetGame: async (roomId: string, playerSecret: string): Promise<{ status: string; round?: number }> => {
+  resetGame: async (
+    roomId: string,
+    playerSecret: string,
+  ): Promise<{ status: string; round?: number }> => {
     const response = await api.post(`/rooms/${roomId}/reset_game/`, {
       player_secret: playerSecret,
     });
     return response.data;
   },
 
-  kickPlayer: async (roomId: string, playerId: string, playerSecret: string): Promise<{ status: string }> => {
+  kickPlayer: async (
+    roomId: string,
+    playerId: string,
+    playerSecret: string,
+  ): Promise<{ status: string }> => {
     const response = await api.post(`/rooms/${roomId}/kick_player/`, {
       player_id: playerId,
       player_secret: playerSecret,
@@ -175,7 +196,11 @@ export const gameApi = {
     return response.data;
   },
 
-  castVote: async (roomId: string, playerSecret: string, votedForPlayerId: string): Promise<{ status: string }> => {
+  castVote: async (
+    roomId: string,
+    playerSecret: string,
+    votedForPlayerId: string,
+  ): Promise<{ status: string }> => {
     const response = await api.post(`/rooms/${roomId}/vote/`, {
       player_secret: playerSecret,
       voted_for_player_id: votedForPlayerId,
@@ -197,7 +222,11 @@ export const gameApi = {
     return response.data;
   },
 
-  toggleReady: async (roomId: string, playerId: string, playerSecret: string): Promise<{ player_id: string; is_ready: boolean }> => {
+  toggleReady: async (
+    roomId: string,
+    playerId: string,
+    playerSecret: string,
+  ): Promise<{ player_id: string; is_ready: boolean }> => {
     const response = await api.post(`/rooms/${roomId}/toggle_ready/`, {
       player_id: playerId,
       player_secret: playerSecret,
@@ -215,14 +244,22 @@ export const gameApi = {
     return response.data.map((p: BackendPlayer) => transformPlayer(p));
   },
 
-  setCheckedIn: async (playerId: string, isCheckedIn: boolean, adminSecret: string): Promise<Player> => {
-    const response = await api.post(`/players/by-id/${playerId}/set_checked_in/`, {
-      is_checked_in: isCheckedIn,
-    }, {
-      headers: {
-        'X-Theme-Admin-Secret': adminSecret,
+  setCheckedIn: async (
+    playerId: string,
+    isCheckedIn: boolean,
+    adminSecret: string,
+  ): Promise<Player> => {
+    const response = await api.post(
+      `/players/by-id/${playerId}/set_checked_in/`,
+      {
+        is_checked_in: isCheckedIn,
       },
-    });
+      {
+        headers: {
+          'X-Theme-Admin-Secret': adminSecret,
+        },
+      },
+    );
     return transformPlayer(response.data);
   },
 };
@@ -235,7 +272,10 @@ export const discordApi = {
   },
 
   // Handle Discord OAuth callback
-  handleCallback: async (code: string, state: string): Promise<{
+  handleCallback: async (
+    code: string,
+    state: string,
+  ): Promise<{
     discord_user_id: string;
     discord_username: string;
     discriminator: string;
@@ -249,14 +289,18 @@ export const discordApi = {
   },
 
   // Link Discord account to player
-  linkAccount: async (playerId: string, playerSecret: string, discordData: {
-    discord_user_id: string;
-    discord_username: string;
-    discord_avatar_url?: string;
-    access_token: string;
-    refresh_token?: string;
-    expires_in: number;
-  }): Promise<DiscordLinkResponse & { status: string }> => {
+  linkAccount: async (
+    playerId: string,
+    playerSecret: string,
+    discordData: {
+      discord_user_id: string;
+      discord_username: string;
+      discord_avatar_url?: string;
+      access_token: string;
+      refresh_token?: string;
+      expires_in: number;
+    },
+  ): Promise<DiscordLinkResponse & { status: string }> => {
     const response = await api.post('/auth/discord/link/', {
       player_id: playerId,
       player_secret: playerSecret,
@@ -275,7 +319,10 @@ export const discordApi = {
   },
 
   // Get Discord account status
-  getAccountStatus: async (playerId: string, playerSecret: string): Promise<{
+  getAccountStatus: async (
+    playerId: string,
+    playerSecret: string,
+  ): Promise<{
     is_linked: boolean;
     discord_user_id?: string;
     discord_username?: string;
@@ -285,11 +332,16 @@ export const discordApi = {
     last_sync_at?: string;
     privacy_settings?: Record<string, any>;
   }> => {
-    const response = await api.get(`/auth/discord/status/?player_id=${playerId}&player_secret=${playerSecret}`);
+    const response = await api.get(
+      `/auth/discord/status/?player_id=${playerId}&player_secret=${playerSecret}`,
+    );
     return response.data;
   },
 
-  getAccountStatusBySession: async (discordUserId: string, sessionSecret: string): Promise<{
+  getAccountStatusBySession: async (
+    discordUserId: string,
+    sessionSecret: string,
+  ): Promise<{
     is_linked: boolean;
     discord_user_id?: string;
     discord_username?: string;
@@ -299,7 +351,9 @@ export const discordApi = {
     last_sync_at?: string;
     privacy_settings?: Record<string, any>;
   }> => {
-    const response = await api.get(`/auth/discord/status/?discord_user_id=${discordUserId}&discord_session_secret=${sessionSecret}`);
+    const response = await api.get(
+      `/auth/discord/status/?discord_user_id=${discordUserId}&discord_session_secret=${sessionSecret}`,
+    );
     return response.data;
   },
 };

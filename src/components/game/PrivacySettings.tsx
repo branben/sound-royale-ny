@@ -52,7 +52,7 @@ export function PrivacySettings({ isOpen, onClose }: PrivacySettingsProps) {
     try {
       const status = await discordApi.getAccountStatus(
         userSession.playerId,
-        userSession.playerSecret
+        userSession.playerSecret,
       );
       if (status.privacy_settings) {
         setPrivacySettings(status.privacy_settings as PrivacyConfig);
@@ -85,7 +85,7 @@ export function PrivacySettings({ isOpen, onClose }: PrivacySettingsProps) {
   };
 
   const updateSetting = (key: keyof PrivacyConfig, value: boolean) => {
-    setPrivacySettings(prev => ({ ...prev, [key]: value }));
+    setPrivacySettings((prev) => ({ ...prev, [key]: value }));
   };
 
   return (
@@ -112,9 +112,7 @@ export function PrivacySettings({ isOpen, onClose }: PrivacySettingsProps) {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <label className="text-sm font-medium text-white">
-                    Share ELO Rating
-                  </label>
+                  <label className="text-sm font-medium text-white">Share ELO Rating</label>
                   <p className="text-xs text-gray-400">
                     Allow Discord servers to see your ELO score
                   </p>
@@ -127,9 +125,7 @@ export function PrivacySettings({ isOpen, onClose }: PrivacySettingsProps) {
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <label className="text-sm font-medium text-white">
-                    Share Win/Loss Record
-                  </label>
+                  <label className="text-sm font-medium text-white">Share Win/Loss Record</label>
                   <p className="text-xs text-gray-400">
                     Allow Discord servers to see your match history
                   </p>
@@ -142,9 +138,7 @@ export function PrivacySettings({ isOpen, onClose }: PrivacySettingsProps) {
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <label className="text-sm font-medium text-white">
-                    Share Genre Performance
-                  </label>
+                  <label className="text-sm font-medium text-white">Share Genre Performance</label>
                   <p className="text-xs text-gray-400">
                     Allow Discord servers to see your genre stats
                   </p>
@@ -157,9 +151,7 @@ export function PrivacySettings({ isOpen, onClose }: PrivacySettingsProps) {
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <label className="text-sm font-medium text-white">
-                    Share Recent Matches
-                  </label>
+                  <label className="text-sm font-medium text-white">Share Recent Matches</label>
                   <p className="text-xs text-gray-400">
                     Allow Discord servers to show your recent games
                   </p>
@@ -172,9 +164,7 @@ export function PrivacySettings({ isOpen, onClose }: PrivacySettingsProps) {
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <label className="text-sm font-medium text-white">
-                    Allow Role Assignments
-                  </label>
+                  <label className="text-sm font-medium text-white">Allow Role Assignments</label>
                   <p className="text-xs text-gray-400">
                     Allow Discord bots to assign roles based on ELO
                   </p>
@@ -189,7 +179,9 @@ export function PrivacySettings({ isOpen, onClose }: PrivacySettingsProps) {
                 <div className="flex items-start gap-2 p-3 rounded-lg bg-gray-800/50">
                   <Lock className="h-4 w-4 text-gray-400 mt-0.5" />
                   <p className="text-xs text-gray-400">
-                    Your data is only shared with Discord servers where the Sound Royale bot is installed. You can unlink your Discord account at any time to remove all data from Discord servers.
+                    Your data is only shared with Discord servers where the Sound Royale bot is
+                    installed. You can unlink your Discord account at any time to remove all data
+                    from Discord servers.
                   </p>
                 </div>
               </div>

@@ -98,12 +98,21 @@ export const GENRES = [
   'R&B',
   'EDM',
   'Jazz',
-  'Ambient'
+  'Ambient',
 ] as const;
 
-export type Genre = typeof GENRES[number];
+export type Genre = (typeof GENRES)[number];
 
-export type ThemeId = 'classic' | 'weekly' | 'monthly' | 'phonk' | 'trap' | 'lofi' | 'house' | 'electronic' | 'custom';
+export type ThemeId =
+  | 'classic'
+  | 'weekly'
+  | 'monthly'
+  | 'phonk'
+  | 'trap'
+  | 'lofi'
+  | 'house'
+  | 'electronic'
+  | 'custom';
 
 export interface Theme {
   id: string;

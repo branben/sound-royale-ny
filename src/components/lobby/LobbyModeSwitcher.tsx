@@ -58,10 +58,7 @@ export function LobbyModeSwitcher({
 }: LobbyModeSwitcherProps) {
   return (
     <div className="space-y-5">
-      <PlayerNameInput
-        value={playerNameInput}
-        onChange={onPlayerNameChange}
-      />
+      <PlayerNameInput value={playerNameInput} onChange={onPlayerNameChange} />
 
       {mode === 'landing' && (
         <LobbyLanding

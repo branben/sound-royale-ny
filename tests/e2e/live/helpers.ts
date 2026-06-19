@@ -5,75 +5,108 @@ function getApiBaseUrl(): string {
   return process.env.LIVE_API_BASE_URL || 'http://localhost:8000/api';
 }
 
-export async function getGameState(roomCode: string) {
-  const response = await axios.get(`${getApiBaseUrl()}/rooms/${roomCode}/game_state/`);
-  return response.data;
+function sleep(ms: number): Promise<void> {
+  return new Promise(r => setTimeout(r, ms));
 }
 
-export async function joinRoom(roomCode: string, playerName: string, isSpectator: boolean = false, retries = 3) {
-  for (let i = 0; i < retries; i++) {
+async function withRetry<T>(fn: () => Promise<T>, label: string, maxRetries = 5): Promise<T> {
+  for (let i = 0; i < maxRetries; i++) {
     try {
-      const response = await axios.post(`${getApiBaseUrl()}/rooms/${roomCode}/join_game/`, {
-        name: playerName,
-        is_spectator: isSpectator
-      });
-      return response.data;
+      return await fn();
     } catch (error: any) {
-      if (i === retries - 1) throw error;
-      if (error.response?.status === 500) {
-        console.log(`joinRoom 500 error, retrying in 500ms... (${i + 1}/${retries})`);
-        await new Promise(r => setTimeout(r, 500));
+      const status = error.response?.status;
+      if (i === maxRetries - 1) throw error;
+      if (status === 429) {
+        const backoff = Math.pow(2, i) * 1000;
+        console.log(`${label} 429 rate limited, retrying in ${backoff}ms... (${i + 1}/${maxRetries})`);
+        await sleep(backoff);
+        continue;
+      }
+      if (status === 500) {
+        console.log(`${label} 500 error, retrying in 500ms... (${i + 1}/${maxRetries})`);
+        await sleep(500);
         continue;
       }
       throw error;
     }
   }
-  throw new Error('joinRoom failed after retries');
+  throw new Error(`${label} failed after ${maxRetries} retries`);
 }
 
-export async function startGame(roomCode: string) {
-  const response = await axios.post(`${getApiBaseUrl()}/rooms/${roomCode}/start_game/`);
-  return response.data;
+export async function getGameState(roomCode: string) {
+  return withRetry(
+    () => axios.get(`${getApiBaseUrl()}/rooms/${roomCode}/game_state/`).then(r => r.data),
+    `getGameState(${roomCode})`
+  );
 }
 
-export async function submitTile(tileId: string, audioFilePath: string, playerSecret: string) {
-  const buffer = fs.readFileSync(audioFilePath);
-  const formData = new FormData();
-  formData.append('audio_file', new File([buffer], 'test-audio.wav', { type: 'audio/wav' }));
-  formData.append('player_secret', playerSecret);
+export async function joinRoom(roomCode: string, playerName: string, isSpectator: boolean = false) {
+  return withRetry(
+    () => axios.post(`${getApiBaseUrl()}/rooms/${roomCode}/join_game/`, {
+      name: playerName,
+      is_spectator: isSpectator
+    }).then(r => r.data),
+    `joinRoom(${roomCode})`
+  );
+}
 
-  // Let axios set Content-Type with boundary automatically
-  const response = await axios.post(`${getApiBaseUrl()}/tiles/${tileId}/play_tile/`, formData);
-  return response.data;
+export async function startGame(roomCode: string, playerSecret: string) {
+  return withRetry(
+    () => axios.post(`${getApiBaseUrl()}/rooms/${roomCode}/start_game/`, {
+      player_secret: playerSecret,
+    }).then(r => r.data),
+    `startGame(${roomCode})`
+  );
+}
+
+export async function submitTile(tileId: string, audioFilePath: string, playerSecret: string, playerId: string) {
+  return withRetry(async () => {
+    const buffer = fs.readFileSync(audioFilePath);
+    const formData = new FormData();
+    formData.append('audio_file', new File([buffer], 'test-audio.wav', { type: 'audio/wav' }));
+    formData.append('player_secret', playerSecret);
+    formData.append('player_id', playerId);
+    const response = await axios.post(`${getApiBaseUrl()}/tiles/${tileId}/play_tile/`, formData);
+    return response.data;
+  }, `submitTile(${tileId})`);
 }
 
 export async function nextTurn(roomCode: string, playerSecret: string) {
-  const response = await axios.post(`${getApiBaseUrl()}/rooms/${roomCode}/next_turn/`, {
-    player_secret: playerSecret
-  });
-  return response.data;
+  return withRetry(
+    () => axios.post(`${getApiBaseUrl()}/rooms/${roomCode}/next_turn/`, {
+      player_secret: playerSecret
+    }).then(r => r.data),
+    `nextTurn(${roomCode})`
+  );
 }
 
 export async function openVoting(roomCode: string, playerSecret: string) {
-  const response = await axios.post(`${getApiBaseUrl()}/rooms/${roomCode}/open_voting/`, {
-    player_secret: playerSecret
-  });
-  return response.data;
+  return withRetry(
+    () => axios.post(`${getApiBaseUrl()}/rooms/${roomCode}/open_voting/`, {
+      player_secret: playerSecret
+    }).then(r => r.data),
+    `openVoting(${roomCode})`
+  );
 }
 
 export async function castVote(roomCode: string, playerSecret: string, votedForPlayerId: string) {
-  const response = await axios.post(`${getApiBaseUrl()}/rooms/${roomCode}/vote/`, {
-    player_secret: playerSecret,
-    voted_for_player_id: votedForPlayerId
-  });
-  return response.data;
+  return withRetry(
+    () => axios.post(`${getApiBaseUrl()}/rooms/${roomCode}/vote/`, {
+      player_secret: playerSecret,
+      voted_for_player_id: votedForPlayerId
+    }).then(r => r.data),
+    `castVote(${roomCode})`
+  );
 }
 
-export async function toggleReady(roomCode: string, playerSecret: string) {
-  const response = await axios.post(`${getApiBaseUrl()}/rooms/${roomCode}/toggle_ready/`, {
-    player_secret: playerSecret,
-  });
-  return response.data;
+export async function toggleReady(roomCode: string, playerSecret: string, playerId: string) {
+  return withRetry(
+    () => axios.post(`${getApiBaseUrl()}/rooms/${roomCode}/toggle_ready/`, {
+      player_id: playerId,
+      player_secret: playerSecret,
+    }).then(r => r.data),
+    `toggleReady(${roomCode})`
+  );
 }
 
 export async function pollGameState(roomCode: string, condition: (state: any) => boolean, timeout = 30000) {

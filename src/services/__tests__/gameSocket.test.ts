@@ -66,7 +66,7 @@ describe('GameSocketService credential lifecycle', () => {
     expect(MockWebSocket.instances).toHaveLength(2);
     expect(MockWebSocket.instances[0].close).toHaveBeenCalledTimes(1);
     expect(MockWebSocket.instances[1].url).toBe(
-      'ws://localhost:8000/ws/game/1234/?player_id=player-1&secret=secret-1'
+      'ws://localhost:8000/ws/game/1234/?player_id=player-1&secret=secret-1',
     );
   });
 });

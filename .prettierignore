@@ -1,0 +1,43 @@
+# Build artifacts
+dist/
+build/
+*.tsbuildinfo
+
+# Dependencies
+node_modules/
+
+# Python
+backend/venv/
+**/__pycache__/
+*.pyc
+
+# Database
+backend/db.sqlite3
+
+# Media / uploads
+backend/media/
+
+# Logs
+*.log
+logs/
+
+# Test output
+test-results/
+playwright-report/
+
+# Environment files
+.env
+.env.*
+
+# Generated / config
+.prettierrc
+package-lock.json
+yarn.lock
+bun.lockb
+
+# Docker
+Dockerfile*
+docker-compose*
+
+# Other
+*.md

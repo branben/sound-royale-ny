@@ -18,7 +18,7 @@ export const MultiRoundConfig: React.FC<MultiRoundConfigProps> = ({
   currentRound = 1,
   isHost = false,
   onRoundsChange,
-  className
+  className,
 }) => {
   const handleRoundsChange = (newRounds: number) => {
     if (isHost && onRoundsChange && newRounds >= 1 && newRounds <= 10) {
@@ -27,12 +27,9 @@ export const MultiRoundConfig: React.FC<MultiRoundConfigProps> = ({
   };
 
   return (
-    <Card 
+    <Card
       data-testid="multi-round-config"
-      className={cn(
-        "bg-background/60 border-primary/20",
-        className
-      )}
+      className={cn('bg-background/60 border-primary/20', className)}
     >
       <CardContent className="p-4">
         <div className="flex items-center justify-between">
@@ -45,7 +42,7 @@ export const MultiRoundConfig: React.FC<MultiRoundConfigProps> = ({
               </div>
             </div>
           </div>
-          
+
           {totalRounds > 1 && (
             <div className="flex items-center gap-2">
               <Trophy className="h-5 w-5 text-primary" />
@@ -58,7 +55,7 @@ export const MultiRoundConfig: React.FC<MultiRoundConfigProps> = ({
             </div>
           )}
         </div>
-        
+
         {isHost && (
           <div className="mt-4 flex items-center gap-2">
             <span className="text-sm text-gray-400">Rounds:</span>
@@ -66,14 +63,14 @@ export const MultiRoundConfig: React.FC<MultiRoundConfigProps> = ({
               {[1, 3, 5, 7, 10].map((rounds) => (
                 <Button
                   key={rounds}
-                  variant={totalRounds === rounds ? "default" : "outline"}
+                  variant={totalRounds === rounds ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => handleRoundsChange(rounds)}
                   className={cn(
-                    "px-3 py-1 text-xs",
-                    totalRounds === rounds 
-                      ? "bg-primary text-primary-foreground" 
-                      : "border-primary/30 text-muted-foreground hover:border-primary/50"
+                    'px-3 py-1 text-xs',
+                    totalRounds === rounds
+                      ? 'bg-primary text-primary-foreground'
+                      : 'border-primary/30 text-muted-foreground hover:border-primary/50',
                   )}
                 >
                   {rounds}
@@ -82,7 +79,7 @@ export const MultiRoundConfig: React.FC<MultiRoundConfigProps> = ({
             </div>
           </div>
         )}
-        
+
         {totalRounds > 1 && !isHost && (
           <div className="mt-3">
             <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/30">

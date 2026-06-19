@@ -199,7 +199,7 @@ class Tile(models.Model):
         blank=True,
         null=True,
         validators=[
-            FileExtensionValidator(allowed_extensions=["mp3", "wav", "ogg", "m4a"])
+            FileExtensionValidator(allowed_extensions=["mp3", "wav", "ogg", "flac", "m4a", "aac"])
         ],
     )
     audio_url = models.URLField(blank=True, null=True)

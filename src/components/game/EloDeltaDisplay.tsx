@@ -17,10 +17,7 @@ interface EloDeltaDisplayProps {
   className?: string;
 }
 
-export const EloDeltaDisplay: React.FC<EloDeltaDisplayProps> = ({
-  eloDeltas,
-  className
-}) => {
+export const EloDeltaDisplay: React.FC<EloDeltaDisplayProps> = ({ eloDeltas, className }) => {
   const getDeltaIcon = (delta: number) => {
     if (delta > 0) return <TrendingUp className="h-4 w-4" />;
     if (delta < 0) return <TrendingDown className="h-4 w-4" />;
@@ -34,17 +31,14 @@ export const EloDeltaDisplay: React.FC<EloDeltaDisplayProps> = ({
   };
 
   return (
-    <div 
-      data-testid="elo-delta-display"
-      className={cn("space-y-2", className)}
-    >
+    <div data-testid="elo-delta-display" className={cn('space-y-2', className)}>
       <div className="text-sm font-semibold text-gray-300 mb-3">ELO Changes</div>
       {eloDeltas.map((delta) => (
         <div
           key={delta.playerId}
           className={cn(
-            "flex items-center justify-between p-3 rounded-lg border",
-            getDeltaColor(delta.delta)
+            'flex items-center justify-between p-3 rounded-lg border',
+            getDeltaColor(delta.delta),
           )}
         >
           <div className="flex items-center gap-3">
@@ -56,23 +50,24 @@ export const EloDeltaDisplay: React.FC<EloDeltaDisplayProps> = ({
               </span>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-400">
-              {delta.previousElo} 
+              {delta.previousElo}
               <span className="mx-1">{'>'}</span>
               {delta.newElo}
             </span>
-            <Badge 
-              variant="outline" 
+            <Badge
+              variant="outline"
               className={cn(
-                "px-2 py-1 text-xs font-bold",
-                delta.delta > 0 && "border-green-500/50 text-green-500 bg-green-500/5",
-                delta.delta < 0 && "border-red-500/50 text-red-500 bg-red-500/5",
-                delta.delta === 0 && "border-gray-500/50 text-gray-400 bg-gray-500/5"
+                'px-2 py-1 text-xs font-bold',
+                delta.delta > 0 && 'border-green-500/50 text-green-500 bg-green-500/5',
+                delta.delta < 0 && 'border-red-500/50 text-red-500 bg-red-500/5',
+                delta.delta === 0 && 'border-gray-500/50 text-gray-400 bg-gray-500/5',
               )}
             >
-              {delta.delta > 0 ? '+' : ''}{delta.delta}
+              {delta.delta > 0 ? '+' : ''}
+              {delta.delta}
             </Badge>
           </div>
         </div>

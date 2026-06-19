@@ -9,7 +9,11 @@ interface BingoNotificationProps {
   onComplete: () => void;
 }
 
-export function BingoNotification({ isVisible, isDoubleBingo, onComplete }: BingoNotificationProps) {
+export function BingoNotification({
+  isVisible,
+  isDoubleBingo,
+  onComplete,
+}: BingoNotificationProps) {
   const [showAnimation, setShowAnimation] = useState(false);
 
   useEffect(() => {

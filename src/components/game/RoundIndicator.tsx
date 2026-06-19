@@ -16,15 +16,15 @@ export const RoundIndicator: React.FC<RoundIndicatorProps> = ({
   totalRounds,
   nextRoundIn,
   isPreparing,
-  className
+  className,
 }) => {
   return (
-    <Card 
+    <Card
       data-testid="round-indicator"
       className={cn(
-        "bg-background/60 border-primary/20",
-        isPreparing && "animate-pulse border-primary/50",
-        className
+        'bg-background/60 border-primary/20',
+        isPreparing && 'animate-pulse border-primary/50',
+        className,
       )}
     >
       <CardContent className="p-4">
@@ -40,7 +40,7 @@ export const RoundIndicator: React.FC<RoundIndicatorProps> = ({
               </div>
             </div>
           </div>
-          
+
           {isPreparing && (
             <div className="flex items-center gap-2">
               <RefreshCw className="h-5 w-5 text-primary animate-spin" />
@@ -53,11 +53,9 @@ export const RoundIndicator: React.FC<RoundIndicatorProps> = ({
             </div>
           )}
         </div>
-        
+
         {isPreparing && (
-          <div className="mt-3 text-center text-sm text-gray-400">
-            Preparing for next round...
-          </div>
+          <div className="mt-3 text-center text-sm text-gray-400">Preparing for next round...</div>
         )}
       </CardContent>
     </Card>

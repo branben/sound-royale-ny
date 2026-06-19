@@ -24,14 +24,15 @@ export default function PlayerAdmin() {
   const filteredPlayers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return players;
-    return players.filter(player => player.name.toLowerCase().includes(query));
+    return players.filter((player) => player.name.toLowerCase().includes(query));
   }, [players, searchQuery]);
 
   useEffect(() => {
     if (!isUnlocked) return;
 
     setIsLoading(true);
-    gameApi.getAllPlayers()
+    gameApi
+      .getAllPlayers()
       .then(setPlayers)
       .catch(() => toast.error('Failed to load players'))
       .finally(() => setIsLoading(false));
@@ -53,7 +54,7 @@ export default function PlayerAdmin() {
     setSavingId(player.id);
     try {
       const updated = await gameApi.setCheckedIn(player.id, isCheckedIn, pin);
-      setPlayers(prev => prev.map(entry => entry.id === updated.id ? updated : entry));
+      setPlayers((prev) => prev.map((entry) => (entry.id === updated.id ? updated : entry)));
       toast.success(`${updated.name} updated`);
     } catch {
       toast.error('Failed to update player title');
@@ -63,7 +64,7 @@ export default function PlayerAdmin() {
   };
 
   const toggleSelected = (playerId: string) => {
-    setSelectedIds(prev => {
+    setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(playerId)) {
         next.delete(playerId);
@@ -75,18 +76,20 @@ export default function PlayerAdmin() {
   };
 
   const applyBulkCheckedIn = async (isCheckedIn: boolean) => {
-    const selectedPlayers = players.filter(player => selectedIds.has(player.id));
+    const selectedPlayers = players.filter((player) => selectedIds.has(player.id));
     if (selectedPlayers.length === 0) return;
 
     setIsLoading(true);
     try {
       const updatedPlayers = await Promise.all(
-        selectedPlayers.map(player => gameApi.setCheckedIn(player.id, isCheckedIn, pin))
+        selectedPlayers.map((player) => gameApi.setCheckedIn(player.id, isCheckedIn, pin)),
       );
-      const updatedById = new Map(updatedPlayers.map(player => [player.id, player]));
-      setPlayers(prev => prev.map(player => updatedById.get(player.id) ?? player));
+      const updatedById = new Map(updatedPlayers.map((player) => [player.id, player]));
+      setPlayers((prev) => prev.map((player) => updatedById.get(player.id) ?? player));
       setSelectedIds(new Set());
-      toast.success(`${updatedPlayers.length} player${updatedPlayers.length === 1 ? '' : 's'} updated`);
+      toast.success(
+        `${updatedPlayers.length} player${updatedPlayers.length === 1 ? '' : 's'} updated`,
+      );
     } catch {
       toast.error('Bulk update failed');
     } finally {
@@ -99,10 +102,10 @@ export default function PlayerAdmin() {
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
         <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold font-['Righteous'] text-foreground">
-              Player Admin
-            </h1>
-            <p className="text-sm text-muted-foreground">Manage Checked In status for producers and spectators.</p>
+            <h1 className="text-3xl font-bold font-['Righteous'] text-foreground">Player Admin</h1>
+            <p className="text-sm text-muted-foreground">
+              Manage Checked In status for producers and spectators.
+            </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button asChild variant="outline">
@@ -188,7 +191,7 @@ export default function PlayerAdmin() {
                 </div>
               ) : (
                 <div className="divide-y divide-border rounded-lg border border-border">
-                  {filteredPlayers.map(player => (
+                  {filteredPlayers.map((player) => (
                     <div key={player.id} className="flex items-center gap-3 p-3">
                       <input
                         aria-label={`Select ${player.name}`}
@@ -203,7 +206,8 @@ export default function PlayerAdmin() {
                           <TitleBadge title={player.currentTitle} compact />
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {player.isSpectator ? 'Spectator' : 'Producer'} · ELO {player.eloRating ?? 1200}
+                          {player.isSpectator ? 'Spectator' : 'Producer'} · ELO{' '}
+                          {player.eloRating ?? 1200}
                         </div>
                       </div>
                       <Button
@@ -212,13 +216,17 @@ export default function PlayerAdmin() {
                         disabled={savingId === player.id}
                         onClick={() => updateCheckedIn(player, !player.isCheckedIn)}
                       >
-                        {savingId === player.id && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                        {savingId === player.id && (
+                          <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                        )}
                         {player.isCheckedIn ? 'Checked In' : 'Check In'}
                       </Button>
                     </div>
                   ))}
                   {filteredPlayers.length === 0 && (
-                    <div className="p-6 text-center text-sm text-muted-foreground">No players found</div>
+                    <div className="p-6 text-center text-sm text-muted-foreground">
+                      No players found
+                    </div>
                   )}
                 </div>
               )}

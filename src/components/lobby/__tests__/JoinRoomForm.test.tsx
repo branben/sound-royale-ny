@@ -26,7 +26,7 @@ describe('JoinRoomForm', () => {
 
   it('renders back button', () => {
     render(<JoinRoomForm {...defaultProps} />);
-    expect(screen.getByText('← Back')).toBeInTheDocument();
+    expect(screen.getByText('Back to Lobby')).toBeInTheDocument();
   });
 
   it('calls onCodeChange when input changes', () => {
@@ -44,7 +44,7 @@ describe('JoinRoomForm', () => {
 
   it('calls onBack when back is clicked', () => {
     render(<JoinRoomForm {...defaultProps} />);
-    fireEvent.click(screen.getByText('← Back'));
+    fireEvent.click(screen.getByText('Back to Lobby'));
     expect(defaultProps.onBack).toHaveBeenCalledTimes(1);
   });
 

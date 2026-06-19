@@ -21,12 +21,14 @@ export default function ThemeAdmin() {
   const [savingKey, setSavingKey] = useState<string | null>(null);
 
   const hasInvalidDraft = useMemo(
-    () => rotations.some(rotation =>
-      rotation.genres.length !== 9 ||
-      rotation.genres.some(genre => !genre.trim()) ||
-      new Set(rotation.genres.map(genre => genre.trim().toLowerCase())).size !== 9
-    ),
-    [rotations]
+    () =>
+      rotations.some(
+        (rotation) =>
+          rotation.genres.length !== 9 ||
+          rotation.genres.some((genre) => !genre.trim()) ||
+          new Set(rotation.genres.map((genre) => genre.trim().toLowerCase())).size !== 9,
+      ),
+    [rotations],
   );
 
   useEffect(() => {
@@ -34,15 +36,18 @@ export default function ThemeAdmin() {
 
     let isActive = true;
     setIsLoading(true);
-    roomApi.getThemeRotations()
-      .then(data => {
+    roomApi
+      .getThemeRotations()
+      .then((data) => {
         if (isActive) {
-          setRotations(data.map(rotation => ({
-            key: rotation.key,
-            name: rotation.name,
-            description: rotation.description,
-            genres: rotation.genres.slice(0, 9),
-          })));
+          setRotations(
+            data.map((rotation) => ({
+              key: rotation.key,
+              name: rotation.name,
+              description: rotation.description,
+              genres: rotation.genres.slice(0, 9),
+            })),
+          );
         }
       })
       .catch(() => toast.error('Failed to load theme rotations'))
@@ -68,27 +73,29 @@ export default function ThemeAdmin() {
   };
 
   const updateRotation = (key: ThemeRotation['key'], patch: Partial<RotationDraft>) => {
-    setRotations(prev => prev.map(rotation =>
-      rotation.key === key ? { ...rotation, ...patch } : rotation
-    ));
+    setRotations((prev) =>
+      prev.map((rotation) => (rotation.key === key ? { ...rotation, ...patch } : rotation)),
+    );
   };
 
   const updateGenre = (key: ThemeRotation['key'], index: number, value: string) => {
-    setRotations(prev => prev.map(rotation => {
-      if (rotation.key !== key) return rotation;
-      const genres = [...rotation.genres];
-      genres[index] = value;
-      return { ...rotation, genres };
-    }));
+    setRotations((prev) =>
+      prev.map((rotation) => {
+        if (rotation.key !== key) return rotation;
+        const genres = [...rotation.genres];
+        genres[index] = value;
+        return { ...rotation, genres };
+      }),
+    );
   };
 
   const saveRotation = async (rotation: RotationDraft) => {
-    const genres = rotation.genres.map(genre => genre.trim());
-    if (genres.length !== 9 || genres.some(genre => !genre)) {
+    const genres = rotation.genres.map((genre) => genre.trim());
+    if (genres.length !== 9 || genres.some((genre) => !genre)) {
       toast.error('Each rotation needs exactly 9 genres');
       return;
     }
-    if (new Set(genres.map(genre => genre.toLowerCase())).size !== 9) {
+    if (new Set(genres.map((genre) => genre.toLowerCase())).size !== 9) {
       toast.error('Genres must be unique within a rotation');
       return;
     }
@@ -102,7 +109,7 @@ export default function ThemeAdmin() {
           description: rotation.description.trim(),
           genres,
         },
-        pin
+        pin,
       );
       updateRotation(saved.key, {
         name: saved.name,
@@ -125,7 +132,9 @@ export default function ThemeAdmin() {
             <h1 className="text-3xl font-bold font-['Righteous'] text-foreground">
               Theme Rotations
             </h1>
-            <p className="text-sm text-muted-foreground">Edit Classic, Weekly Rotation, and Monthly Rotation for new rooms.</p>
+            <p className="text-sm text-muted-foreground">
+              Edit Classic, Weekly Rotation, and Monthly Rotation for new rooms.
+            </p>
           </div>
           <Button asChild variant="outline" className="w-full sm:w-auto">
             <Link to="/admin/players">Player Admin</Link>
@@ -174,7 +183,7 @@ export default function ThemeAdmin() {
               </div>
             ) : (
               <div className="grid gap-4 lg:grid-cols-3">
-                {rotations.map(rotation => (
+                {rotations.map((rotation) => (
                   <Card key={rotation.key} className="border-border bg-background/80">
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
@@ -188,7 +197,9 @@ export default function ThemeAdmin() {
                         <Input
                           id={`${rotation.key}-name`}
                           value={rotation.name}
-                          onChange={(event) => updateRotation(rotation.key, { name: event.target.value })}
+                          onChange={(event) =>
+                            updateRotation(rotation.key, { name: event.target.value })
+                          }
                           className="bg-card"
                         />
                       </div>
@@ -197,7 +208,9 @@ export default function ThemeAdmin() {
                         <Input
                           id={`${rotation.key}-description`}
                           value={rotation.description}
-                          onChange={(event) => updateRotation(rotation.key, { description: event.target.value })}
+                          onChange={(event) =>
+                            updateRotation(rotation.key, { description: event.target.value })
+                          }
                           className="bg-card"
                         />
                       </div>
@@ -210,7 +223,9 @@ export default function ThemeAdmin() {
                             <Input
                               id={`${rotation.key}-genre-${index}`}
                               value={genre}
-                              onChange={(event) => updateGenre(rotation.key, index, event.target.value)}
+                              onChange={(event) =>
+                                updateGenre(rotation.key, index, event.target.value)
+                              }
                               className="bg-card"
                             />
                           </div>

@@ -45,20 +45,24 @@ export function TurnTimer({ duration, isActive, onTimeUp, className }: TurnTimer
       className={cn(
         'flex flex-col items-center gap-2 p-3 rounded-lg bg-card/80 border border-border/50 transition-all duration-300',
         timeLeft <= 5 && 'border-red-500/50',
-        className
+        className,
       )}
       layout
     >
       <div className="flex items-center gap-2">
-        <Clock className={cn(
-          'h-4 w-4 transition-all duration-300',
-          isActive ? 'text-primary' : 'text-muted-foreground'
-        )} />
-        <span className={cn(
-          'text-lg font-mono font-semibold transition-all duration-300',
-          timeLeft <= 5 && 'text-red-500',
-          isActive && 'text-primary'
-        )}>
+        <Clock
+          className={cn(
+            'h-4 w-4 transition-all duration-300',
+            isActive ? 'text-primary' : 'text-muted-foreground',
+          )}
+        />
+        <span
+          className={cn(
+            'text-lg font-mono font-semibold transition-all duration-300',
+            timeLeft <= 5 && 'text-red-500',
+            isActive && 'text-primary',
+          )}
+        >
           {minutes.toString().padStart(2, '0')}:{seconds.toString().padStart(2, '0')}
         </span>
         {isActive && (
@@ -67,13 +71,14 @@ export function TurnTimer({ duration, isActive, onTimeUp, className }: TurnTimer
             className={cn(
               'p-1 rounded-full transition-all duration-200',
               'hover:bg-background/50',
-              isActive && 'ring-2 ring-primary/30'
+              isActive && 'ring-2 ring-primary/30',
             )}
           >
-            {isPaused ?
-              <Play className="h-3 w-3 text-primary" /> :
+            {isPaused ? (
+              <Play className="h-3 w-3 text-primary" />
+            ) : (
               <Pause className="h-3 w-3 text-primary" />
-            }
+            )}
           </button>
         )}
       </div>
@@ -84,18 +89,20 @@ export function TurnTimer({ duration, isActive, onTimeUp, className }: TurnTimer
             'h-full transition-all duration-1000 ease-out',
             timeLeft <= 10 && timeLeft > 5 && 'bg-yellow-500',
             timeLeft <= 5 && 'bg-red-500',
-            timeLeft > 10 && 'bg-primary'
+            timeLeft > 10 && 'bg-primary',
           )}
           style={{ width: `${progress}%` }}
         />
       </div>
 
       {timeLeft <= 10 && timeLeft > 0 && (
-        <span className={cn(
-          'text-xs font-bold',
-          timeLeft <= 5 && 'text-red-500',
-          timeLeft > 5 && 'text-yellow-500'
-        )}>
+        <span
+          className={cn(
+            'text-xs font-bold',
+            timeLeft <= 5 && 'text-red-500',
+            timeLeft > 5 && 'text-yellow-500',
+          )}
+        >
           {timeLeft <= 5 ? 'Time up!' : 'Almost done!'}
         </span>
       )}

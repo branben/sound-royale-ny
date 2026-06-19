@@ -52,7 +52,9 @@ export function clearDiscordSession(): void {
   localStorage.removeItem(DISCORD_SESSION_KEY);
 }
 
-export function createDiscordSessionFromLinkResponse(response: DiscordLinkResponse): DiscordSession {
+export function createDiscordSessionFromLinkResponse(
+  response: DiscordLinkResponse,
+): DiscordSession {
   return {
     discordUserId: response.discord_user_id,
     sessionSecret: response.discord_session_secret,
@@ -105,12 +107,15 @@ export function getDiscordOAuthState(): DiscordOAuthState | null {
   // Try localStorage first (survives HMR); fall back to sessionStorage
   const read = (storage: Storage): DiscordOAuthState | null => {
     try {
-      const stateRaw = storage.getItem(OAUTH_STATE_KEY)
-        ?? (storage === sessionStorage ? storage.getItem('discord_oauth_state') : null);
-      const playerId = storage.getItem(OAUTH_PLAYER_ID_KEY)
-        ?? (storage === sessionStorage ? storage.getItem('discord_player_id') : null);
-      const playerSecret = storage.getItem(OAUTH_PLAYER_SECRET_KEY)
-        ?? (storage === sessionStorage ? storage.getItem('discord_player_secret') : null);
+      const stateRaw =
+        storage.getItem(OAUTH_STATE_KEY) ??
+        (storage === sessionStorage ? storage.getItem('discord_oauth_state') : null);
+      const playerId =
+        storage.getItem(OAUTH_PLAYER_ID_KEY) ??
+        (storage === sessionStorage ? storage.getItem('discord_player_id') : null);
+      const playerSecret =
+        storage.getItem(OAUTH_PLAYER_SECRET_KEY) ??
+        (storage === sessionStorage ? storage.getItem('discord_player_secret') : null);
 
       if (!stateRaw || !playerId || !playerSecret) return null;
 

@@ -1,11 +1,14 @@
 import { test, expect } from '@playwright/test';
-import { enableE2EMode, mockApiRoutes, setupPlayerSession } from './helpers';
+import { enableE2EMode, mockApiRoutes, setupPlayerSession, toRejoinResponse } from './helpers';
 import {
+  createMockGameState,
+  createMockHostProducer,
   createMockLobbyState,
   createMockPlayingState,
   createMockPlayingStateWithoutGenre,
   createMockFinishedState,
   createMockProducer,
+  createMockSpectator,
   toRoomResponse,
 } from './utils/game-fixtures';
 
@@ -70,10 +73,41 @@ test.describe('Music Battle Game Flows', () => {
 
   test.describe('Existing Tests', () => {
     test('should handle room navigation - join existing room', async ({ page }) => {
-      await mockApiRoutes(page, { roomResponse: mockPlayingRoomResponse });
+      const testPlayer = createMockProducer('TestPlayer');
+
+      // Build a room response that includes testPlayer so hasCurrentPlayer is true
+      const host = createMockHostProducer('HostPlayer');
+      const player2 = createMockProducer('Player2');
+      const spectator = createMockSpectator('Spectator1');
+      const lobbyPlayers: Record<string, unknown> = {
+        [host.id]: host,
+        [player2.id]: player2,
+        [testPlayer.id]: testPlayer,
+        [spectator.id]: spectator,
+      };
+      const customLobbyRoomResponse = toRoomResponse(
+        createMockGameState({
+          status: 'lobby',
+          players: lobbyPlayers,
+          roundState: null,
+        })
+      );
+
+      await mockApiRoutes(page, {
+        roomResponse: customLobbyRoomResponse,
+        joinGame: (route) => route.fulfill({
+          status: 200,
+          json: toRejoinResponse(testPlayer, 'test-secret'),
+        }),
+        rejoin: {
+          player: testPlayer,
+          playerSecret: 'test-secret',
+        },
+      });
 
       // Clear active room session so Lobby starts in 'landing' mode (not 'join')
       await page.addInitScript(() => {
+        localStorage.setItem('hasSeenOnboarding', 'true');
         sessionStorage.removeItem('soundRoyaleActiveSessionKey');
       });
 
@@ -94,8 +128,8 @@ test.describe('Music Battle Game Flows', () => {
       // Click the Join Room submit button
       await page.getByTestId('join-room-button').click();
 
-      // Assert the Lobby transitions to waiting room view
-      await expect(page.getByText('Waiting for players...')).toBeVisible({ timeout: 10000 });
+      // Assert the Room transitions to lobby waiting view
+      await expect(page.getByText('Waiting for contestants')).toBeVisible({ timeout: 10000 });
     });
 
     test('should handle tile selection and upload', async ({ page }) => {

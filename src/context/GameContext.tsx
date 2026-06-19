@@ -1,4 +1,12 @@
-import React, { createContext, useState, useEffect, useCallback, useMemo, useRef, ReactNode } from 'react';
+import React, {
+  createContext,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+  ReactNode,
+} from 'react';
 import { GameState, TileStatus, RoomResponse, Tile } from '@/types/game';
 import { mockGameState } from '@/data/mockGameState';
 import { normalizeRoomWinner, roomApi } from '@/services/api';
@@ -78,7 +86,9 @@ const emptyGameState: GameState = {
 // ---------------------------------------------------------------------------
 
 export function GameProvider({ children, roomCode }: { children: ReactNode; roomCode?: string }) {
-  const isE2E = import.meta.env.VITE_E2E_TESTING === 'true' || (typeof window !== 'undefined' && window.__E2E_TESTING__ === true);
+  const isE2E =
+    import.meta.env.VITE_E2E_TESTING === 'true' ||
+    (typeof window !== 'undefined' && window.__E2E_TESTING__ === true);
   const { userSession } = useUser();
 
   const [gameState, setGameState] = useState<GameState>(isE2E ? mockGameState : emptyGameState);
@@ -110,17 +120,20 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
         const roomData: RoomResponse = await roomApi.getRoom(roomCode);
 
         const players: GameState['players'] = {};
-        roomData.players.forEach(player => {
-          const tiles = player.board?.tiles ?? player.tiles?.map(tile => ({
-            id: tile.id,
-            genre: tile.genre,
-            status: tile.status,
-            audioUrl: tile.audio_url,
-          })) ?? [];
+        roomData.players.forEach((player) => {
+          const tiles =
+            player.board?.tiles ??
+            player.tiles?.map((tile) => ({
+              id: tile.id,
+              genre: tile.genre,
+              status: tile.status,
+              audioUrl: tile.audio_url,
+            })) ??
+            [];
 
           players[player.id] = {
             id: player.id,
-            name: player.name,
+            name: player.name ?? '',
             avatar: player.avatar,
             isDiscordVerified: player.is_discord_verified,
             discordUsername: player.discord_username,
@@ -141,29 +154,30 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
         });
 
         if (isMounted.current) {
-        setGameState(prev => ({
-          ...prev,
-          gameId: roomData.code,
-          roomCode: roomData.code,
-          status: roomData.status,
-          players,
-          currentRound: roomData.current_round,
-          winner: normalizeRoomWinner(roomData.winner),
-          eloDeltas: roomData.elo_deltas?.map(d => ({
-            playerId: d.player_id,
-            playerName: d.player_name,
-            previousElo: d.previous_elo,
-            newElo: d.new_elo,
-            delta: d.delta,
-            isWinner: d.is_winner,
-          })),
-        }));
+          setGameState((prev) => ({
+            ...prev,
+            gameId: roomData.code,
+            roomCode: roomData.code,
+            status: roomData.status,
+            players,
+            currentRound: roomData.current_round,
+            winner: normalizeRoomWinner(roomData.winner),
+            eloDeltas: roomData.elo_deltas?.map((d) => ({
+              playerId: d.player_id,
+              playerName: d.player_name,
+              previousElo: d.previous_elo,
+              newElo: d.new_elo,
+              delta: d.delta,
+              isWinner: d.is_winner,
+            })),
+          }));
         }
       } catch (err) {
-        if (isMounted.current) setError(err instanceof Error ? err.message : 'Failed to fetch room data');
+        if (isMounted.current)
+          setError(err instanceof Error ? err.message : 'Failed to fetch room data');
         console.error('Error fetching room data:', err);
       } finally {
-      if (isMounted.current) setIsLoading(false);
+        if (isMounted.current) setIsLoading(false);
       }
     };
 
@@ -186,40 +200,43 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
           const players: GameState['players'] = {};
           if (newState.players) {
             const seen = new Set<string>();
-            Object.entries(newState.players).forEach(([id, playerData]: [string, GameState['players'][string]]) => {
-              if (!playerData || seen.has(id)) return;
-              seen.add(id);
-              const player = playerData;
-              players[id] = {
-                id,
-                name: player.name,
-                avatar: player.avatar,
-                isDiscordVerified: player.isDiscordVerified,
-                discordUsername: player.discordUsername,
-                discordAvatarUrl: player.discordAvatarUrl,
-                board: {
-                  tiles: player.board?.tiles?.map((tile: Tile) => ({
-                    id: tile.id,
-                    genre: tile.genre,
-                    status: tile.status,
-                    audioUrl: tile.audioUrl,
-                  })) || []
-                },
-                isConnected: player.isConnected,
-                isSpectator: player.isSpectator,
-                isHost: player.isHost,
-                isReady: player.isReady,
-                eloRating: player.eloRating,
-                eloWins: player.eloWins,
-                eloLosses: player.eloLosses,
-                eloMatches: player.eloMatches,
-                isCheckedIn: player.isCheckedIn,
-                currentTitle: player.currentTitle,
-                scoreInfo: player.scoreInfo,
-              };
-            });
+            Object.entries(newState.players).forEach(
+              ([id, playerData]: [string, GameState['players'][string]]) => {
+                if (!playerData || seen.has(id)) return;
+                seen.add(id);
+                const player = playerData;
+                players[id] = {
+                  id,
+                  name: player.name ?? '',
+                  avatar: player.avatar,
+                  isDiscordVerified: player.isDiscordVerified,
+                  discordUsername: player.discordUsername,
+                  discordAvatarUrl: player.discordAvatarUrl,
+                  board: {
+                    tiles:
+                      player.board?.tiles?.map((tile: Tile) => ({
+                        id: tile.id,
+                        genre: tile.genre,
+                        status: tile.status,
+                        audioUrl: tile.audioUrl,
+                      })) || [],
+                  },
+                  isConnected: player.isConnected,
+                  isSpectator: player.isSpectator,
+                  isHost: player.isHost,
+                  isReady: player.isReady,
+                  eloRating: player.eloRating,
+                  eloWins: player.eloWins,
+                  eloLosses: player.eloLosses,
+                  eloMatches: player.eloMatches,
+                  isCheckedIn: player.isCheckedIn,
+                  currentTitle: player.currentTitle,
+                  scoreInfo: player.scoreInfo,
+                };
+              },
+            );
           }
-          setGameState(prev => ({
+          setGameState((prev) => ({
             ...prev,
             gameId: newState.gameId || roomCode,
             roomCode: newState.roomCode || roomCode,
@@ -265,7 +282,7 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
   }, [roomCode, isE2E, userSession.playerId, userSession.playerSecret]);
 
   const updateTileStatus = useCallback((playerId: string, tileId: string, status: TileStatus) => {
-    setGameState(prev => ({
+    setGameState((prev) => ({
       ...prev,
       players: {
         ...prev.players,
@@ -273,17 +290,17 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
           ...prev.players[playerId],
           board: {
             ...prev.players[playerId].board,
-            tiles: prev.players[playerId].board.tiles.map(tile =>
-              tile.id === tileId ? { ...tile, status } : tile
-            )
-          }
-        }
-      }
+            tiles: prev.players[playerId].board.tiles.map((tile) =>
+              tile.id === tileId ? { ...tile, status } : tile,
+            ),
+          },
+        },
+      },
     }));
   }, []);
 
   const setTileAudio = useCallback((playerId: string, tileId: string, audioUrl: string) => {
-    setGameState(prev => ({
+    setGameState((prev) => ({
       ...prev,
       players: {
         ...prev.players,
@@ -291,83 +308,104 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
           ...prev.players[playerId],
           board: {
             ...prev.players[playerId].board,
-            tiles: prev.players[playerId].board.tiles.map(tile =>
-              tile.id === tileId ? { ...tile, audioUrl, status: 'complete' as TileStatus } : tile
-            )
-          }
-        }
-      }
+            tiles: prev.players[playerId].board.tiles.map((tile) =>
+              tile.id === tileId ? { ...tile, audioUrl, status: 'complete' as TileStatus } : tile,
+            ),
+          },
+        },
+      },
     }));
   }, []);
 
   const toggleReady = useCallback((playerId: string) => {
-    setGameState(prev => ({
+    setGameState((prev) => ({
       ...prev,
       players: {
         ...prev.players,
         [playerId]: {
           ...prev.players[playerId],
-          isReady: !prev.players[playerId]?.isReady
-        }
-      }
+          isReady: !prev.players[playerId]?.isReady,
+        },
+      },
     }));
   }, []);
 
   const incrementScore = useCallback((playerId: string, points: number) => {
-    setGameState(prev => ({
+    setGameState((prev) => ({
       ...prev,
       players: {
         ...prev.players,
         [playerId]: {
           ...prev.players[playerId],
-          score: (prev.players[playerId]?.score || 0) + points
-        }
-      }
+          score: (prev.players[playerId]?.score || 0) + points,
+        },
+      },
     }));
   }, []);
 
   // Split context values — each memoized independently so consumers only
   // re-render when the slice they depend on changes.
-  const stateValue = useMemo(() => ({
-    gameState,
-    setGameState,
-    isLoading,
-    error,
-    roomCode: roomCode || null,
-  }), [gameState, setGameState, isLoading, error, roomCode]);
+  const stateValue = useMemo(
+    () => ({
+      gameState,
+      setGameState,
+      isLoading,
+      error,
+      roomCode: roomCode || null,
+    }),
+    [gameState, setGameState, isLoading, error, roomCode],
+  );
 
-  const timerValue = useMemo(() => ({
-    timeRemaining,
-  }), [timeRemaining]);
+  const timerValue = useMemo(
+    () => ({
+      timeRemaining,
+    }),
+    [timeRemaining],
+  );
 
-  const actionsValue = useMemo(() => ({
-    updateTileStatus,
-    setTileAudio,
-    toggleReady,
-    incrementScore,
-  }), [updateTileStatus, setTileAudio, toggleReady, incrementScore]);
+  const actionsValue = useMemo(
+    () => ({
+      updateTileStatus,
+      setTileAudio,
+      toggleReady,
+      incrementScore,
+    }),
+    [updateTileStatus, setTileAudio, toggleReady, incrementScore],
+  );
 
   // Legacy combined value — for existing consumers that use useGame()
-  const legacyValue = useMemo(() => ({
-    gameState,
-    setGameState,
-    updateTileStatus,
-    setTileAudio,
-    toggleReady,
-    incrementScore,
-    isLoading,
-    error,
-    roomCode: roomCode || null,
-    timeRemaining,
-  }), [gameState, setGameState, updateTileStatus, setTileAudio, toggleReady, incrementScore, isLoading, error, roomCode, timeRemaining]);
+  const legacyValue = useMemo(
+    () => ({
+      gameState,
+      setGameState,
+      updateTileStatus,
+      setTileAudio,
+      toggleReady,
+      incrementScore,
+      isLoading,
+      error,
+      roomCode: roomCode || null,
+      timeRemaining,
+    }),
+    [
+      gameState,
+      setGameState,
+      updateTileStatus,
+      setTileAudio,
+      toggleReady,
+      incrementScore,
+      isLoading,
+      error,
+      roomCode,
+      timeRemaining,
+    ],
+  );
 
   return (
     <GameStateContext.Provider value={stateValue}>
       <GameTimerContext.Provider value={timerValue}>
         <GameActionsContext.Provider value={actionsValue}>
-          <GameContext.Provider value={legacyValue}>
-            {children}
-          </GameContext.Provider>
+          <GameContext.Provider value={legacyValue}>{children}</GameContext.Provider>
         </GameActionsContext.Provider>
       </GameTimerContext.Provider>
     </GameStateContext.Provider>
@@ -378,10 +416,13 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
 // Refresh context — unchanged
 // ---------------------------------------------------------------------------
 
-export const GameRefreshContext = createContext<{
-  forceRefresh: number;
-  setForceRefresh: (timestamp: number) => void;
-} | undefined>(undefined);
+export const GameRefreshContext = createContext<
+  | {
+      forceRefresh: number;
+      setForceRefresh: (timestamp: number) => void;
+    }
+  | undefined
+>(undefined);
 
 export function GameRefreshProvider({ children }: { children: ReactNode }) {
   const [forceRefresh, setForceRefresh] = useState<number>(Date.now());

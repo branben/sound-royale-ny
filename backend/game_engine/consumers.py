@@ -1,7 +1,6 @@
 import json
 import logging
 from uuid import UUID
-from urllib.parse import parse_qs
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from .models import Room, Player
@@ -37,11 +36,9 @@ class GameConsumer(AsyncWebsocketConsumer):
         self.game_group_name = f"game_{self.game_id}"
         self.player_id = None
 
-        # Parse query parameters for player identification
-        query_string = self.scope.get("query_string", b"").decode()
-        query_params = parse_qs(query_string)
-        player_id = query_params.get("player_id", [None])[0]
-        player_secret = query_params.get("secret", [None])[0]
+        player = self.scope.get("player")
+        player_id = str(player.id) if player else None
+        self.player_id = player_id
 
         audit_logger.info(
             "websocket_connect_attempt",
@@ -49,34 +46,21 @@ class GameConsumer(AsyncWebsocketConsumer):
                 "room_id": self.game_id,
                 "room_code": self.room_code,
                 "player_id": player_id,
-                "has_secret": bool(player_secret),
+                "has_identity": bool(player),
                 "action": "connect",
             },
         )
 
-        # Verify player if credentials provided
-        if player_id and player_secret:
-            player = await self.verify_player(player_id, player_secret)
-            if player:
-                self.player_id = player_id
-                await self.set_player_connected(player_id, True)
-                audit_logger.info(
-                    "websocket_player_verified",
-                    extra={
-                        "room_id": self.game_id,
-                        "player_id": player_id,
-                        "action": "verified",
-                    },
-                )
-            else:
-                audit_logger.warning(
-                    "websocket_player_verification_failed",
-                    extra={
-                        "room_id": self.game_id,
-                        "player_id": player_id,
-                        "action": "verification_failed",
-                    },
-                )
+        if player:
+            await self.set_player_connected(player_id, True)
+            audit_logger.info(
+                "websocket_player_verified",
+                extra={
+                    "room_id": self.game_id,
+                    "player_id": player_id,
+                    "action": "verified",
+                },
+            )
 
         # Join room group
         await self.channel_layer.group_add(self.game_group_name, self.channel_name)
@@ -193,17 +177,6 @@ class GameConsumer(AsyncWebsocketConsumer):
             return None
 
         return {"id": str(room.id), "code": room.code}
-
-    @database_sync_to_async
-    def verify_player(self, player_id, player_secret):
-        """Verify player credentials and return player if valid"""
-        try:
-            player = Player.objects.get(
-                id=player_id, player_secret=player_secret, room_id=self.game_id
-            )
-            return player
-        except Player.DoesNotExist:
-            return None
 
     @database_sync_to_async
     def set_player_connected(self, player_id, is_connected):

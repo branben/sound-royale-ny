@@ -44,18 +44,25 @@ export function RoomLeaderboard({
         {leaderboard.map((entry, index) => {
           const row = (
             <>
-              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                index === 0 ? 'bg-yellow-500 text-black' :
-                index === 1 ? 'bg-gray-400 text-black' :
-                index === 2 ? 'bg-orange-600 text-white' :
-                'bg-muted text-muted-foreground'
-              }`}>
+              <span
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                  index === 0
+                    ? 'bg-yellow-500 text-black'
+                    : index === 1
+                      ? 'bg-gray-400 text-black'
+                      : index === 2
+                        ? 'bg-orange-600 text-white'
+                        : 'bg-muted text-muted-foreground'
+                }`}
+              >
                 {index + 1}
               </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-foreground">
                   {entry.player.name}
-                  {entry.player.isVerified && <span className="ml-2 text-xs text-green-500">Verified</span>}
+                  {entry.player.isVerified && (
+                    <span className="ml-2 text-xs text-green-500">Verified</span>
+                  )}
                 </p>
                 <div className="mt-1 flex items-center gap-2">
                   <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">

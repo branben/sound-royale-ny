@@ -10,7 +10,11 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { discordApi } from '@/services/api';
-import { clearDiscordSession, getDiscordSession, saveDiscordOAuthState } from '@/services/discordSession';
+import {
+  clearDiscordSession,
+  getDiscordSession,
+  saveDiscordOAuthState,
+} from '@/services/discordSession';
 import { useUser } from '@/context/UserContext';
 import { Loader2, Link as LinkIcon, Unlink, CheckCircle, XCircle, Shield } from 'lucide-react';
 import { PrivacySettings } from './PrivacySettings';
@@ -44,14 +48,15 @@ export function DiscordLinkModal({ isOpen, onClose, onStatusChange }: DiscordLin
     setLoading(true);
     try {
       const storedDiscordSession = getDiscordSession();
-      const status = userSession.playerId && userSession.playerSecret
-        ? await discordApi.getAccountStatus(userSession.playerId, userSession.playerSecret)
-        : storedDiscordSession
-          ? await discordApi.getAccountStatusBySession(
-            storedDiscordSession.discordUserId,
-            storedDiscordSession.sessionSecret
-          )
-          : null;
+      const status =
+        userSession.playerId && userSession.playerSecret
+          ? await discordApi.getAccountStatus(userSession.playerId, userSession.playerSecret)
+          : storedDiscordSession
+            ? await discordApi.getAccountStatusBySession(
+                storedDiscordSession.discordUserId,
+                storedDiscordSession.sessionSecret,
+              )
+            : null;
       if (!status) {
         setAccountStatus(null);
         setStep('check');
@@ -217,19 +222,12 @@ export function DiscordLinkModal({ isOpen, onClose, onStatusChange }: DiscordLin
                 <Unlink className="h-4 w-4" />
                 Unlink
               </Button>
-              <Button
-                variant="outline"
-                onClick={handleSignOutDiscord}
-                className="flex-1"
-              >
+              <Button variant="outline" onClick={handleSignOutDiscord} className="flex-1">
                 Sign Out
               </Button>
             </div>
           ) : (
-              <Button
-                onClick={handleLinkDiscord}
-                className="bg-[#5865F2] hover:bg-[#4752C4] gap-2"
-              >
+            <Button onClick={handleLinkDiscord} className="bg-[#5865F2] hover:bg-[#4752C4] gap-2">
               <LinkIcon className="h-4 w-4" />
               Link Discord Account
             </Button>
@@ -237,10 +235,7 @@ export function DiscordLinkModal({ isOpen, onClose, onStatusChange }: DiscordLin
         </DialogFooter>
       </DialogContent>
 
-      <PrivacySettings
-        isOpen={showPrivacySettings}
-        onClose={() => setShowPrivacySettings(false)}
-      />
+      <PrivacySettings isOpen={showPrivacySettings} onClose={() => setShowPrivacySettings(false)} />
     </Dialog>
   );
 }

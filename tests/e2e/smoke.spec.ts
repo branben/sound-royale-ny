@@ -5,14 +5,16 @@ test.describe('Smoke', () => {
   test.beforeEach(async ({ page }) => {
     await enableE2EMode(page);
     await setupPlayerSession(page, { playerName: 'TestPlayer', playerId: 'test-id', playerSecret: 'test-secret' });
+    // Dismiss onboarding so the h1 is the only heading matching "SOUND ROYALE"
+    await page.addInitScript(() => localStorage.setItem('hasSeenOnboarding', 'true'));
   });
 
   test('loads the lobby shell', async ({ page }) => {
     await page.goto('/');
 
     await expect(page).toHaveTitle(/Sound Royale/);
-    await expect(page.getByRole('heading', { name: 'Sound Royale' })).toBeVisible();
-    await expect(page.getByText('Enter a room code to join the battle')).toBeVisible();
+    await expect(page.locator('h1')).toHaveText('SOUND ROYALE');
+    await expect(page.locator('[data-testid="lobby"]')).toBeVisible();
     await expect(page.getByTestId('room-code-input')).toBeVisible();
     await expect(page.getByTestId('join-room-button')).toBeDisabled();
   });

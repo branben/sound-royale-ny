@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+backend/venv/
+**/__pycache__/
+*.pyc
+
+# Build artifacts
+dist/
+build/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.*
+backend/.env
+
+# IDE
+.vscode/
+.idea/
+
+# Git
+.git/
+.gitignore
+
+# OS
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Test output
+test-results/
+playwright-report/
+coverage/
+
+# Media / uploads
+backend/media/
+
+# Documentation
+docs/
+README.md
+
+# CI
+.github/

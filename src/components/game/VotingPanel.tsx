@@ -47,9 +47,21 @@ export function VotingPanel({
     return {
       bg: [`bg-player-1/20`, `bg-player-2/20`, `bg-player-3/20`, `bg-player-4/20`][idx],
       text: [`text-player-1`, `text-player-2`, `text-player-3`, `text-player-4`][idx],
-      borderHover: [`hover:border-player-1/50`, `hover:border-player-2/50`, `hover:border-player-3/50`, `hover:border-player-4/50`][idx],
-      bgHover: [`hover:bg-player-1/5`, `hover:bg-player-2/5`, `hover:bg-player-3/5`, `hover:bg-player-4/5`][idx],
-      borderSelected: [`border-player-1`, `border-player-2`, `border-player-3`, `border-player-4`][idx],
+      borderHover: [
+        `hover:border-player-1/50`,
+        `hover:border-player-2/50`,
+        `hover:border-player-3/50`,
+        `hover:border-player-4/50`,
+      ][idx],
+      bgHover: [
+        `hover:bg-player-1/5`,
+        `hover:bg-player-2/5`,
+        `hover:bg-player-3/5`,
+        `hover:bg-player-4/5`,
+      ][idx],
+      borderSelected: [`border-player-1`, `border-player-2`, `border-player-3`, `border-player-4`][
+        idx
+      ],
       bgSelected: [`bg-player-1/10`, `bg-player-2/10`, `bg-player-3/10`, `bg-player-4/10`][idx],
     };
   };
@@ -65,11 +77,12 @@ export function VotingPanel({
       setHasVoted(true);
       toast.success('Vote submitted!');
     } catch (error: unknown) {
-      const message = error instanceof Error 
-        ? error.message 
-        : typeof error === 'object' && error !== null && 'message' in error
-          ? String((error as { message: unknown }).message)
-          : 'Unknown error';
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === 'object' && error !== null && 'message' in error
+            ? String((error as { message: unknown }).message)
+            : 'Unknown error';
       console.error('Vote error:', message);
       toast.error('Failed to submit vote. Please try again.');
     } finally {
@@ -80,7 +93,10 @@ export function VotingPanel({
 
   if (!votingOpen) {
     return (
-      <div data-testid="voting-panel" className={cn('rounded-xl border border-border bg-card p-4', className)}>
+      <div
+        data-testid="voting-panel"
+        className={cn('rounded-xl border border-border bg-card p-4', className)}
+      >
         <div className="flex items-center gap-2 mb-3">
           <Vote className="h-5 w-5 text-muted-foreground" />
           <h3 className="font-semibold text-foreground">Voting</h3>
@@ -95,9 +111,14 @@ export function VotingPanel({
   }
 
   return (
-    <div data-testid="voting-panel" className={cn('rounded-xl border border-primary/30 bg-card p-4', className)}>
+    <div
+      data-testid="voting-panel"
+      className={cn('rounded-xl border border-primary/30 bg-card p-4', className)}
+    >
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-xl font-bold uppercase tracking-wider text-primary">Vote: {currentGenre}</h3>
+        <h3 className="text-xl font-bold uppercase tracking-wider text-primary">
+          Vote: {currentGenre}
+        </h3>
         <div className="text-sm text-muted-foreground" data-testid="vote-count-display">
           {votesRecorded}/{spectatorCount} votes
         </div>
@@ -120,45 +141,49 @@ export function VotingPanel({
       ) : (
         <div className="grid grid-cols-2 gap-3">
           {producers
-            .filter(producer => !(isSpectator && producer.id === currentPlayerId))
+            .filter((producer) => !(isSpectator && producer.id === currentPlayerId))
             .map((producer) => {
               const card = playerCardColor(producer.id);
               return (
-              <motion.button
-                key={producer.id}
-                onClick={() => handleVote(producer.id)}
-                disabled={isVoting}
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.95 }}
-                transition={transitions.spring}
-                className={cn(
-                  'flex flex-col items-center gap-2 p-6 rounded-lg border-2 border-l-4 transition-all',
-                  card.borderHover, card.bgHover,
-                  'disabled:opacity-50 disabled:cursor-not-allowed',
-                  selectedPlayerId === producer.id
-                    ? card.borderSelected + ' ' + card.bgSelected + ' scale-[1.02]'
-                    : 'border-border'
-                )}
-              >
-                <div className={cn('flex h-12 w-12 items-center justify-center rounded-full', card.bg)}>
-                  <span className={cn('text-lg font-bold', card.text)}>
-                    {producer.name.charAt(0)}
-                  </span>
-                </div>
-                <div className="text-center">
-                  <p className="font-medium text-foreground text-lg font-bold">{producer.name}</p>
-                  {producer.eloRating && (
-                    <p className="text-xs text-muted-foreground">
-                      ELO: {producer.eloRating}
-                    </p>
+                <motion.button
+                  key={producer.id}
+                  onClick={() => handleVote(producer.id)}
+                  disabled={isVoting}
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.95 }}
+                  transition={transitions.spring}
+                  className={cn(
+                    'flex flex-col items-center gap-2 p-6 rounded-lg border-2 border-l-4 transition-all',
+                    card.borderHover,
+                    card.bgHover,
+                    'disabled:opacity-50 disabled:cursor-not-allowed',
+                    selectedPlayerId === producer.id
+                      ? card.borderSelected + ' ' + card.bgSelected + ' scale-[1.02]'
+                      : 'border-border',
                   )}
-                </div>
-                {isVoting && selectedPlayerId === producer.id && (
-                  <Loader2 className={cn('h-4 w-4 animate-spin', card.text)} />
-                )}
-              </motion.button>
+                >
+                  <div
+                    className={cn(
+                      'flex h-12 w-12 items-center justify-center rounded-full',
+                      card.bg,
+                    )}
+                  >
+                    <span className={cn('text-lg font-bold', card.text)}>
+                      {producer.name.charAt(0)}
+                    </span>
+                  </div>
+                  <div className="text-center">
+                    <p className="font-medium text-foreground text-lg font-bold">{producer.name}</p>
+                    {producer.eloRating && (
+                      <p className="text-xs text-muted-foreground">ELO: {producer.eloRating}</p>
+                    )}
+                  </div>
+                  {isVoting && selectedPlayerId === producer.id && (
+                    <Loader2 className={cn('h-4 w-4 animate-spin', card.text)} />
+                  )}
+                </motion.button>
               );
-          })}
+            })}
         </div>
       )}
 

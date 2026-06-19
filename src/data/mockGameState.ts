@@ -5,8 +5,8 @@ const createBoard = () => ({
     id: `tile-${index}`,
     genre,
     status: 'empty' as const,
-    audioUrl: undefined
-  }))
+    audioUrl: undefined,
+  })),
 });
 
 export const mockGameState: GameState = {
@@ -23,9 +23,9 @@ export const mockGameState: GameState = {
           id: `p1-tile-${index}`,
           genre,
           status: index === 0 ? 'complete' : index === 4 ? 'pending' : 'empty',
-          audioUrl: index === 0 ? 'https://example.com/audio1.mp3' : undefined
-        }))
-      }
+          audioUrl: index === 0 ? 'https://example.com/audio1.mp3' : undefined,
+        })),
+      },
     },
     player_2: {
       id: 'player_2',
@@ -36,9 +36,9 @@ export const mockGameState: GameState = {
           id: `p2-tile-${index}`,
           genre,
           status: index === 2 ? 'complete' : 'empty',
-          audioUrl: index === 2 ? 'https://example.com/audio2.mp3' : undefined
-        }))
-      }
-    }
-  }
+          audioUrl: index === 2 ? 'https://example.com/audio2.mp3' : undefined,
+        })),
+      },
+    },
+  },
 };

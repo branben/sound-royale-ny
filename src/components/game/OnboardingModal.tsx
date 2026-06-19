@@ -35,7 +35,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
             </div>
             <p className="text-gray-300 pl-13">
               A music bingo game where producers upload beats matching genres on a 3x3 board.
-              Complete lines (horizontal, vertical, diagonal) to win rounds and climb the ELO rankings!
+              Complete lines (horizontal, vertical, diagonal) to win rounds and climb the ELO
+              rankings!
             </p>
           </div>
 
@@ -100,8 +101,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
               <h3 className="text-lg font-semibold">ELO Ranking System</h3>
             </div>
             <p className="text-gray-300 pl-13">
-              Ranked matches with spectator voting. Win to gain ELO, lose to drop.
-              Your ELO syncs to Discord servers for role assignments and bragging rights!
+              Ranked matches with spectator voting. Win to gain ELO, lose to drop. Your ELO syncs to
+              Discord servers for role assignments and bragging rights!
             </p>
           </div>
 
@@ -118,10 +119,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
 
           {/* CTA */}
           <div className="flex gap-3 pt-4">
-            <Button
-              onClick={onClose}
-              className="flex-1 bg-primary hover:opacity-90"
-            >
+            <Button onClick={onClose} className="flex-1 bg-primary hover:opacity-90">
               <Gamepad2 className="mr-2 h-4 w-4" />
               Let's Play!
             </Button>

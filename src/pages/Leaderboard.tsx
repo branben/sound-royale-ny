@@ -1,7 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Trophy, Search, Loader2, Flame, TrendingUp, Swords, ChevronRight } from 'lucide-react';
+import {
+  ArrowLeft,
+  Trophy,
+  Search,
+  Loader2,
+  Flame,
+  TrendingUp,
+  Swords,
+  ChevronRight,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -47,9 +56,7 @@ export default function Leaderboard() {
       setFilteredPlayers(players);
     } else {
       const query = searchQuery.toLowerCase();
-      setFilteredPlayers(
-        players.filter(p => p.name.toLowerCase().includes(query))
-      );
+      setFilteredPlayers(players.filter((p) => p.name.toLowerCase().includes(query)));
     }
   }, [searchQuery, players]);
 
@@ -66,13 +73,14 @@ export default function Leaderboard() {
           } catch {
             return { ...player, genrePerformance: [] };
           }
-        })
+        }),
       );
 
       const sorted = playersWithGenrePerformance.sort((a, b) => {
         const eloDelta = (b.eloRating ?? 1200) - (a.eloRating ?? 1200);
         if (eloDelta !== 0) return eloDelta;
-        const titleDelta = titlePriority[b.currentTitle ?? 'NONE'] - titlePriority[a.currentTitle ?? 'NONE'];
+        const titleDelta =
+          titlePriority[b.currentTitle ?? 'NONE'] - titlePriority[a.currentTitle ?? 'NONE'];
         if (titleDelta !== 0) return titleDelta;
         return a.name.localeCompare(b.name);
       });
@@ -89,7 +97,7 @@ export default function Leaderboard() {
   const getInitials = (name: string) => {
     return name
       .split(' ')
-      .map(n => n[0])
+      .map((n) => n[0])
       .join('')
       .toUpperCase()
       .slice(0, 2);
@@ -105,7 +113,7 @@ export default function Leaderboard() {
 
   const topGenres = (perf: GenrePerformance[]) => {
     return perf
-      .filter(g => g.total_rounds > 0)
+      .filter((g) => g.total_rounds > 0)
       .sort((a, b) => b.win_rate - a.win_rate)
       .slice(0, 3);
   };
@@ -115,9 +123,7 @@ export default function Leaderboard() {
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
         <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold font-['Righteous'] text-foreground">
-              Leaderboard
-            </h1>
+            <h1 className="text-3xl font-bold font-['Righteous'] text-foreground">Leaderboard</h1>
             <p className="text-sm text-muted-foreground">Top producers ranked by ELO rating</p>
           </div>
           <Button asChild variant="outline" className="w-full sm:w-auto">
@@ -176,17 +182,23 @@ export default function Leaderboard() {
                       <div className={`absolute inset-0 ${style.glow} pointer-events-none`} />
                     )}
 
-                    <div className={cn(
-                      'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold',
-                      isTop3 && style ? `${style.ring} ${style.badge} bg-card` : 'bg-muted/60 text-muted-foreground'
-                    )}>
+                    <div
+                      className={cn(
+                        'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold',
+                        isTop3 && style
+                          ? `${style.ring} ${style.badge} bg-card`
+                          : 'bg-muted/60 text-muted-foreground',
+                      )}
+                    >
                       {rank}
                     </div>
 
-                    <Avatar className={cn(
-                      'h-10 w-10 border-2 shrink-0',
-                      isTop3 ? 'border-primary/60' : 'border-border'
-                    )}>
+                    <Avatar
+                      className={cn(
+                        'h-10 w-10 border-2 shrink-0',
+                        isTop3 ? 'border-primary/60' : 'border-border',
+                      )}
+                    >
                       <AvatarFallback className="bg-primary/20 text-primary font-bold text-xs">
                         {getInitials(player.name)}
                       </AvatarFallback>
@@ -199,7 +211,10 @@ export default function Leaderboard() {
                         </span>
                         <TitleBadge title={player.currentTitle} compact />
                         {player.isSpectator && (
-                          <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground text-[10px] px-1.5 py-0">
+                          <Badge
+                            variant="outline"
+                            className="border-muted-foreground/30 text-muted-foreground text-[10px] px-1.5 py-0"
+                          >
                             Spectator
                           </Badge>
                         )}
@@ -212,7 +227,12 @@ export default function Leaderboard() {
                               <span key={g.genre} className="flex items-center gap-0.5">
                                 {i > 0 && <span className="text-border">/</span>}
                                 <span className="text-foreground/70">{g.genre}</span>
-                                <span className="text-primary font-medium" data-testid={`genre-grade-${g.genre}`}>{g.grade}</span>
+                                <span
+                                  className="text-primary font-medium"
+                                  data-testid={`genre-grade-${g.genre}`}
+                                >
+                                  {g.grade}
+                                </span>
                               </span>
                             ))}
                           </div>
@@ -223,24 +243,36 @@ export default function Leaderboard() {
                     <div className="hidden sm:flex items-center gap-6 shrink-0">
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <Swords className="h-3.5 w-3.5" />
-                        <span className="font-medium text-foreground">{player.eloWins ?? 0}<span className="text-muted-foreground">W</span></span>
+                        <span className="font-medium text-foreground">
+                          {player.eloWins ?? 0}
+                          <span className="text-muted-foreground">W</span>
+                        </span>
                         <span className="text-border">/</span>
-                        <span className="font-medium text-foreground">{player.eloLosses ?? 0}<span className="text-muted-foreground">L</span></span>
+                        <span className="font-medium text-foreground">
+                          {player.eloLosses ?? 0}
+                          <span className="text-muted-foreground">L</span>
+                        </span>
                       </div>
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <TrendingUp className="h-3.5 w-3.5" />
-                        <span className="font-medium text-foreground">{player.eloMatches ?? 0}</span>
+                        <span className="font-medium text-foreground">
+                          {player.eloMatches ?? 0}
+                        </span>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className={cn(
-                        'font-bold tabular-nums',
-                        isTop3 && style ? style.badge : 'text-primary'
-                      )}>
+                      <span
+                        className={cn(
+                          'font-bold tabular-nums',
+                          isTop3 && style ? style.badge : 'text-primary',
+                        )}
+                      >
                         {player.eloRating ?? 1200}
                       </span>
-                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider">ELO</span>
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                        ELO
+                      </span>
                     </div>
 
                     <ChevronRight className="h-4 w-4 text-muted-foreground/0 group-hover:text-muted-foreground transition-colors shrink-0" />

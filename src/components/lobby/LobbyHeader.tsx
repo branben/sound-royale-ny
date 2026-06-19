@@ -33,7 +33,11 @@ export function LobbyHeader({ onShowOnboarding }: LobbyHeaderProps) {
           How to Play
         </Button>
         <Link to="/leaderboard">
-          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary hover:bg-primary/10">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-primary hover:bg-primary/10"
+          >
             <Trophy className="mr-1.5 h-3.5 w-3.5" />
             Leaderboard
           </Button>

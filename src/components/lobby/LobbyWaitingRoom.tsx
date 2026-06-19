@@ -70,9 +70,7 @@ export function LobbyWaitingRoom({
                     {player.isHost ? 'Host' : player.isReady ? '✓ Ready' : 'Not Ready'}
                   </p>
                 </div>
-                {player.isHost && (
-                  <Crown className="h-5 w-5 text-yellow-500" />
-                )}
+                {player.isHost && <Crown className="h-5 w-5 text-yellow-500" />}
                 {player.isReady && !player.isHost && (
                   <div className="h-3 w-3 rounded-full bg-green-500 " />
                 )}
@@ -98,9 +96,7 @@ export function LobbyWaitingRoom({
         <Button
           onClick={onToggleReady}
           className={`w-full h-12 text-lg font-semibold font-['Righteous'] tracking-wider uppercase transition-all duration-200 border-0 ${
-            isReady
-              ? 'bg-green-600 hover:bg-green-700'
-              : 'bg-primary hover:opacity-90'
+            isReady ? 'bg-green-600 hover:bg-green-700' : 'bg-primary hover:opacity-90'
           }`}
           size="lg"
         >

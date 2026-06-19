@@ -47,22 +47,27 @@ describe('Discord session storage', () => {
   });
 
   it('ignores malformed stored sessions', () => {
-    localStorage.setItem('soundRoyaleDiscordSession', JSON.stringify({
-      discordUserId: 'discord-789',
-      username: 'missing-secret',
-    }));
+    localStorage.setItem(
+      'soundRoyaleDiscordSession',
+      JSON.stringify({
+        discordUserId: 'discord-789',
+        username: 'missing-secret',
+      }),
+    );
 
     expect(getDiscordSession()).toBeNull();
   });
 
   it('converts a Discord link response into local stable session data', () => {
-    expect(createDiscordSessionFromLinkResponse({
-      discord_user_id: 'discord-123',
-      discord_session_secret: 'session-secret',
-      discord_username: 'verified_user',
-      discord_avatar_url: 'https://cdn.discordapp.com/avatar.png',
-      linked_at: '2026-05-08T18:00:00Z',
-    })).toEqual({
+    expect(
+      createDiscordSessionFromLinkResponse({
+        discord_user_id: 'discord-123',
+        discord_session_secret: 'session-secret',
+        discord_username: 'verified_user',
+        discord_avatar_url: 'https://cdn.discordapp.com/avatar.png',
+        linked_at: '2026-05-08T18:00:00Z',
+      }),
+    ).toEqual({
       discordUserId: 'discord-123',
       sessionSecret: 'session-secret',
       username: 'verified_user',

@@ -14,11 +14,11 @@ interface ConflictResolutionProps {
   onRetry?: () => void;
 }
 
-export function ConflictResolution({ 
-  conflict, 
-  isVisible, 
-  onResolve, 
-  onRetry 
+export function ConflictResolution({
+  conflict,
+  isVisible,
+  onResolve,
+  onRetry,
 }: ConflictResolutionProps) {
   if (!isVisible) return null;
 
@@ -83,18 +83,14 @@ export function ConflictResolution({
 
             {/* Actions */}
             <div className="flex gap-3">
-              <Button 
+              <Button
                 onClick={onResolve}
                 className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 Accept & Continue
               </Button>
               {onRetry && (
-                <Button 
-                  onClick={onRetry}
-                  variant="outline"
-                  className="flex-1"
-                >
+                <Button onClick={onRetry} variant="outline" className="flex-1">
                   Retry Action
                 </Button>
               )}

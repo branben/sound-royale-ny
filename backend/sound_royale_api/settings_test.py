@@ -33,6 +33,17 @@ DATABASES = {
     }
 }
 
+# Disable throttling for tests — tests send rapid sequential requests
+REST_FRAMEWORK = {
+    "DEFAULT_THROTTLE_CLASSES": [],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "10000/minute",
+        "user": "10000/minute",
+        "audio_upload": "10000/minute",
+        "room_creation": "10000/minute",
+    },
+}
+
 # Override LOGGING to remove file handler — CI has no logs/ directory
 LOGGING = {
     "version": 1,

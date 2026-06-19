@@ -68,7 +68,9 @@ describe('PlayerStatsRadar', () => {
         makeGenre('Trap', 3, 8),
         makeGenre('Lo-Fi', 7, 10),
       ];
-      const { container } = render(<PlayerStatsRadar player={basePlayer} genrePerformance={genres} />);
+      const { container } = render(
+        <PlayerStatsRadar player={basePlayer} genrePerformance={genres} />,
+      );
 
       expect(screen.getByTestId('radar-chart')).toBeInTheDocument();
       expect(container.querySelector('.recharts-wrapper')).toBeInTheDocument();
@@ -80,7 +82,9 @@ describe('PlayerStatsRadar', () => {
         makeGenre('Synthwave', 9, 10, true),
         makeGenre('Drum & Bass', 4, 8, true),
       ];
-      const { container } = render(<PlayerStatsRadar player={basePlayer} genrePerformance={genres} />);
+      const { container } = render(
+        <PlayerStatsRadar player={basePlayer} genrePerformance={genres} />,
+      );
 
       expect(screen.getByTestId('radar-chart')).toBeInTheDocument();
       expect(container.querySelectorAll('[data-testid="radar"]').length).toBe(2);
@@ -97,7 +101,7 @@ describe('PlayerStatsRadar', () => {
         <PlayerStatsRadar
           player={basePlayer}
           genrePerformance={[...coreGenres, ...historicalGenres]}
-        />
+        />,
       );
 
       expect(screen.getByTestId('radar-chart')).toBeInTheDocument();
@@ -118,10 +122,7 @@ describe('PlayerStatsRadar', () => {
       const historical = [makeGenre('Synthwave', 9, 10, true)];
 
       render(
-        <PlayerStatsRadar
-          player={basePlayer}
-          genrePerformance={[...coreGenres, ...historical]}
-        />
+        <PlayerStatsRadar player={basePlayer} genrePerformance={[...coreGenres, ...historical]} />,
       );
 
       expect(screen.getByTestId('radar-chart')).toBeInTheDocument();
@@ -135,9 +136,7 @@ describe('PlayerStatsRadar', () => {
     });
 
     it('handles empty genrePerformance array', () => {
-      const { container } = render(
-        <PlayerStatsRadar player={basePlayer} genrePerformance={[]} />
-      );
+      const { container } = render(<PlayerStatsRadar player={basePlayer} genrePerformance={[]} />);
       expect(screen.getByText('Genre Performance')).toBeInTheDocument();
       expect(container.querySelector('.recharts-wrapper')).toBeInTheDocument();
     });
@@ -156,7 +155,7 @@ describe('PlayerStatsRadar', () => {
           player={basePlayer}
           genrePerformance={genres}
           roomGenres={['Phonk', 'Lo-Fi']}
-        />
+        />,
       );
 
       expect(screen.getByTestId('radar-chart')).toBeInTheDocument();
@@ -169,7 +168,7 @@ describe('PlayerStatsRadar', () => {
           player={basePlayer}
           genrePerformance={genres}
           roomGenres={['Phonk', 'PHONK', 'phonk']}
-        />
+        />,
       );
 
       expect(screen.getByTestId('radar-chart')).toBeInTheDocument();
@@ -182,7 +181,7 @@ describe('PlayerStatsRadar', () => {
           player={basePlayer}
           genrePerformance={genres}
           roomGenres={['Phonk', 'Trap']}
-        />
+        />,
       );
 
       expect(screen.getByTestId('radar-chart')).toBeInTheDocument();
@@ -192,21 +191,13 @@ describe('PlayerStatsRadar', () => {
       const genres = [makeGenre('Phonk', 5, 10), makeGenre('Trap', 3, 8)];
 
       const { rerender } = render(
-        <PlayerStatsRadar
-          player={basePlayer}
-          genrePerformance={genres}
-          roomGenres={['Phonk']}
-        />
+        <PlayerStatsRadar player={basePlayer} genrePerformance={genres} roomGenres={['Phonk']} />,
       );
 
       expect(screen.getByTestId('radar-chart')).toBeInTheDocument();
 
       rerender(
-        <PlayerStatsRadar
-          player={basePlayer}
-          genrePerformance={genres}
-          roomGenres={['Trap']}
-        />
+        <PlayerStatsRadar player={basePlayer} genrePerformance={genres} roomGenres={['Trap']} />,
       );
 
       expect(screen.getByTestId('radar-chart')).toBeInTheDocument();
@@ -221,7 +212,7 @@ describe('PlayerStatsRadar', () => {
           player={basePlayer}
           genrePerformance={genres}
           roomGenres={manyRoomGenres}
-        />
+        />,
       );
       expect(screen.getByText('Genre Performance')).toBeInTheDocument();
     });
@@ -233,7 +224,7 @@ describe('PlayerStatsRadar', () => {
           player={basePlayer}
           genrePerformance={genres}
           roomGenres={['Phonk', 'Synthwave']}
-        />
+        />,
       );
       expect(screen.getByTestId('radar-chart')).toBeInTheDocument();
     });
@@ -241,11 +232,7 @@ describe('PlayerStatsRadar', () => {
     it('matches roomGenres case-insensitively and uses original genre name', () => {
       const genres = [makeGenre('Phonk', 5, 10)];
       render(
-        <PlayerStatsRadar
-          player={basePlayer}
-          genrePerformance={genres}
-          roomGenres={['phonk']}
-        />
+        <PlayerStatsRadar player={basePlayer} genrePerformance={genres} roomGenres={['phonk']} />,
       );
       expect(screen.getByTestId('radar-chart')).toBeInTheDocument();
     });
@@ -254,13 +241,7 @@ describe('PlayerStatsRadar', () => {
   describe('empty roomGenres array', () => {
     it('falls through to core genres when roomGenres is empty', () => {
       const genres = [makeGenre('Phonk', 5, 10)];
-      render(
-        <PlayerStatsRadar
-          player={basePlayer}
-          genrePerformance={genres}
-          roomGenres={[]}
-        />
-      );
+      render(<PlayerStatsRadar player={basePlayer} genrePerformance={genres} roomGenres={[]} />);
 
       expect(screen.getByTestId('radar-chart')).toBeInTheDocument();
     });
@@ -275,16 +256,9 @@ describe('PlayerStatsRadar', () => {
     });
 
     it('renders without crashing with mixed genres', () => {
-      const genres = [
-        makeGenre('Phonk', 5, 10, false),
-        makeGenre('Synthwave', 9, 10, true),
-      ];
+      const genres = [makeGenre('Phonk', 5, 10, false), makeGenre('Synthwave', 9, 10, true)];
       render(
-        <PlayerStatsRadar
-          player={basePlayer}
-          genrePerformance={genres}
-          roomGenres={['Phonk']}
-        />
+        <PlayerStatsRadar player={basePlayer} genrePerformance={genres} roomGenres={['Phonk']} />,
       );
 
       expect(screen.getByText('Genre Performance')).toBeInTheDocument();
@@ -299,10 +273,7 @@ describe('PlayerStatsRadar', () => {
     });
 
     it('handles all-legacy genres with no core genres in historical view', () => {
-      const genres = [
-        makeGenre('Synthwave', 9, 10, true),
-        makeGenre('Drum & Bass', 4, 8, true),
-      ];
+      const genres = [makeGenre('Synthwave', 9, 10, true), makeGenre('Drum & Bass', 4, 8, true)];
       render(<PlayerStatsRadar player={basePlayer} genrePerformance={genres} />);
 
       expect(screen.getByTestId('radar-chart')).toBeInTheDocument();
@@ -335,10 +306,7 @@ describe('PlayerStatsRadar', () => {
       ];
 
       render(
-        <PlayerStatsRadar
-          player={basePlayer}
-          genrePerformance={[...coreGenres, ...historical]}
-        />
+        <PlayerStatsRadar player={basePlayer} genrePerformance={[...coreGenres, ...historical]} />,
       );
 
       expect(screen.getByText('Genre Performance')).toBeInTheDocument();
@@ -356,7 +324,7 @@ describe('PlayerStatsRadar', () => {
       it('calculates exact win/loss percentages: 7/10 = 70% wins, 30% losses', () => {
         const genres = [makeGenre('Phonk', 7, 10)];
         const { container } = render(
-          <PlayerStatsRadar player={basePlayer} genrePerformance={genres} />
+          <PlayerStatsRadar player={basePlayer} genrePerformance={genres} />,
         );
         const chartData = getChartData(container);
         expect(chartData).toHaveLength(1);
@@ -367,7 +335,7 @@ describe('PlayerStatsRadar', () => {
       it('returns 0% for genres with zero total_rounds (division guard)', () => {
         const genres = [makeGenre('Phonk', 0, 0)];
         const { container } = render(
-          <PlayerStatsRadar player={basePlayer} genrePerformance={genres} />
+          <PlayerStatsRadar player={basePlayer} genrePerformance={genres} />,
         );
         const chartData = getChartData(container);
         expect(chartData[0].wins).toBe(0);
@@ -377,7 +345,7 @@ describe('PlayerStatsRadar', () => {
       it('calculates 100% wins when wins equals total_rounds', () => {
         const genres = [makeGenre('Phonk', 10, 10)];
         const { container } = render(
-          <PlayerStatsRadar player={basePlayer} genrePerformance={genres} />
+          <PlayerStatsRadar player={basePlayer} genrePerformance={genres} />,
         );
         const chartData = getChartData(container);
         expect(chartData[0].wins).toBe(100);
@@ -387,7 +355,7 @@ describe('PlayerStatsRadar', () => {
       it('calculates 0% wins when wins is 0', () => {
         const genres = [makeGenre('Phonk', 0, 10)];
         const { container } = render(
-          <PlayerStatsRadar player={basePlayer} genrePerformance={genres} />
+          <PlayerStatsRadar player={basePlayer} genrePerformance={genres} />,
         );
         const chartData = getChartData(container);
         expect(chartData[0].wins).toBe(0);
@@ -399,7 +367,7 @@ describe('PlayerStatsRadar', () => {
       it('appends "(legacy)" to legacy genre axis labels', () => {
         const genres = [makeGenre('Synthwave', 5, 10, true)];
         const { container } = render(
-          <PlayerStatsRadar player={basePlayer} genrePerformance={genres} />
+          <PlayerStatsRadar player={basePlayer} genrePerformance={genres} />,
         );
         const chartData = getChartData(container);
         expect(chartData[0].axis).toBe('Synthwave (legacy)');
@@ -409,7 +377,7 @@ describe('PlayerStatsRadar', () => {
       it('does not append "(legacy)" to non-legacy genre labels', () => {
         const genres = [makeGenre('Phonk', 5, 10, false)];
         const { container } = render(
-          <PlayerStatsRadar player={basePlayer} genrePerformance={genres} />
+          <PlayerStatsRadar player={basePlayer} genrePerformance={genres} />,
         );
         const chartData = getChartData(container);
         expect(chartData[0].axis).toBe('Phonk');
@@ -423,10 +391,7 @@ describe('PlayerStatsRadar', () => {
           makeGenre('Blues', 1, 3, true),
         ];
         const { container } = render(
-          <PlayerStatsRadar
-            player={basePlayer}
-            genrePerformance={[...historicalGenres]}
-          />
+          <PlayerStatsRadar player={basePlayer} genrePerformance={[...historicalGenres]} />,
         );
         const chartData = getChartData(container);
         const legacyEntries = chartData.filter((d: any) => d.isLegacy);
@@ -439,7 +404,7 @@ describe('PlayerStatsRadar', () => {
         const cores = Array.from({ length: 9 }, (_, i) => makeGenre(`Genre${i}`, 1, 2, false));
         const historical = [makeGenre('Extra', 9, 10, true)];
         const { container } = render(
-          <PlayerStatsRadar player={basePlayer} genrePerformance={[...cores, ...historical]} />
+          <PlayerStatsRadar player={basePlayer} genrePerformance={[...cores, ...historical]} />,
         );
         const chartData = getChartData(container);
         expect(chartData).toHaveLength(9);
@@ -448,9 +413,11 @@ describe('PlayerStatsRadar', () => {
 
       it('fills remaining slots with historical genres when core < 9', () => {
         const cores = [makeGenre('Phonk', 5, 10, false)];
-        const historical = Array.from({ length: 10 }, (_, i) => makeGenre(`Hist${i}`, i, i + 1, true));
+        const historical = Array.from({ length: 10 }, (_, i) =>
+          makeGenre(`Hist${i}`, i, i + 1, true),
+        );
         const { container } = render(
-          <PlayerStatsRadar player={basePlayer} genrePerformance={[...cores, ...historical]} />
+          <PlayerStatsRadar player={basePlayer} genrePerformance={[...cores, ...historical]} />,
         );
         const chartData = getChartData(container);
         expect(chartData).toHaveLength(9);
@@ -465,11 +432,7 @@ describe('PlayerStatsRadar', () => {
       it('preserves original performance genre casing in axis label', () => {
         const genres = [makeGenre('PHONK', 5, 10)];
         const { container } = render(
-          <PlayerStatsRadar
-            player={basePlayer}
-            genrePerformance={genres}
-            roomGenres={['phonk']}
-          />
+          <PlayerStatsRadar player={basePlayer} genrePerformance={genres} roomGenres={['phonk']} />,
         );
         const chartData = getChartData(container);
         expect(chartData[0].axis).toBe('PHONK');
@@ -478,11 +441,7 @@ describe('PlayerStatsRadar', () => {
       it('uses lowercase room genre name when no performance data matched', () => {
         const genres = [makeGenre('Phonk', 5, 10)];
         const { container } = render(
-          <PlayerStatsRadar
-            player={basePlayer}
-            genrePerformance={genres}
-            roomGenres={['Trap']}
-          />
+          <PlayerStatsRadar player={basePlayer} genrePerformance={genres} roomGenres={['Trap']} />,
         );
         const chartData = getChartData(container);
         expect(chartData[0].axis).toBe('trap');
@@ -493,11 +452,7 @@ describe('PlayerStatsRadar', () => {
       it('calculates exact percentages for matched room genre', () => {
         const genres = [makeGenre('Phonk', 3, 8)];
         const { container } = render(
-          <PlayerStatsRadar
-            player={basePlayer}
-            genrePerformance={genres}
-            roomGenres={['Phonk']}
-          />
+          <PlayerStatsRadar player={basePlayer} genrePerformance={genres} roomGenres={['Phonk']} />,
         );
         const chartData = getChartData(container);
         expect(chartData[0].wins).toBe(37.5);
@@ -507,11 +462,7 @@ describe('PlayerStatsRadar', () => {
       it('sets 0% for matched genre with zero total_rounds in roomGenres mode', () => {
         const genres = [makeGenre('Phonk', 0, 0)];
         const { container } = render(
-          <PlayerStatsRadar
-            player={basePlayer}
-            genrePerformance={genres}
-            roomGenres={['Phonk']}
-          />
+          <PlayerStatsRadar player={basePlayer} genrePerformance={genres} roomGenres={['Phonk']} />,
         );
         const chartData = getChartData(container);
         expect(chartData[0].wins).toBe(0);
@@ -519,16 +470,13 @@ describe('PlayerStatsRadar', () => {
       });
 
       it('renders mixed data: matched, unmatched, and legacy genres in roomGenres mode', () => {
-        const genres = [
-          makeGenre('Phonk', 5, 10),
-          makeGenre('Synthwave', 9, 10, true),
-        ];
+        const genres = [makeGenre('Phonk', 5, 10), makeGenre('Synthwave', 9, 10, true)];
         const { container } = render(
           <PlayerStatsRadar
             player={basePlayer}
             genrePerformance={genres}
             roomGenres={['Phonk', 'Synthwave', 'Trap']}
-          />
+          />,
         );
         const chartData = getChartData(container);
         expect(chartData).toHaveLength(3);
@@ -559,7 +507,7 @@ describe('PlayerStatsRadar', () => {
     it('renders legend with correct colored squares', () => {
       const genres = [makeGenre('Phonk', 5, 10)];
       const { container } = render(
-        <PlayerStatsRadar player={basePlayer} genrePerformance={genres} />
+        <PlayerStatsRadar player={basePlayer} genrePerformance={genres} />,
       );
       // Legend renders colored blocks (w-3 h-3 divs) with background colors
       const legendColors = container.querySelectorAll('.flex.items-center.gap-1 > div');
@@ -573,9 +521,7 @@ describe('PlayerStatsRadar', () => {
     });
 
     it('renders card with correct background styling', () => {
-      const { container } = render(
-        <PlayerStatsRadar player={basePlayer} genrePerformance={[]} />
-      );
+      const { container } = render(<PlayerStatsRadar player={basePlayer} genrePerformance={[]} />);
       const card = container.querySelector('.bg-background\\/60');
       expect(card).toBeInTheDocument();
     });
@@ -584,7 +530,9 @@ describe('PlayerStatsRadar', () => {
 
 describe('CustomTooltip', () => {
   it('returns null when active is false', () => {
-    const { container } = render(<CustomTooltip active={false} payload={[{ payload: { axis: 'Phonk' } }]} />);
+    const { container } = render(
+      <CustomTooltip active={false} payload={[{ payload: { axis: 'Phonk' } }]} />,
+    );
     expect(container.innerHTML).toBe('');
   });
 
@@ -599,14 +547,9 @@ describe('CustomTooltip', () => {
   });
 
   it('renders genre name from payload', () => {
-    const payload = [
-      { name: 'Wins', value: 50, color: '#3b82f6' },
-    ];
+    const payload = [{ name: 'Wins', value: 50, color: '#3b82f6' }];
     render(
-      <CustomTooltip
-        active={true}
-        payload={[{ payload: { axis: 'Phonk' }, ...payload[0] }]}
-      />
+      <CustomTooltip active={true} payload={[{ payload: { axis: 'Phonk' }, ...payload[0] }]} />,
     );
     expect(screen.getByText('Phonk')).toBeInTheDocument();
   });
@@ -623,21 +566,16 @@ describe('CustomTooltip', () => {
           { payload: { axis: 'Phonk' }, ...payload[0] },
           { payload: { axis: 'Phonk' }, ...payload[1] },
         ]}
-      />
+      />,
     );
     expect(screen.getByText('Wins: 50.0%')).toBeInTheDocument();
     expect(screen.getByText('Losses: 50.0%')).toBeInTheDocument();
   });
 
   it('handles decimal values with toFixed(1) formatting', () => {
-    const payload = [
-      { name: 'Wins', value: 33.333, color: '#3b82f6' },
-    ];
+    const payload = [{ name: 'Wins', value: 33.333, color: '#3b82f6' }];
     render(
-      <CustomTooltip
-        active={true}
-        payload={[{ payload: { axis: 'Phonk' }, ...payload[0] }]}
-      />
+      <CustomTooltip active={true} payload={[{ payload: { axis: 'Phonk' }, ...payload[0] }]} />,
     );
     expect(screen.getByText('Wins: 33.3%')).toBeInTheDocument();
   });
@@ -654,7 +592,7 @@ describe('CustomTooltip', () => {
           { payload: { axis: 'Phonk' }, ...payload[0] },
           { payload: { axis: 'Phonk' }, ...payload[1] },
         ]}
-      />
+      />,
     );
     expect(screen.getByText('Wins: 70.0%')).toBeInTheDocument();
     expect(screen.getByText('Losses: 30.0%')).toBeInTheDocument();

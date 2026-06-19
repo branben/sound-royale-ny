@@ -6,10 +6,10 @@ import type { Player } from '@/types/game';
  * These match the CSS variables --player-1 through --player-4.
  */
 export const PLAYER_COLOR_PALETTE = [
-  { hsl: 'hsl(0, 84%, 60%)', hex: '#EF4444', name: 'red' },     /* Player 1 */
-  { hsl: 'hsl(217, 91%, 60%)', hex: '#3B82F6', name: 'blue' },   /* Player 2 */
-  { hsl: 'hsl(48, 96%, 53%)', hex: '#EAB308', name: 'yellow' },  /* Player 3 */
-  { hsl: 'hsl(142, 71%, 45%)', hex: '#22C55E', name: 'green' },  /* Player 4 */
+  { hsl: 'hsl(0, 84%, 60%)', hex: '#EF4444', name: 'red' } /* Player 1 */,
+  { hsl: 'hsl(217, 91%, 60%)', hex: '#3B82F6', name: 'blue' } /* Player 2 */,
+  { hsl: 'hsl(48, 96%, 53%)', hex: '#EAB308', name: 'yellow' } /* Player 3 */,
+  { hsl: 'hsl(142, 71%, 45%)', hex: '#22C55E', name: 'green' } /* Player 4 */,
 ] as const;
 
 export type PlayerColorIndex = 0 | 1 | 2 | 3;
@@ -19,9 +19,7 @@ export type PlayerColorIndex = 0 | 1 | 2 | 3;
  * Colors are assigned in the order producers appear (first joined = Player 1, etc.).
  * Spectators are excluded from the color pool.
  */
-export function assignPlayerColors(
-  players: Record<string, Player>
-): Map<string, PlayerColorIndex> {
+export function assignPlayerColors(players: Record<string, Player>): Map<string, PlayerColorIndex> {
   const colorMap = new Map<string, PlayerColorIndex>();
   let colorIndex = 0;
 

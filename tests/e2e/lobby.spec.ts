@@ -14,9 +14,8 @@ test.describe('Lobby', () => {
 
   test('renders lobby container with correct heading', async ({ page }) => {
     await expect(page.getByTestId('lobby')).toBeVisible();
-    // Use exact match to avoid matching onboarding modal headings containing "Sound Royale"
-    await expect(page.getByRole('heading', { name: 'Sound Royale', exact: true })).toBeVisible();
-    await expect(page.getByText('Enter a room code to join the battle')).toBeVisible();
+    await expect(page.locator('h1')).toHaveText('SOUND ROYALE');
+    await expect(page.getByText('Compete head-to-head. Upload beats. Claim tiles. Win bingo.')).toBeVisible();
   });
 
   test('room code input accepts only digits', async ({ page }) => {

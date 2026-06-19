@@ -1,4 +1,12 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  ReactNode,
+  useEffect,
+  useRef,
+} from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Player } from '@/types/game';
 
@@ -167,7 +175,7 @@ function writeStoredSessions(sessions: Record<string, StoredRoomSession>): void 
 }
 
 function clearLegacySessionKeys(): void {
-  LEGACY_KEYS.forEach(key => safeLocalStorage.removeItem(key));
+  LEGACY_KEYS.forEach((key) => safeLocalStorage.removeItem(key));
   safeLocalStorage.removeItem(LEGACY_USER_SESSION_KEY);
 }
 
@@ -220,7 +228,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [userSession, setUserSession] = useState<UserSession>(readInitialSession);
   const persistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-
   // Ensure an anonymous player session exists on first load
   useEffect(() => {
     if (!userSession.playerId) {
@@ -245,7 +252,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const setActiveRoomSession = (roomCode: string, session: RoomSessionInput) => {
+  const setActiveRoomSession = useCallback((roomCode: string, session: RoomSessionInput) => {
     const storedSession: StoredRoomSession = {
       roomCode,
       playerName: session.playerName.trim(),
@@ -261,7 +268,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     safeSessionStorage.setItem(ACTIVE_SESSION_KEY, sessionKey);
     clearLegacySessionKeys();
     setUserSession(toUserSession(storedSession));
-  };
+  }, []);
 
   const persistActiveSession = (next: UserSession): void => {
     if (!next.playerId || !next.playerSecret || !next.playerName) {
@@ -296,16 +303,16 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }, 100);
   };
 
-  const setPlayerName = (name: string) => {
-    setUserSession(prev => {
+  const setPlayerName = useCallback((name: string) => {
+    setUserSession((prev) => {
       const next = { ...prev, playerName: name?.trim() || null };
       persistActiveSession(next);
       return next;
     });
-  };
+  }, []);
 
-  const setPlayerCredentials = (id: string, secret: string) => {
-    setUserSession(prev => {
+  const setPlayerCredentials = useCallback((id: string, secret: string) => {
+    setUserSession((prev) => {
       const next = {
         ...prev,
         playerId: id,
@@ -315,17 +322,17 @@ export function UserProvider({ children }: { children: ReactNode }) {
       persistActiveSession(next);
       return next;
     });
-  };
+  }, []);
 
-  const setSpectatorMode = (isSpectator: boolean) => {
-    setUserSession(prev => {
+  const setSpectatorMode = useCallback((isSpectator: boolean) => {
+    setUserSession((prev) => {
       const next = { ...prev, isSpectator };
       persistActiveSession(next);
       return next;
     });
-  };
+  }, []);
 
-  const clearSession = () => {
+  const clearSession = useCallback(() => {
     const activeSessionKey = safeSessionStorage.getItem(ACTIVE_SESSION_KEY);
     if (activeSessionKey) {
       const sessions = readStoredSessions();
@@ -336,20 +343,20 @@ export function UserProvider({ children }: { children: ReactNode }) {
     safeSessionStorage.removeItem(ACTIVE_SESSION_KEY);
     clearLegacySessionKeys();
     setUserSession(initialSession);
-  };
+  }, []);
 
-  const setHostStatus = (isHost: boolean) => {
-    setUserSession(prev => {
+  const setHostStatus = useCallback((isHost: boolean) => {
+    setUserSession((prev) => {
       const next = { ...prev, isHost };
       persistActiveSession(next);
       return next;
     });
-  };
+  }, []);
 
   const isHost = (players: Player[]): boolean => {
     // Primary: derive from server-provided players array
     if (players && players.length > 0) {
-      const currentPlayer = players.find(p => p.id === userSession.playerId);
+      const currentPlayer = players.find((p) => p.id === userSession.playerId);
       if (currentPlayer) {
         return currentPlayer.isHost === true;
       }
@@ -364,30 +371,36 @@ export function UserProvider({ children }: { children: ReactNode }) {
     throw new Error('Verified identity not yet implemented');
   };
 
-  const verifyLoginCode = async (_email: string, _code: string, _displayName?: string): Promise<void> => {
+  const verifyLoginCode = async (
+    _email: string,
+    _code: string,
+    _displayName?: string,
+  ): Promise<void> => {
     throw new Error('Verified identity not yet implemented');
   };
 
   const logoutVerifiedUser = (): void => {
-    setUserSession(prev => ({ ...prev, verifiedUser: null }));
+    setUserSession((prev) => ({ ...prev, verifiedUser: null }));
   };
 
   return (
-    <UserContext.Provider value={{
-      userSession,
-      setPlayerName,
-      setPlayerCredentials,
-      setSpectatorMode,
-      setActiveRoomSession,
-      clearSession,
-      ensureAnonymousSession,
-      isAuthenticated: userSession.isAuthenticated,
-      isHost,
-      setHostStatus,
-      requestLoginCode,
-      verifyLoginCode,
-      logoutVerifiedUser,
-    }}>
+    <UserContext.Provider
+      value={{
+        userSession,
+        setPlayerName,
+        setPlayerCredentials,
+        setSpectatorMode,
+        setActiveRoomSession,
+        clearSession,
+        ensureAnonymousSession,
+        isAuthenticated: userSession.isAuthenticated,
+        isHost,
+        setHostStatus,
+        requestLoginCode,
+        verifyLoginCode,
+        logoutVerifiedUser,
+      }}
+    >
       {children}
     </UserContext.Provider>
   );

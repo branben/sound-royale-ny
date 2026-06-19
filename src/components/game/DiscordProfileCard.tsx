@@ -37,9 +37,7 @@ export function DiscordProfileCard({
           <span className="font-semibold text-white truncate">{discordUsername}</span>
           <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
         </div>
-        <p className="text-xs text-gray-400">
-          Linked {formatDate(linkedAt)}
-        </p>
+        <p className="text-xs text-gray-400">Linked {formatDate(linkedAt)}</p>
       </div>
 
       <Button

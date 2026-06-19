@@ -49,14 +49,17 @@ vi.mock('@/services/gameSocket', () => ({
 // Mock framer-motion to avoid animation issues in tests
 vi.mock('framer-motion', () => ({
   motion: {
-    div: React.forwardRef(({ children, ...props }: Record<string, unknown>, ref: React.Ref<HTMLDivElement>) =>
-      React.createElement('div', { ...props, ref }, children)
+    div: React.forwardRef(
+      ({ children, ...props }: Record<string, unknown>, ref: React.Ref<HTMLDivElement>) =>
+        React.createElement('div', { ...props, ref }, children as React.ReactNode),
     ),
-    button: React.forwardRef(({ children, ...props }: Record<string, unknown>, ref: React.Ref<HTMLButtonElement>) =>
-      React.createElement('button', { ...props, ref }, children)
+    button: React.forwardRef(
+      ({ children, ...props }: Record<string, unknown>, ref: React.Ref<HTMLButtonElement>) =>
+        React.createElement('button', { ...props, ref }, children as React.ReactNode),
     ),
-    span: React.forwardRef(({ children, ...props }: Record<string, unknown>, ref: React.Ref<HTMLSpanElement>) =>
-      React.createElement('span', { ...props, ref }, children)
+    span: React.forwardRef(
+      ({ children, ...props }: Record<string, unknown>, ref: React.Ref<HTMLSpanElement>) =>
+        React.createElement('span', { ...props, ref }, children as React.ReactNode),
     ),
   },
   AnimatePresence: ({ children }: { children: React.ReactNode }) => children,
@@ -137,7 +140,10 @@ function ActionsContextReader() {
   return (
     <div>
       <div data-testid="actions-available">
-        {ctx.updateTileStatus && ctx.setTileAudio && ctx.toggleReady && ctx.incrementScore
+        {typeof ctx.updateTileStatus === 'function' &&
+        typeof ctx.setTileAudio === 'function' &&
+        typeof ctx.toggleReady === 'function' &&
+        typeof ctx.incrementScore === 'function'
           ? 'yes'
           : 'no'}
       </div>
@@ -156,7 +162,7 @@ describe('GameContext', () => {
       render(
         <GameProvider roomCode="ABCD">
           <LegacyContextReader />
-        </GameProvider>
+        </GameProvider>,
       );
 
       expect(screen.getByTestId('status').textContent).toBe('lobby');
@@ -170,7 +176,7 @@ describe('GameContext', () => {
       render(
         <GameProvider roomCode="ABCD">
           <LegacyContextReader />
-        </GameProvider>
+        </GameProvider>,
       );
 
       expect(screen.getByTestId('room-code').textContent).toBe('ABCD');
@@ -180,7 +186,7 @@ describe('GameContext', () => {
       render(
         <GameProvider>
           <LegacyContextReader />
-        </GameProvider>
+        </GameProvider>,
       );
 
       expect(screen.getByTestId('error').textContent).toBe('Room code is required');
@@ -190,7 +196,7 @@ describe('GameContext', () => {
       render(
         <GameProvider roomCode="ABCD">
           <LegacyContextReader />
-        </GameProvider>
+        </GameProvider>,
       );
 
       expect(screen.getByTestId('time-remaining').textContent).toBe('none');
@@ -202,7 +208,7 @@ describe('GameContext', () => {
       render(
         <GameProvider roomCode="ABCD">
           <StateContextReader />
-        </GameProvider>
+        </GameProvider>,
       );
 
       expect(screen.getByTestId('state-status').textContent).toBe('lobby');
@@ -213,7 +219,7 @@ describe('GameContext', () => {
       render(
         <GameProvider roomCode="ABCD">
           <TimerContextReader />
-        </GameProvider>
+        </GameProvider>,
       );
 
       expect(screen.getByTestId('timer-value').textContent).toBe('none');
@@ -223,7 +229,7 @@ describe('GameContext', () => {
       render(
         <GameProvider roomCode="ABCD">
           <ActionsContextReader />
-        </GameProvider>
+        </GameProvider>,
       );
 
       expect(screen.getByTestId('actions-available').textContent).toBe('yes');
@@ -238,7 +244,7 @@ describe('GameContext', () => {
 
         // Set up initial state with a player that has tiles
         React.useEffect(() => {
-          ctx.setGameState(prev => ({
+          ctx.setGameState((prev) => ({
             ...prev,
             players: {
               'player-1': {
@@ -274,7 +280,7 @@ describe('GameContext', () => {
       render(
         <GameProvider roomCode="ABCD">
           <TestComponent />
-        </GameProvider>
+        </GameProvider>,
       );
 
       expect(screen.getByTestId('tile-1-status').textContent).toBe('empty');
@@ -295,16 +301,14 @@ describe('GameContext', () => {
         if (!ctx) return null;
 
         React.useEffect(() => {
-          ctx.setGameState(prev => ({
+          ctx.setGameState((prev) => ({
             ...prev,
             players: {
               'player-1': {
                 id: 'player-1',
                 name: 'Test',
                 board: {
-                  tiles: [
-                    { id: 'tile-1', genre: 'House', status: 'pending' },
-                  ],
+                  tiles: [{ id: 'tile-1', genre: 'House', status: 'pending' }],
                 },
               },
             },
@@ -321,7 +325,9 @@ describe('GameContext', () => {
             </div>
             <button
               data-testid="set-audio"
-              onClick={() => ctx.setTileAudio('player-1', 'tile-1', 'https://example.com/audio.mp3')}
+              onClick={() =>
+                ctx.setTileAudio('player-1', 'tile-1', 'https://example.com/audio.mp3')
+              }
             />
           </div>
         );
@@ -330,7 +336,7 @@ describe('GameContext', () => {
       render(
         <GameProvider roomCode="ABCD">
           <TestComponent />
-        </GameProvider>
+        </GameProvider>,
       );
 
       expect(screen.getByTestId('tile-status').textContent).toBe('pending');
@@ -350,7 +356,7 @@ describe('GameContext', () => {
         if (!ctx) return null;
 
         React.useEffect(() => {
-          ctx.setGameState(prev => ({
+          ctx.setGameState((prev) => ({
             ...prev,
             players: {
               'player-1': {
@@ -368,10 +374,7 @@ describe('GameContext', () => {
             <div data-testid="is-ready">
               {String(ctx.gameState.players['player-1']?.isReady ?? 'none')}
             </div>
-            <button
-              data-testid="toggle"
-              onClick={() => ctx.toggleReady('player-1')}
-            />
+            <button data-testid="toggle" onClick={() => ctx.toggleReady('player-1')} />
           </div>
         );
       }
@@ -379,7 +382,7 @@ describe('GameContext', () => {
       render(
         <GameProvider roomCode="ABCD">
           <TestComponent />
-        </GameProvider>
+        </GameProvider>,
       );
 
       expect(screen.getByTestId('is-ready').textContent).toBe('false');
@@ -403,7 +406,7 @@ describe('GameContext', () => {
         if (!ctx) return null;
 
         React.useEffect(() => {
-          ctx.setGameState(prev => ({
+          ctx.setGameState((prev) => ({
             ...prev,
             players: {
               'player-1': {
@@ -421,10 +424,7 @@ describe('GameContext', () => {
             <div data-testid="score">
               {String(ctx.gameState.players['player-1']?.score ?? 'none')}
             </div>
-            <button
-              data-testid="increment"
-              onClick={() => ctx.incrementScore('player-1', 5)}
-            />
+            <button data-testid="increment" onClick={() => ctx.incrementScore('player-1', 5)} />
           </div>
         );
       }
@@ -432,7 +432,7 @@ describe('GameContext', () => {
       render(
         <GameProvider roomCode="ABCD">
           <TestComponent />
-        </GameProvider>
+        </GameProvider>,
       );
 
       expect(screen.getByTestId('score').textContent).toBe('10');
@@ -456,7 +456,7 @@ describe('GameContext', () => {
         if (!ctx) return null;
 
         React.useEffect(() => {
-          ctx.setGameState(prev => ({
+          ctx.setGameState((prev) => ({
             ...prev,
             players: {
               'player-1': {
@@ -473,10 +473,7 @@ describe('GameContext', () => {
             <div data-testid="score">
               {String(ctx.gameState.players['player-1']?.score ?? 'none')}
             </div>
-            <button
-              data-testid="increment"
-              onClick={() => ctx.incrementScore('player-1', 3)}
-            />
+            <button data-testid="increment" onClick={() => ctx.incrementScore('player-1', 3)} />
           </div>
         );
       }
@@ -484,7 +481,7 @@ describe('GameContext', () => {
       render(
         <GameProvider roomCode="ABCD">
           <TestComponent />
-        </GameProvider>
+        </GameProvider>,
       );
 
       expect(screen.getByTestId('score').textContent).toBe('none');
@@ -510,7 +507,7 @@ describe('GameContext', () => {
             <button
               data-testid="update"
               onClick={() =>
-                ctx.setGameState(prev => ({
+                ctx.setGameState((prev) => ({
                   ...prev,
                   status: 'playing',
                   currentRound: 3,
@@ -524,7 +521,7 @@ describe('GameContext', () => {
       render(
         <GameProvider roomCode="ABCD">
           <TestComponent />
-        </GameProvider>
+        </GameProvider>,
       );
 
       expect(screen.getByTestId('status').textContent).toBe('lobby');
@@ -544,12 +541,10 @@ describe('GameContext', () => {
       render(
         <GameProvider>
           <LegacyContextReader />
-        </GameProvider>
+        </GameProvider>,
       );
 
-      expect(screen.getByTestId('error').textContent).toBe(
-        'Room code is required'
-      );
+      expect(screen.getByTestId('error').textContent).toBe('Room code is required');
       expect(screen.getByTestId('is-loading').textContent).toBe('false');
     });
 
@@ -557,7 +552,7 @@ describe('GameContext', () => {
       render(
         <GameProvider roomCode="ABCD">
           <LegacyContextReader />
-        </GameProvider>
+        </GameProvider>,
       );
 
       // The fetch effect sets isLoading to true, but error starts as null

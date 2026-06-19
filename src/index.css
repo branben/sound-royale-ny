@@ -7,20 +7,20 @@
 @layer base {
   :root {
     /* ── Base ── */
-    --background: 240 5% 4%;       /* #09090b zinc-950 */
-    --foreground: 240 5% 98%;       /* #fafafa zinc-50 */
+    --background: 240 5% 4%; /* #09090b zinc-950 */
+    --foreground: 240 5% 98%; /* #fafafa zinc-50 */
 
     /* ── Surfaces (solid only) ── */
-    --card: 240 4% 10%;             /* #18181b zinc-900 */
+    --card: 240 4% 10%; /* #18181b zinc-900 */
     --card-foreground: 240 5% 98%;
     --popover: 240 4% 10%;
     --popover-foreground: 240 5% 98%;
 
     /* ── Interactive ── */
-    --primary: 0 84% 60%;           /* #EF4444 red-500 — primary CTAs */
+    --primary: 0 84% 60%; /* #EF4444 red-500 — primary CTAs */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 240 4% 16%;       /* #27272a zinc-800 */
+    --secondary: 240 4% 16%; /* #27272a zinc-800 */
     --secondary-foreground: 240 5% 98%;
     --muted: 240 4% 16%;
     --muted-foreground: 240 4% 65%; /* #a1a1aa zinc-400 */
@@ -34,9 +34,9 @@
     --destructive-foreground: 0 0% 100%;
 
     /* ── Borders ── */
-    --border: 240 5% 24%;           /* #3f3f46 zinc-700 */
-    --input: 240 4% 16%;            /* #27272a zinc-800 */
-    --ring: 0 84% 60%;              /* #EF4444 — focus ring matches primary */
+    --border: 240 5% 24%; /* #3f3f46 zinc-700 */
+    --input: 240 4% 16%; /* #27272a zinc-800 */
+    --ring: 0 84% 60%; /* #EF4444 — focus ring matches primary */
 
     /* ── Radius ── */
     --radius: 0.5rem;
@@ -59,20 +59,24 @@
     --chart-5: 0 0% 100%;
 
     /* ── Player Colors (assigned dynamically at runtime) ── */
-    --player-1: 0 84% 60%;          /* #EF4444 red */
-    --player-2: 217 91% 60%;        /* #3B82F6 blue */
-    --player-3: 48 96% 53%;         /* #EAB308 yellow */
-    --player-4: 142 71% 45%;        /* #22C55E green */
+    --player-1: 0 84% 60%; /* #EF4444 red */
+    --player-2: 217 91% 60%; /* #3B82F6 blue */
+    --player-3: 48 96% 53%; /* #EAB308 yellow */
+    --player-4: 142 71% 45%; /* #22C55E green */
 
     /* ── Status Colors ── */
-    --success: 142 71% 45%;         /* #22C55E green */
-    --warning: 48 96% 53%;          /* #EAB308 yellow */
-    --error: 0 84% 60%;             /* #EF4444 red */
+    --success: 142 71% 45%; /* #22C55E green */
+    --warning: 48 96% 53%; /* #EAB308 yellow */
+    --error: 0 84% 60%; /* #EF4444 red */
 
     /* ── Fonts ── */
-    --font-sans: 'Poppins', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+    --font-sans:
+      'Poppins', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+      'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
     --font-display: 'Righteous', cursive;
-    --font-mono: 'SF Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --font-mono:
+      'SF Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+      'Courier New', monospace;
 
     /* ── Shadows (pure black, no color tints) ── */
     --shadow-sm: 0 1px 2px 0px rgba(0, 0, 0, 0.3);
@@ -97,8 +101,14 @@
 
 /* ── Card Entrance (one-shot) ── */
 @keyframes card-enter {
-  0% { opacity: 0; transform: translateY(12px) scale(0.98); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .card-enter {
@@ -107,8 +117,13 @@
 
 /* ── Timer urgency ── */
 @keyframes timer-urgent {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
 .timer-urgent {

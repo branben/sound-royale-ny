@@ -42,7 +42,7 @@ export function TitleBadge({ title, compact = false }: TitleBadgeProps) {
       className={cn(
         'inline-flex shrink-0 items-center gap-1 rounded border font-medium leading-none',
         compact ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-1 text-xs',
-        config.className
+        config.className,
       )}
     >
       <Icon className={compact ? 'h-3 w-3' : 'h-3.5 w-3.5'} />

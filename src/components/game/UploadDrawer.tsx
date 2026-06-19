@@ -1,5 +1,12 @@
 import { useState } from 'react';
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter } from '@/components/ui/drawer';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerDescription,
+  DrawerFooter,
+} from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -36,9 +43,9 @@ export function UploadDrawer({ isOpen, onClose, tile, onUpload }: UploadDrawerPr
     if (file && file.type.startsWith('audio/')) {
       if (file.size > MAX_FILE_SIZE) {
         toast({
-          variant: "destructive",
-          title: "File too large",
-          description: "Audio files must be 50MB or smaller",
+          variant: 'destructive',
+          title: 'File too large',
+          description: 'Audio files must be 50MB or smaller',
         });
         return;
       }
@@ -51,9 +58,9 @@ export function UploadDrawer({ isOpen, onClose, tile, onUpload }: UploadDrawerPr
     if (file) {
       if (file.size > MAX_FILE_SIZE) {
         toast({
-          variant: "destructive",
-          title: "File too large",
-          description: "Audio files must be 50MB or smaller",
+          variant: 'destructive',
+          title: 'File too large',
+          description: 'Audio files must be 50MB or smaller',
         });
         return;
       }
@@ -99,9 +106,10 @@ export function UploadDrawer({ isOpen, onClose, tile, onUpload }: UploadDrawerPr
               className={`
                 relative flex min-h-[200px] cursor-pointer flex-col items-center justify-center
                 rounded-lg border-2 border-dashed transition-all duration-300
-                ${isDragging 
-                  ? 'border-primary bg-primary/10' 
-                  : 'border-border/50 bg-muted/20 hover:border-primary/50'
+                ${
+                  isDragging
+                    ? 'border-primary bg-primary/10'
+                    : 'border-border/50 bg-muted/20 hover:border-primary/50'
                 }
               `}
             >
@@ -111,7 +119,7 @@ export function UploadDrawer({ isOpen, onClose, tile, onUpload }: UploadDrawerPr
                 onChange={handleFileSelect}
                 className="absolute inset-0 cursor-pointer opacity-0"
               />
-              
+
               {selectedFile ? (
                 <div className="flex flex-col items-center gap-3">
                   <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/20">

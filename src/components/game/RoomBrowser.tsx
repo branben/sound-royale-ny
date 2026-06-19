@@ -34,7 +34,7 @@ export const RoomBrowser: React.FC<RoomBrowserProps> = ({ isOpen, onClose, onRoo
     try {
       const allRooms = await roomApi.getRooms();
       // Filter for rooms in lobby status with available slots
-      const availableRooms = allRooms.filter(r => r.status === 'lobby' && r.players.length < 2);
+      const availableRooms = allRooms.filter((r) => r.status === 'lobby' && r.players.length < 2);
       setRooms(availableRooms);
     } catch (error) {
       console.error('Failed to load rooms:', error);
@@ -56,7 +56,7 @@ export const RoomBrowser: React.FC<RoomBrowserProps> = ({ isOpen, onClose, onRoo
         room.code,
         userSession.playerName!,
         false,
-        getDiscordSession() ?? undefined
+        getDiscordSession() ?? undefined,
       );
       setPlayerCredentials(player.id, player.playerSecret!);
       setActiveRoomSession(room.code, {
@@ -121,7 +121,10 @@ export const RoomBrowser: React.FC<RoomBrowserProps> = ({ isOpen, onClose, onRoo
           ) : (
             <div className="space-y-3">
               {rooms.map((room) => (
-                <Card key={room.code} className="bg-card border-border hover:border-primary/60 transition-colors">
+                <Card
+                  key={room.code}
+                  className="bg-card border-border hover:border-primary/60 transition-colors"
+                >
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
@@ -139,7 +142,11 @@ export const RoomBrowser: React.FC<RoomBrowserProps> = ({ isOpen, onClose, onRoo
                       </div>
                       <Button
                         onClick={() => handleJoinRoom(room)}
-                        disabled={joiningRoomCode === room.code || room.players.length >= 2 || room.status !== 'lobby'}
+                        disabled={
+                          joiningRoomCode === room.code ||
+                          room.players.length >= 2 ||
+                          room.status !== 'lobby'
+                        }
                         className="bg-primary hover:opacity-90"
                       >
                         {joiningRoomCode === room.code ? (
@@ -156,7 +163,11 @@ export const RoomBrowser: React.FC<RoomBrowserProps> = ({ isOpen, onClose, onRoo
           )}
 
           <div className="pt-4 border-t border-border">
-            <Button onClick={loadRooms} variant="outline" className="w-full border-border hover:bg-primary/10">
+            <Button
+              onClick={loadRooms}
+              variant="outline"
+              className="w-full border-border hover:bg-primary/10"
+            >
               Refresh Rooms
             </Button>
           </div>

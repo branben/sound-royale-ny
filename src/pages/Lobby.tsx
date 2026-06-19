@@ -12,7 +12,13 @@ import { gsap } from 'gsap';
 
 export default function Lobby() {
   const navigate = useNavigate();
-  const { userSession, setPlayerName, setPlayerCredentials, setActiveRoomSession, ensureAnonymousSession } = useUser();
+  const {
+    userSession,
+    setPlayerName,
+    setPlayerCredentials,
+    setActiveRoomSession,
+    ensureAnonymousSession,
+  } = useUser();
   const iconRef = useRef(null);
   const titleRef = useRef(null);
   const taglineRef = useRef(null);
@@ -25,12 +31,14 @@ export default function Lobby() {
   const [playerNameInput, setPlayerNameInput] = useState('');
   const [roomNameInput, setRoomNameInput] = useState('');
   const [mode, setMode] = useState<'landing' | 'join' | 'create'>(
-    userSession.playerName ? 'join' : 'landing'
+    userSession.playerName ? 'join' : 'landing',
   );
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showRoomBrowser, setShowRoomBrowser] = useState(false);
   const [showDiscordModal, setShowDiscordModal] = useState(false);
-  const [discordAccountStatus, setDiscordAccountStatus] = useState<DiscordAccountStatus | null>(null);
+  const [discordAccountStatus, setDiscordAccountStatus] = useState<DiscordAccountStatus | null>(
+    null,
+  );
 
   // Show onboarding for first-time users
   useEffect(() => {
@@ -47,9 +55,9 @@ export default function Lobby() {
         const storedDiscordSession = getDiscordSession();
         const status = storedDiscordSession
           ? await discordApi.getAccountStatusBySession(
-            storedDiscordSession.discordUserId,
-            storedDiscordSession.sessionSecret
-          )
+              storedDiscordSession.discordUserId,
+              storedDiscordSession.sessionSecret,
+            )
           : userSession.playerId && userSession.playerSecret
             ? await discordApi.getAccountStatus(userSession.playerId, userSession.playerSecret)
             : null;
@@ -75,16 +83,15 @@ export default function Lobby() {
     localStorage.setItem('hasSeenOnboarding', 'true');
   };
 
-
   const handleDiscordStatusChange = () => {
     const checkDiscordStatus = async () => {
       try {
         const storedDiscordSession = getDiscordSession();
         const status = storedDiscordSession
           ? await discordApi.getAccountStatusBySession(
-            storedDiscordSession.discordUserId,
-            storedDiscordSession.sessionSecret
-          )
+              storedDiscordSession.discordUserId,
+              storedDiscordSession.sessionSecret,
+            )
           : userSession.playerId && userSession.playerSecret
             ? await discordApi.getAccountStatus(userSession.playerId, userSession.playerSecret)
             : null;
@@ -102,7 +109,7 @@ export default function Lobby() {
   };
 
   useEffect(() => {
-    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     if (prefersReducedMotion) {
       // Skip animations if reduced motion is preferred
@@ -117,7 +124,7 @@ export default function Lobby() {
     if (iconRef.current) {
       gsap.from(iconRef.current, {
         scale: 0,
-        ease: "back.out(1.7)",
+        ease: 'back.out(1.7)',
         duration: 0.6,
       });
     }
@@ -151,7 +158,6 @@ export default function Lobby() {
         delay: 0.3,
       });
     }
-
   }, []);
 
   const handleRoomJoined = (joinedRoomCode: string) => {
@@ -172,7 +178,7 @@ export default function Lobby() {
         roomCode,
         activeName,
         isSpectatorJoin,
-        getDiscordSession() ?? undefined
+        getDiscordSession() ?? undefined,
       );
 
       const activePlayerName = isSpectatorJoin ? player.name : activeName;
@@ -207,7 +213,7 @@ export default function Lobby() {
         undefined,
         selectedThemeId,
         selectedCustomGenres,
-        getDiscordSession() ?? undefined
+        getDiscordSession() ?? undefined,
       );
       const { room_code, player_id, player_secret } = response;
 
@@ -244,14 +250,14 @@ export default function Lobby() {
 
     try {
       const rooms = await roomApi.getRooms();
-      const availableRoom = rooms.find(r => r.players.length < 2 && r.status === 'lobby');
+      const availableRoom = rooms.find((r) => r.players.length < 2 && r.status === 'lobby');
 
       if (availableRoom) {
         const player = await gameApi.joinRoom(
           availableRoom.code,
           playerNameInput.trim(),
           false,
-          getDiscordSession() ?? undefined
+          getDiscordSession() ?? undefined,
         );
         setPlayerName(playerNameInput.trim());
         setPlayerCredentials(player.id, player.playerSecret!);
@@ -270,7 +276,7 @@ export default function Lobby() {
           undefined,
           'classic',
           [],
-          getDiscordSession() ?? undefined
+          getDiscordSession() ?? undefined,
         );
         const { room_code, player_id, player_secret } = response;
         setPlayerName(playerNameInput.trim());
@@ -300,24 +306,41 @@ export default function Lobby() {
   };
 
   return (
-    <div data-testid="lobby" className="min-h-screen bg-background relative overflow-hidden flex flex-col">
+    <div
+      data-testid="lobby"
+      className="min-h-screen bg-background relative overflow-hidden flex flex-col"
+    >
       {/* Background */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-primary/8 via-transparent to-transparent pointer-events-none" />
 
       {/* Top bar */}
       <header className="relative z-10 flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-3">
-          <div ref={iconRef} className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 border border-primary/20">
+          <div
+            ref={iconRef}
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 border border-primary/20"
+          >
             <Gamepad2 className="h-5 w-5 text-primary" />
           </div>
-          <span className="text-xl font-['Righteous'] tracking-tight text-primary">SOUND ROYALE</span>
+          <span className="text-xl font-['Righteous'] tracking-tight text-primary">
+            SOUND ROYALE
+          </span>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => setShowOnboarding(true)} className="text-muted-foreground hover:text-foreground text-xs">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowOnboarding(true)}
+            className="text-muted-foreground hover:text-foreground text-xs"
+          >
             <HelpCircle className="mr-1 h-3 w-3" /> How to Play
           </Button>
           <Link to="/leaderboard">
-            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground text-xs">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-foreground text-xs"
+            >
               <Trophy className="mr-1 h-3 w-3" /> Leaderboard
             </Button>
           </Link>
@@ -332,7 +355,10 @@ export default function Lobby() {
             <div className="inline-block px-4 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-bold uppercase tracking-[0.2em] mb-4">
               Music Bingo Battle
             </div>
-            <h1 ref={titleRef} className="text-5xl md:text-6xl font-['Righteous'] tracking-tight text-foreground leading-none mb-3">
+            <h1
+              ref={titleRef}
+              className="text-5xl md:text-6xl font-['Righteous'] tracking-tight text-foreground leading-none mb-3"
+            >
               SOUND ROYALE
             </h1>
             <p ref={taglineRef} className="text-base text-muted-foreground max-w-xs mx-auto">
@@ -341,7 +367,10 @@ export default function Lobby() {
           </div>
 
           {/* Action card */}
-          <div ref={mainCardRef} className="bg-card/80 backdrop-blur-sm border border-muted-foreground/20 rounded-2xl p-6 shadow-2xl">
+          <div
+            ref={mainCardRef}
+            className="bg-card/80 backdrop-blur-sm border border-muted-foreground/20 rounded-2xl p-6 shadow-2xl"
+          >
             <LobbyModeSwitcher
               mode={mode}
               playerNameInput={playerNameInput}
@@ -362,7 +391,10 @@ export default function Lobby() {
               onQuickMatch={handleQuickMatch}
               onCreateMode={() => setMode('create')}
               onJoinMode={() => setMode('join')}
-              onBack={() => { setMode('landing'); setError(null); }}
+              onBack={() => {
+                setMode('landing');
+                setError(null);
+              }}
               onBrowseRooms={() => setShowRoomBrowser(true)}
               onLinkDiscord={handleLinkDiscord}
               onManageDiscord={() => setShowDiscordModal(true)}

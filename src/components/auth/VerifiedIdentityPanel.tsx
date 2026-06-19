@@ -6,12 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useUser } from '@/context/UserContext';
 
 export function VerifiedIdentityPanel() {
-  const {
-    userSession,
-    requestLoginCode,
-    verifyLoginCode,
-    logoutVerifiedUser,
-  } = useUser();
+  const { userSession, requestLoginCode, verifyLoginCode, logoutVerifiedUser } = useUser();
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [code, setCode] = useState('');
@@ -84,7 +79,9 @@ export function VerifiedIdentityPanel() {
           <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground">Verify your producer name</p>
-            <p className="text-xs text-muted-foreground">Required for protected names and leaderboard credit.</p>
+            <p className="text-xs text-muted-foreground">
+              Required for protected names and leaderboard credit.
+            </p>
           </div>
         </div>
 

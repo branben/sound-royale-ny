@@ -22,24 +22,30 @@ const gradeColors: Record<string, { bg: string; text: string; border: string }> 
   'N/A': { bg: 'bg-gray-500/20', text: 'text-gray-400', border: 'border-gray-500/30' },
 };
 
-export const GenreHeatmap: React.FC<GenreHeatmapProps> = ({ genrePerformance, compact = false }) => {
+export const GenreHeatmap: React.FC<GenreHeatmapProps> = ({
+  genrePerformance,
+  compact = false,
+}) => {
   const gridSize = compact ? 'text-xs' : 'text-sm';
   const cellPadding = compact ? 'p-1' : 'p-2';
   const performanceByGenre = new Map(genrePerformance.map((perf) => [perf.genre, perf]));
-  const normalizedPerformance = genreOrder.map((genre) => (
-    performanceByGenre.get(genre) ?? {
-      genre,
-      wins: 0,
-      total_rounds: 0,
-      win_rate: 0,
-      grade: 'N/A' as const,
-    }
-  ));
+  const normalizedPerformance = genreOrder.map(
+    (genre) =>
+      performanceByGenre.get(genre) ?? {
+        genre,
+        wins: 0,
+        total_rounds: 0,
+        win_rate: 0,
+        grade: 'N/A' as const,
+      },
+  );
 
   return (
     <Card className="bg-background/60 border-primary/20">
       <CardHeader>
-        <CardTitle className={`text-white flex items-center gap-2 ${compact ? 'text-sm' : 'text-lg'}`}>
+        <CardTitle
+          className={`text-white flex items-center gap-2 ${compact ? 'text-sm' : 'text-lg'}`}
+        >
           <Flame className={`text-primary ${compact ? 'h-4 w-4' : 'h-5 w-5'}`} />
           Genre Performance
         </CardTitle>
@@ -57,9 +63,7 @@ export const GenreHeatmap: React.FC<GenreHeatmapProps> = ({ genrePerformance, co
                 aria-label={`${perf.genre} genre performance: grade ${perf.grade}, ${perf.wins} wins out of ${perf.total_rounds} rounds`}
               >
                 <div className={`font-bold ${colors.text} ${gridSize}`}>{perf.grade}</div>
-                {!compact && (
-                  <div className="text-[10px] text-gray-400 truncate">{perf.genre}</div>
-                )}
+                {!compact && <div className="text-[10px] text-gray-400 truncate">{perf.genre}</div>}
                 {/* Hover tooltip */}
                 <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-card border border-primary/30 rounded text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
                   {perf.genre}: {perf.win_rate}% ({perf.wins}/{perf.total_rounds})
@@ -70,11 +74,21 @@ export const GenreHeatmap: React.FC<GenreHeatmapProps> = ({ genrePerformance, co
         </div>
         <div className="mt-3 flex items-center justify-center gap-2 text-[10px] text-gray-400">
           <span>Grade Scale:</span>
-          <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-[10px] px-1">S</Badge>
-          <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-[10px] px-1">A</Badge>
-          <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-[10px] px-1">B</Badge>
-          <Badge className="bg-yellow-400/20 text-yellow-300 border-yellow-400/30 text-[10px] px-1">C</Badge>
-          <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30 text-[10px] px-1">D</Badge>
+          <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-[10px] px-1">
+            S
+          </Badge>
+          <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-[10px] px-1">
+            A
+          </Badge>
+          <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-[10px] px-1">
+            B
+          </Badge>
+          <Badge className="bg-yellow-400/20 text-yellow-300 border-yellow-400/30 text-[10px] px-1">
+            C
+          </Badge>
+          <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30 text-[10px] px-1">
+            D
+          </Badge>
           <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-[10px] px-1">E</Badge>
           <Badge className="bg-red-900/20 text-red-500 border-red-900/30 text-[10px] px-1">F</Badge>
         </div>

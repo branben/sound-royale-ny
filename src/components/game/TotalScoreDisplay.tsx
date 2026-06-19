@@ -7,16 +7,13 @@ interface TotalScoreDisplayProps {
   className?: string;
 }
 
-export const TotalScoreDisplay: React.FC<TotalScoreDisplayProps> = ({
-  totalScore,
-  className
-}) => {
+export const TotalScoreDisplay: React.FC<TotalScoreDisplayProps> = ({ totalScore, className }) => {
   return (
-    <div 
+    <div
       data-testid="total-score"
       className={cn(
-        "flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-lg border border-primary/30",
-        className
+        'flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-lg border border-primary/30',
+        className,
       )}
     >
       <Trophy className="h-5 w-5 text-primary" />

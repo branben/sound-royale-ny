@@ -4,9 +4,30 @@ import { EloDeltaDisplay } from './EloDeltaDisplay';
 
 describe('EloDeltaDisplay', () => {
   const eloDeltas = [
-    { playerId: 'p1', playerName: 'Player1', previousElo: 1200, newElo: 1225, delta: 25, isWinner: true },
-    { playerId: 'p2', playerName: 'Player2', previousElo: 1200, newElo: 1185, delta: -15, isWinner: false },
-    { playerId: 'p3', playerName: 'Player3', previousElo: 1200, newElo: 1200, delta: 0, isWinner: false },
+    {
+      playerId: 'p1',
+      playerName: 'Player1',
+      previousElo: 1200,
+      newElo: 1225,
+      delta: 25,
+      isWinner: true,
+    },
+    {
+      playerId: 'p2',
+      playerName: 'Player2',
+      previousElo: 1200,
+      newElo: 1185,
+      delta: -15,
+      isWinner: false,
+    },
+    {
+      playerId: 'p3',
+      playerName: 'Player3',
+      previousElo: 1200,
+      newElo: 1200,
+      delta: 0,
+      isWinner: false,
+    },
   ];
 
   it('renders the "ELO Changes" heading', () => {
@@ -54,7 +75,9 @@ describe('EloDeltaDisplay', () => {
   });
 
   it('accepts and applies className prop', () => {
-    const { container } = render(<EloDeltaDisplay eloDeltas={eloDeltas} className="custom-class" />);
+    const { container } = render(
+      <EloDeltaDisplay eloDeltas={eloDeltas} className="custom-class" />,
+    );
     const el = container.querySelector('.custom-class');
     expect(el).toBeInTheDocument();
   });
@@ -68,8 +91,17 @@ describe('EloDeltaDisplay', () => {
     it('handles single player delta', () => {
       render(
         <EloDeltaDisplay
-          eloDeltas={[{ playerId: 'p1', playerName: 'Solo', previousElo: 1000, newElo: 1050, delta: 50, isWinner: true }]}
-        />
+          eloDeltas={[
+            {
+              playerId: 'p1',
+              playerName: 'Solo',
+              previousElo: 1000,
+              newElo: 1050,
+              delta: 50,
+              isWinner: true,
+            },
+          ]}
+        />,
       );
       expect(screen.getByText('Solo')).toBeInTheDocument();
       expect(screen.getByText('+50')).toBeInTheDocument();
@@ -78,8 +110,17 @@ describe('EloDeltaDisplay', () => {
     it('handles large positive delta', () => {
       render(
         <EloDeltaDisplay
-          eloDeltas={[{ playerId: 'p1', playerName: 'Champion', previousElo: 800, newElo: 1200, delta: 400, isWinner: true }]}
-        />
+          eloDeltas={[
+            {
+              playerId: 'p1',
+              playerName: 'Champion',
+              previousElo: 800,
+              newElo: 1200,
+              delta: 400,
+              isWinner: true,
+            },
+          ]}
+        />,
       );
       expect(screen.getByTestId('elo-delta-display')).toBeInTheDocument();
       expect(screen.getByText('Champion')).toBeInTheDocument();

@@ -12,10 +12,10 @@ interface PlayerBoardDisplayProps {
 export const PlayerBoardDisplay: React.FC<PlayerBoardDisplayProps> = ({
   board,
   playerName,
-  className
+  className,
 }) => {
   return (
-    <Card 
+    <Card
       data-testid="player-board-display"
       className={cn('bg-background/60 border-primary/20', className)}
     >
@@ -28,10 +28,10 @@ export const PlayerBoardDisplay: React.FC<PlayerBoardDisplayProps> = ({
             <div
               key={tile.id}
               className={cn(
-                "aspect-square rounded-md border flex items-center justify-center text-xs font-medium",
+                'aspect-square rounded-md border flex items-center justify-center text-xs font-medium',
                 tile.status === 'complete'
-                  ? "bg-primary/30 border-primary/50 text-primary"
-                  : "bg-gray-800/50 border-gray-700/50 text-gray-500"
+                  ? 'bg-primary/30 border-primary/50 text-primary'
+                  : 'bg-gray-800/50 border-gray-700/50 text-gray-500',
               )}
             >
               {tile.status === 'complete' ? '✓' : tile.genre?.slice(0, 3) || index + 1}
@@ -39,7 +39,8 @@ export const PlayerBoardDisplay: React.FC<PlayerBoardDisplayProps> = ({
           ))}
         </div>
         <div className="mt-3 text-center text-sm text-gray-400">
-          {board.tiles.filter(t => t.status === 'complete').length} / {board.tiles.length} tiles complete
+          {board.tiles.filter((t) => t.status === 'complete').length} / {board.tiles.length} tiles
+          complete
         </div>
       </CardContent>
     </Card>

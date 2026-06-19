@@ -32,7 +32,7 @@ if SENTRY_DSN:
         ],
         environment=config('SENTRY_ENVIRONMENT', default='development'),
         traces_sample_rate=config('SENTRY_TRACES_SAMPLE_RATE', default=0.1, cast=float),
-        send_default_pii=True,
+        send_default_pii=False,
     )
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -103,8 +103,12 @@ WSGI_APPLICATION = 'sound_royale_api.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': config('DB_ENGINE', default='django.db.backends.sqlite3'),
+        'NAME': config('DB_NAME', default=str(BASE_DIR / 'db.sqlite3')),
+        'USER': config('DB_USER', default=''),
+        'PASSWORD': config('DB_PASSWORD', default=''),
+        'HOST': config('DB_HOST', default=''),
+        'PORT': config('DB_PORT', default=''),
     }
 }
 
@@ -155,6 +159,8 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024
+
 # CORS settings
 CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='http://localhost:5173,http://localhost:8080', cast=lambda v: [x.strip() for x in v.split(',')])
 CORS_ALLOW_CREDENTIALS = True
@@ -189,6 +195,9 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',
     ],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'game_engine.auth.PlayerSecretAuthentication',
+    ],
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
     ],
@@ -198,8 +207,10 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.UserRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '100/hour',
-        'user': '1000/hour',
+        'anon': config('ANON_THROTTLE_RATE', default='300/minute'),
+        'user': config('USER_THROTTLE_RATE', default='300/minute'),
+        'audio_upload': config('AUDIO_UPLOAD_THROTTLE_RATE', default='120/minute'),
+        'room_creation': config('ROOM_CREATION_THROTTLE_RATE', default='60/minute'),
     },
 }
 

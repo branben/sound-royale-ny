@@ -41,8 +41,9 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
     setIsLoading(true);
     setGenrePerformance([]);
 
-    gameApi.getGenrePerformance(player.id)
-      .then(data => {
+    gameApi
+      .getGenrePerformance(player.id)
+      .then((data) => {
         if (isActive) setGenrePerformance(data);
       })
       .catch(() => {
@@ -56,7 +57,9 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
         }
       });
 
-    return () => { isActive = false; };
+    return () => {
+      isActive = false;
+    };
   }, [isOpen, player.id]);
 
   useEffect(() => {
@@ -69,14 +72,15 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
 
   const initials = player.name
     .split(' ')
-    .map(n => n[0])
+    .map((n) => n[0])
     .join('')
     .toUpperCase()
     .slice(0, 2);
 
-  const winRate = player.eloMatches && player.eloMatches > 0
-    ? Math.round(((player.eloWins ?? 0) / player.eloMatches) * 100)
-    : 0;
+  const winRate =
+    player.eloMatches && player.eloMatches > 0
+      ? Math.round(((player.eloWins ?? 0) / player.eloMatches) * 100)
+      : 0;
 
   const isConnected = player.isConnected ?? true;
 
@@ -111,7 +115,9 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
               </Avatar>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 min-w-0">
-                  <DialogTitle className="truncate text-xl text-foreground">{player.name}</DialogTitle>
+                  <DialogTitle className="truncate text-xl text-foreground">
+                    {player.name}
+                  </DialogTitle>
                   <DiscordVerifiedIcon username={player.discordUsername} />
                 </div>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -127,10 +133,12 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
                       Spectator
                     </span>
                   )}
-                  <span className={cn(
-                    'inline-flex items-center gap-1 text-xs',
-                    isConnected ? 'text-green-400' : 'text-red-400'
-                  )}>
+                  <span
+                    className={cn(
+                      'inline-flex items-center gap-1 text-xs',
+                      isConnected ? 'text-green-400' : 'text-red-400',
+                    )}
+                  >
                     {isConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
                     {isConnected ? 'Online' : 'Offline'}
                   </span>
@@ -154,29 +162,43 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
                 <motion.div variants={variants.slideUp}>
                   <div className="flex items-center gap-4 rounded-lg border border-border/50 bg-card/50 p-4">
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-primary">{player.eloRating ?? 1200}</div>
-                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider">ELO</div>
+                      <div className="text-2xl font-bold text-primary">
+                        {player.eloRating ?? 1200}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                        ELO
+                      </div>
                     </div>
                     <div className="h-8 w-px bg-border/50" />
                     <div className="flex-1 grid grid-cols-3 gap-3 text-center">
                       <div>
-                        <div className="text-lg font-bold text-foreground">{player.eloWins ?? 0}</div>
+                        <div className="text-lg font-bold text-foreground">
+                          {player.eloWins ?? 0}
+                        </div>
                         <div className="text-[10px] text-muted-foreground">Wins</div>
                       </div>
                       <div>
-                        <div className="text-lg font-bold text-foreground">{player.eloLosses ?? 0}</div>
+                        <div className="text-lg font-bold text-foreground">
+                          {player.eloLosses ?? 0}
+                        </div>
                         <div className="text-[10px] text-muted-foreground">Losses</div>
                       </div>
                       <div>
-                        <div className="text-lg font-bold text-foreground">{player.eloMatches ?? 0}</div>
+                        <div className="text-lg font-bold text-foreground">
+                          {player.eloMatches ?? 0}
+                        </div>
                         <div className="text-[10px] text-muted-foreground">Matches</div>
                       </div>
                     </div>
                     <div className="text-center">
-                      <div className={cn(
-                        'text-lg font-bold',
-                        winRate >= 50 ? 'text-green-400' : 'text-red-400'
-                      )}>{winRate}%</div>
+                      <div
+                        className={cn(
+                          'text-lg font-bold',
+                          winRate >= 50 ? 'text-green-400' : 'text-red-400',
+                        )}
+                      >
+                        {winRate}%
+                      </div>
                       <div className="text-[10px] text-muted-foreground">Win Rate</div>
                     </div>
                   </div>
@@ -213,12 +235,18 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
                       />
                     </div>
                   ) : genrePerformance.length > 0 ? (
-                    <PlayerStatsRadar player={player} genrePerformance={genrePerformance} roomGenres={roomGenres} />
+                    <PlayerStatsRadar
+                      player={player}
+                      genrePerformance={genrePerformance}
+                      roomGenres={roomGenres}
+                    />
                   ) : (
                     <div className="rounded-lg border border-border/30 bg-card/30 p-6 text-center">
                       <TrendingUp className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
                       <p className="text-xs text-muted-foreground">No match history yet</p>
-                      <p className="text-[10px] text-muted-foreground/60 mt-1">Genre performance will appear after the first round</p>
+                      <p className="text-[10px] text-muted-foreground/60 mt-1">
+                        Genre performance will appear after the first round
+                      </p>
                     </div>
                   )}
                 </motion.div>

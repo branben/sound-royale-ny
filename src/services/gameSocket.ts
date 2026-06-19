@@ -4,10 +4,16 @@ export type GameSocketMessage =
   | { type: 'game_state_update'; payload: GameState }
   | { type: 'bingo_achievement'; payload: { playerId: string; tiles: string[] } }
   | { type: 'victory_celebration'; payload: { winnerId: string } }
-  | { type: 'vote_submitted'; payload: { voterId: string; votedForId: string; votesRecorded: number } }
+  | {
+      type: 'vote_submitted';
+      payload: { voterId: string; votedForId: string; votesRecorded: number };
+    }
   | { type: 'timer_tick'; payload: { timeRemaining: number } }
   | { type: 'turn_change'; payload: { round: RoundState } }
-  | { type: 'player_joined'; payload: { playerId: string; playerName: string; isSpectator: boolean } }
+  | {
+      type: 'player_joined';
+      payload: { playerId: string; playerName: string; isSpectator: boolean };
+    }
   | { type: 'player_left'; payload: { playerId: string; playerName: string } }
   | { type: 'error'; payload: { code: string; message: string } };
 
@@ -64,20 +70,21 @@ class GameSocketService {
   private pendingMessages: Array<{ type: string; payload: unknown }> = [];
 
   private getWsUrl(): string {
-    const baseUrl = import.meta.env.VITE_WS_URL || 
+    const baseUrl =
+      import.meta.env.VITE_WS_URL ||
       (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000')
         .replace(/^http/, 'ws')
         .replace('/api', '');
-    
+
     const url = new URL(`/ws/game/${this.options!.gameId}/`, baseUrl);
-    
+
     if (this.options!.playerId) {
       url.searchParams.set('player_id', this.options!.playerId);
     }
     if (this.options!.playerSecret) {
       url.searchParams.set('secret', this.options!.playerSecret);
     }
-    
+
     return url.toString();
   }
 
@@ -198,13 +205,16 @@ class GameSocketService {
 
   private attemptReconnect(): void {
     if (this.isIntentionallyClosed || !this.options) return;
-    
+
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       return;
     }
 
     const interval = this.options.reconnectInterval ?? 1000;
-    const delay = Math.min(interval * Math.pow(2, this.reconnectAttempts) + Math.random() * 1000, 30000);
+    const delay = Math.min(
+      interval * Math.pow(2, this.reconnectAttempts) + Math.random() * 1000,
+      30000,
+    );
 
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectAttempts++;

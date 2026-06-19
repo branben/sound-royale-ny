@@ -31,8 +31,12 @@ export class PlayerPage {
 
   async createRoom(): Promise<string> {
     // Use backend API directly for reliable room creation (avoids UI flakiness)
+    // Backend rate-limited: room_creation: 5/minute. Retry with aggressive backoff
+    // to cover up to ~60s rate limit window.
     let response;
-    for (let i = 0; i < 3; i++) {
+    const MAX_RETRIES = 8;
+    const MAX_BACKOFF_MS = 30_000;
+    for (let i = 0; i < MAX_RETRIES; i++) {
       try {
         response = await axios.post(`${getApiBaseUrl()}/rooms/`, {
           name: 'Test Room',
@@ -40,9 +44,15 @@ export class PlayerPage {
         });
         break;
       } catch (error: any) {
-        if (i === 2) throw error;
+        if (i === MAX_RETRIES - 1) throw error;
+        if (error.response?.status === 429) {
+          const backoff = Math.min(Math.pow(2, i) * 1000, MAX_BACKOFF_MS);
+          console.log(`createRoom 429 rate limited, retrying in ${backoff}ms... (${i + 1}/${MAX_RETRIES})`);
+          await new Promise(r => setTimeout(r, backoff));
+          continue;
+        }
         if (error.response?.status === 500) {
-          console.log(`createRoom 500 error, retrying in 500ms... (${i + 1}/3)`);
+          console.log(`createRoom 500 error, retrying in 500ms... (${i + 1}/${MAX_RETRIES})`);
           await new Promise(r => setTimeout(r, 500));
           continue;
         }
@@ -65,7 +75,7 @@ export class PlayerPage {
     });
     await this.page.goto(`/room/${this.roomCode}`);
     // Wait for lobby to confirm render
-    await this.page.waitForSelector('text=/Room Code:/', { timeout: 15000 });
+    await expect(this.page.locator('data-testid=lobby')).toBeVisible({ timeout: 15000 });
 
     return this.roomCode;
   }
@@ -77,16 +87,10 @@ export class PlayerPage {
       // Spectators must join via API — no UI checkbox exists
       // Backend auto-assigns spectator names ("Spectator 1", "Spectator 2", etc.)
       const response = await joinRoom(roomCode, this.name, true);
-      // Find the spectator we just joined (last spectator by join order)
-      const spectators = Object.values(response.players as Record<string, any>)
-        .filter((p: any) => p.is_spectator || p.isSpectator);
-      const joinedPlayer = spectators[spectators.length - 1];
-      if (!joinedPlayer) {
-        throw new Error('Failed to find spectator player in room response');
-      }
-      this.playerId = joinedPlayer.id;
+      // Join endpoint returns player data directly (PlayerCreateSerializer format)
+      this.playerId = response.id;
       this.playerSecret = response.player_secret;
-      this.name = joinedPlayer.name; // Update to auto-assigned name
+      this.name = response.name; // Use auto-assigned name from backend
       // Inject session via the shared helper (uses addInitScript)
       await setupPlayerSession(this.page, {
         playerName: this.name,
@@ -98,13 +102,9 @@ export class PlayerPage {
       await this.page.goto(`/?code=${roomCode}`);
     } else {
       // Producer / host join via API for reliability
+      // Join endpoint returns player data directly (PlayerCreateSerializer format)
       const response = await joinRoom(roomCode, this.name, false);
-      const joinedPlayer = Object.values(response.players as Record<string, any>)
-        .find((p: any) => p.name === this.name || p.id === response.player_id);
-      if (!joinedPlayer) {
-        throw new Error('Failed to find joined player in room response');
-      }
-      this.playerId = joinedPlayer.id;
+      this.playerId = response.id;
       this.playerSecret = response.player_secret;
       // Inject session via the shared helper (uses addInitScript)
       await setupPlayerSession(this.page, {
@@ -115,7 +115,7 @@ export class PlayerPage {
         isSpectator: false,
       });
       await this.page.goto(`/room/${roomCode}`);
-      await this.page.waitForSelector('text=/Room Code:/', { timeout: 15000 });
+      await expect(this.page.locator('data-testid=lobby')).toBeVisible({ timeout: 15000 });
     }
   }
 
@@ -124,7 +124,7 @@ export class PlayerPage {
     if (!this.playerSecret) {
       throw new Error('playerSecret required for toggleReady');
     }
-    await toggleReady(this.roomCode, this.playerSecret);
+    await toggleReady(this.roomCode, this.playerSecret, this.playerId);
     await this.page.waitForTimeout(500);
   }
 
@@ -134,36 +134,45 @@ export class PlayerPage {
     }
     // Use API directly for reliability — works regardless of current page
     const { startGame } = await import('../helpers');
-    await startGame(this.roomCode);
+    await startGame(this.roomCode, this.playerSecret);
     // Give React time to sync state
     await this.page.waitForTimeout(1000);
   }
 
-  async playTile(audioFilePath: string): Promise<void> {
-    // Backend doesn't validate genre — submit any incomplete tile via API
-    // Backend Tile.Status values: 'empty', 'pending', 'complete'
-    const incompleteTile = this.boardTiles.find(t => t.status !== 'complete');
-    if (!incompleteTile) {
-      throw new Error('No incomplete tiles found');
+  async playTile(audioFilePath: string): Promise<boolean> {
+    // Fetch game state to learn current round's genre
+    const state = await getGameState(this.roomCode);
+    const roundGenre = state.roundState?.currentTileGenre;
+
+    const matchingTile = roundGenre
+      ? this.boardTiles.find(
+          t => t.status !== 'complete' && t.genre.toLowerCase() === roundGenre.toLowerCase()
+        )
+      : undefined;
+
+    if (!matchingTile) {
+      console.log(`${this.name} has no ${roundGenre ?? 'available'} tile this round, skipping`);
+      return false;
     }
 
     try {
-      await submitTile(incompleteTile.id, audioFilePath, this.playerSecret);
+      await submitTile(matchingTile.id, audioFilePath, this.playerSecret, this.playerId);
     } catch (error: any) {
       const msg = error.response?.data?.error || error.message || '';
       if (msg.includes('Game is not in progress')) {
         console.log(`Game already finished before ${this.name} could play tile`);
-        return;
+        return false;
       }
       console.error(`submitTile failed for ${this.name}: ${msg}`);
       throw error;
     }
     
     // Mark as completed locally
-    incompleteTile.status = 'complete';
+    matchingTile.status = 'complete';
     
     // Wait for submission to propagate
     await this.page.waitForTimeout(500);
+    return true;
   }
 
   async advanceTurn(): Promise<void> {

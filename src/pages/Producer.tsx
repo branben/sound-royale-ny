@@ -14,13 +14,13 @@ function ProducerContent() {
   const { gameState, setTileAudio } = useGame();
   const playerColors = usePlayerColors(gameState.players);
   const [selectedTile, setSelectedTile] = useState<Tile | null>(null);
-  
+
   // Current producer (mock: player_1)
   const currentPlayerId = 'player_1';
   const player = gameState.players[currentPlayerId];
 
   const handleTileClick = (tileId: string) => {
-    const tile = player.board.tiles.find(t => t.id === tileId);
+    const tile = player.board.tiles.find((t) => t.id === tileId);
     if (tile && tile.status !== 'complete') {
       setSelectedTile(tile);
     }
@@ -38,21 +38,16 @@ function ProducerContent() {
       {/* Background effects */}
       {/* Header */}
       <header className="relative z-10 flex items-center justify-between p-4 border-b border-border bg-background">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => navigate('/')}
-          className="gap-2"
-        >
+        <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="gap-2">
           <ArrowLeft className="h-4 w-4" />
           Leave
         </Button>
-        
+
         <div className="text-center">
           <h1 className="text-lg font-bold text-foreground">Your Board</h1>
           <p className="text-xs text-muted-foreground">{player.name}</p>
         </div>
-        
+
         <Button
           variant="outline"
           size="sm"
@@ -78,7 +73,7 @@ function ProducerContent() {
             className="shadow-2xl"
             playerColorIndex={playerColors.get(currentPlayerId) ?? 0}
           />
-          
+
           {/* Instructions */}
           <p className="mt-4 text-center text-sm text-muted-foreground">
             Tap a tile to upload your beat

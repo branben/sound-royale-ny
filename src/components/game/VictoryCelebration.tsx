@@ -59,38 +59,40 @@ export function VictoryCelebration({ winnerName, isVisible, onComplete }: Victor
         animate={{ scale: 1, y: 0, opacity: 1 }}
         transition={transitions.springBouncy}
       >
-           <div className="bg-background border-2 border-primary rounded-2xl p-8 shadow-xl">
-           <motion.div
-             className="flex items-center justify-center gap-4 mb-4"
-             initial={{ y: -40, rotate: -10 }}
-             animate={{ y: 0, rotate: 0 }}
-             transition={{ type: 'spring', stiffness: 300, damping: 15, delay: 0.1 }}
-           >
-             <Trophy className="h-16 w-16 text-yellow-500" />
-             <div className="flex flex-col">
-               <motion.h1
-                 className="text-4xl font-bold text-foreground"
-                 initial={{ opacity: 0 }}
-                 animate={{ opacity: 1 }}
-                 transition={{ delay: 0.2 }}
-               >Victory!</motion.h1>
-               <p className="text-xl text-muted-foreground">
-                 <span className="font-semibold text-primary">{winnerName}</span> wins the battle!
-               </p>
-             </div>
-           </motion.div>
+        <div className="bg-background border-2 border-primary rounded-2xl p-8 shadow-xl">
+          <motion.div
+            className="flex items-center justify-center gap-4 mb-4"
+            initial={{ y: -40, rotate: -10 }}
+            animate={{ y: 0, rotate: 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 15, delay: 0.1 }}
+          >
+            <Trophy className="h-16 w-16 text-yellow-500" />
+            <div className="flex flex-col">
+              <motion.h1
+                className="text-4xl font-bold text-foreground"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 }}
+              >
+                Victory!
+              </motion.h1>
+              <p className="text-xl text-muted-foreground">
+                <span className="font-semibold text-primary">{winnerName}</span> wins the battle!
+              </p>
+            </div>
+          </motion.div>
 
-           <div className="flex items-center justify-center gap-2">
-             <Crown className="h-8 w-8 text-yellow-500" />
-             <Sparkles className="h-6 w-6 text-yellow-400" />
-           </div>
+          <div className="flex items-center justify-center gap-2">
+            <Crown className="h-8 w-8 text-yellow-500" />
+            <Sparkles className="h-6 w-6 text-yellow-400" />
+          </div>
 
-           <div className="text-sm text-muted-foreground">
-             <p>Amazing production work!</p>
-             <p>Ready for the next round?</p>
-           </div>
-         </div>
-       </motion.div>
+          <div className="text-sm text-muted-foreground">
+            <p>Amazing production work!</p>
+            <p>Ready for the next round?</p>
+          </div>
+        </div>
+      </motion.div>
     </div>
   );
 }

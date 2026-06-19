@@ -10,14 +10,14 @@ https://docs.djangoproject.com/en/5.2/howto/deployment/asgi/
 import os
 from django.core.asgi import get_asgi_application
 from channels.routing import ProtocolTypeRouter, URLRouter
-from channels.auth import AuthMiddlewareStack
+from game_engine.auth import WebSocketPlayerAuthMiddlewareStack
 from game_engine.routing import websocket_urlpatterns
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sound_royale_api.settings')
 
 application = ProtocolTypeRouter({
     "http": get_asgi_application(),
-    "websocket": AuthMiddlewareStack(
+    "websocket": WebSocketPlayerAuthMiddlewareStack(
         URLRouter(
             websocket_urlpatterns
         )

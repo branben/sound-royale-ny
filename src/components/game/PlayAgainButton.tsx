@@ -12,7 +12,7 @@ interface PlayAgainButtonProps {
 export const PlayAgainButton: React.FC<PlayAgainButtonProps> = ({
   onPlayAgain,
   disabled = false,
-  className
+  className,
 }) => {
   return (
     <Button
@@ -20,8 +20,8 @@ export const PlayAgainButton: React.FC<PlayAgainButtonProps> = ({
       onClick={onPlayAgain}
       disabled={disabled}
       className={cn(
-        "flex items-center gap-2 px-6 py-3 bg-primary hover:opacity-90 transition-all",
-        className
+        'flex items-center gap-2 px-6 py-3 bg-primary hover:opacity-90 transition-all',
+        className,
       )}
     >
       <RotateCcw className="h-5 w-5" />

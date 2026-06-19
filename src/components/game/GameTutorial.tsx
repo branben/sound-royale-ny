@@ -19,33 +19,35 @@ export const GameTutorial: React.FC<GameTutorialProps> = ({ isSpectator, onDismi
 
   if (!isActive) return null;
 
-  const steps = isSpectator ? [
-    {
-      title: 'Welcome, Spectator!',
-      description: 'Watch the producers battle it out with their beats.',
-      icon: Music,
-      position: 'top-center',
-    },
-    {
-      title: 'Vote for the Best',
-      description: 'When voting opens, tap to vote for your favorite track.',
-      icon: Vote,
-      position: 'bottom-center',
-    },
-  ] : [
-    {
-      title: 'Your Turn!',
-      description: 'Tap a tile to upload your beat for that genre.',
-      icon: Music,
-      position: 'top-center',
-    },
-    {
-      title: 'Complete the Line',
-      description: 'Fill 3 tiles in a row to win the round!',
-      icon: ArrowUp,
-      position: 'bottom-center',
-    },
-  ];
+  const steps = isSpectator
+    ? [
+        {
+          title: 'Welcome, Spectator!',
+          description: 'Watch the producers battle it out with their beats.',
+          icon: Music,
+          position: 'top-center',
+        },
+        {
+          title: 'Vote for the Best',
+          description: 'When voting opens, tap to vote for your favorite track.',
+          icon: Vote,
+          position: 'bottom-center',
+        },
+      ]
+    : [
+        {
+          title: 'Your Turn!',
+          description: 'Tap a tile to upload your beat for that genre.',
+          icon: Music,
+          position: 'top-center',
+        },
+        {
+          title: 'Complete the Line',
+          description: 'Fill 3 tiles in a row to win the round!',
+          icon: ArrowUp,
+          position: 'bottom-center',
+        },
+      ];
 
   const currentStep = steps[step];
   const Icon = currentStep.icon;
@@ -100,11 +102,7 @@ export const GameTutorial: React.FC<GameTutorialProps> = ({ isSpectator, onDismi
               />
             ))}
           </div>
-          <Button
-            onClick={handleNext}
-            size="sm"
-            className="bg-primary hover:opacity-90"
-          >
+          <Button onClick={handleNext} size="sm" className="bg-primary hover:opacity-90">
             {step === steps.length - 1 ? 'Got it!' : 'Next'}
           </Button>
         </div>

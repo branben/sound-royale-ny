@@ -3,6 +3,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
+from rest_framework.throttling import ScopedRateThrottle
 from django.db import transaction, IntegrityError
 from django.db.models import Prefetch
 from django.utils import timezone
@@ -143,6 +144,24 @@ def genre_performance_by_player_id(request, player_id):
     player = get_object_or_404(Player, id=player_id)
     serializer = GenrePerformanceSerializer(build_genre_performance(player), many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@api_view(["POST"])
+def verify_admin_pin(request):
+    """Verify an admin PIN. Returns 200 if valid, 403 if not."""
+    configured_secret = getattr(settings, "THEME_ADMIN_SECRET", "")
+    provided_secret = request.data.get("pin", "") or request.headers.get("X-Theme-Admin-Secret", "")
+    if not configured_secret:
+        return Response(
+            {"valid": False, "error": "Admin PIN is not configured"},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    if provided_secret != configured_secret:
+        return Response(
+            {"valid": False, "error": "Invalid admin PIN"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    return Response({"valid": True})
 
 
 @api_view(["POST"])
@@ -375,8 +394,26 @@ def start_timer_broadcast(room_id: str, duration: int):
     cancel_timer_broadcast(room_id)
     from channels.layers import get_channel_layer
     channel_layer = get_channel_layer()
-    task = asyncio.create_task(_timer_loop(room_id, duration, channel_layer))
+    # Run the timer loop in a background thread with its own event loop,
+    # because this function is called from sync DRF views where no
+    # event loop is running.
+    loop = asyncio.new_event_loop()
+    task = loop.create_task(_timer_loop(room_id, duration, channel_layer))
     _active_timer_tasks[room_id] = task
+
+    import threading
+
+    def _run_loop():
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(task)
+        except (asyncio.CancelledError, Exception):
+            pass
+        finally:
+            loop.close()
+
+    t = threading.Thread(target=_run_loop, daemon=True)
+    t.start()
 
 def cancel_timer_broadcast(room_id: str):
     task = _active_timer_tasks.pop(room_id, None)
@@ -419,6 +456,13 @@ class RoomViewSet(viewsets.ModelViewSet):
     serializer_class = RoomSerializer
     permission_classes = [AllowAny]
     lookup_field = "code"  # Allow lookup by 4-digit room code
+    throttle_scope = "room_creation"
+
+    def get_throttles(self):
+        throttles = super().get_throttles()
+        if self.action == "create":
+            throttles.append(ScopedRateThrottle())
+        return throttles
 
     def get_object(self):
         if self.kwargs.get(self.lookup_field):
@@ -1599,6 +1643,13 @@ class TileViewSet(viewsets.ModelViewSet):
     queryset = Tile.objects.all()
     serializer_class = TileSerializer
     permission_classes = [AllowAny]
+    throttle_scope = "audio_upload"
+
+    def get_throttles(self):
+        throttles = super().get_throttles()
+        if self.action == "play_tile":
+            throttles.append(ScopedRateThrottle())
+        return throttles
 
     @action(detail=True, methods=["post"])
     def play_tile(self, request, pk=None, code=None):
@@ -1644,10 +1695,31 @@ class TileViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+        ALLOWED_AUDIO_MIME_TYPES = {
+            "audio/mpeg",
+            "audio/wav",
+            "audio/x-wav",
+            "audio/ogg",
+            "audio/flac",
+            "audio/mp4",
+            "audio/x-m4a",
+            "audio/aac",
+        }
+        audio_file = request.FILES.get("audio_file")
+        if audio_file:
+            if audio_file.size > settings.MAX_UPLOAD_SIZE:
+                return Response(
+                    {"error": f"File too large. Maximum size is {settings.MAX_UPLOAD_SIZE // (1024 * 1024)}MB."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if audio_file.content_type not in ALLOWED_AUDIO_MIME_TYPES:
+                return Response(
+                    {"error": f"Invalid file type '{audio_file.content_type}'. Allowed types: mp3, wav, ogg, flac, m4a, aac."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         with transaction.atomic():
-            # Update tile
             tile.status = Tile.Status.COMPLETE
-            audio_file = request.FILES.get("audio_file")
             if audio_file:
                 tile.audio_file = audio_file
             tile.save()

@@ -10,7 +10,8 @@ export default function GlobalLeaderboardPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    leaderboardApi.global()
+    leaderboardApi
+      .global()
       .then((response) => setLeaders(response.leaderboard))
       .catch((err) => console.error('Leaderboard fetch error:', err))
       .finally(() => setIsLoading(false));
@@ -47,7 +48,10 @@ export default function GlobalLeaderboardPage() {
               <p className="text-sm text-muted-foreground">No verified ranked results yet.</p>
             )}
             {leaders.map((leader, index) => (
-              <div key={leader.id} className="flex items-center gap-3 rounded-lg p-3 hover:bg-muted/30">
+              <div
+                key={leader.id}
+                className="flex items-center gap-3 rounded-lg p-3 hover:bg-muted/30"
+              >
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-bold">
                   {index + 1}
                 </span>

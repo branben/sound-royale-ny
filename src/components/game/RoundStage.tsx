@@ -45,7 +45,7 @@ export function RoundStage({
     setRouletteIndex(0);
 
     const intervalId = window.setInterval(() => {
-      setRouletteIndex(prev => (prev + 1) % GENRES.length);
+      setRouletteIndex((prev) => (prev + 1) % GENRES.length);
     }, 90);
 
     const timeoutId = window.setTimeout(() => {
@@ -60,7 +60,7 @@ export function RoundStage({
   }, [genre, roundNumber]);
 
   useEffect(() => {
-    if (!timerEndsAt || timeRemaining !== null && timeRemaining !== undefined) {
+    if (!timerEndsAt || (timeRemaining !== null && timeRemaining !== undefined)) {
       setFallbackTimeRemaining(null);
       return;
     }
@@ -89,8 +89,8 @@ export function RoundStage({
     <section
       data-testid="round-stage"
       className={cn(
-        "rounded-xl border border-border bg-card p-5 md:p-6",
-        votingJustOpened && "ring-2 ring-primary"
+        'rounded-xl border border-border bg-card p-5 md:p-6',
+        votingJustOpened && 'ring-2 ring-primary',
       )}
     >
       <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
@@ -110,12 +110,14 @@ export function RoundStage({
                 </motion.span>
               </AnimatePresence>
             </span>
-            <span className={cn(
-              "inline-flex items-center gap-1 rounded-full px-3 py-1 font-semibold transition-all",
-              votingOpen
-                ? "bg-primary/10 border border-primary/40 text-primary"
-                : "bg-muted border border-border text-muted-foreground"
-            )}>
+            <span
+              className={cn(
+                'inline-flex items-center gap-1 rounded-full px-3 py-1 font-semibold transition-all',
+                votingOpen
+                  ? 'bg-primary/10 border border-primary/40 text-primary'
+                  : 'bg-muted border border-border text-muted-foreground',
+              )}
+            >
               {votingOpen ? (
                 <AnimatePresence mode="wait">
                   <motion.span
@@ -154,10 +156,12 @@ export function RoundStage({
           </div>
 
           <div className="flex min-h-20 items-center gap-4">
-            <div className={cn(
-              "flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-border bg-card",
-              isRouletting && "animate-spin"
-            )}>
+            <div
+              className={cn(
+                'flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-border bg-card',
+                isRouletting && 'animate-spin',
+              )}
+            >
               <Disc3 className="h-8 w-8 text-muted-foreground" />
             </div>
             <div className="min-w-0">
@@ -170,8 +174,8 @@ export function RoundStage({
                   exit={{ y: -20, opacity: 0 }}
                   transition={transitions.springBouncy}
                   className={cn(
-                    "break-words text-4xl font-bold leading-tight text-foreground md:text-5xl",
-                    isRouletting && "text-primary"
+                    'break-words text-4xl font-bold leading-tight text-foreground md:text-5xl',
+                    isRouletting && 'text-primary',
                   )}
                 >
                   {displayGenre}
@@ -191,12 +195,14 @@ export function RoundStage({
               {formattedTime ?? '--:--'}
             </div>
           </div>
-          <div className={cn(
-            "rounded-lg border p-4 transition-all",
-            votingOpen ? "border-primary/40 bg-primary/5" : "border-border bg-muted"
-          )}>
+          <div
+            className={cn(
+              'rounded-lg border p-4 transition-all',
+              votingOpen ? 'border-primary/40 bg-primary/5' : 'border-border bg-muted',
+            )}
+          >
             <div className="mb-1 flex items-center gap-2 text-sm text-muted-foreground">
-              <Vote className={cn("h-4 w-4", votingOpen ? "text-primary" : "text-primary")} />
+              <Vote className={cn('h-4 w-4', votingOpen ? 'text-primary' : 'text-primary')} />
               {votingOpen ? 'Vote Status' : 'Round Mode'}
             </div>
             <div className="text-sm font-medium text-foreground">
@@ -213,8 +219,10 @@ export function RoundStage({
                     {votesRecorded} votes recorded
                   </motion.span>
                 </AnimatePresence>
+              ) : spectatorCount >= 3 ? (
+                `${spectatorCount} spectators can vote`
               ) : (
-                spectatorCount >= 3 ? `${spectatorCount} spectators can vote` : `${spectatorCount}/3 spectators for voting`
+                `${spectatorCount}/3 spectators for voting`
               )}
             </div>
           </div>

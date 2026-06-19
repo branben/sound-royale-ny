@@ -1,8 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { http, HttpResponse, delay } from 'msw';
 import { setupServer } from 'msw/node';
 import { roomApi, gameApi, discordApi, leaderboardApi, normalizeRoomWinner } from '../api';
-import type { BackendPlayer, GenrePerformance, CreateRoomResponse, ThemeRotation } from '@/types/game';
+import type {
+  BackendPlayer,
+  GenrePerformance,
+  CreateRoomResponse,
+  ThemeRotation,
+} from '@/types/game';
 
 // ---------------------------------------------------------------------------
 // MSW server setup
@@ -12,7 +17,7 @@ import type { BackendPlayer, GenrePerformance, CreateRoomResponse, ThemeRotation
 // doesn't trigger MSW's onUnhandledRequest or cause infinite loops.
 const errorLogHandler = http.post(
   'http://localhost:8000/api/errors/log/',
-  () => new HttpResponse(null, { status: 204 })
+  () => new HttpResponse(null, { status: 204 }),
 );
 
 const server = setupServer(errorLogHandler);
@@ -72,8 +77,8 @@ describe('roomApi', () => {
           HttpResponse.json([
             { code: 'ROOM1', status: 'lobby', players: [], current_round: 0 },
             { code: 'ROOM2', status: 'playing', players: [], current_round: 3 },
-          ])
-        )
+          ]),
+        ),
       );
 
       const rooms = await roomApi.getRooms();
@@ -84,9 +89,10 @@ describe('roomApi', () => {
 
     it('throws on 500 server error', async () => {
       server.use(
-        http.get(`${API_BASE}/rooms/`, () =>
-          new HttpResponse('Internal Server Error', { status: 500 })
-        )
+        http.get(
+          `${API_BASE}/rooms/`,
+          () => new HttpResponse('Internal Server Error', { status: 500 }),
+        ),
       );
 
       await expect(roomApi.getRooms()).rejects.toThrow();
@@ -107,8 +113,8 @@ describe('roomApi', () => {
             current_round: 0,
             total_rounds: 5,
             theme: 'classic',
-          })
-        )
+          }),
+        ),
       );
 
       const room = await roomApi.getRoom('ROOM1');
@@ -120,12 +126,14 @@ describe('roomApi', () => {
 
     it('throws on 404 for non-existent room', async () => {
       server.use(
-        http.get(`${API_BASE}/rooms/NOPE/`, () =>
-          new HttpResponse(JSON.stringify({ error: 'Room not found' }), {
-            status: 404,
-            headers: { 'Content-Type': 'application/json' },
-          })
-        )
+        http.get(
+          `${API_BASE}/rooms/NOPE/`,
+          () =>
+            new HttpResponse(JSON.stringify({ error: 'Room not found' }), {
+              status: 404,
+              headers: { 'Content-Type': 'application/json' },
+            }),
+        ),
       );
 
       await expect(roomApi.getRoom('NOPE')).rejects.toThrow();
@@ -146,7 +154,7 @@ describe('roomApi', () => {
             player_id: 'player-new',
             player_secret: 'secret-new',
           });
-        })
+        }),
       );
 
       const result = await roomApi.createRoom('My Room', 'Alice', 5, 'classic');
@@ -172,7 +180,7 @@ describe('roomApi', () => {
             player_id: 'p1',
             player_secret: 's1',
           });
-        })
+        }),
       );
 
       await roomApi.createRoom('Genre Room', 'Bob', undefined, undefined, ['Phonk', 'Lo-Fi']);
@@ -191,7 +199,7 @@ describe('roomApi', () => {
             player_id: 'p1',
             player_secret: 's1',
           });
-        })
+        }),
       );
 
       const discordSession = {
@@ -200,7 +208,14 @@ describe('roomApi', () => {
         username: 'verified_user',
       };
 
-      await roomApi.createRoom('Discord Room', 'Alice', undefined, undefined, undefined, discordSession);
+      await roomApi.createRoom(
+        'Discord Room',
+        'Alice',
+        undefined,
+        undefined,
+        undefined,
+        discordSession,
+      );
 
       expect(body.discord_user_id).toBe('discord-123');
       expect(body.discord_session_secret).toBe('ds-secret');
@@ -216,7 +231,7 @@ describe('roomApi', () => {
             player_id: 'p1',
             player_secret: 's1',
           });
-        })
+        }),
       );
 
       await roomApi.createRoom('Minimal', 'Player');
@@ -232,12 +247,14 @@ describe('roomApi', () => {
 
     it('throws on 400 for invalid input', async () => {
       server.use(
-        http.post(`${API_BASE}/rooms/`, () =>
-          new HttpResponse(JSON.stringify({ error: 'Room name required' }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          })
-        )
+        http.post(
+          `${API_BASE}/rooms/`,
+          () =>
+            new HttpResponse(JSON.stringify({ error: 'Room name required' }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            }),
+        ),
       );
 
       await expect(roomApi.createRoom('', '')).rejects.toThrow();
@@ -245,12 +262,14 @@ describe('roomApi', () => {
 
     it('throws on 409 for duplicate room', async () => {
       server.use(
-        http.post(`${API_BASE}/rooms/`, () =>
-          new HttpResponse(JSON.stringify({ error: 'Room already exists' }), {
-            status: 409,
-            headers: { 'Content-Type': 'application/json' },
-          })
-        )
+        http.post(
+          `${API_BASE}/rooms/`,
+          () =>
+            new HttpResponse(JSON.stringify({ error: 'Room already exists' }), {
+              status: 409,
+              headers: { 'Content-Type': 'application/json' },
+            }),
+        ),
       );
 
       await expect(roomApi.createRoom('Dup Room', 'Alice')).rejects.toThrow();
@@ -265,10 +284,15 @@ describe('roomApi', () => {
       server.use(
         http.get(`${API_BASE}/theme-rotations/`, () =>
           HttpResponse.json<ThemeRotation[]>([
-            { key: 'classic', name: 'Classic', description: 'All genres', genres: ['Phonk', 'Trap'] },
+            {
+              key: 'classic',
+              name: 'Classic',
+              description: 'All genres',
+              genres: ['Phonk', 'Trap'],
+            },
             { key: 'weekly', name: 'Weekly', description: 'This week', genres: ['Lo-Fi'] },
-          ])
-        )
+          ]),
+        ),
       );
 
       const themes = await roomApi.getThemeRotations();
@@ -292,13 +316,13 @@ describe('roomApi', () => {
             description: 'New description',
             genres: ['House'],
           });
-        })
+        }),
       );
 
       await roomApi.updateThemeRotation(
         'weekly',
         { name: 'Updated Weekly', description: 'New description', genres: ['House'] },
-        'admin-secret-123'
+        'admin-secret-123',
       );
 
       expect(headers!.get('X-Theme-Admin-Secret')).toBe('admin-secret-123');
@@ -306,16 +330,22 @@ describe('roomApi', () => {
 
     it('throws on 403 for invalid admin secret', async () => {
       server.use(
-        http.put(`${API_BASE}/theme-rotations/weekly/`, () =>
-          new HttpResponse(JSON.stringify({ error: 'Forbidden' }), {
-            status: 403,
-            headers: { 'Content-Type': 'application/json' },
-          })
-        )
+        http.put(
+          `${API_BASE}/theme-rotations/weekly/`,
+          () =>
+            new HttpResponse(JSON.stringify({ error: 'Forbidden' }), {
+              status: 403,
+              headers: { 'Content-Type': 'application/json' },
+            }),
+        ),
       );
 
       await expect(
-        roomApi.updateThemeRotation('weekly', { name: 'Hacked', description: '', genres: [] }, 'wrong-secret')
+        roomApi.updateThemeRotation(
+          'weekly',
+          { name: 'Hacked', description: '', genres: [] },
+          'wrong-secret',
+        ),
       ).rejects.toThrow();
     });
   });
@@ -327,8 +357,8 @@ describe('roomApi', () => {
     it('returns room stats on success', async () => {
       server.use(
         http.get(`${API_BASE}/rooms/ROOM1/stats/`, () =>
-          HttpResponse.json({ total_games: 42, active_players: 7 })
-        )
+          HttpResponse.json({ total_games: 42, active_players: 7 }),
+        ),
       );
 
       const stats = await roomApi.getRoomStats('ROOM1');
@@ -338,12 +368,14 @@ describe('roomApi', () => {
 
     it('logs and re-throws on error', async () => {
       server.use(
-        http.get(`${API_BASE}/rooms/NOPE/stats/`, () =>
-          new HttpResponse(JSON.stringify({ error: 'Not found' }), {
-            status: 404,
-            headers: { 'Content-Type': 'application/json' },
-          })
-        )
+        http.get(
+          `${API_BASE}/rooms/NOPE/stats/`,
+          () =>
+            new HttpResponse(JSON.stringify({ error: 'Not found' }), {
+              status: 404,
+              headers: { 'Content-Type': 'application/json' },
+            }),
+        ),
       );
 
       await expect(roomApi.getRoomStats('NOPE')).rejects.toThrow();
@@ -369,8 +401,8 @@ describe('gameApi', () => {
             players: { [mockPlayer.id]: { ...mockPlayer, board: { tiles: [] } } },
             currentRound: 2,
             totalRounds: 5,
-          })
-        )
+          }),
+        ),
       );
 
       const state = await gameApi.getGameState('ROOM1');
@@ -381,9 +413,10 @@ describe('gameApi', () => {
 
     it('throws on 500 error', async () => {
       server.use(
-        http.get(`${API_BASE}/rooms/BAD/game_state/`, () =>
-          new HttpResponse('Server Error', { status: 500 })
-        )
+        http.get(
+          `${API_BASE}/rooms/BAD/game_state/`,
+          () => new HttpResponse('Server Error', { status: 500 }),
+        ),
       );
 
       await expect(gameApi.getGameState('BAD')).rejects.toThrow();
@@ -400,7 +433,7 @@ describe('gameApi', () => {
         http.post(`${API_BASE}/rooms/ROOM1/join_game/`, async ({ request }) => {
           body = await jsonBody(request);
           return HttpResponse.json(mockPlayer);
-        })
+        }),
       );
 
       const player = await gameApi.joinRoom('ROOM1', 'Alice');
@@ -421,7 +454,7 @@ describe('gameApi', () => {
         http.post(`${API_BASE}/rooms/ROOM1/join_game/`, async ({ request }) => {
           body = await jsonBody(request);
           return HttpResponse.json(mockPlayer);
-        })
+        }),
       );
 
       await gameApi.joinRoom('ROOM1', 'Bob', true);
@@ -435,7 +468,7 @@ describe('gameApi', () => {
         http.post(`${API_BASE}/rooms/ROOM1/join_game/`, async ({ request }) => {
           body = await jsonBody(request);
           return HttpResponse.json(mockPlayer);
-        })
+        }),
       );
 
       await gameApi.joinRoom('ROOM1', 'Alice', false, {
@@ -450,12 +483,14 @@ describe('gameApi', () => {
 
     it('throws on 404 for non-existent room', async () => {
       server.use(
-        http.post(`${API_BASE}/rooms/NOPE/join_game/`, () =>
-          new HttpResponse(JSON.stringify({ error: 'Room not found' }), {
-            status: 404,
-            headers: { 'Content-Type': 'application/json' },
-          })
-        )
+        http.post(
+          `${API_BASE}/rooms/NOPE/join_game/`,
+          () =>
+            new HttpResponse(JSON.stringify({ error: 'Room not found' }), {
+              status: 404,
+              headers: { 'Content-Type': 'application/json' },
+            }),
+        ),
       );
 
       await expect(gameApi.joinRoom('NOPE', 'Alice')).rejects.toThrow();
@@ -463,12 +498,14 @@ describe('gameApi', () => {
 
     it('throws on 409 for duplicate player name', async () => {
       server.use(
-        http.post(`${API_BASE}/rooms/ROOM1/join_game/`, () =>
-          new HttpResponse(JSON.stringify({ error: 'Name already taken' }), {
-            status: 409,
-            headers: { 'Content-Type': 'application/json' },
-          })
-        )
+        http.post(
+          `${API_BASE}/rooms/ROOM1/join_game/`,
+          () =>
+            new HttpResponse(JSON.stringify({ error: 'Name already taken' }), {
+              status: 409,
+              headers: { 'Content-Type': 'application/json' },
+            }),
+        ),
       );
 
       await expect(gameApi.joinRoom('ROOM1', 'Alice')).rejects.toThrow();
@@ -481,9 +518,7 @@ describe('gameApi', () => {
   describe('rejoinRoom', () => {
     it('returns player on successful rejoin', async () => {
       server.use(
-        http.post(`${API_BASE}/rooms/ROOM1/rejoin_game/`, () =>
-          HttpResponse.json(mockPlayer)
-        )
+        http.post(`${API_BASE}/rooms/ROOM1/rejoin_game/`, () => HttpResponse.json(mockPlayer)),
       );
 
       const player = await gameApi.rejoinRoom('ROOM1', 'old-secret');
@@ -494,12 +529,14 @@ describe('gameApi', () => {
 
     it('returns null on failed rejoin (invalid secret)', async () => {
       server.use(
-        http.post(`${API_BASE}/rooms/ROOM1/rejoin_game/`, () =>
-          new HttpResponse(JSON.stringify({ error: 'Invalid secret' }), {
-            status: 403,
-            headers: { 'Content-Type': 'application/json' },
-          })
-        )
+        http.post(
+          `${API_BASE}/rooms/ROOM1/rejoin_game/`,
+          () =>
+            new HttpResponse(JSON.stringify({ error: 'Invalid secret' }), {
+              status: 403,
+              headers: { 'Content-Type': 'application/json' },
+            }),
+        ),
       );
 
       const player = await gameApi.rejoinRoom('ROOM1', 'bad-secret');
@@ -508,9 +545,10 @@ describe('gameApi', () => {
 
     it('returns null on 404', async () => {
       server.use(
-        http.post(`${API_BASE}/rooms/NOPE/rejoin_game/`, () =>
-          new HttpResponse('Not found', { status: 404 })
-        )
+        http.post(
+          `${API_BASE}/rooms/NOPE/rejoin_game/`,
+          () => new HttpResponse('Not found', { status: 404 }),
+        ),
       );
 
       const player = await gameApi.rejoinRoom('NOPE', 'secret');
@@ -528,7 +566,7 @@ describe('gameApi', () => {
         http.post(`${API_BASE}/rooms/ROOM1/start_game/`, async ({ request }) => {
           body = await jsonBody(request);
           return HttpResponse.json({ status: 'started' });
-        })
+        }),
       );
 
       const result = await gameApi.startGame('ROOM1', 'secret-xyz');
@@ -539,12 +577,14 @@ describe('gameApi', () => {
 
     it('throws on 403 for non-host player', async () => {
       server.use(
-        http.post(`${API_BASE}/rooms/ROOM1/start_game/`, () =>
-          new HttpResponse(JSON.stringify({ error: 'Only host can start' }), {
-            status: 403,
-            headers: { 'Content-Type': 'application/json' },
-          })
-        )
+        http.post(
+          `${API_BASE}/rooms/ROOM1/start_game/`,
+          () =>
+            new HttpResponse(JSON.stringify({ error: 'Only host can start' }), {
+              status: 403,
+              headers: { 'Content-Type': 'application/json' },
+            }),
+        ),
       );
 
       await expect(gameApi.startGame('ROOM1', 'not-host-secret')).rejects.toThrow();
@@ -552,12 +592,14 @@ describe('gameApi', () => {
 
     it('throws on 400 when not enough players', async () => {
       server.use(
-        http.post(`${API_BASE}/rooms/ROOM1/start_game/`, () =>
-          new HttpResponse(JSON.stringify({ error: 'Need at least 2 players' }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          })
-        )
+        http.post(
+          `${API_BASE}/rooms/ROOM1/start_game/`,
+          () =>
+            new HttpResponse(JSON.stringify({ error: 'Need at least 2 players' }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            }),
+        ),
       );
 
       await expect(gameApi.startGame('ROOM1', 'secret')).rejects.toThrow();
@@ -578,7 +620,7 @@ describe('gameApi', () => {
           // Verify the body contains expected fields
           receivedBody = { text, contentType: request.headers.get('Content-Type') || '' };
           return HttpResponse.json({ status: 'ok' });
-        })
+        }),
       );
 
       const file = new File(['audio-bytes'], 'sample.mp3', { type: 'audio/mpeg' });
@@ -600,8 +642,8 @@ describe('gameApi', () => {
     it('sends player_secret and returns status with round', async () => {
       server.use(
         http.post(`${API_BASE}/rooms/ROOM1/reset_game/`, () =>
-          HttpResponse.json({ status: 'reset', round: 1 })
-        )
+          HttpResponse.json({ status: 'reset', round: 1 }),
+        ),
       );
 
       const result = await gameApi.resetGame('ROOM1', 'secret');
@@ -620,7 +662,7 @@ describe('gameApi', () => {
         http.post(`${API_BASE}/rooms/ROOM1/kick_player/`, async ({ request }) => {
           body = await jsonBody(request);
           return HttpResponse.json({ status: 'kicked' });
-        })
+        }),
       );
 
       await gameApi.kickPlayer('ROOM1', 'player-2', 'host-secret');
@@ -642,7 +684,7 @@ describe('gameApi', () => {
         http.post(`${API_BASE}/rooms/ROOM1/vote/`, async ({ request }) => {
           body = await jsonBody(request);
           return HttpResponse.json({ status: 'voted' });
-        })
+        }),
       );
 
       await gameApi.castVote('ROOM1', 'voter-secret', 'player-2');
@@ -661,8 +703,8 @@ describe('gameApi', () => {
     it('sends player_secret', async () => {
       server.use(
         http.post(`${API_BASE}/rooms/ROOM1/next_turn/`, () =>
-          HttpResponse.json({ status: 'next_turn' })
-        )
+          HttpResponse.json({ status: 'next_turn' }),
+        ),
       );
 
       const result = await gameApi.nextTurn('ROOM1', 'secret');
@@ -677,8 +719,8 @@ describe('gameApi', () => {
     it('sends player_secret', async () => {
       server.use(
         http.post(`${API_BASE}/rooms/ROOM1/open_voting/`, () =>
-          HttpResponse.json({ status: 'voting_opened' })
-        )
+          HttpResponse.json({ status: 'voting_opened' }),
+        ),
       );
 
       const result = await gameApi.openVoting('ROOM1', 'secret');
@@ -696,7 +738,7 @@ describe('gameApi', () => {
         http.post(`${API_BASE}/rooms/ROOM1/toggle_ready/`, async ({ request }) => {
           body = await jsonBody(request);
           return HttpResponse.json({ player_id: 'p1', is_ready: true });
-        })
+        }),
       );
 
       const result = await gameApi.toggleReady('ROOM1', 'p1', 'secret');
@@ -716,8 +758,8 @@ describe('gameApi', () => {
           HttpResponse.json<GenrePerformance[]>([
             { genre: 'Phonk', wins: 8, total_rounds: 10, win_rate: 0.8, grade: 'S' },
             { genre: 'Trap', wins: 3, total_rounds: 10, win_rate: 0.3, grade: 'C' },
-          ])
-        )
+          ]),
+        ),
       );
 
       const perf = await gameApi.getGenrePerformance('player-1');
@@ -733,8 +775,8 @@ describe('gameApi', () => {
     it('returns transformed player list', async () => {
       server.use(
         http.get(`${API_BASE}/players/`, () =>
-          HttpResponse.json([mockPlayer, { ...mockPlayer, id: 'player-2', name: 'Bob' }])
-        )
+          HttpResponse.json([mockPlayer, { ...mockPlayer, id: 'player-2', name: 'Bob' }]),
+        ),
       );
 
       const players = await gameApi.getAllPlayers();
@@ -756,7 +798,7 @@ describe('gameApi', () => {
           headers = request.headers;
           body = await jsonBody(request);
           return HttpResponse.json(mockPlayer);
-        })
+        }),
       );
 
       await gameApi.setCheckedIn('player-1', true, 'admin-secret');
@@ -771,25 +813,19 @@ describe('gameApi', () => {
   // -----------------------------------------------------------------------
   describe('network failure handling', () => {
     it('getRooms throws on network error', async () => {
-      server.use(
-        http.get(`${API_BASE}/rooms/`, () => HttpResponse.error())
-      );
+      server.use(http.get(`${API_BASE}/rooms/`, () => HttpResponse.error()));
 
       await expect(roomApi.getRooms()).rejects.toThrow();
     });
 
     it('joinRoom throws on network error', async () => {
-      server.use(
-        http.post(`${API_BASE}/rooms/ROOM1/join_game/`, () => HttpResponse.error())
-      );
+      server.use(http.post(`${API_BASE}/rooms/ROOM1/join_game/`, () => HttpResponse.error()));
 
       await expect(gameApi.joinRoom('ROOM1', 'Alice')).rejects.toThrow();
     });
 
     it('startGame throws on network error', async () => {
-      server.use(
-        http.post(`${API_BASE}/rooms/ROOM1/start_game/`, () => HttpResponse.error())
-      );
+      server.use(http.post(`${API_BASE}/rooms/ROOM1/start_game/`, () => HttpResponse.error()));
 
       await expect(gameApi.startGame('ROOM1', 'secret')).rejects.toThrow();
     });
@@ -801,9 +837,10 @@ describe('gameApi', () => {
   describe('5xx error handling', () => {
     it('getGameState throws on 502', async () => {
       server.use(
-        http.get(`${API_BASE}/rooms/ROOM1/game_state/`, () =>
-          new HttpResponse('Bad Gateway', { status: 502 })
-        )
+        http.get(
+          `${API_BASE}/rooms/ROOM1/game_state/`,
+          () => new HttpResponse('Bad Gateway', { status: 502 }),
+        ),
       );
 
       await expect(gameApi.getGameState('ROOM1')).rejects.toThrow();
@@ -811,9 +848,10 @@ describe('gameApi', () => {
 
     it('castVote throws on 503', async () => {
       server.use(
-        http.post(`${API_BASE}/rooms/ROOM1/vote/`, () =>
-          new HttpResponse('Service Unavailable', { status: 503 })
-        )
+        http.post(
+          `${API_BASE}/rooms/ROOM1/vote/`,
+          () => new HttpResponse('Service Unavailable', { status: 503 }),
+        ),
       );
 
       await expect(gameApi.castVote('ROOM1', 'secret', 'p2')).rejects.toThrow();
@@ -835,8 +873,8 @@ describe('discordApi', () => {
           HttpResponse.json({
             authorization_url: 'https://discord.com/oauth2/authorize?client_id=abc',
             state: 'random-state-123',
-          })
-        )
+          }),
+        ),
       );
 
       const result = await discordApi.getAuthUrl();
@@ -864,7 +902,7 @@ describe('discordApi', () => {
             refresh_token: 'refresh-abc',
             expires_in: 604800,
           });
-        })
+        }),
       );
 
       const result = await discordApi.handleCallback('auth-code', 'oauth-state');
@@ -875,12 +913,14 @@ describe('discordApi', () => {
 
     it('throws on 400 for invalid code', async () => {
       server.use(
-        http.get(`${API_BASE}/auth/discord/callback/`, () =>
-          new HttpResponse(JSON.stringify({ error: 'Invalid code' }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          })
-        )
+        http.get(
+          `${API_BASE}/auth/discord/callback/`,
+          () =>
+            new HttpResponse(JSON.stringify({ error: 'Invalid code' }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            }),
+        ),
       );
 
       await expect(discordApi.handleCallback('bad-code', 'state')).rejects.toThrow();
@@ -903,7 +943,7 @@ describe('discordApi', () => {
             discord_username: 'linked_user',
             linked_at: '2026-05-08T18:00:00Z',
           });
-        })
+        }),
       );
 
       const result = await discordApi.linkAccount('player-1', 'p-secret', {
@@ -928,7 +968,7 @@ describe('discordApi', () => {
         http.post(`${API_BASE}/auth/discord/link/`, async ({ request }) => {
           body = await jsonBody(request);
           return HttpResponse.json({ status: 'linked' });
-        })
+        }),
       );
 
       await discordApi.linkAccount('player-1', 'p-secret', {
@@ -944,12 +984,14 @@ describe('discordApi', () => {
 
     it('throws on 400 for missing player_secret', async () => {
       server.use(
-        http.post(`${API_BASE}/auth/discord/link/`, () =>
-          new HttpResponse(JSON.stringify({ error: 'Authentication required' }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          })
-        )
+        http.post(
+          `${API_BASE}/auth/discord/link/`,
+          () =>
+            new HttpResponse(JSON.stringify({ error: 'Authentication required' }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            }),
+        ),
       );
 
       await expect(
@@ -958,7 +1000,7 @@ describe('discordApi', () => {
           discord_username: 'user',
           access_token: 'token',
           expires_in: 3600,
-        })
+        }),
       ).rejects.toThrow();
     });
   });
@@ -970,8 +1012,8 @@ describe('discordApi', () => {
     it('sends player credentials and returns status', async () => {
       server.use(
         http.post(`${API_BASE}/auth/discord/unlink/`, () =>
-          HttpResponse.json({ status: 'unlinked' })
-        )
+          HttpResponse.json({ status: 'unlinked' }),
+        ),
       );
 
       const result = await discordApi.unlinkAccount('player-1', 'secret');
@@ -980,12 +1022,14 @@ describe('discordApi', () => {
 
     it('throws on 404 for unknown player', async () => {
       server.use(
-        http.post(`${API_BASE}/auth/discord/unlink/`, () =>
-          new HttpResponse(JSON.stringify({ error: 'Player not found' }), {
-            status: 404,
-            headers: { 'Content-Type': 'application/json' },
-          })
-        )
+        http.post(
+          `${API_BASE}/auth/discord/unlink/`,
+          () =>
+            new HttpResponse(JSON.stringify({ error: 'Player not found' }), {
+              status: 404,
+              headers: { 'Content-Type': 'application/json' },
+            }),
+        ),
       );
 
       await expect(discordApi.unlinkAccount('ghost', 'secret')).rejects.toThrow();
@@ -1008,7 +1052,7 @@ describe('discordApi', () => {
             discord_username: 'testuser',
             linked_at: '2026-05-08T18:00:00Z',
           });
-        })
+        }),
       );
 
       const result = await discordApi.getAccountStatus('player-1', 'secret');
@@ -1018,9 +1062,7 @@ describe('discordApi', () => {
 
     it('returns is_linked: false when not linked', async () => {
       server.use(
-        http.get(`${API_BASE}/auth/discord/status/`, () =>
-          HttpResponse.json({ is_linked: false })
-        )
+        http.get(`${API_BASE}/auth/discord/status/`, () => HttpResponse.json({ is_linked: false })),
       );
 
       const result = await discordApi.getAccountStatus('player-1', 'secret');
@@ -1043,7 +1085,7 @@ describe('discordApi', () => {
             discord_user_id: 'discord-456',
             discord_username: 'verified',
           });
-        })
+        }),
       );
 
       const result = await discordApi.getAccountStatusBySession('discord-456', 'sess-secret');
@@ -1056,20 +1098,21 @@ describe('discordApi', () => {
   // -----------------------------------------------------------------------
   describe('network error handling', () => {
     it('getAuthUrl throws on network error', async () => {
-      server.use(
-        http.get(`${API_BASE}/auth/discord/`, () => HttpResponse.error())
-      );
+      server.use(http.get(`${API_BASE}/auth/discord/`, () => HttpResponse.error()));
 
       await expect(discordApi.getAuthUrl()).rejects.toThrow();
     });
 
     it('linkAccount throws on network error', async () => {
-      server.use(
-        http.post(`${API_BASE}/auth/discord/link/`, () => HttpResponse.error())
-      );
+      server.use(http.post(`${API_BASE}/auth/discord/link/`, () => HttpResponse.error()));
 
       await expect(
-        discordApi.linkAccount('p', 's', { discord_user_id: 'd', discord_username: 'u', access_token: 'a', expires_in: 0 })
+        discordApi.linkAccount('p', 's', {
+          discord_user_id: 'd',
+          discord_username: 'u',
+          access_token: 'a',
+          expires_in: 0,
+        }),
       ).rejects.toThrow();
     });
   });
@@ -1094,8 +1137,8 @@ describe('leaderboardApi', () => {
               is_verified: true,
             },
           ],
-        })
-      )
+        }),
+      ),
     );
 
     const result = await leaderboardApi.global();
@@ -1106,18 +1149,14 @@ describe('leaderboardApi', () => {
 
   it('throws on 500', async () => {
     server.use(
-      http.get(`${API_BASE}/leaderboard/`, () =>
-        new HttpResponse('Server Error', { status: 500 })
-      )
+      http.get(`${API_BASE}/leaderboard/`, () => new HttpResponse('Server Error', { status: 500 })),
     );
 
     await expect(leaderboardApi.global()).rejects.toThrow();
   });
 
   it('throws on network error', async () => {
-    server.use(
-      http.get(`${API_BASE}/leaderboard/`, () => HttpResponse.error())
-    );
+    server.use(http.get(`${API_BASE}/leaderboard/`, () => HttpResponse.error()));
 
     await expect(leaderboardApi.global()).rejects.toThrow();
   });
@@ -1169,19 +1208,24 @@ describe('transformPlayer (via API responses)', () => {
       current_title: 'JACKPOT' as const,
       board: {
         tiles: [
-          { id: 't1', genre: 'House', status: 'complete' as const, audio_url: 'https://audio.com/t1.mp3' },
+          {
+            id: 't1',
+            genre: 'House',
+            status: 'complete' as const,
+            audioUrl: 'https://audio.com/t1.mp3',
+          },
         ],
       },
     };
 
     server.use(
-      http.post(`${API_BASE}/rooms/ROOM1/join_game/`, () => HttpResponse.json(backendPlayer))
+      http.post(`${API_BASE}/rooms/ROOM1/join_game/`, () => HttpResponse.json(backendPlayer)),
     );
 
     const player = await gameApi.joinRoom('ROOM1', 'SnakePlayer');
 
     expect(player.id).toBe('bp-1');
-    expect(player.name).toBe('SnakePlayer');         // maps from player_name
+    expect(player.name).toBe('SnakePlayer'); // maps from player_name
     expect(player.avatar).toBe('https://example.com/ava.png');
     expect(player.isDiscordVerified).toBe(true);
     expect(player.discordUsername).toBe('snake_user');
@@ -1205,13 +1249,18 @@ describe('transformPlayer (via API responses)', () => {
       name: 'TilePlayer',
       tiles: [
         { id: 't1', genre: 'Phonk', status: 'empty' as const },
-        { id: 't2', genre: 'Trap', status: 'complete' as const, audio_url: 'https://audio.com/a.mp3' },
+        {
+          id: 't2',
+          genre: 'Trap',
+          status: 'complete' as const,
+          audio_url: 'https://audio.com/a.mp3',
+        },
         { id: 't3', genre: 'Lo-Fi', status: 'pending' as const },
       ],
     };
 
     server.use(
-      http.post(`${API_BASE}/rooms/ROOM1/join_game/`, () => HttpResponse.json(backendPlayer))
+      http.post(`${API_BASE}/rooms/ROOM1/join_game/`, () => HttpResponse.json(backendPlayer)),
     );
 
     const player = await gameApi.joinRoom('ROOM1', 'TilePlayer');
@@ -1245,7 +1294,7 @@ describe('transformPlayer (via API responses)', () => {
     };
 
     server.use(
-      http.post(`${API_BASE}/rooms/ROOM1/join_game/`, () => HttpResponse.json(backendPlayer))
+      http.post(`${API_BASE}/rooms/ROOM1/join_game/`, () => HttpResponse.json(backendPlayer)),
     );
 
     const player = await gameApi.joinRoom('ROOM1', 'NameTest');
@@ -1259,7 +1308,7 @@ describe('transformPlayer (via API responses)', () => {
     };
 
     server.use(
-      http.post(`${API_BASE}/rooms/ROOM1/join_game/`, () => HttpResponse.json(backendPlayer))
+      http.post(`${API_BASE}/rooms/ROOM1/join_game/`, () => HttpResponse.json(backendPlayer)),
     );
 
     const player = await gameApi.joinRoom('ROOM1', 'NameTest');
@@ -1272,7 +1321,7 @@ describe('transformPlayer (via API responses)', () => {
     };
 
     server.use(
-      http.post(`${API_BASE}/rooms/ROOM1/join_game/`, () => HttpResponse.json(backendPlayer))
+      http.post(`${API_BASE}/rooms/ROOM1/join_game/`, () => HttpResponse.json(backendPlayer)),
     );
 
     const player = await gameApi.joinRoom('ROOM1', 'NameTest');
@@ -1287,7 +1336,7 @@ describe('transformPlayer (via API responses)', () => {
     };
 
     server.use(
-      http.post(`${API_BASE}/rooms/ROOM1/join_game/`, () => HttpResponse.json(backendPlayer))
+      http.post(`${API_BASE}/rooms/ROOM1/join_game/`, () => HttpResponse.json(backendPlayer)),
     );
 
     const player = await gameApi.joinRoom('ROOM1', 'Test');
@@ -1302,7 +1351,7 @@ describe('transformPlayer (via API responses)', () => {
     };
 
     server.use(
-      http.post(`${API_BASE}/rooms/ROOM1/join_game/`, () => HttpResponse.json(backendPlayer))
+      http.post(`${API_BASE}/rooms/ROOM1/join_game/`, () => HttpResponse.json(backendPlayer)),
     );
 
     const player = await gameApi.joinRoom('ROOM1', 'Test');
