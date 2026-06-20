@@ -23,7 +23,10 @@ function TestConsumer() {
       <div data-testid="is-host">{String(ctx.userSession.isHost)}</div>
       <div data-testid="has-access-token">{String(ctx.userSession.accessToken !== null)}</div>
       <button data-testid="set-name" onClick={() => ctx.setPlayerName('Alice')} />
-      <button data-testid="set-creds" onClick={() => ctx.setPlayerCredentials('id-1', 'secret-1')} />
+      <button
+        data-testid="set-creds"
+        onClick={() => ctx.setPlayerCredentials('id-1', 'secret-1')}
+      />
       <button data-testid="set-spectator" onClick={() => ctx.setSpectatorMode(true)} />
       <button data-testid="clear" onClick={() => ctx.clearSession()} />
       <button data-testid="store-tokens" onClick={() => ctx.storeTokens('access-1', 'refresh-1')} />

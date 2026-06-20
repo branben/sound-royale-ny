@@ -35,10 +35,17 @@ DATABASES = {
 
 # Disable throttling for tests — tests send rapid sequential requests
 REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "game_engine.auth.PlayerSecretAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
     "DEFAULT_THROTTLE_CLASSES": [],
     "DEFAULT_THROTTLE_RATES": {
         "anon": "10000/minute",
-        "user": "10000/minute",
+        "user": "100000/minute",
         "audio_upload": "10000/minute",
         "room_creation": "10000/minute",
     },
