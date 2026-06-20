@@ -10,7 +10,7 @@ import os
 # Provide defaults for required env vars so CI doesn't need a .env file
 os.environ.setdefault("SECRET_KEY", "ci-test-secret-key-not-for-production")
 os.environ.setdefault("DEBUG", "True")
-os.environ.setdefault("ALLOWED_HOSTS", "localhost,127.0.0.1")
+os.environ.setdefault("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver")
 
 from sound_royale_api.settings import *  # noqa: F401,F403
 

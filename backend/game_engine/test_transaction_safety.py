@@ -8,6 +8,7 @@ from .views import RoomViewSet
 import uuid
 import random
 from unittest.mock import patch, MagicMock
+from game_engine.test_auth_helper import get_jwt_header, create_user_for_player
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.transaction]
@@ -15,7 +16,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.transaction]
 
 class TransactionSafetyTestCase(TestCase):
     """Test transaction safety and rollback behavior in game operations"""
-    
+
     def setUp(self):
         """Set up test data"""
         self.room = Room.objects.create(code="1234", name="Test Room")
@@ -33,6 +34,9 @@ class TransactionSafetyTestCase(TestCase):
         )
         self.room.status = Room.Status.LOBBY
         self.room.save()
+        for p in [self.host, self.player]:
+            create_user_for_player(p)
+        self.host_auth = get_jwt_header(self.host)
     
     def test_reset_game_transaction_success(self):
         """Test successful game reset with transaction safety"""
@@ -44,28 +48,28 @@ class TransactionSafetyTestCase(TestCase):
                 position=i,
                 genre=Tile.Genre.PHONK
             )
-        
+
         initial_tile_count = Tile.objects.filter(player__room=self.room).count()
         self.assertEqual(initial_tile_count, 3)
-        
+
         # Test the reset_game action
         viewset = RoomViewSet()
         viewset.kwargs = {'code': self.room.code}
         viewset.format_kwarg = None
-        
-        request_data = {
-            'player_secret': str(self.host.player_secret)
-        }
-        
-        # Mock the request object
+
+        request_data = {}
+
+        # Mock the request object with proper user auth
         request = MagicMock()
         request.data = request_data
-        
+        request.user = self.host.user
+        request.user = self.host.user
+
         with patch.object(viewset, 'get_object', return_value=self.room):
             response = viewset.reset_game(request)
-        
+
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
+
         # Verify transaction worked correctly
         final_tile_count = Tile.objects.filter(player__room=self.room).count()
         self.assertEqual(final_tile_count, 18)  # 2 players * 9 tiles each
@@ -96,6 +100,7 @@ class TransactionSafetyTestCase(TestCase):
         
         request = MagicMock()
         request.data = request_data
+        request.user = self.host.user
         
         # Mock Tile.objects.create to raise IntegrityError on second call
         original_create = Tile.objects.create
@@ -152,6 +157,7 @@ class TransactionSafetyTestCase(TestCase):
         
         request = MagicMock()
         request.data = request_data
+        request.user = self.host.user
         
         with patch.object(viewset, 'get_object', return_value=self.room):
             response = viewset.reset_game(request)
@@ -179,25 +185,28 @@ class TransactionSafetyTestCase(TestCase):
     
     def test_reset_game_no_players_error(self):
         """Test error handling when no active players exist"""
-        # Delete all non-spectator players
+        # Create a spectator-only room (no host/producer)
         Player.objects.filter(room=self.room, is_spectator=False).delete()
-        
+        # Create a spectator to auth with
+        spectator = Player.objects.create(
+            room=self.room, name="OnlySpectator", is_spectator=True
+        )
+        create_user_for_player(spectator)
+
         viewset = RoomViewSet()
         viewset.kwargs = {'code': self.room.code}
         viewset.format_kwarg = None
-        
-        request_data = {
-            'player_secret': str(self.host.player_secret)
-        }
-        
+
+        request_data = {}
+
         request = MagicMock()
         request.data = request_data
-        
+        request.user = spectator.user
+
         with patch.object(viewset, 'get_object', return_value=self.room):
             response = viewset.reset_game(request)
-        
-        # Host check runs before no-players check; with no players (host deleted),
-        # room.host is None → returns 403 instead of reaching the no-players check
+
+        # Non-host gets permission error
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertIn("Only host can reset game", response.data['error'])
     
@@ -213,6 +222,7 @@ class TransactionSafetyTestCase(TestCase):
         
         request = MagicMock()
         request.data = request_data
+        request.user = self.host.user
         
         # Mock broadcast_game_update to raise an exception
         with patch('game_engine.views.broadcast_game_update', side_effect=Exception("Broadcast failed")):
@@ -233,38 +243,41 @@ class TransactionSafetyTestCase(TestCase):
         viewset.kwargs = {'code': self.room.code}
         viewset.format_kwarg = None
         
-        # Use non-host player secret
-        request_data = {
-            'player_secret': str(self.player.player_secret)
-        }
-        
+        # Use non-host player
+        request_data = {}
+
         request = MagicMock()
         request.data = request_data
-        
+        request.user = self.player.user
+
         with patch.object(viewset, 'get_object', return_value=self.room):
             response = viewset.reset_game(request)
-        
+
         # Should return permission error
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertIn("Only host can reset", response.data['error'])
     
-    def test_reset_game_missing_secret_error(self):
-        """Test error handling for missing player_secret"""
+    def test_reset_game_unauthenticated(self):
+        """Test error handling for unauthenticated requests"""
+        from django.contrib.auth.models import AnonymousUser
+        from rest_framework.test import APIRequestFactory
+        from rest_framework.request import Request
         viewset = RoomViewSet()
         viewset.kwargs = {'code': self.room.code}
         viewset.format_kwarg = None
-        
-        request_data = {}  # Missing player_secret
-        
-        request = MagicMock()
-        request.data = request_data
-        
+
+        factory = APIRequestFactory()
+        wsgi_request = factory.post('/api/rooms/1234/reset_game/', {}, content_type='application/json')
+        request = Request(wsgi_request)
+        request.user = AnonymousUser()
+        request._full_data = {}
+
         with patch.object(viewset, 'get_object', return_value=self.room):
             response = viewset.reset_game(request)
-        
-        # Should return bad request error
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("player_secret is required", response.data['error'])
+
+        # Should return auth error
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn("Authentication required", response.data['error'])
     
     def test_reset_game_concurrent_safety(self):
         """Test that concurrent reset operations are handled safely"""
@@ -279,6 +292,7 @@ class TransactionSafetyTestCase(TestCase):
         
         request = MagicMock()
         request.data = request_data
+        request.user = self.host.user
         
         # Mock get_object to return room with concurrent modification check
         with patch.object(viewset, 'get_object', return_value=self.room):
@@ -314,6 +328,7 @@ class TransactionSafetyTestCase(TestCase):
         
         request = MagicMock()
         request.data = request_data
+        request.user = self.host.user
         
         with patch.object(viewset, 'get_object', return_value=self.room):
             response = viewset.reset_game(request)
@@ -337,7 +352,7 @@ class TransactionSafetyTestCase(TestCase):
 
 class TransactionEdgeCasesTestCase(TestCase):
     """Test edge cases and boundary conditions for transaction safety"""
-    
+
     def setUp(self):
         """Set up test data"""
         self.room = Room.objects.create(code="5678", name="Edge Case Room")
@@ -357,6 +372,16 @@ class TransactionEdgeCasesTestCase(TestCase):
             )
         self.room.status = Room.Status.LOBBY
         self.room.save()
+        for p in Player.objects.filter(room=self.room):
+            create_user_for_player(p)
+        self.host_auth = get_jwt_header(self.host)
+
+    def _mock_request(self, data, user=None):
+        """Create a mock request with proper auth."""
+        request = MagicMock()
+        request.data = data
+        request.user = user or self.host.user
+        return request
     
     def test_reset_game_with_many_players(self):
         """Test reset game with many players (stress test)"""
@@ -370,6 +395,7 @@ class TransactionEdgeCasesTestCase(TestCase):
         
         request = MagicMock()
         request.data = request_data
+        request.user = self.host.user
         
         with patch.object(viewset, 'get_object', return_value=self.room):
             response = viewset.reset_game(request)
@@ -396,6 +422,7 @@ class TransactionEdgeCasesTestCase(TestCase):
         
         request = MagicMock()
         request.data = request_data
+        request.user = self.host.user
         
         with patch.object(viewset, 'get_object', return_value=self.room):
             response = viewset.reset_game(request)
@@ -433,6 +460,7 @@ class TransactionEdgeCasesTestCase(TestCase):
         
         request = MagicMock()
         request.data = request_data
+        request.user = self.host.user
         
         with patch.object(viewset, 'get_object', return_value=self.room):
             response = viewset.reset_game(request)

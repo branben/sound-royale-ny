@@ -141,6 +141,7 @@ def build_genre_performance(player):
 
 
 @api_view(["GET"])
+@permission_classes([AllowAny])
 def genre_performance_by_player_id(request, player_id):
     """Public genre performance endpoint keyed by stable player id."""
     player = get_object_or_404(Player, id=player_id)
@@ -149,6 +150,7 @@ def genre_performance_by_player_id(request, player_id):
 
 
 @api_view(["POST"])
+@permission_classes([AllowAny])
 def verify_admin_pin(request):
     """Verify an admin PIN. Returns 200 if valid, 403 if not."""
     configured_secret = getattr(settings, "THEME_ADMIN_SECRET", "")
@@ -167,6 +169,7 @@ def verify_admin_pin(request):
 
 
 @api_view(["POST"])
+@permission_classes([AllowAny])
 def set_checked_in_by_player_id(request, player_id):
     """Admin endpoint for idempotently assigning Checked In status."""
     configured_secret = getattr(settings, "THEME_ADMIN_SECRET", "")
@@ -236,6 +239,17 @@ def resolve_player_from_request(request, room):
             return None, Response(
                 {"error": "Player not found"},
                 status=status.HTTP_404_NOT_FOUND,
+            )
+
+    # Legacy fallback: player_secret only (no player_id)
+    if player_secret:
+        try:
+            player = Player.objects.get(room=room, player_secret=player_secret)
+            return player, None
+        except Player.DoesNotExist:
+            return None, Response(
+                {"error": "Invalid player credentials"},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
     return None, Response(
@@ -987,8 +1001,10 @@ class RoomViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def kick_player(self, request, pk=None, code=None):
         room = self.get_object()
+        # player_id in body is the TARGET to kick; auth is via JWT or player_secret
         target_player_id = request.data.get("player_id")
 
+        # Authenticate the requester separately from target identification
         player, error = resolve_player_from_request(request, room)
         if error:
             return error
@@ -1001,7 +1017,7 @@ class RoomViewSet(viewsets.ModelViewSet):
 
         if not target_player_id:
             return Response(
-                {"error": "player_id is required"},
+                {"error": "player_id (target) is required"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -1817,6 +1833,7 @@ def discord_callback(request):
 
 
 @api_view(["POST"])
+@permission_classes([AllowAny])
 def discord_link_account(request):
     """
     Link Discord account to a Sound Royale player.
@@ -1936,6 +1953,7 @@ def discord_unlink_account(request):
 
 
 @api_view(["GET"])
+@permission_classes([AllowAny])
 def discord_account_status(request):
     """
     Get Discord account linking status for a player.

@@ -9,6 +9,7 @@ from django.db import transaction
 from django.utils import timezone
 from .models import Room, Player, Tile, Round, Vote, ThemeRotation, DiscordAccount
 from .views import RoomViewSet
+from game_engine.test_auth_helper import get_jwt_header, get_player_secret_header, create_user_for_player
 
 
 class RoomAPITestCase(TestCase):
@@ -28,6 +29,10 @@ class RoomAPITestCase(TestCase):
             is_host=False,
             is_spectator=True
         )
+        create_user_for_player(self.host)
+        create_user_for_player(self.spectator)
+        self.host_auth = get_jwt_header(self.host)
+        self.spectator_auth = get_jwt_header(self.spectator)
 
     def test_room_list_empty(self):
         """Test listing rooms when no rooms exist"""
@@ -608,12 +613,12 @@ class RoomAPITestCase(TestCase):
         self.assertIn('Only host can reset', response.data['error'])
 
     def test_reset_game_missing_secret(self):
-        """Test resetting a game without providing player_secret"""
+        """Test resetting a game without providing authentication"""
         url = reverse('room-reset-game', kwargs={'code': '1234'})
         response = self.client.post(url, {}, format='json')
-        
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('player_secret is required', response.data['error'])
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn('Authentication required', response.data['error'])
 
     def test_kick_player_success(self):
         """Test kicking a player successfully"""
@@ -623,14 +628,13 @@ class RoomAPITestCase(TestCase):
             name='TargetPlayer',
             is_spectator=False
         )
-        
+
         data = {
-            'player_secret': str(self.host.player_secret),
             'player_id': str(target_player.id)
         }
         url = reverse('room-kick-player', kwargs={'code': '1234'})
-        response = self.client.post(url, data, format='json')
-        
+        response = self.client.post(url, data, format='json', **self.host_auth)
+
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse(Player.objects.filter(id=target_player.id).exists())
 
@@ -641,24 +645,23 @@ class RoomAPITestCase(TestCase):
             name='TargetPlayer',
             is_spectator=False
         )
-        
+
         data = {
-            'player_secret': str(self.spectator.player_secret),
             'player_id': str(target_player.id)
         }
         url = reverse('room-kick-player', kwargs={'code': '1234'})
-        response = self.client.post(url, data, format='json')
-        
+        response = self.client.post(url, data, format='json', **self.spectator_auth)
+
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertIn('Only host can kick', response.data['error'])
 
-    def test_kick_player_missing_data(self):
-        """Test kicking a player without required data"""
+    def test_kick_player_missing_target(self):
+        """Test kicking without specifying a target player"""
         url = reverse('room-kick-player', kwargs={'code': '1234'})
-        response = self.client.post(url, {}, format='json')
-        
+        response = self.client.post(url, {}, format='json', **self.host_auth)
+
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('player_secret and player_id are required', response.data['error'])
+        self.assertIn('player_id (target) is required', response.data['error'])
 
     def test_game_state_endpoint(self):
         """Test getting game state"""
@@ -720,6 +723,14 @@ class VotingAPITestCase(TestCase):
             timer_duration=60,
             voting_open=True  # Open voting for tests
         )
+
+        for p in [self.host, self.producer1, self.producer2, self.spectator1, self.spectator2, self.spectator3]:
+            create_user_for_player(p)
+        self.host_auth = get_jwt_header(self.host)
+        self.spectator1_auth = get_jwt_header(self.spectator1)
+        self.spectator2_auth = get_jwt_header(self.spectator2)
+        self.spectator3_auth = get_jwt_header(self.spectator3)
+        self.producer1_auth = get_jwt_header(self.producer1)
 
     def test_vote_success(self):
         """Test voting successfully"""
