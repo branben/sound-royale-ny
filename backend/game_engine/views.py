@@ -1706,6 +1706,11 @@ class TileViewSet(viewsets.ModelViewSet):
             "audio/aac",
         }
         audio_file = request.FILES.get("audio_file")
+        if not audio_file:
+            return Response(
+                {"error": "No audio file provided."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         if audio_file:
             if audio_file.size > settings.MAX_UPLOAD_SIZE:
                 return Response(

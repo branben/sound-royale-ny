@@ -4,13 +4,41 @@ from rest_framework import serializers
 from .models import Room, Player, Tile, Round, Vote, ThemeRotation
 
 
+from django.conf import settings
+from django.core.exceptions import ValidationError
+
 class TileSerializer(serializers.ModelSerializer):
     """Serializer for Tile model - matches React frontend Tile interface"""
 
     class Meta:
         model = Tile
-        fields = ["id", "genre", "status", "audio_url", "position"]
+        fields = ["id", "genre", "status", "audio_url", "audio_file", "position"]
         read_only_fields = ["id"]
+
+    # Allowed MIME types (should match views.py)
+    ALLOWED_AUDIO_MIME_TYPES = {
+        "audio/mpeg",
+        "audio/wav",
+        "audio/x-wav",
+        "audio/ogg",
+        "audio/flac",
+        "audio/mp4",
+        "audio/x-m4a",
+        "audio/aac",
+    }
+
+    def validate_audio_file(self, value):
+        if not value:
+            raise ValidationError("No audio file provided.")
+        if value.size > settings.MAX_UPLOAD_SIZE:
+            raise ValidationError(
+                f"File too large. Maximum size is {settings.MAX_UPLOAD_SIZE // (1024 * 1024)}MB."
+            )
+        if value.content_type not in self.ALLOWED_AUDIO_MIME_TYPES:
+            raise ValidationError(
+                f"Invalid file type '{value.content_type}'. Allowed types: mp3, wav, ogg, flac, m4a, aac."
+            )
+        return value
 
 
 class TileCreateSerializer(serializers.ModelSerializer):
