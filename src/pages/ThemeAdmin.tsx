@@ -11,11 +11,10 @@ import { toast } from 'sonner';
 
 type RotationDraft = Pick<ThemeRotation, 'key' | 'name' | 'description' | 'genres'>;
 
-const ADMIN_PIN = import.meta.env.VITE_THEME_ADMIN_PIN;
-
 export default function ThemeAdmin() {
   const [pin, setPin] = useState('');
   const [isUnlocked, setIsUnlocked] = useState(false);
+  const [adminSecret, setAdminSecret] = useState('');
   const [rotations, setRotations] = useState<RotationDraft[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [savingKey, setSavingKey] = useState<string | null>(null);
@@ -60,16 +59,22 @@ export default function ThemeAdmin() {
     };
   }, [isUnlocked]);
 
-  const unlock = () => {
-    if (!ADMIN_PIN) {
-      toast.error('Admin PIN is not configured');
+  const unlock = async () => {
+    if (!pin.trim()) {
+      toast.error('Please enter the admin PIN');
       return;
     }
-    if (pin !== ADMIN_PIN) {
-      toast.error('Invalid admin PIN');
-      return;
+    try {
+      const result = await roomApi.verifyAdminPin(pin.trim());
+      if (result.valid) {
+        setAdminSecret(pin.trim());
+        setIsUnlocked(true);
+      } else {
+        toast.error('Invalid admin PIN');
+      }
+    } catch {
+      toast.error('Failed to verify admin PIN');
     }
-    setIsUnlocked(true);
   };
 
   const updateRotation = (key: ThemeRotation['key'], patch: Partial<RotationDraft>) => {
@@ -109,7 +114,7 @@ export default function ThemeAdmin() {
           description: rotation.description.trim(),
           genres,
         },
-        pin,
+        adminSecret,
       );
       updateRotation(saved.key, {
         name: saved.name,

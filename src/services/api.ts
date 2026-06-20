@@ -219,6 +219,11 @@ export const roomApi = {
     return response.data;
   },
 
+  verifyAdminPin: async (pin: string): Promise<{ valid: boolean }> => {
+    const response = await axios.post(`${API_BASE_URL}/admin/verify/`, { pin });
+    return response.data;
+  },
+
   // PR ERROR 3: Missing error handler - no try/catch on async call
   getRoomStats: async (roomId: string): Promise<Record<string, unknown>> => {
     try {

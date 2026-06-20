@@ -6,15 +6,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Player } from '@/types/game';
-import { gameApi } from '@/services/api';
+import { gameApi, roomApi } from '@/services/api';
 import { TitleBadge } from '@/components/game/TitleBadge';
 import { toast } from 'sonner';
-
-const ADMIN_PIN = import.meta.env.VITE_THEME_ADMIN_PIN;
 
 export default function PlayerAdmin() {
   const [pin, setPin] = useState('');
   const [isUnlocked, setIsUnlocked] = useState(false);
+  const [adminSecret, setAdminSecret] = useState('');
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
@@ -38,22 +37,28 @@ export default function PlayerAdmin() {
       .finally(() => setIsLoading(false));
   }, [isUnlocked]);
 
-  const unlock = () => {
-    if (!ADMIN_PIN) {
-      toast.error('Admin PIN is not configured');
+  const unlock = async () => {
+    if (!pin.trim()) {
+      toast.error('Please enter the admin PIN');
       return;
     }
-    if (pin !== ADMIN_PIN) {
-      toast.error('Invalid admin PIN');
-      return;
+    try {
+      const result = await roomApi.verifyAdminPin(pin.trim());
+      if (result.valid) {
+        setAdminSecret(pin.trim());
+        setIsUnlocked(true);
+      } else {
+        toast.error('Invalid admin PIN');
+      }
+    } catch {
+      toast.error('Failed to verify admin PIN');
     }
-    setIsUnlocked(true);
   };
 
   const updateCheckedIn = async (player: Player, isCheckedIn: boolean) => {
     setSavingId(player.id);
     try {
-      const updated = await gameApi.setCheckedIn(player.id, isCheckedIn, pin);
+      const updated = await gameApi.setCheckedIn(player.id, isCheckedIn, adminSecret);
       setPlayers((prev) => prev.map((entry) => (entry.id === updated.id ? updated : entry)));
       toast.success(`${updated.name} updated`);
     } catch {
