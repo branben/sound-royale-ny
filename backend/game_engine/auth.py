@@ -40,11 +40,30 @@ def _resolve_player(player_id, player_secret):
         return None
 
 
-class WebSocketPlayerAuthMiddleware:
-    """Authenticate WebSocket connections using player_id and secret query params.
+@database_sync_to_async
+def _resolve_player_from_token(token):
+    """Resolve a player from a JWT token, or return None."""
+    try:
+        from rest_framework_simplejwt.tokens import AccessToken
+        from django.contrib.auth import get_user_model
 
-    Reads ?player_id=...&secret=... from the WebSocket query string and,
-    if valid, sets scope["player"] on the connection scope for consumers
+        access_token = AccessToken(token)
+        user_id = access_token["user_id"]
+        User = get_user_model()
+        user = User.objects.get(id=user_id)
+        return getattr(user, "player", None)
+    except Exception:
+        return None
+
+
+class WebSocketPlayerAuthMiddleware:
+    """Authenticate WebSocket connections using JWT token or player_secret fallback.
+
+    Priority:
+    1. JWT: ?token=<jwt> query param → resolve via User.player
+    2. Fallback: ?player_id=...&secret=... → resolve via Player model
+
+    If valid, sets scope["player"] on the connection scope for consumers
     to use without re-querying.
     """
 
@@ -55,13 +74,21 @@ class WebSocketPlayerAuthMiddleware:
         query_string = scope.get("query_string", b"").decode()
         query_params = parse_qs(query_string)
 
-        player_id = query_params.get("player_id", [None])[0]
-        player_secret = query_params.get("secret", [None])[0]
+        player = None
 
-        if player_id and player_secret:
-            scope["player"] = await _resolve_player(player_id, player_secret)
-        else:
-            scope["player"] = None
+        # Try JWT first
+        token = query_params.get("token", [None])[0]
+        if token:
+            player = await _resolve_player_from_token(token)
+
+        # Fallback to player_secret
+        if not player:
+            player_id = query_params.get("player_id", [None])[0]
+            player_secret = query_params.get("secret", [None])[0]
+            if player_id and player_secret:
+                player = await _resolve_player(player_id, player_secret)
+
+        scope["player"] = player
 
         return await self.inner(scope, receive, send)
 

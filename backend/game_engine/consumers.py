@@ -51,16 +51,28 @@ class GameConsumer(AsyncWebsocketConsumer):
             },
         )
 
-        if player:
-            await self.set_player_connected(player_id, True)
-            audit_logger.info(
-                "websocket_player_verified",
+        # Reject unauthenticated connections
+        if not player:
+            audit_logger.warning(
+                "websocket_unauthenticated_rejected",
                 extra={
                     "room_id": self.game_id,
-                    "player_id": player_id,
-                    "action": "verified",
+                    "room_code": self.room_code,
+                    "action": "rejected",
                 },
             )
+            await self.close(code=4003)
+            return
+
+        await self.set_player_connected(player_id, True)
+        audit_logger.info(
+            "websocket_player_verified",
+            extra={
+                "room_id": self.game_id,
+                "player_id": player_id,
+                "action": "verified",
+            },
+        )
 
         # Join room group
         await self.channel_layer.group_add(self.game_group_name, self.channel_name)

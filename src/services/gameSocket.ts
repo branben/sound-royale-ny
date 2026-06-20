@@ -49,6 +49,7 @@ export interface GameSocketOptions {
   gameId: string;
   playerId?: string;
   playerSecret?: string;
+  accessToken?: string | null;
   onMessage: MessageHandler;
   onConnect?: () => void;
   onDisconnect?: (reason: string) => void;
@@ -78,11 +79,15 @@ class GameSocketService {
 
     const url = new URL(`/ws/game/${this.options!.gameId}/`, baseUrl);
 
-    if (this.options!.playerId) {
-      url.searchParams.set('player_id', this.options!.playerId);
-    }
-    if (this.options!.playerSecret) {
+    // Prefer JWT token for auth
+    if (this.options!.accessToken) {
+      url.searchParams.set('token', this.options!.accessToken);
+    } else if (this.options!.playerSecret) {
+      // Fallback to player_secret for backward compat
       url.searchParams.set('secret', this.options!.playerSecret);
+      if (this.options!.playerId) {
+        url.searchParams.set('player_id', this.options!.playerId);
+      }
     }
 
     return url.toString();

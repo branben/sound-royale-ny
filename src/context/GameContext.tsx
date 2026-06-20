@@ -9,7 +9,7 @@ import React, {
 } from 'react';
 import { GameState, TileStatus, RoomResponse, Tile } from '@/types/game';
 import { mockGameState } from '@/data/mockGameState';
-import { normalizeRoomWinner, roomApi } from '@/services/api';
+import { normalizeRoomWinner, roomApi, getStoredAccessToken } from '@/services/api';
 import gameSocket, { GameSocketMessage } from '@/services/gameSocket';
 import { useUser } from './UserContext';
 
@@ -268,6 +268,7 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
       gameId: roomCode,
       playerId: userSession.playerId ?? undefined,
       playerSecret: userSession.playerSecret ?? undefined,
+      accessToken: getStoredAccessToken(),
       onMessage: handleMessage,
       onConnect: async () => {
         // Intentionally not re-fetching room data here: the first useEffect
