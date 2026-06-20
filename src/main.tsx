@@ -9,7 +9,9 @@ if (import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({
     dsn: import.meta.env.VITE_SENTRY_DSN,
     environment: import.meta.env.VITE_SENTRY_ENVIRONMENT ?? 'development',
-    tracesSampleRate: import.meta.env.VITE_SENTRY_TRACES_SAMPLE_RATE ? Number(import.meta.env.VITE_SENTRY_TRACES_SAMPLE_RATE) : 0.1,
+    tracesSampleRate: import.meta.env.VITE_SENTRY_TRACES_SAMPLE_RATE
+      ? Number(import.meta.env.VITE_SENTRY_TRACES_SAMPLE_RATE)
+      : 0.1,
     sendDefaultPii: false,
   });
 }
