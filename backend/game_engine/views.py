@@ -202,6 +202,48 @@ def get_authenticated_player(player):
         "refresh_token": str(refresh),
     }
 
+
+def resolve_player_from_request(request, room):
+    """Resolve player from JWT or player_secret fallback.
+
+    Priority:
+    1. JWT: request.user.player (via Player.user OneToOneField)
+    2. Fallback: player_id + player_secret from request body or headers
+
+    Returns (player, error_response) — one will be None.
+    """
+    # Try JWT first
+    user = getattr(request, 'user', None)
+    if user and getattr(user, 'is_authenticated', False):
+        player = getattr(user, 'player', None)
+        if player and player.room_id == room.id:
+            return player, None
+
+    # Fallback to player_secret in request body or headers
+    player_id = request.data.get('player_id') or request.META.get('HTTP_X_PLAYER_ID')
+    player_secret = request.data.get('player_secret') or request.META.get('HTTP_X_PLAYER_SECRET')
+
+    if player_id and player_secret:
+        try:
+            player = Player.objects.get(id=player_id, room=room)
+            if str(player.player_secret) != str(player_secret):
+                return None, Response(
+                    {"error": "Invalid player_secret"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            return player, None
+        except Player.DoesNotExist:
+            return None, Response(
+                {"error": "Player not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+    return None, Response(
+        {"error": "Authentication required"},
+        status=status.HTTP_403_FORBIDDEN,
+    )
+
+
 def get_vote_resolution(current_round):
     votes_for = {}
     checked_in_votes_for = set()
@@ -682,28 +724,9 @@ class RoomViewSet(viewsets.ModelViewSet):
         Toggle a player's ready status in this room.
         """
         room = self.get_object()
-        player_id = request.data.get("player_id")
-        player_secret = request.data.get("player_secret")
-
-        if not player_id or not player_secret:
-            return Response(
-                {"error": "player_id and player_secret are required"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        try:
-            player = Player.objects.get(id=player_id, room=room)
-        except Player.DoesNotExist:
-            return Response(
-                {"error": "Player not found"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        if str(player.player_secret) != str(player_secret):
-            return Response(
-                {"error": "Invalid player_secret"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        player, error = resolve_player_from_request(request, room)
+        if error:
+            return error
 
         player.is_ready = not player.is_ready
         player.save(update_fields=["is_ready"])
@@ -724,25 +747,14 @@ class RoomViewSet(viewsets.ModelViewSet):
         Start the game in a room. Only host can start.
         """
         room = self.get_object()
+        player, error = resolve_player_from_request(request, room)
+        if error:
+            return error
 
-        requester_secret = request.data.get("player_secret")
-        if not requester_secret:
+        if not player.is_host:
             return Response(
-                {"error": "player_secret is required"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        try:
-            host = room.host
-            if not host or str(host.player_secret) != requester_secret:
-                return Response(
-                    {"error": "Only host can start game"},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
-        except Exception as e:
-            return Response(
-                {"error": "Failed to verify host permissions"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                {"error": "Only host can start game"},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         if room.status != Room.Status.LOBBY:
@@ -853,26 +865,14 @@ class RoomViewSet(viewsets.ModelViewSet):
         Transaction-safe with proper rollback on any failure.
         """
         room = self.get_object()
-        requester_secret = request.data.get("player_secret")
+        player, error = resolve_player_from_request(request, room)
+        if error:
+            return error
 
-        if not requester_secret:
+        if not player.is_host:
             return Response(
-                {"error": "player_secret is required"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        try:
-            host = room.host
-            if not host or str(host.player_secret) != requester_secret:
-                return Response(
-                    {"error": "Only host can reset game"},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
-
-        except Exception as e:
-            return Response(
-                {"error": "Failed to verify host permissions"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                {"error": "Only host can reset game"},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         try:
@@ -987,50 +987,44 @@ class RoomViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def kick_player(self, request, pk=None, code=None):
         room = self.get_object()
-        requester_secret = request.data.get("player_secret")
         target_player_id = request.data.get("player_id")
 
-        if not requester_secret or not target_player_id:
+        player, error = resolve_player_from_request(request, room)
+        if error:
+            return error
+
+        if not player.is_host:
             return Response(
-                {"error": "player_secret and player_id are required"},
+                {"error": "Only host can kick players"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if not target_player_id:
+            return Response(
+                {"error": "player_id is required"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
-            host = room.host
-            if not host or str(host.player_secret) != requester_secret:
+            target_player = room.players.get(id=target_player_id)
+            if target_player == player:
                 return Response(
-                    {"error": "Only host can kick players"},
-                    status=status.HTTP_403_FORBIDDEN,
+                    {"error": "Cannot kick the host"},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            try:
-                target_player = room.players.get(id=target_player_id)
-                if target_player == host:
-                    return Response(
-                        {"error": "Cannot kick the host"},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
+            player_name = target_player.name
+            target_player.delete()
+            broadcast_game_update(room)
 
-                player_name = target_player.name
-                target_player.delete()
-                broadcast_game_update(room)
-
-                return Response(
-                    {"status": f"Player {player_name} kicked"},
-                    status=status.HTTP_200_OK,
-                )
-
-            except Player.DoesNotExist:
-                return Response(
-                    {"error": "Player not found"}, status=status.HTTP_404_NOT_FOUND
-                )
-
-        except Exception as e:
-            logger.exception(f"Failed to kick player in room {room.code}")
             return Response(
-                {"error": "Failed to kick player. Please try again."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                {"status": f"Player {player_name} kicked"},
+                status=status.HTTP_200_OK,
+            )
+
+        except Player.DoesNotExist:
+            return Response(
+                {"error": "Player not found"}, status=status.HTTP_404_NOT_FOUND
             )
 
     @action(detail=True, methods=["post"])
@@ -1040,22 +1034,16 @@ class RoomViewSet(viewsets.ModelViewSet):
         Only spectators can vote, and only when voting is open.
         """
         room = self.get_object()
-
-        player_secret = request.data.get("player_secret")
         voted_for_player_id = request.data.get("voted_for_player_id")
 
-        if not player_secret or not voted_for_player_id:
-            return Response(
-                {"error": "player_secret and voted_for_player_id are required"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        voter, error = resolve_player_from_request(request, room)
+        if error:
+            return error
 
-        try:
-            voter = Player.objects.get(room=room, player_secret=player_secret)
-        except Player.DoesNotExist:
+        if not voted_for_player_id:
             return Response(
-                {"error": "Player not found with this secret"},
-                status=status.HTTP_404_NOT_FOUND,
+                {"error": "voted_for_player_id is required"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         if not voter.is_spectator:
@@ -1258,25 +1246,14 @@ class RoomViewSet(viewsets.ModelViewSet):
         Only host can trigger this.
         """
         room = self.get_object()
+        player, error = resolve_player_from_request(request, room)
+        if error:
+            return error
 
-        requester_secret = request.data.get("player_secret")
-        if not requester_secret:
+        if not player.is_host:
             return Response(
-                {"error": "player_secret is required"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        try:
-            host = room.host
-            if not host or str(host.player_secret) != requester_secret:
-                return Response(
-                    {"error": "Only host can advance the turn"},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
-        except Player.DoesNotExist:
-            return Response(
-                {"error": "Host not found"},
-                status=status.HTTP_404_NOT_FOUND,
+                {"error": "Only host can advance the turn"},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         current_round = Round.objects.filter(room=room).first()
@@ -1371,25 +1348,14 @@ class RoomViewSet(viewsets.ModelViewSet):
         Open voting for spectators after timer ends.
         """
         room = self.get_object()
+        player, error = resolve_player_from_request(request, room)
+        if error:
+            return error
 
-        requester_secret = request.data.get("player_secret")
-        if not requester_secret:
+        if not player.is_host:
             return Response(
-                {"error": "player_secret is required"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        try:
-            host = room.host
-            if not host or str(host.player_secret) != requester_secret:
-                return Response(
-                    {"error": "Only host can open voting"},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
-        except Player.DoesNotExist:
-            return Response(
-                {"error": "Host not found"},
-                status=status.HTTP_404_NOT_FOUND,
+                {"error": "Only host can open voting"},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         current_round = Round.objects.filter(room=room).first()
