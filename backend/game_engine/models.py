@@ -110,6 +110,8 @@ class ThemeRotation(models.Model):
 
 
 class Player(models.Model):
+    # Link to Django auth User for JWT authentication
+    user = models.OneToOneField('auth.User', related_name='player', null=True, on_delete=models.CASCADE)
     class Title(models.TextChoices):
         NONE = "NONE", "None"
         JACKPOT = "JACKPOT", "Jackpot"

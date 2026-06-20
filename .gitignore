@@ -114,3 +114,5 @@ simple-agents.toml
 deacon/
 .pr_agent.toml
 .pr_agent/
+# CocoIndex Code (ccc)
+/.cocoindex_code/

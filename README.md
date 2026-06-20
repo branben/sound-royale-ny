@@ -16,7 +16,7 @@ Sound Royale is a multiplayer music bingo game where producers compete head-to-h
 | Layer | Technology |
 |-------|-----------|
 | Frontend | React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui |
-| Backend | Django 5.2, Django REST Framework, Django Channels |
+| Backend | Django 4.2, Django REST Framework, Django Channels |
 | Real-time | WebSockets via Django Channels + Redis |
 | Database | PostgreSQL (production), SQLite (development) |
 | CI/CD | GitHub Actions, Docker Compose, Playwright |

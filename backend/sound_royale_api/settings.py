@@ -14,6 +14,7 @@ from pathlib import Path
 import logging
 import os
 from pathlib import Path
+from datetime import timedelta
 from decouple import config
 from corsheaders.defaults import default_headers
 
@@ -62,6 +63,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework_simplejwt',
     'corsheaders',
     'channels',
     'game_engine',
@@ -190,12 +192,20 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:8081",
 ]
 
+# SimpleJWT configuration
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+}
+
 # Django REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',
+        'rest_framework.permissions.IsAuthenticated',
     ],
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
         'game_engine.auth.PlayerSecretAuthentication',
     ],
     'DEFAULT_RENDERER_CLASSES': [
