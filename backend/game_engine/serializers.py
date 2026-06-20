@@ -331,11 +331,13 @@ class RoomCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating new rooms"""
 
     player_name = serializers.CharField(write_only=True, required=False)
+    access_token = serializers.CharField(read_only=True)
+    refresh_token = serializers.CharField(read_only=True)
 
     class Meta:
         model = Room
-        fields = ["id", "code", "name", "status", "player_name", "theme", "custom_genres", "total_rounds"]
-
+        fields = ["id", "code", "name", "status", "player_name", "theme", "custom_genres", "total_rounds", "access_token", "refresh_token"]
+        read_only_fields = ["access_token", "refresh_token"]
     def create(self, validated_data):
         """Create a new room with default values"""
         # player_name is used for host creation in the view, not for the room model
@@ -380,12 +382,14 @@ class PlayerCreateSerializer(serializers.ModelSerializer):
     """Serializer for players joining a room - returns player_secret on creation"""
 
     player_secret = serializers.UUIDField(read_only=True)
+    access_token = serializers.CharField(read_only=True)
+    refresh_token = serializers.CharField(read_only=True)
     name = serializers.CharField()
 
     class Meta:
         model = Player
-        fields = ["id", "name", "is_spectator", "is_host", "player_secret"]
-        read_only_fields = ["id", "player_secret", "is_host"]
+        fields = ["id", "name", "is_spectator", "is_host", "player_secret", "access_token", "refresh_token"]
+        read_only_fields = ["id", "player_secret", "is_host", "access_token", "refresh_token"]
 
     def create(self, validated_data):
         """Create a new player"""

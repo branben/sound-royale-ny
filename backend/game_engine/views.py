@@ -8,6 +8,8 @@ from django.db import transaction, IntegrityError
 from django.db.models import Prefetch
 from django.utils import timezone
 from django.conf import settings
+from django.contrib.auth import get_user_model
+from rest_framework_simplejwt.tokens import RefreshToken
 from itertools import groupby
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
@@ -181,6 +183,24 @@ def set_checked_in_by_player_id(request, player_id):
     serializer = PlayerSerializer(player)
     return Response(serializer.data, status=status.HTTP_200_OK)
 
+
+def get_authenticated_player(player):
+    """Create a Django User for the player if needed and return JWT tokens."""
+    User = get_user_model()
+    if not player.user:
+        # Generate a deterministic username based on player UUID
+        username = f"player_{player.id.hex[:12]}"
+        # Ensure uniqueness (unlikely collision)
+        user = User.objects.create(username=username)
+        player.user = user
+        player.save(update_fields=["user"])
+    else:
+        user = player.user
+    refresh = RefreshToken.for_user(user)
+    return {
+        "access_token": str(refresh.access_token),
+        "refresh_token": str(refresh),
+    }
 
 def get_vote_resolution(current_round):
     votes_for = {}
@@ -509,6 +529,8 @@ class RoomViewSet(viewsets.ModelViewSet):
         player = Player.objects.create(
             room=room, name=player_name, is_spectator=False, is_host=True
         )
+        # Generate JWT tokens for the host player
+        token_data = get_authenticated_player(player)
         discord_error = attach_discord_identity_from_session(player, request.data)
         if discord_error is not None:
             player.delete()
@@ -525,14 +547,14 @@ class RoomViewSet(viewsets.ModelViewSet):
                 player=player, room=room, position=position, genre=genres.pop()
             )
 
-        return Response(
-            {
+        response_data = {
                 "room_code": room.code,
                 "player_id": str(player.id),
                 "player_secret": str(player.player_secret),
-            },
-            status=status.HTTP_201_CREATED,
-        )
+                "access_token": token_data["access_token"],
+                "refresh_token": token_data["refresh_token"],
+            }
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["post"])
     def join_game(self, request, pk=None, code=None):
@@ -606,8 +628,17 @@ class RoomViewSet(viewsets.ModelViewSet):
 
                     transaction.on_commit(lambda: broadcast_game_update(room))
 
+            
+                    token_data = get_authenticated_player(player)
+
+                    response_data = PlayerCreateSerializer(player).data
+                    response_data.update({
+                        "access_token": token_data["access_token"],
+                        "refresh_token": token_data["refresh_token"],
+                    })
+
                     return Response(
-                        PlayerCreateSerializer(player).data,
+                        response_data,
                         status=status.HTTP_201_CREATED,
                     )
 
