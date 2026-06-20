@@ -18,6 +18,7 @@ export default function Lobby() {
     setPlayerCredentials,
     setActiveRoomSession,
     ensureAnonymousSession,
+    storeTokens,
   } = useUser();
   const iconRef = useRef(null);
   const titleRef = useRef(null);
@@ -215,10 +216,13 @@ export default function Lobby() {
         selectedCustomGenres,
         getDiscordSession() ?? undefined,
       );
-      const { room_code, player_id, player_secret } = response;
+      const { room_code, player_id, player_secret, access_token, refresh_token } = response;
 
       setPlayerName(playerNameInput.trim());
       setPlayerCredentials(player_id, player_secret);
+      if (access_token && refresh_token) {
+        storeTokens(access_token, refresh_token);
+      }
       setActiveRoomSession(room_code, {
         playerName: playerNameInput.trim(),
         playerId: player_id,
@@ -278,9 +282,12 @@ export default function Lobby() {
           [],
           getDiscordSession() ?? undefined,
         );
-        const { room_code, player_id, player_secret } = response;
+        const { room_code, player_id, player_secret, access_token, refresh_token } = response;
         setPlayerName(playerNameInput.trim());
         setPlayerCredentials(player_id, player_secret);
+        if (access_token && refresh_token) {
+          storeTokens(access_token, refresh_token);
+        }
         setActiveRoomSession(room_code, {
           playerName: playerNameInput.trim(),
           playerId: player_id,

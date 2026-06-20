@@ -186,6 +186,7 @@ export default function Room() {
     clearSession,
     isHost: isHostFunction,
     setHostStatus,
+    storeTokens,
   } = useUser();
   const { setForceRefresh } = useGameRefresh();
   const { gameState, setGameState, timeRemaining } = useGame();
@@ -275,6 +276,9 @@ export default function Room() {
       );
       setPlayerName(name.trim());
       setPlayerCredentials(player.id, player.playerSecret!);
+      if (player.access_token && player.refresh_token) {
+        storeTokens(player.access_token, player.refresh_token);
+      }
       setSpectatorMode(false);
       setActiveRoomSession(roomId, {
         playerName: name.trim(),
@@ -303,6 +307,9 @@ export default function Room() {
       );
       setPlayerName(player.name);
       setPlayerCredentials(player.id, player.playerSecret!);
+      if (player.access_token && player.refresh_token) {
+        storeTokens(player.access_token, player.refresh_token);
+      }
       setSpectatorMode(true);
       setActiveRoomSession(roomId, {
         playerName: player.name,

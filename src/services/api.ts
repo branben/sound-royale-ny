@@ -3,6 +3,7 @@ import {
   Player,
   RoomResponse,
   CreateRoomResponse,
+  JoinedPlayerResponse,
   ThemeRotation,
   GenrePerformance,
   BackendPlayer,
@@ -243,13 +244,17 @@ export const gameApi = {
     playerName: string,
     isSpectator?: boolean,
     discordSession?: DiscordSession,
-  ): Promise<Player> => {
+  ): Promise<JoinedPlayerResponse> => {
     const response = await api.post(`/rooms/${roomId}/join_game/`, {
       name: playerName,
       is_spectator: isSpectator || false,
       ...discordSessionPayload(discordSession),
     });
-    return transformPlayer(response.data);
+    return {
+      ...transformPlayer(response.data),
+      access_token: response.data.access_token,
+      refresh_token: response.data.refresh_token,
+    };
   },
 
   rejoinRoom: async (roomId: string, playerSecret: string): Promise<Player | null> => {

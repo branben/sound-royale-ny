@@ -217,6 +217,13 @@ export interface CreateRoomResponse {
   room_code: string;
   player_id: string;
   player_secret: string;
+  access_token?: string;
+  refresh_token?: string;
+}
+
+export interface JoinedPlayerResponse extends Player {
+  access_token?: string;
+  refresh_token?: string;
 }
 
 export interface GenrePerformance {

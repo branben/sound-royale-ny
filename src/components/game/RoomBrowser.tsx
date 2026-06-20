@@ -18,7 +18,7 @@ interface RoomBrowserProps {
 
 export const RoomBrowser: React.FC<RoomBrowserProps> = ({ isOpen, onClose, onRoomJoined }) => {
   const navigate = useNavigate();
-  const { userSession, setPlayerCredentials, setActiveRoomSession } = useUser();
+  const { userSession, setPlayerCredentials, setActiveRoomSession, storeTokens } = useUser();
   const [rooms, setRooms] = useState<RoomResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [joiningRoomCode, setJoiningRoomCode] = useState<string | null>(null);
@@ -59,6 +59,9 @@ export const RoomBrowser: React.FC<RoomBrowserProps> = ({ isOpen, onClose, onRoo
         getDiscordSession() ?? undefined,
       );
       setPlayerCredentials(player.id, player.playerSecret!);
+      if (player.access_token && player.refresh_token) {
+        storeTokens(player.access_token, player.refresh_token);
+      }
       setActiveRoomSession(room.code, {
         playerName: userSession.playerName!,
         playerId: player.id,
