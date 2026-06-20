@@ -12,6 +12,45 @@ import { DiscordLinkResponse, DiscordSession } from '@/services/discordSession';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
+// ── Token storage helpers ──────────────────────────────────────────────
+const ACCESS_TOKEN_KEY = 'soundRoyaleAccessToken';
+const REFRESH_TOKEN_KEY = 'soundRoyaleRefreshToken';
+
+export function getStoredAccessToken(): string | null {
+  try {
+    return localStorage.getItem(ACCESS_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function getStoredRefreshToken(): string | null {
+  try {
+    return localStorage.getItem(REFRESH_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function storeTokens(access: string, refresh: string): void {
+  try {
+    localStorage.setItem(ACCESS_TOKEN_KEY, access);
+    localStorage.setItem(REFRESH_TOKEN_KEY, refresh);
+  } catch (error) {
+    console.warn('Failed to store tokens:', error);
+  }
+}
+
+export function clearStoredTokens(): void {
+  try {
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+  } catch (error) {
+    console.warn('Failed to clear tokens:', error);
+  }
+}
+
+// ── Axios instance ─────────────────────────────────────────────────────
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 15000,
@@ -21,11 +60,43 @@ const api = axios.create({
   withCredentials: false,
 });
 
-// Auto-log 4xx/5xx API errors to the backend error log
+// Request interceptor: attach JWT Authorization header
+api.interceptors.request.use(
+  (config) => {
+    const token = getStoredAccessToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error),
+);
+
+// Track pending refresh to avoid duplicate refresh calls
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (token: string) => void;
+  reject: (error: unknown) => void;
+}> = [];
+
+function processQueue(error: unknown, token: string | null): void {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token ?? '');
+    }
+  });
+  failedQueue = [];
+}
+
+// Response interceptor: handle 401 with token refresh
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const config = error.config || {};
+
+    // Auto-log 4xx/5xx API errors to the backend error log
     if (!config.__skipErrorLog) {
       try {
         await api
@@ -39,6 +110,51 @@ api.interceptors.response.use(
           .catch((err) => console.error('Failed to log error:', err));
       } catch {}
     }
+
+    // Handle 401: attempt token refresh
+    const status = error.response?.status;
+    if (status === 401 && !config.__isRetry && !config.__skipErrorLog) {
+      const refreshToken = getStoredRefreshToken();
+      if (!refreshToken) {
+        clearStoredTokens();
+        return Promise.reject(error);
+      }
+
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({
+            resolve: (token: string) => {
+              config.headers.Authorization = `Bearer ${token}`;
+              config.__isRetry = true;
+              resolve(api(config));
+            },
+            reject,
+          });
+        });
+      }
+
+      isRefreshing = true;
+      config.__isRetry = true;
+
+      try {
+        const response = await axios.post(`${API_BASE_URL}/token/refresh/`, {
+          refresh: refreshToken,
+        });
+        const newAccess = response.data.access;
+        const newRefresh = response.data.refresh;
+        storeTokens(newAccess, newRefresh);
+        config.headers.Authorization = `Bearer ${newAccess}`;
+        processQueue(null, newAccess);
+        return api(config);
+      } catch (refreshError) {
+        clearStoredTokens();
+        processQueue(refreshError, null);
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
+    }
+
     return Promise.reject(error);
   },
 );

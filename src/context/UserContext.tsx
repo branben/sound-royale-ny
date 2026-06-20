@@ -9,6 +9,7 @@ import React, {
 } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Player } from '@/types/game';
+import { storeTokens, clearStoredTokens, getStoredAccessToken, getStoredRefreshToken } from '@/services/api';
 
 interface VerifiedUser {
   id: string;
@@ -25,6 +26,8 @@ interface UserSession {
   isAuthenticated: boolean;
   isHost: boolean;
   verifiedUser?: VerifiedUser | null;
+  accessToken?: string | null;
+  refreshToken?: string | null;
 }
 
 interface RoomSessionInput {
@@ -54,6 +57,10 @@ interface UserContextType {
   requestLoginCode: (email: string) => Promise<void>;
   verifyLoginCode: (email: string, code: string, displayName?: string) => Promise<void>;
   logoutVerifiedUser: () => void;
+  storeTokens: (access: string, refresh: string) => void;
+  clearTokens: () => void;
+  getAccessToken: () => string | null;
+  getRefreshToken: () => string | null;
 }
 
 const ROOM_SESSIONS_KEY = 'soundRoyaleSessions';
@@ -69,6 +76,8 @@ const initialSession: UserSession = {
   isSpectator: false,
   isAuthenticated: false,
   isHost: false,
+  accessToken: null,
+  refreshToken: null,
 };
 
 const safeLocalStorage = {
@@ -342,6 +351,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
     safeSessionStorage.removeItem(ACTIVE_SESSION_KEY);
     clearLegacySessionKeys();
+    clearStoredTokens();
     setUserSession(initialSession);
   }, []);
 
@@ -383,6 +393,24 @@ export function UserProvider({ children }: { children: ReactNode }) {
     setUserSession((prev) => ({ ...prev, verifiedUser: null }));
   };
 
+  const handleStoreTokens = useCallback((access: string, refresh: string) => {
+    storeTokens(access, refresh);
+    setUserSession((prev) => ({ ...prev, accessToken: access, refreshToken: refresh }));
+  }, []);
+
+  const handleClearTokens = useCallback(() => {
+    clearStoredTokens();
+    setUserSession((prev) => ({ ...prev, accessToken: null, refreshToken: null }));
+  }, []);
+
+  const handleGetAccessToken = useCallback((): string | null => {
+    return getStoredAccessToken();
+  }, []);
+
+  const handleGetRefreshToken = useCallback((): string | null => {
+    return getStoredRefreshToken();
+  }, []);
+
   return (
     <UserContext.Provider
       value={{
@@ -399,6 +427,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
         requestLoginCode,
         verifyLoginCode,
         logoutVerifiedUser,
+        storeTokens: handleStoreTokens,
+        clearTokens: handleClearTokens,
+        getAccessToken: handleGetAccessToken,
+        getRefreshToken: handleGetRefreshToken,
       }}
     >
       {children}
