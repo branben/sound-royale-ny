@@ -306,6 +306,15 @@ type MockGenrePerformance = Array<{
   grade: 'S' | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'N/A';
 }>;
 
+interface MockLeaderboardUser {
+  id: string;
+  name: string;
+  eloRating?: number;
+  eloWins?: number;
+  eloLosses?: number;
+  eloMatches?: number;
+}
+
 interface MockApiRoutesOptions {
   roomResponse: Record<string, unknown> | MockRouteHandler;
   rejoin?: {
@@ -321,6 +330,7 @@ interface MockApiRoutesOptions {
   players?: MockPlayerLike[] | MockRouteHandler;
   genrePerformance?: Record<string, MockGenrePerformance> | MockRouteHandler;
   setCheckedIn?: MockRouteHandler;
+  leaderboard?: { leaderboard: MockLeaderboardUser[] } | MockRouteHandler;
 }
 
 function toTileResponse(tile: NonNullable<MockPlayerLike['board']>['tiles'][number]): Record<string, unknown> {
@@ -501,6 +511,17 @@ export async function mockApiRoutes(
         await route.fulfill({ json: options.roomResponse });
       }
       return;
+    }
+
+    if (url.includes('/leaderboard/') && !url.includes('genre_performance')) {
+      if (options.leaderboard) {
+        if (typeof options.leaderboard === 'function' || 'json' in options.leaderboard) {
+          await fulfillRoute(route, options.leaderboard);
+        } else {
+          await route.fulfill({ json: options.leaderboard });
+        }
+        return;
+      }
     }
 
     // Default: continue with original request

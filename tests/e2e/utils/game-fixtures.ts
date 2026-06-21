@@ -179,6 +179,7 @@ export function createMockELOInfo(
 export function createMockPlayer(
   name: string,
   options: {
+    id?: string;
     isSpectator?: boolean;
     isHost?: boolean;
     isReady?: boolean;
@@ -209,7 +210,7 @@ export function createMockPlayer(
   } = options;
 
   return {
-    id: `player-${randomUUID().slice(0, 8)}`,
+    id: options.id ?? `player-${randomUUID().slice(0, 8)}`,
     name,
     avatar: undefined,
     isSpectator,
