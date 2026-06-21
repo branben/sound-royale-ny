@@ -409,34 +409,15 @@ export default function Room() {
       return;
     }
 
-    if (gameState.status === 'lobby') {
-      // Room code does a dramatic reveal
-      if (roomCodeRef.current) {
-        gsap.from(roomCodeRef.current, {
-          scale: 0.5,
-          opacity: 0,
-          ease: 'elastic.out(1, 0.5)',
-          duration: 0.8,
-        });
-      }
-
-      // "Join Battle" card fades in and slides up
-      if (joinBattleCardRef.current) {
-        gsap.from(joinBattleCardRef.current, {
-          y: 20,
-          opacity: 0,
-          duration: 0.5,
-          delay: 0.2,
-        });
-      }
-
-      if (roomCodeRef.current) {
-        gsap.from(roomCodeRef.current, { opacity: 0, duration: 0.3 });
-      }
-      if (joinBattleCardRef.current) {
-        gsap.from(joinBattleCardRef.current, { opacity: 0, duration: 0.3 });
-      }
+    if (gameState.status === 'lobby' && roomCodeRef.current) {
+      gsap.from(roomCodeRef.current, {
+        scale: 0.92,
+        opacity: 0,
+        ease: 'power2.out',
+        duration: 0.25,
+      });
     }
+
   }, [gameState.status]); // Only re-run entrance animations on status change, not players update
 
   // Auto-reset after match ends
@@ -498,11 +479,11 @@ export default function Room() {
         </header>
         <main className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-3"></div>
             <p className="text-sm text-muted-foreground">
-              {isReconnecting ? 'Reconnecting...' : 'Loading room...'}
+              {isReconnecting ? 'Reconnecting…' : 'Loading room…'}
             </p>
           </div>
+
         </main>
       </div>
     );
