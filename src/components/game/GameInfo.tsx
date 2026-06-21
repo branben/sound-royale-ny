@@ -71,7 +71,7 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
     return () => clearInterval(intervalId);
   }, [gameState.status, gameState.roundState?.timerEndsAt, timeRemaining]);
 
-  // Timer announcement effect
+  // Timer announcement effect — only fire once per round when timer hits 0
   useEffect(() => {
     if (gameState.status !== 'playing') {
       return;
@@ -79,7 +79,9 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
 
     if (displayTimeLeft === 0 && timeUpAnnouncedRef.current !== gameState.currentRound) {
       timeUpAnnouncedRef.current = gameState.currentRound;
-      const spectatorCount = Object.values(gameState.players).filter(
+      // Compute spectator count at the moment timer hits 0
+      const currentPlayers = gameState.players ?? {};
+      const spectatorCount = Object.values(currentPlayers).filter(
         (player) => player.isSpectator || player.name?.startsWith('Spectator '),
       ).length;
       toast.message(
