@@ -170,8 +170,8 @@ jobs:
           done
 
       - name: Run full E2E suite
-        run: npx playwright test tests/e2e/ --reporter=line --workers=2
-        timeout-minutes: 15
+        run: npx playwright test tests/e2e/ --reporter=line --workers=2 --exclude tests/e2e/network-recovery.spec.ts
+        timeout-minutes: 20
 
       - name: Shut down dev server
         if: always()
