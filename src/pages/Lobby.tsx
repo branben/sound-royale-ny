@@ -111,55 +111,10 @@ export default function Lobby() {
 
   useEffect(() => {
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-    if (prefersReducedMotion) {
-      // Skip animations if reduced motion is preferred
-      if (iconRef.current) gsap.set(iconRef.current, { scale: 1 });
-      if (titleRef.current) gsap.set(titleRef.current, { y: 0, opacity: 1 });
-      if (taglineRef.current) gsap.set(taglineRef.current, { y: 0, opacity: 1 });
-      if (mainCardRef.current) gsap.set(mainCardRef.current, { y: 0, opacity: 1 });
-      return;
-    }
-
-    // Header icon scales up from 0 with a bounce
-    if (iconRef.current) {
-      gsap.from(iconRef.current, {
-        scale: 0,
-        ease: 'back.out(1.7)',
-        duration: 0.6,
-      });
-    }
-
-    // Title slides down from y: -30 with fade
-    if (titleRef.current) {
-      gsap.from(titleRef.current, {
-        y: -30,
-        opacity: 0,
-        duration: 0.5,
-        delay: 0.2,
-      });
-    }
-
-    // Tagline slides down from y: -20 with fade
-    if (taglineRef.current) {
-      gsap.from(taglineRef.current, {
-        y: -20,
-        opacity: 0,
-        duration: 0.5,
-        delay: 0.25, // Slightly after title
-      });
-    }
-
-    // Main content card slides up from y: 40 with fade
-    if (mainCardRef.current) {
-      gsap.from(mainCardRef.current, {
-        y: 40,
-        opacity: 0,
-        duration: 0.5,
-        delay: 0.3,
-      });
-    }
+    if (prefersReducedMotion || !mainCardRef.current) return;
+    gsap.from(mainCardRef.current, { opacity: 0, duration: 0.2, ease: 'power1.out' });
   }, []);
+
 
   const handleRoomJoined = (joinedRoomCode: string) => {
     setRoomCode(joinedRoomCode);
@@ -315,21 +270,18 @@ export default function Lobby() {
   return (
     <div
       data-testid="lobby"
-      className="min-h-screen bg-background relative overflow-hidden flex flex-col"
+      className="min-h-screen bg-background flex flex-col"
     >
-      {/* Background */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-primary/8 via-transparent to-transparent pointer-events-none" />
-
       {/* Top bar */}
-      <header className="relative z-10 flex items-center justify-between px-6 py-4">
+      <header className="flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-3">
           <div
             ref={iconRef}
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 border border-primary/20"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900 border border-zinc-700"
           >
             <Gamepad2 className="h-5 w-5 text-primary" />
           </div>
-          <span className="text-xl font-['Righteous'] tracking-tight text-primary">
+          <span className="text-xl font-['Righteous'] tracking-tight text-foreground">
             SOUND ROYALE
           </span>
         </div>
@@ -338,30 +290,27 @@ export default function Lobby() {
             variant="ghost"
             size="sm"
             onClick={() => setShowOnboarding(true)}
-            className="text-muted-foreground hover:text-foreground text-xs"
+            className="text-muted-foreground hover:text-foreground text-sm"
           >
-            <HelpCircle className="mr-1 h-3 w-3" /> How to Play
+            <HelpCircle className="mr-1.5 h-4 w-4" /> How to Play
           </Button>
           <Link to="/leaderboard">
             <Button
               variant="ghost"
               size="sm"
-              className="text-muted-foreground hover:text-foreground text-xs"
+              className="text-muted-foreground hover:text-foreground text-sm"
             >
-              <Trophy className="mr-1 h-3 w-3" /> Leaderboard
+              <Trophy className="mr-1.5 h-4 w-4" /> Leaderboard
             </Button>
           </Link>
         </div>
       </header>
 
       {/* Main content — fills remaining space, centered */}
-      <main className="relative z-10 flex-1 flex items-center justify-center px-4 pb-8">
+      <main className="flex-1 flex items-center justify-center px-4 pb-8">
         <div className="w-full max-w-md">
           {/* Title area */}
           <div className="text-center mb-8">
-            <div className="inline-block px-4 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-bold uppercase tracking-[0.2em] mb-4">
-              Music Bingo Battle
-            </div>
             <h1
               ref={titleRef}
               className="text-5xl md:text-6xl font-['Righteous'] tracking-tight text-foreground leading-none mb-3"
@@ -376,8 +325,9 @@ export default function Lobby() {
           {/* Action card */}
           <div
             ref={mainCardRef}
-            className="bg-card/80 backdrop-blur-sm border border-muted-foreground/20 rounded-2xl p-6 shadow-2xl"
+            className="bg-card border border-border rounded-2xl p-6 shadow-md"
           >
+
             <LobbyModeSwitcher
               mode={mode}
               playerNameInput={playerNameInput}
