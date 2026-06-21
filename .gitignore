@@ -116,3 +116,4 @@ deacon/
 .pr_agent/
 # CocoIndex Code (ccc)
 /.cocoindex_code/
+.worktrees

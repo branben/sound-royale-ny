@@ -51,6 +51,10 @@ class Room(models.Model):
         ELECTRONIC = "electronic", "Electronic"
         CUSTOM = "custom", "Custom"
 
+    class MatchType(models.TextChoices):
+        CASUAL = "casual", "Casual"
+        RANKED = "ranked", "Ranked"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     code = models.CharField(
         max_length=4, unique=True, blank=True, default=""
@@ -63,6 +67,9 @@ class Room(models.Model):
     total_rounds = models.PositiveIntegerField(default=10)
     theme = models.CharField(
         max_length=20, choices=Theme.choices, default=Theme.CLASSIC, blank=True
+    )
+    match_type = models.CharField(
+        max_length=10, choices=MatchType.choices, default=MatchType.CASUAL
     )
     custom_genres = models.JSONField(default=list, blank=True)  # Array of genre strings
     bonus_multiplier = models.DecimalField(
@@ -150,6 +157,10 @@ class Player(models.Model):
     is_checked_in = models.BooleanField(default=False)
     earned_jackpot = models.BooleanField(default=False)
     earned_sweeper = models.BooleanField(default=False)
+
+    @property
+    def is_authenticated(self):
+        return True
 
     class Meta:
         ordering = ["joined_at"]

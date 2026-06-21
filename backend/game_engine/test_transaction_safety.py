@@ -76,7 +76,7 @@ class TransactionSafetyTestCase(TestCase):
         
         # Verify room state updated
         self.room.refresh_from_db()
-        self.assertEqual(self.room.current_round, 2)  # Started at 1, incremented
+        self.assertEqual(self.room.current_round, 1)  # Reset to 1 for new match
         self.assertEqual(self.room.status, Room.Status.LOBBY)
         self.assertIsNone(self.room.winner)
     
@@ -162,17 +162,16 @@ class TransactionSafetyTestCase(TestCase):
         with patch.object(viewset, 'get_object', return_value=self.room):
             response = viewset.reset_game(request)
         
-        # Should return validation error
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("completed tiles", response.data['error'])
+        # Reset should succeed even with completed tiles (casual mode support)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         
-        # Verify no changes were made (no rollback needed)
+        # Verify tiles were deleted and recreated (2 players * 9 tiles = 18)
         final_tile_count = Tile.objects.filter(player__room=self.room).count()
-        self.assertEqual(final_tile_count, initial_tile_count)
+        self.assertEqual(final_tile_count, 2 * 9)
         
-        # Verify room state unchanged
+        # Verify room was reset to LOBBY for new match
         self.room.refresh_from_db()
-        self.assertEqual(self.room.status, Room.Status.PLAYING)
+        self.assertEqual(self.room.status, Room.Status.LOBBY)
         self.assertEqual(self.room.current_round, 1)
     
     @pytest.mark.skip(reason="Django TextChoices.values is a read-only property; cannot patch")
@@ -314,7 +313,7 @@ class TransactionSafetyTestCase(TestCase):
             
             # Verify round incremented twice
             self.room.refresh_from_db()
-            self.assertEqual(self.room.current_round, 3)  # 1 -> 2 -> 3
+            self.assertEqual(self.room.current_round, 1)  # Reset to 1 for new match
     
     def test_reset_game_detailed_response_data(self):
         """Test that response contains detailed success information"""
@@ -344,7 +343,7 @@ class TransactionSafetyTestCase(TestCase):
         self.assertIn('previous_round', response_data)
         
         self.assertEqual(response_data['status'], "Game reset successfully")
-        self.assertEqual(response_data['round'], 2)
+        self.assertEqual(response_data['round'], 1)
         self.assertEqual(response_data['tiles_created'], 18)
         self.assertEqual(response_data['players'], 2)
         self.assertEqual(response_data['previous_round'], 1)
@@ -466,5 +465,5 @@ class TransactionEdgeCasesTestCase(TestCase):
             response = viewset.reset_game(request)
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['round'], 1000)
+        self.assertEqual(response.data['round'], 1)
         self.assertEqual(response.data['previous_round'], 999)

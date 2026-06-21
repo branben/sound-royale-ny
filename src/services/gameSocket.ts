@@ -15,6 +15,7 @@ export type GameSocketMessage =
       payload: { playerId: string; playerName: string; isSpectator: boolean };
     }
   | { type: 'player_left'; payload: { playerId: string; playerName: string } }
+  | { type: 'host_migrated'; payload: { newHostId: string; newHostName: string } }
   | { type: 'error'; payload: { code: string; message: string } };
 
 export type MessageType = GameSocketMessage['type'];
@@ -30,6 +31,7 @@ const MESSAGE_TYPES: readonly string[] = [
   'turn_change',
   'player_joined',
   'player_left',
+  'host_migrated',
   'error',
 ] as const;
 
@@ -183,7 +185,12 @@ class GameSocketService {
         }
         this.isConnecting = false;
         if (!this.isIntentionallyClosed) {
-          this.options?.onDisconnect?.(event.reason || `Code: ${event.code}`);
+          const reason = event.reason || `Code: ${event.code}`;
+          this.options?.onDisconnect?.(reason);
+          this.options?.onMessage?.({
+            type: 'error',
+            payload: { code: String(event.code), message: reason },
+          });
           this.attemptReconnect();
         }
       };
@@ -196,6 +203,10 @@ class GameSocketService {
         this.isConnecting = false;
         console.error('[GameSocket] Error:', error);
         this.options?.onError?.(error);
+        this.options?.onMessage?.({
+          type: 'error',
+          payload: { code: 'WS_ERROR', message: 'WebSocket connection error' },
+        });
       };
     } catch (err) {
       if (this.connectTimeout) {

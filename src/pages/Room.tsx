@@ -1,16 +1,9 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
-} from '@/components/ui/drawer';
 import { toast } from 'sonner';
-import { ArrowLeft, Users, Play, Settings, Info, Vote, Share2 } from 'lucide-react';
+import { ArrowLeft, Users, Play, Settings, Vote, Trophy } from 'lucide-react';
 import { normalizeRoomWinner, roomApi, gameApi } from '@/services/api';
 import { getDiscordSession } from '@/services/discordSession';
 import { BingoBoard } from '@/components/game/BingoBoard';
@@ -22,149 +15,11 @@ import { VotingPanel } from '@/components/game/VotingPanel';
 import { TitleBadge } from '@/components/game/TitleBadge';
 import { GameTutorial } from '@/components/game/GameTutorial';
 import { DiscordVerifiedIcon } from '@/components/game/DiscordVerifiedIcon';
+import { HostMigrationIndicator } from '@/components/game/HostMigrationIndicator';
 import { useGame, useGameRefresh, useGameRefreshEffect } from '@/context/useGame';
 import { useUser } from '@/context/UserContext';
 import type { GameState, RoomResponse, Player } from '@/types/game';
 import { gsap } from 'gsap';
-
-interface MobileGameDockProps {
-  roomId: string;
-  currentPlayerName?: string;
-}
-
-function MobileGameDock({ roomId, currentPlayerName }: MobileGameDockProps) {
-  const { gameState } = useGame();
-  const { userSession } = useUser();
-  const players = Object.values(gameState.players ?? {});
-  const isSpectatorPlayer = (player: Player) =>
-    player.isSpectator || player.name?.startsWith('Spectator ');
-  const spectators = players.filter(isSpectatorPlayer);
-  const producers = players.filter((player) => !isSpectatorPlayer(player));
-
-  const copySpectatorLink = async () => {
-    const shareUrl = `${window.location.origin}/room/${roomId}?spectator=1`;
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      toast.success('Spectator link copied');
-    } catch {
-      toast.info(shareUrl);
-    }
-  };
-
-  const actions = [
-    {
-      label: 'Info',
-      icon: Info,
-      content: <GameInfo roomId={roomId} currentPlayerName={currentPlayerName} />,
-    },
-    {
-      label: 'Audience',
-      icon: Users,
-      content: (
-        <div className="space-y-4">
-          <section className="space-y-2">
-            <h3 className="text-sm font-semibold text-foreground">
-              Producers ({producers.length})
-            </h3>
-            {producers.map((player) => (
-              <div key={player.id} className="rounded-lg border border-primary/20 bg-card p-3">
-                <div className="flex min-w-0 items-center gap-2">
-                  <div className="truncate font-medium">{player.name}</div>
-                  {player.isDiscordVerified && (
-                    <DiscordVerifiedIcon username={player.discordUsername} />
-                  )}
-                </div>
-                <TitleBadge title={player.currentTitle} compact />
-                <div className="text-xs text-muted-foreground">ELO: {player.eloRating ?? 1200}</div>
-              </div>
-            ))}
-          </section>
-          <section className="space-y-2">
-            <h3 className="text-sm font-semibold text-foreground">
-              Spectators ({spectators.length})
-            </h3>
-            {spectators.length ? (
-              spectators.map((player) => (
-                <div key={player.id} className="rounded-lg bg-card p-3 text-sm">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className="truncate">{player.name}</span>
-                    {player.isDiscordVerified && (
-                      <DiscordVerifiedIcon username={player.discordUsername} />
-                    )}
-                  </div>
-                  <TitleBadge title={player.currentTitle} compact />
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground">No spectators yet.</p>
-            )}
-          </section>
-        </div>
-      ),
-    },
-    {
-      label: 'Voting',
-      icon: Vote,
-      content:
-        userSession.isSpectator && userSession.playerSecret && gameState.roundState ? (
-          <VotingPanel
-            roomId={gameState.roomCode || gameState.gameId}
-            playerSecret={userSession.playerSecret}
-            producers={producers}
-            currentGenre={gameState.roundState.currentTileGenre || 'Unknown'}
-            votingOpen={gameState.roundState.votingOpen || false}
-            votesRecorded={gameState.roundState.votesRecorded || 0}
-            spectatorCount={gameState.spectatorCount || spectators.length}
-          />
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Voting opens for spectators when enough audience members have joined.
-          </p>
-        ),
-    },
-    {
-      label: 'Share',
-      icon: Share2,
-      content: (
-        <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Invite spectators to join this live room and unlock ranked voting.
-          </p>
-          <Button onClick={copySpectatorLink} className="h-11 w-full">
-            <Share2 className="mr-2 h-4 w-4" />
-            Copy Spectator Link
-          </Button>
-        </div>
-      ),
-    },
-  ];
-
-  return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-2 lg:hidden">
-      <div className="mx-auto grid max-w-md grid-cols-4 gap-2">
-        {actions.map((action) => {
-          const Icon = action.icon;
-          return (
-            <Drawer key={action.label}>
-              <DrawerTrigger asChild>
-                <button className="flex h-14 flex-col items-center justify-center gap-1 rounded-lg border border-primary/25 bg-card text-xs font-medium text-foreground transition-colors hover:border-primary/60">
-                  <Icon className="h-4 w-4 text-primary" />
-                  {action.label}
-                </button>
-              </DrawerTrigger>
-              <DrawerContent className="max-h-[86dvh] border-border bg-background">
-                <DrawerHeader>
-                  <DrawerTitle>{action.label}</DrawerTitle>
-                </DrawerHeader>
-                <div className="overflow-y-auto px-4 pb-6">{action.content}</div>
-              </DrawerContent>
-            </Drawer>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 export default function Room() {
   const { id: roomId } = useParams<{ id: string }>();
@@ -176,6 +31,7 @@ export default function Room() {
   const [hasLoaded, setHasLoaded] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [hostMigration, setHostMigration] = useState<{ newHostName: string } | null>(null);
 
   const {
     userSession,
@@ -197,6 +53,20 @@ export default function Room() {
   const roundStageRef = useRef<HTMLDivElement | null>(null);
   const bingoBoardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const gameInfoRef = useRef(null);
+
+  // Track host migration: detect when host changes mid-game
+  const prevHostIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const players = Object.values(gameState.players ?? {});
+    const currentHost = players.find((p) => p.isHost && !p.isSpectator);
+    const currentHostId = currentHost?.id ?? null;
+
+    if (prevHostIdRef.current && prevHostIdRef.current !== currentHostId && currentHost) {
+      setHostMigration({ newHostName: currentHost.name });
+      setTimeout(() => setHostMigration(null), 5000);
+    }
+    prevHostIdRef.current = currentHostId;
+  }, [gameState.players]);
 
   // Show tutorial for first-time players when game starts
   useEffect(() => {
@@ -457,6 +327,7 @@ export default function Room() {
           gameId: roomData.code,
           roomCode: roomData.code,
           status: roomData.status,
+          matchType: roomData.match_type ?? 'casual',
           currentRound: roomData.current_round,
           winner: normalizeRoomWinner(roomData.winner),
           players,
@@ -473,7 +344,13 @@ export default function Room() {
         setGameState((prev) => ({ ...prev, ...newGameState }));
 
         if (userSession.playerSecret) {
-          await attemptRejoin();
+          const rejoined = await attemptRejoin();
+          if (!rejoined) {
+            // Rejoin failed — clear stale session so player can re-join fresh
+            clearSession();
+            setPlayerCredentials('', '');
+            setSpectatorMode(false);
+          }
         }
       } catch (err: unknown) {
         const error = err as { response?: { status?: number }; message?: string };
@@ -494,8 +371,17 @@ export default function Room() {
 
   useGameRefreshEffect(fetchRoom);
 
+  // Track which statuses we've already animated entrance for
+  const animatedStatusRef = useRef<string | null>(null);
+
   useEffect(() => {
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // Only run entrance animations once per status transition, not on every players update
+    if (animatedStatusRef.current === gameState.status) {
+      return;
+    }
+    animatedStatusRef.current = gameState.status;
 
     if (prefersReducedMotion) {
       // Lobby State
@@ -531,72 +417,72 @@ export default function Room() {
         });
       }
 
-      // Action buttons stagger in
-      gsap.from(actionButtonRefs.current, {
-        y: 20,
-        opacity: 0,
-        stagger: 0.1,
-        duration: 0.4,
-        delay: 0.3,
-      });
-    } else if (gameState.status === 'playing') {
-      // RoundStage slides in from the top
-      if (roundStageRef.current) {
-        gsap.from(roundStageRef.current, {
-          y: -20,
-          opacity: 0,
-          duration: 0.4,
-        });
+      if (roomCodeRef.current) {
+        gsap.from(roomCodeRef.current, { opacity: 0, duration: 0.3 });
       }
-
-      // Each BingoBoard staggers in from the left with a slight delay between players
-      // Ensure there are actual producers before attempting to animate
-      const producers = Object.values(gameState.players).filter((player) => !player.isSpectator);
-      if (producers.length > 0) {
-        gsap.from(bingoBoardRefs.current, {
-          x: -30,
-          opacity: 0,
-          stagger: 0.15,
-          duration: 0.5,
-          delay: 0.1,
-        });
-      }
-
-      // GameInfo sidebar slides in from the right
-      if (gameInfoRef.current) {
-        gsap.from(gameInfoRef.current, {
-          x: 30,
-          opacity: 0,
-          duration: 0.5,
-          delay: 0.2,
-        });
+      if (joinBattleCardRef.current) {
+        gsap.from(joinBattleCardRef.current, { opacity: 0, duration: 0.3 });
       }
     }
-  }, [gameState.status, gameState.players]); // Rerun animations when game state changes to 'lobby' or 'playing'
+  }, [gameState.status]); // Only re-run entrance animations on status change, not players update
+
+  // Auto-reset after match ends
+  const [resetCountdown, setResetCountdown] = useState<number | null>(null);
+  useEffect(() => {
+    if (gameState.status !== 'finished' || !userSession.playerSecret) {
+      setResetCountdown(null);
+      return;
+    }
+
+    setResetCountdown(5);
+    const interval = setInterval(() => {
+      setResetCountdown((prev) => {
+        if (prev === null || prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [gameState.status, userSession.playerSecret]);
+
+  useEffect(() => {
+    if (resetCountdown !== 0 || !roomId || !userSession.playerSecret) return;
+
+    gameApi.resetGame(roomId, userSession.playerSecret)
+      .then(() => {
+        setForceRefresh(Date.now());
+        toast.success('New match starting!');
+      })
+      .catch((err) => {
+        console.error('Auto-reset failed:', err);
+        toast.error('Failed to start new match');
+      })
+      .finally(() => {
+        setResetCountdown(null);
+      });
+  }, [resetCountdown, roomId, userSession.playerSecret, setForceRefresh]);
 
   if (loading || isReconnecting) {
     return (
-      <div className="min-h-screen bg-background p-4">
-        <header className="border-b border-border bg-background">
-          <div className="container mx-auto flex h-12 items-center justify-between">
-            <h1 className="text-2xl font-bold text-foreground md:text-3xl">Sound Royale</h1>
-            <div className="flex items-center gap-2">
-              <Button onClick={() => navigate('/')} variant="outline">
-                <Users className="mr-2 h-5 w-5" />
-                Home
-              </Button>
-            </div>
+      <div className="h-dvh flex flex-col bg-background">
+        <header className="shrink-0 border-b border-border bg-background px-3 py-1.5">
+          <div className="container mx-auto flex h-8 items-center justify-between">
+            <h1 className="font-['Righteous'] text-lg tracking-tight text-primary">Sound Royale</h1>
+            <Button onClick={() => navigate('/')} variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground">
+              <ArrowLeft className="mr-1 h-3.5 w-3.5" />
+              Leave
+            </Button>
           </div>
         </header>
-
-        <main className="container mx-auto p-4 lg:p-6">
-          <div className="flex items-center justify-center h-64">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-              <p className="text-muted-foreground">
-                {isReconnecting ? 'Reconnecting to room...' : 'Loading room...'}
-              </p>
-            </div>
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-3"></div>
+            <p className="text-sm text-muted-foreground">
+              {isReconnecting ? 'Reconnecting...' : 'Loading room...'}
+            </p>
           </div>
         </main>
       </div>
@@ -605,133 +491,200 @@ export default function Room() {
 
   if (error || !room) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Card className="w-full max-w-md">
-          <CardContent className="text-center py-8">
-            <p className="text-destructive mb-4">{error || 'Room not found'}</p>
-            <Button onClick={() => navigate('/')}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Lobby
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="h-dvh flex items-center justify-center bg-background px-4">
+        <div className="text-center space-y-3">
+          <p className="text-destructive text-sm">{error || 'Room not found'}</p>
+          <Button onClick={() => navigate('/')} variant="outline" size="sm">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Lobby
+          </Button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background p-4 relative">
-      <header className="border-b border-border bg-background mb-4 relative z-10">
-        <div className="container mx-auto flex h-10 items-center justify-between">
-          <h1 className="font-['Righteous'] text-2xl md:text-3xl tracking-tight text-primary">
+    <div className="h-dvh flex flex-col bg-background relative">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/[0.03] via-transparent to-transparent pointer-events-none" />
+      <header className="shrink-0 border-b border-border bg-background px-3 py-1.5 relative z-10">
+        <div className="container mx-auto flex h-8 items-center justify-between">
+          <h1 className="font-['Righteous'] text-lg md:text-xl tracking-tight text-primary">
             Sound Royale
           </h1>
           <Button
             onClick={() => navigate('/')}
-            variant="outline"
-            className="border-border hover:border-primary/60 hover:shadow-md transition-all duration-200"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
           >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Lobby
+            <ArrowLeft className="mr-1 h-3.5 w-3.5" />
+            Leave
           </Button>
         </div>
       </header>
 
-      <main className="container mx-auto p-2 pb-20 lg:p-3">
+      <main className="relative z-10 flex-1 flex flex-col items-center px-4 py-8">
         {gameState.status === 'lobby' ? (
-          <div
-            ref={joinBattleCardRef}
-            data-testid="lobby"
-            className="border-border bg-card w-full max-w-4xl mx-auto rounded-xl p-5 md:p-6 shadow-xl"
-          >
-            <h2 className="text-2xl font-bold mb-4">Join Battle</h2>
-            {hasCurrentPlayer ? (
-              <div className="text-center py-4">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-500/20 mb-4 ring-4 ring-green-500/50">
-                  <Users className="h-8 w-8 text-green-500" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2">You're in battle!</h3>
-                {isHost && activePlayersCount >= 2 ? (
-                  <div className="space-y-4 mt-4">
-                    <p className="text-muted-foreground">Ready to start battle!</p>
-                    <Button
-                      ref={(el) => (actionButtonRefs.current[0] = el)}
-                      data-testid="start-battle"
-                      onClick={handleStartGame}
-                      className="h-12 text-xl font-bold shadow-lg w-full"
-                    >
-                      <Play className="mr-2 h-6 w-6" />
-                      Start Battle
-                    </Button>
+          <>
+            <h1 className="text-4xl md:text-5xl font-['Righteous'] tracking-tight text-zinc-100 mb-1">
+              BATTLE ROOM
+            </h1>
+            <p className="text-sm text-zinc-500 mb-8">
+              {hasCurrentPlayer ? "You're in the arena" : "Choose your role"}
+            </p>
+
+            <div className="w-full max-w-[32rem] rounded-xl bg-zinc-900 p-6">
+              {hasCurrentPlayer ? (
+                <div className="text-center py-4">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-500/15 mb-4">
+                    <Users className="h-6 w-6 text-green-500" />
                   </div>
-                ) : (
-                  <p className="text-muted-foreground flex items-center justify-center space-x-2">
-                    <span>Waiting for contestants</span>
-                    <span className="relative flex h-3 w-3">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
-                    </span>
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Button
-                  ref={(el) => (actionButtonRefs.current[1] = el)}
-                  onClick={handleJoinAsPlayer}
-                  className="h-12"
-                >
-                  <Users className="mr-2 h-5 w-5" />
-                  Join as Player
-                </Button>
-                <Button
-                  ref={(el) => (actionButtonRefs.current[2] = el)}
-                  onClick={handleJoinAsSpectator}
-                  variant="outline"
-                  className="h-12"
-                >
-                  <Settings className="mr-2 h-5 w-5" />
-                  Join as Spectator
-                </Button>
-              </div>
-            )}
-            <div className="text-center text-sm text-muted-foreground space-y-2">
-              <p
-                ref={roomCodeRef}
-                data-testid="room-id"
-                className="font-mono text-3xl md:text-4xl font-bold tracking-[0.3em] text-primary bg-card/50 rounded-lg px-4 py-2 inline-block"
-              >
-                {room.code}
-              </p>
+                  <h2 className="text-lg font-semibold text-zinc-100 mb-2">You're in the arena</h2>
+                  {isHost && activePlayersCount >= 2 ? (
+                    <div className="space-y-3 mt-4">
+                      <p className="text-sm text-zinc-400">Ready to start battle!</p>
+                      <Button
+                        ref={(el) => (actionButtonRefs.current[0] = el)}
+                        data-testid="start-battle"
+                        onClick={handleStartGame}
+                        className="h-12 w-full text-base font-['Righteous'] tracking-wider uppercase bg-red-500 hover:bg-red-600 hover:translate-y-[-1px] active:translate-y-0 active:scale-[0.98] text-white rounded-lg shadow-lg shadow-red-500/20 transition-all duration-150"
+                      >
+                        <Play className="mr-2 h-5 w-5" />
+                        Start Battle
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center gap-2 py-3">
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75 animate-ping" />
+                        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+                      </span>
+                      <span className="text-sm text-zinc-400">Waiting for opponent...</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  <div className="text-center">
+                    <p
+                      ref={roomCodeRef}
+                      data-testid="room-id"
+                      className="font-mono text-4xl md:text-5xl font-bold tracking-[0.3em] text-zinc-100"
+                    >
+                      {room.code}
+                    </p>
+                    <p className="text-xs text-zinc-500 mt-2">Send this to invite players</p>
+                    <div className="mt-3">
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                          gameState.matchType === 'ranked'
+                            ? 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/25'
+                            : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+                        }`}
+                      >
+                        {gameState.matchType === 'ranked' ? 'Ranked' : 'Casual'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <Accordion type="single" collapsible>
+                    <AccordionItem value="join" className="border-none">
+                      <AccordionTrigger className="h-12 rounded-lg bg-red-500 hover:bg-red-600 hover:translate-y-[-1px] text-white text-base font-['Righteous'] tracking-wider uppercase justify-center data-[state=open]:rounded-b-none active:translate-y-0 active:scale-[0.98] transition-all duration-150 shadow-lg shadow-red-500/20">
+                        <Play className="mr-2 h-5 w-5" />
+                        Join Battle
+                      </AccordionTrigger>
+                      <AccordionContent className="rounded-b-lg bg-zinc-800 px-4 py-4">
+                        <div className="grid grid-cols-1 gap-2">
+                          <Button
+                            ref={(el) => (actionButtonRefs.current[1] = el)}
+                            onClick={handleJoinAsPlayer}
+                            className="h-12 bg-red-500 hover:bg-red-600 hover:translate-y-[-1px] active:translate-y-0 active:scale-[0.98] text-white text-sm font-semibold transition-all duration-150"
+                          >
+                            <Users className="mr-2 h-4 w-4" />
+                            Join as Player
+                          </Button>
+                          <Button
+                            ref={(el) => (actionButtonRefs.current[2] = el)}
+                            onClick={handleJoinAsSpectator}
+                            className="h-12 border-zinc-600 text-zinc-100 hover:bg-zinc-700 hover:translate-y-[-1px] active:translate-y-0 active:scale-[0.98] text-sm font-semibold transition-all duration-150"
+                          >
+                            <Settings className="mr-2 h-4 w-4" />
+                            Spectate
+                          </Button>
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                </div>
+              )}
             </div>
-          </div>
+          </>
         ) : (
-          <div className="flex flex-col lg:flex-row gap-3">
-            <div ref={gameInfoRef} className="hidden lg:block lg:w-80 lg:order-1">
+          <div className="flex flex-col lg:flex-row gap-2 h-full">
+            <div ref={gameInfoRef} className="hidden lg:block lg:w-64 shrink-0">
               <GameInfo roomId={roomId!} currentPlayerName={userSession.playerName ?? undefined} />
             </div>
 
-            <div className="flex-1 space-y-3 lg:order-2">
+            <div className="lg:hidden mb-2">
+              <Accordion type="single" collapsible>
+                <AccordionItem value="leaderboard" className="border-none">
+                  <AccordionTrigger className="rounded-lg bg-zinc-800 px-4 py-3 text-sm font-medium text-zinc-100 hover:bg-zinc-700 hover:translate-x-0.5 transition-all">
+                    <div className="flex items-center gap-2">
+                      <Trophy className="h-4 w-4 text-yellow-500" />
+                      Leaderboard
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="rounded-b-lg bg-zinc-900 px-4 py-3">
+                    <GameInfo roomId={roomId!} currentPlayerName={userSession.playerName ?? undefined} />
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="audience" className="border-none">
+                  <AccordionTrigger className="rounded-lg bg-zinc-800 px-4 py-3 text-sm font-medium text-zinc-100 hover:bg-zinc-700 hover:translate-x-0.5 transition-all">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-zinc-400" />
+                      Audience
+                      <span className="text-xs text-zinc-500">({Object.values(gameState.players).filter(p => p.isSpectator).length})</span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="rounded-b-lg bg-zinc-900 px-4 py-3">
+                    {Object.values(gameState.players).filter(p => p.isSpectator).length === 0 ? (
+                      <div className="flex flex-col items-center py-3 text-center">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-dashed border-zinc-600 mb-2">
+                          <Users className="h-5 w-5 text-zinc-600" />
+                        </div>
+                        <p className="text-sm text-zinc-400">No audience yet</p>
+                        <p className="text-xs text-zinc-500">Share the link to invite spectators</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {Object.values(gameState.players).filter(p => p.isSpectator).map((player) => (
+                          <div key={player.id} className="flex items-center gap-2 text-sm text-zinc-300">
+                            <span className="truncate">{player.name}</span>
+                            <TitleBadge title={player.currentTitle} compact />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </div>
+
+            <div className="flex-1 min-w-0 flex flex-col gap-2">
               {!hasCurrentPlayer ? (
-                <Card className="border-border bg-card">
-                  <CardHeader>
-                    <CardTitle>Join as Spectator</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                      This match is already live. You can still join the audience and help unlock
-                      voting when enough spectators are present.
-                    </p>
-                    <Button onClick={handleJoinAsSpectator} className="h-11 w-full">
-                      <Users className="mr-2 h-4 w-4" />
-                      Join Spectator View
-                    </Button>
-                  </CardContent>
-                </Card>
+                <div className="border border-zinc-700 bg-zinc-900 rounded-xl p-4 text-center">
+                  <p className="text-sm text-zinc-400 mb-3">
+                    Match is live. Join the audience to unlock voting.
+                  </p>
+                  <Button onClick={handleJoinAsSpectator} className="h-10 w-full rounded-lg text-sm border-zinc-700 text-zinc-100 hover:bg-zinc-800">
+                    <Users className="mr-2 h-4 w-4" />
+                    Join as Spectator
+                  </Button>
+                </div>
               ) : (
                 <>
                   {gameState.status === 'playing' && (
-                    <div ref={roundStageRef}>
+                    <div ref={roundStageRef} className="shrink-0">
                       <RoundStage
                         roundNumber={gameState.currentRound || 1}
                         genre={gameState.roundState?.currentTileGenre}
@@ -748,10 +701,10 @@ export default function Room() {
                       />
                     </div>
                   )}
-                  {userSession.isSpectator ? (
-                    <SpectatorView bingoBoardRefs={bingoBoardRefs} />
-                  ) : (
-                    <div className="flex flex-col">
+                  <div className="flex-1 min-h-0">
+                    {userSession.isSpectator ? (
+                      <SpectatorView bingoBoardRefs={bingoBoardRefs} />
+                    ) : (
                       <PlayerView
                         bingoBoardRef={(el) => {
                           bingoBoardRefs.current[0] = el;
@@ -759,18 +712,14 @@ export default function Room() {
                         roomId={roomId!}
                         playerName={userSession.playerName ?? undefined}
                       />
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </>
               )}
             </div>
           </div>
         )}
       </main>
-      {gameState.status !== 'lobby' && hasCurrentPlayer && (
-        <MobileGameDock roomId={roomId!} currentPlayerName={userSession.playerName ?? undefined} />
-      )}
-
       {/* Game Tutorial for first-time players */}
       {gameState.status === 'playing' && hasCurrentPlayer && (
         <GameTutorial
@@ -778,6 +727,57 @@ export default function Room() {
           onDismiss={handleTutorialDismiss}
           isActive={showTutorial}
         />
+      )}
+
+      {/* Host migration banner */}
+      <HostMigrationIndicator
+        newHostName={hostMigration?.newHostName ?? ''}
+        isVisible={hostMigration !== null}
+      />
+
+      {/* Match-end overlay */}
+      {gameState.status === 'finished' && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70">
+          <div className="text-center space-y-3 p-6 rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl max-w-xs mx-4">
+            <h2 className="font-['Righteous'] text-2xl text-zinc-100">
+              {gameState.matchType === 'ranked' && gameState.winner ? 'Victory!' : 'Good game!'}
+            </h2>
+            {gameState.matchType === 'ranked' && gameState.winner ? (
+              <p className="text-base text-zinc-300">
+                <span className="font-bold text-yellow-400">{gameState.winner}</span> wins with bingo!
+              </p>
+            ) : (
+              <p className="text-sm text-zinc-400">
+                {gameState.matchType === 'ranked'
+                  ? 'No bingo this time'
+                  : 'Good game! Resetting for next match'}
+              </p>
+            )}
+            {resetCountdown !== null && resetCountdown > 0 && (
+              <p className="text-xs text-zinc-500">
+                New match in {resetCountdown}s
+              </p>
+            )}
+            {userSession.isHost && (
+              <Button
+                onClick={() => {
+                  if (roomId && userSession.playerSecret) {
+                    gameApi.resetGame(roomId, userSession.playerSecret)
+                      .then(() => {
+                        setForceRefresh(Date.now());
+                        toast.success('New match starting!');
+                      })
+                      .catch(() => toast.error('Failed to reset'));
+                    setResetCountdown(null);
+                  }
+                }}
+                className="mt-2 bg-red-500 hover:opacity-90 text-white active:scale-[0.97] rounded-lg h-10 text-sm font-semibold"
+              >
+                Play Again
+              </Button>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

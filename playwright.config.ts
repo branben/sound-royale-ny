@@ -35,7 +35,9 @@ export default defineConfig({
   // The frontend must be running manually on localhost:8080 before E2E runs.
   // Keep this aligned with tests/e2e/README.md and scripts/e2e-guard.sh preflight output.
   use: {
-    baseURL: 'http://localhost:8080',
+    // Vite dev server runs on 8081 (vite.config.ts). Align them so CI/local
+    // smoke tests work without a port override.
+    baseURL: 'http://localhost:8081',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },

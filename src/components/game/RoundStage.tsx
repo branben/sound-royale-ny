@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Clock, Disc3, Radio, Vote, Timer } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { GENRES } from '@/types/game';
+import { Vote } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { transitions } from '@/lib/motion';
 
 interface RoundStageProps {
   roundNumber: number;
@@ -24,40 +21,7 @@ export function RoundStage({
   spectatorCount,
   votesRecorded = 0,
 }: RoundStageProps) {
-  const [rouletteIndex, setRouletteIndex] = useState(0);
-  const [isRouletting, setIsRouletting] = useState(false);
   const [fallbackTimeRemaining, setFallbackTimeRemaining] = useState<number | null>(null);
-  const [votingJustOpened, setVotingJustOpened] = useState(false);
-
-  // Flash animation when voting opens
-  useEffect(() => {
-    if (votingOpen && !votingJustOpened) {
-      setVotingJustOpened(true);
-      const timeoutId = setTimeout(() => setVotingJustOpened(false), 2000);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [votingOpen, votingJustOpened]);
-
-  useEffect(() => {
-    if (!genre) return;
-
-    setIsRouletting(true);
-    setRouletteIndex(0);
-
-    const intervalId = window.setInterval(() => {
-      setRouletteIndex((prev) => (prev + 1) % GENRES.length);
-    }, 90);
-
-    const timeoutId = window.setTimeout(() => {
-      window.clearInterval(intervalId);
-      setIsRouletting(false);
-    }, 1200);
-
-    return () => {
-      window.clearInterval(intervalId);
-      window.clearTimeout(timeoutId);
-    };
-  }, [genre, roundNumber]);
 
   useEffect(() => {
     if (!timerEndsAt || (timeRemaining !== null && timeRemaining !== undefined)) {
@@ -75,7 +39,7 @@ export function RoundStage({
     return () => window.clearInterval(intervalId);
   }, [timerEndsAt, timeRemaining]);
 
-  const displayGenre = isRouletting ? GENRES[rouletteIndex] : genre || 'Waiting';
+  const displayGenre = genre || 'Waiting';
   const formattedTime = useMemo(() => {
     const rawTime = timeRemaining ?? fallbackTimeRemaining;
     if (rawTime === null || rawTime === undefined) return null;
@@ -85,149 +49,51 @@ export function RoundStage({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   }, [fallbackTimeRemaining, timeRemaining]);
 
+  const isRouletting = !genre;
+
   return (
     <section
       data-testid="round-stage"
-      className={cn(
-        'rounded-xl border border-border bg-card p-5 md:p-6',
-        votingJustOpened && 'ring-2 ring-primary',
-      )}
+      className="border-b border-zinc-700/50 pb-3 mb-3"
     >
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-        <div className="min-w-0">
-          <div className="mb-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            <span className="relative overflow-hidden rounded-full border border-muted bg-muted px-3 py-1 font-medium">
-              <AnimatePresence mode="wait">
-                <motion.span
-                  key={roundNumber}
-                  initial={{ y: 10, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  exit={{ y: -10, opacity: 0 }}
-                  transition={transitions.spring}
-                  className="block"
-                >
-                  Round {roundNumber}
-                </motion.span>
-              </AnimatePresence>
-            </span>
-            <span
-              className={cn(
-                'inline-flex items-center gap-1 rounded-full px-3 py-1 font-semibold transition-all',
-                votingOpen
-                  ? 'bg-primary/10 border border-primary/40 text-primary'
-                  : 'bg-muted border border-border text-muted-foreground',
-              )}
-            >
-              {votingOpen ? (
-                <AnimatePresence mode="wait">
-                  <motion.span
-                    key="voting-open"
-                    initial={{ x: 20, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    exit={{ x: -20, opacity: 0 }}
-                    transition={transitions.spring}
-                    className="inline-flex items-center gap-1"
-                  >
-                    <Vote className="h-3.5 w-3.5" />
-                    Voting Open
-                  </motion.span>
-                </AnimatePresence>
-              ) : (
-                <>
-                  <Timer className="h-3.5 w-3.5" />
-                  {spectatorCount >= 3 ? 'Ranked voting' : 'Casual mode'}
-                </>
-              )}
-            </span>
-            <AnimatePresence>
-              {votingOpen && votesRecorded > 0 && (
-                <motion.span
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.8, opacity: 0 }}
-                  transition={transitions.springBouncy}
-                  className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-primary"
-                >
-                  <Vote className="h-3.5 w-3.5" />
-                  {votesRecorded} votes
-                </motion.span>
-              )}
-            </AnimatePresence>
-          </div>
-
-          <div className="flex min-h-20 items-center gap-4">
-            <div
-              className={cn(
-                'flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-border bg-card',
-                isRouletting && 'animate-spin',
-              )}
-            >
-              <Disc3 className="h-8 w-8 text-muted-foreground" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-medium uppercase text-muted-foreground">Active Genre</p>
-              <AnimatePresence mode="wait">
-                <motion.h2
-                  key={displayGenre}
-                  initial={{ y: 20, opacity: 0, scale: 0.9 }}
-                  animate={{ y: 0, opacity: 1, scale: 1 }}
-                  exit={{ y: -20, opacity: 0 }}
-                  transition={transitions.springBouncy}
-                  className={cn(
-                    'break-words text-4xl font-bold leading-tight text-foreground md:text-5xl',
-                    isRouletting && 'text-primary',
-                  )}
-                >
-                  {displayGenre}
-                </motion.h2>
-              </AnimatePresence>
-            </div>
-          </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-zinc-500 uppercase tracking-wider">
+            Round {roundNumber}
+          </span>
+          <span className="text-lg font-semibold text-zinc-100">
+            {displayGenre}
+          </span>
         </div>
-
-        <div className="grid gap-3 sm:grid-cols-2 lg:w-80 lg:grid-cols-1">
-          <div className="rounded-lg border border-muted/70 bg-muted/70 p-4">
-            <div className="mb-1 flex items-center gap-2 text-sm text-muted-foreground">
-              <Clock className="h-4 w-4 text-primary" />
-              Time Remaining
-            </div>
-            <div className="font-mono text-3xl font-bold text-foreground">
-              {formattedTime ?? '--:--'}
-            </div>
-          </div>
-          <div
-            className={cn(
-              'rounded-lg border p-4 transition-all',
-              votingOpen ? 'border-primary/40 bg-primary/5' : 'border-border bg-muted',
-            )}
-          >
-            <div className="mb-1 flex items-center gap-2 text-sm text-muted-foreground">
-              <Vote className={cn('h-4 w-4', votingOpen ? 'text-primary' : 'text-primary')} />
-              {votingOpen ? 'Vote Status' : 'Round Mode'}
-            </div>
-            <div className="text-sm font-medium text-foreground">
-              {votingOpen ? (
-                <AnimatePresence mode="wait">
-                  <motion.span
-                    key={votesRecorded}
-                    initial={{ scale: 0.8, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.8, opacity: 0 }}
-                    transition={transitions.springBouncy}
-                    className="text-primary font-semibold"
-                  >
-                    {votesRecorded} votes recorded
-                  </motion.span>
-                </AnimatePresence>
-              ) : spectatorCount >= 3 ? (
-                `${spectatorCount} spectators can vote`
-              ) : (
-                `${spectatorCount}/3 spectators for voting`
-              )}
-            </div>
-          </div>
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-lg tabular-nums text-zinc-100">
+            {formattedTime ?? '--:--'}
+          </span>
+          {votingOpen && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-green-500/15 px-2 py-0.5 text-xs font-medium text-green-400">
+              Vote open
+            </span>
+          )}
+          {!votingOpen && spectatorCount >= 3 && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-zinc-800 px-2 py-0.5 text-xs font-medium text-zinc-400">
+              Ranked voting
+            </span>
+          )}
+          {!votingOpen && spectatorCount < 3 && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-zinc-800 px-2 py-0.5 text-xs font-medium text-zinc-400">
+              Casual mode
+            </span>
+          )}
         </div>
       </div>
+      {votingOpen && votesRecorded > 0 && (
+        <div className="mt-2 flex items-center gap-1.5">
+          <Vote className="h-3.5 w-3.5 text-green-400" />
+          <span className="text-xs text-green-400 font-medium tabular-nums">
+            {votesRecorded} vote{votesRecorded !== 1 ? 's' : ''}
+          </span>
+        </div>
+      )}
     </section>
   );
 }

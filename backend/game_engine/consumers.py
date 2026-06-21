@@ -22,6 +22,7 @@ class GameConsumer(AsyncWebsocketConsumer):
         "game_state_update",
         "player_joined",
         "player_left",
+        "host_migrated",
     }
 
     async def connect(self):
@@ -103,7 +104,24 @@ class GameConsumer(AsyncWebsocketConsumer):
         # Mark player as disconnected
         if self.player_id:
             player_payload = await self.get_player_presence_payload(self.player_id)
+            was_host = await self.check_if_host(self.player_id)
             await self.set_player_connected(self.player_id, False)
+
+            # Host migration: if the disconnected player was the host, promote another producer
+            if was_host:
+                new_host = await self.promote_new_host()
+                if new_host:
+                    await self.channel_layer.group_send(
+                        self.game_group_name,
+                        {
+                            "type": "host_migrated",
+                            "payload": {
+                                "newHostId": str(new_host.id),
+                                "newHostName": new_host.name,
+                            },
+                        },
+                    )
+
             if player_payload:
                 await self.channel_layer.group_send(
                     self.game_group_name,
@@ -115,7 +133,16 @@ class GameConsumer(AsyncWebsocketConsumer):
         await self.channel_layer.group_discard(self.game_group_name, self.channel_name)
 
     async def receive(self, text_data):
-        text_data_json = json.loads(text_data)
+        try:
+            text_data_json = json.loads(text_data)
+        except (json.JSONDecodeError, ValueError):
+            await self.send(
+                text_data=json.dumps(
+                    {"type": "error", "payload": {"code": "INVALID_JSON", "message": "Invalid JSON"}}
+                )
+            )
+            return
+
         message_type = text_data_json.get("type")
 
         # Security: Reject forbidden message types that should only come from server
@@ -155,15 +182,26 @@ class GameConsumer(AsyncWebsocketConsumer):
             )
 
         # Broadcast the message to all clients in the room
-        if message_type == "bingo_achievement":
-            await self.channel_layer.group_send(
-                self.game_group_name,
-                {"type": "bingo_achievement", "payload": text_data_json.get("payload")},
-            )
-        elif message_type == "vote_submitted":
-            await self.channel_layer.group_send(
-                self.game_group_name,
-                {"type": "vote_submitted", "payload": text_data_json.get("payload")},
+        try:
+            if message_type == "bingo_achievement":
+                await self.channel_layer.group_send(
+                    self.game_group_name,
+                    {"type": "bingo_achievement", "payload": text_data_json.get("payload")},
+                )
+            elif message_type == "vote_submitted":
+                await self.channel_layer.group_send(
+                    self.game_group_name,
+                    {"type": "vote_submitted", "payload": text_data_json.get("payload")},
+                )
+        except Exception as e:
+            logger.exception("Error processing WebSocket message in room %s", self.game_id)
+            await self.send(
+                text_data=json.dumps(
+                    {
+                        "type": "error",
+                        "payload": {"code": "PROCESSING_ERROR", "message": "Failed to process message"},
+                    }
+                )
             )
 
     async def game_state_update(self, event):
@@ -206,6 +244,32 @@ class GameConsumer(AsyncWebsocketConsumer):
             serializer = GameStateSerializer(room)
             return serializer.data
         except Room.DoesNotExist:
+            return None
+
+    @database_sync_to_async
+    def check_if_host(self, player_id):
+        """Check if the given player is the current host."""
+        try:
+            player = Player.objects.get(id=player_id, room_id=self.game_id)
+            return player.is_host
+        except Player.DoesNotExist:
+            return False
+
+    @database_sync_to_async
+    def promote_new_host(self):
+        """Promote the first connected non-spectator producer to host. Returns the new host or None."""
+        try:
+            new_host = Player.objects.filter(
+                room_id=self.game_id,
+                is_connected=True,
+                is_spectator=False,
+                is_host=False,
+            ).first()
+            if new_host:
+                new_host.is_host = True
+                new_host.save(update_fields=['is_host'])
+            return new_host
+        except Exception:
             return None
 
     @database_sync_to_async
@@ -260,4 +324,9 @@ class GameConsumer(AsyncWebsocketConsumer):
     async def victory_celebration(self, event):
         await self.send(
             text_data=json.dumps({"type": "victory_celebration", "payload": event["payload"]})
+        )
+
+    async def host_migrated(self, event):
+        await self.send(
+            text_data=json.dumps({"type": "host_migrated", "payload": event["payload"]})
         )

@@ -13,9 +13,12 @@ interface VictoryCelebrationProps {
 export function VictoryCelebration({ winnerName, isVisible, onComplete }: VictoryCelebrationProps) {
   useEffect(() => {
     if (isVisible) {
-      onComplete();
+      const timer = setTimeout(() => {
+        onComplete();
+      }, 3000);
+      return () => clearTimeout(timer);
     }
-  }, [isVisible, winnerName, onComplete]);
+  }, [isVisible, onComplete]);
 
   useEffect(() => {
     if (isVisible) {

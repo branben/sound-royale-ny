@@ -71,27 +71,27 @@ export const BingoBoard = memo(
         animate={shudder ? { x: [0, -4, 4, -2, 2, 0] } : { x: 0 }}
         transition={{ duration: 0.3 }}
         className={cn(
-          'flex flex-col gap-4 rounded-xl border border-border bg-card p-4',
-          accent ? `border-l-4 ${accent.border}` : '', // Added conditional left border
-          'shadow-lg',
+          'flex flex-col gap-2 rounded-lg border border-zinc-700 bg-zinc-900 p-2',
+          accent ? `border-l-4 ${accent.border}` : '',
+          'shadow-sm',
           className,
         )}
       >
-        <div className="flex min-w-0 items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <div
               className={cn(
-                'flex h-14 w-14 items-center justify-center rounded-full border',
+                'flex h-8 w-8 items-center justify-center rounded-full border',
                 accent
                   ? `${accent.bg} ${accent.border} ${accent.text}`
                   : 'bg-primary/20 border-primary/30 text-primary',
               )}
             >
-              <span className="text-2xl font-bold font-['Righteous']">{playerName.charAt(0)}</span>
+              <span className="text-base font-bold font-['Righteous']">{playerName.charAt(0)}</span>
             </div>
             <div className="min-w-0">
               <div className="flex min-w-0 items-center gap-2">
-                <h3 className="truncate text-lg font-bold text-foreground font-['Poppins']">
+                <h3 className="truncate text-sm font-bold text-zinc-100 font-['Poppins']">
                   {playerName}
                 </h3>
                 {isDiscordVerified && <DiscordVerifiedIcon username={discordUsername} />}
@@ -114,7 +114,7 @@ export const BingoBoard = memo(
                     </AnimatePresence>
                   )}
               </div>
-              <p className="text-xs text-foreground/60">
+              <p className="text-[10px] text-zinc-500">
                 {completedCount}/9 complete
                 {pendingCount > 0 && ` • ${pendingCount} pending`}
               </p>
@@ -126,18 +126,18 @@ export const BingoBoard = memo(
               <motion.div
                 key={tile.id}
                 layout
-                className={cn(
-                  'h-3 w-3 rounded-full transition-colors',
-                  tile.status === 'empty' && 'bg-muted/50',
-                  tile.status === 'pending' && (accent ? `${accent.dot}` : 'bg-primary'),
-                  tile.status === 'complete' && 'bg-green-500',
-                )}
+                  className={cn(
+                    'h-2 w-2 rounded-full transition-colors',
+                    tile.status === 'empty' && 'bg-zinc-700',
+                    tile.status === 'pending' && (accent ? `${accent.dot}` : 'bg-zinc-500'),
+                    tile.status === 'complete' && 'bg-green-500',
+                  )}
               />
             ))}
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-1.5">
           {boardData.tiles.map((tile) => (
             <BingoTile
               key={tile.id}

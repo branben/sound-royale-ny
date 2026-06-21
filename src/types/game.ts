@@ -80,6 +80,7 @@ export interface GameState {
   gameId: string;
   roomCode?: string;
   status: 'lobby' | 'playing' | 'finished';
+  matchType?: 'casual' | 'ranked';
   players: Record<string, Player>;
   currentRound: number;
   totalRounds?: number;
@@ -189,6 +190,7 @@ export interface BackendPlayer {
 export interface RoomResponse {
   code: string;
   status: 'lobby' | 'playing' | 'finished';
+  match_type?: 'casual' | 'ranked';
   players: BackendPlayer[];
   current_round: number;
   total_rounds?: number;
