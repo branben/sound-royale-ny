@@ -60,33 +60,31 @@ export const SpectatorView = memo(
     }, [gameState.players]);
 
     return (
-      <div className="min-h-screen overflow-x-hidden bg-background md:bg-background">
-        <span className="bg-primary/90 text-primary-foreground text-xs font-bold uppercase tracking-[0.2em] px-3 py-1 rounded-full inline-block mb-4 md:hidden">
+      <div className="flex flex-col h-full overflow-hidden">
+        <span className="bg-primary/90 text-primary-foreground text-[10px] font-bold uppercase tracking-[0.2em] px-2 py-0.5 rounded-full inline-block mb-1 md:hidden">
           Spectator View
         </span>
-        {/* Main Content - Split Screen */}
-        <main className="container mx-auto max-w-full px-0 py-2 md:p-8">
-          <div className="mb-4 flex items-center justify-between md:hidden">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-              <Eye className="h-3 w-3" />
-              Spectator
+        <div className="flex items-center justify-between md:hidden mb-1">
+          <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+            <Eye className="h-2.5 w-2.5" />
+            Spectator
+          </span>
+          {gameState.roundState?.votingOpen && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-400">
+              <Vote className="h-2.5 w-2.5" />
+              Vote Open
             </span>
-            {gameState.roundState?.votingOpen && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-3 py-1 text-xs font-medium text-green-400">
-                <Vote className="h-3 w-3" />
-                Vote Open
-              </span>
-            )}
-          </div>
+          )}
+        </div>
 
-          <div className="mb-6 hidden rounded-lg border border-border/30 bg-card/40 p-4 md:block">
-            <div className="flex items-center gap-2 mb-3">
-              <Trophy className="h-5 w-5 text-yellow-500" />
-              <h3 className="text-lg font-bold uppercase tracking-wider text-foreground">
-                Leaderboard
-              </h3>
-            </div>
-            <div className="space-y-1.5 max-h-48 overflow-y-auto">
+        <div className="hidden md:block mb-2 rounded border border-border/30 bg-card/40 p-2">
+          <div className="flex items-center gap-1.5 mb-1">
+            <Trophy className="h-4 w-4 text-yellow-500" />
+            <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">
+              Leaderboard
+            </h3>
+          </div>
+          <div className="space-y-1 max-h-32 overflow-y-auto">
               {leaderboard.map((entry, index) => (
                 <div key={entry.player.id}>
                   <button
@@ -148,7 +146,7 @@ export const SpectatorView = memo(
 
           {/* Voting Panel - Only show for spectators */}
           {isCurrentUserSpectator && userSession.playerSecret && gameState.roundState && (
-            <div className="mb-6 hidden md:block">
+            <div className="mb-2 hidden md:block">
               <VotingPanel
                 roomId={gameState.roomCode || gameState.gameId}
                 playerSecret={userSession.playerSecret}
@@ -161,8 +159,8 @@ export const SpectatorView = memo(
             </div>
           )}
 
-          <div className="mb-4 flex items-center gap-2 overflow-x-auto pb-2">
-            <span className="text-sm text-muted-foreground shrink-0">Jump to:</span>
+          <div className="mb-1 flex items-center gap-1.5 overflow-x-auto">
+            <span className="text-xs text-muted-foreground shrink-0">Jump:</span>
             {producers.map((player) => {
               const colorIndex = playerColors.get(player.id) ?? 0;
               return (
@@ -190,8 +188,8 @@ export const SpectatorView = memo(
             })}
           </div>
 
-          <div className="relative">
-            <div className="grid min-w-0 gap-4 md:grid-cols-2">
+          <div className="relative flex-1 min-h-0">
+            <div className="grid min-w-0 gap-2 md:grid-cols-2">
               {producers.map((player, index) => {
                 const colorIndex = playerColors.get(player.id) ?? 0;
                 return (
@@ -223,12 +221,12 @@ export const SpectatorView = memo(
           </div>
 
           {/* Mobile VS indicator */}
-          <div className="my-4 flex items-center justify-center md:hidden">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-border bg-card">
-              <span className="text-lg font-bold text-primary">VS</span>
+          <div className="my-2 flex items-center justify-center md:hidden">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-border bg-card">
+              <span className="text-sm font-bold text-primary">VS</span>
             </div>
           </div>
-        </main>
+        </div>
 
         {/* Winner Announcement */}
         {gameState.status === 'finished' && gameState.winner && (

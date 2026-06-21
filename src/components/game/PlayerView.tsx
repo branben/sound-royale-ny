@@ -162,22 +162,22 @@ export const PlayerView = memo(
     return (
       <div
         ref={ref}
-        className={`grid grid-cols-1 lg:grid-cols-[14rem_1fr] gap-6 ${!playerData.isConnected ? 'opacity-60' : ''}`}
+        className={`grid grid-cols-1 lg:grid-cols-[10rem_1fr] gap-3 ${!playerData.isConnected ? 'opacity-60' : ''}`}
       >
-        {/* Player Info Column */}
-        <div className="order-2 space-y-4 lg:order-1">
+        {/* Player Info Column — compact horizontal row on mobile, sidebar on desktop */}
+        <div className="flex items-center gap-3 lg:flex-col lg:items-stretch">
           <div
-            className={`rounded-xl border border-border bg-card p-4 space-y-4 border-l-4 ${playerTextAccent.replace('text-', 'border-')}`}
+            className={`flex-1 rounded-lg border border-border bg-card p-2 border-l-4 ${playerTextAccent.replace('text-', 'border-')}`}
           >
             <div className="flex items-center gap-2">
               <div
-                className={`flex h-8 w-8 items-center justify-center rounded-full ${playerAccentClasses}`}
+                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${playerAccentClasses}`}
               >
-                <Music className="h-4 w-4" />
+                <Music className="h-3.5 w-3.5" />
               </div>
-              <div>
-                <p className="text-xl font-bold text-foreground">{playerData.name}</p>
-                <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-foreground truncate">{playerData.name}</p>
+                <div className="flex items-center gap-1.5">
                   <TitleBadge title={playerData.currentTitle} compact />
                   <ConnectionStatus />
                 </div>
@@ -185,30 +185,29 @@ export const PlayerView = memo(
             </div>
 
             {gameState.status === 'playing' && gameState.roundState?.currentTileGenre && (
-              <>
-                <p className="text-base font-semibold text-muted-foreground">
-                  Your turn: Upload a beat for{' '}
-                  <span className={`${playerTextAccent} font-bold`}>
-                    {gameState.roundState.currentTileGenre}
-                  </span>
-                </p>
-                <div className="border-t border-border my-4" /> {/* Visual Separator */}
-              </>
+              <p className="mt-1.5 text-xs font-semibold text-muted-foreground">
+                Upload for{' '}
+                <span className={`${playerTextAccent} font-bold`}>
+                  {gameState.roundState.currentTileGenre}
+                </span>
+              </p>
             )}
 
-            <ScoreDisplay
-              scoreInfo={playerData.scoreInfo || null}
-              playerName={playerData.name}
-              isCurrentPlayer={true}
-              hasWon={gameState.status === 'finished' && gameState.winner === playerData.id}
-              eloRating={playerData.eloRating}
-              showPlayerName={false}
-            />
+            <div className="mt-1.5">
+              <ScoreDisplay
+                scoreInfo={playerData.scoreInfo || null}
+                playerName={playerData.name}
+                isCurrentPlayer={true}
+                hasWon={gameState.status === 'finished' && gameState.winner === playerData.id}
+                eloRating={playerData.eloRating}
+                showPlayerName={false}
+              />
+            </div>
           </div>
         </div>
 
         {/* Game Board Column */}
-        <div className="order-1 lg:order-2">
+        <div>
           <BingoBoard
             ref={bingoBoardRef}
             playerId={playerData.id}

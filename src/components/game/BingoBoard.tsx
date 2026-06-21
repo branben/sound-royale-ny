@@ -71,23 +71,23 @@ export const BingoBoard = memo(
         animate={shudder ? { x: [0, -4, 4, -2, 2, 0] } : { x: 0 }}
         transition={{ duration: 0.3 }}
         className={cn(
-          'flex flex-col gap-4 rounded-xl border border-border bg-card p-4',
-          accent ? `border-l-4 ${accent.border}` : '', // Added conditional left border
-          'shadow-lg',
+          'flex flex-col gap-2 rounded-lg border border-border bg-card p-2',
+          accent ? `border-l-4 ${accent.border}` : '',
+          'shadow-md',
           className,
         )}
       >
-        <div className="flex min-w-0 items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <div
               className={cn(
-                'flex h-14 w-14 items-center justify-center rounded-full border',
+                'flex h-8 w-8 items-center justify-center rounded-full border',
                 accent
                   ? `${accent.bg} ${accent.border} ${accent.text}`
                   : 'bg-primary/20 border-primary/30 text-primary',
               )}
             >
-              <span className="text-2xl font-bold font-['Righteous']">{playerName.charAt(0)}</span>
+              <span className="text-base font-bold font-['Righteous']">{playerName.charAt(0)}</span>
             </div>
             <div className="min-w-0">
               <div className="flex min-w-0 items-center gap-2">
@@ -137,7 +137,7 @@ export const BingoBoard = memo(
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-1.5">
           {boardData.tiles.map((tile) => (
             <BingoTile
               key={tile.id}

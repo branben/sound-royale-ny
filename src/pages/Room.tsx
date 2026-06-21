@@ -490,7 +490,13 @@ export default function Room() {
         setGameState((prev) => ({ ...prev, ...newGameState }));
 
         if (userSession.playerSecret) {
-          await attemptRejoin();
+          const rejoined = await attemptRejoin();
+          if (!rejoined) {
+            // Rejoin failed — clear stale session so player can re-join fresh
+            clearSession();
+            setPlayerCredentials('', '');
+            setSpectatorMode(false);
+          }
         }
       } catch (err: unknown) {
         const error = err as { response?: { status?: number }; message?: string };
@@ -688,92 +694,93 @@ export default function Room() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4 relative">
-      <header className="border-b border-border bg-background mb-4 relative z-10">
-        <div className="container mx-auto flex h-10 items-center justify-between">
-          <h1 className="font-['Righteous'] text-2xl md:text-3xl tracking-tight text-primary">
+    <div className="h-dvh flex flex-col bg-background relative overflow-hidden">
+      <header className="shrink-0 border-b border-border bg-background px-3 py-1.5 relative z-10">
+        <div className="container mx-auto flex h-8 items-center justify-between">
+          <h1 className="font-['Righteous'] text-lg md:text-xl tracking-tight text-primary">
             Sound Royale
           </h1>
           <Button
             onClick={() => navigate('/')}
-            variant="outline"
-            className="border-border hover:border-primary/60 hover:shadow-md transition-all duration-200"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
           >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Lobby
+            <ArrowLeft className="mr-1 h-3.5 w-3.5" />
+            Leave
           </Button>
         </div>
       </header>
 
-      <main className="container mx-auto p-2 pb-20 lg:p-3">
+      <main className="flex-1 min-h-0 overflow-y-auto px-2 py-1.5 lg:px-3">
         {gameState.status === 'lobby' ? (
           <div
             ref={joinBattleCardRef}
             data-testid="lobby"
-            className="border-border bg-card w-full max-w-4xl mx-auto rounded-xl p-5 md:p-6 shadow-xl"
+            className="border-border bg-card w-full max-w-2xl mx-auto rounded-lg p-3 md:p-4 shadow-lg"
           >
-            <h2 className="text-2xl font-bold mb-4">Join Battle</h2>
+            <h2 className="text-lg font-bold mb-2">Join Battle</h2>
             {hasCurrentPlayer ? (
-              <div className="text-center py-4">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-500/20 mb-4 ring-4 ring-green-500/50">
-                  <Users className="h-8 w-8 text-green-500" />
+              <div className="text-center py-2">
+                <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-green-500/20 mb-2 ring-2 ring-green-500/50">
+                  <Users className="h-6 w-6 text-green-500" />
                 </div>
-                <h3 className="text-lg font-semibold mb-2">You're in battle!</h3>
+                <h3 className="text-base font-semibold mb-1">You're in battle!</h3>
                 {isHost && activePlayersCount >= 2 ? (
-                  <div className="space-y-4 mt-4">
-                    <p className="text-muted-foreground">Ready to start battle!</p>
+                  <div className="space-y-2 mt-2">
+                    <p className="text-sm text-muted-foreground">Ready to start battle!</p>
                     <Button
                       ref={(el) => (actionButtonRefs.current[0] = el)}
                       data-testid="start-battle"
                       onClick={handleStartGame}
-                      className="h-12 text-xl font-bold shadow-lg w-full"
+                      className="h-10 text-lg font-bold shadow-lg w-full"
                     >
-                      <Play className="mr-2 h-6 w-6" />
+                      <Play className="mr-2 h-5 w-5" />
                       Start Battle
                     </Button>
                   </div>
                 ) : (
-                  <p className="text-muted-foreground flex items-center justify-center space-x-2">
+                  <p className="text-sm text-muted-foreground flex items-center justify-center space-x-2">
                     <span>Waiting for contestants</span>
-                    <span className="relative flex h-3 w-3">
+                    <span className="relative flex h-2.5 w-2.5">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
                     </span>
                   </p>
                 )}
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-2">
                 <Button
                   ref={(el) => (actionButtonRefs.current[1] = el)}
                   onClick={handleJoinAsPlayer}
-                  className="h-12"
+                  className="h-10"
                 >
-                  <Users className="mr-2 h-5 w-5" />
-                  Join as Player
+                  <Users className="mr-2 h-4 w-4" />
+                  Join Player
                 </Button>
                 <Button
                   ref={(el) => (actionButtonRefs.current[2] = el)}
                   onClick={handleJoinAsSpectator}
                   variant="outline"
-                  className="h-12"
+                  className="h-10"
                 >
-                  <Settings className="mr-2 h-5 w-5" />
-                  Join as Spectator
+                  <Settings className="mr-2 h-4 w-4" />
+                  Spectate
                 </Button>
               </div>
             )}
-            <div className="text-center text-sm text-muted-foreground space-y-2">
+            <div className="text-center text-sm text-muted-foreground mt-3 space-y-1">
               <p
                 ref={roomCodeRef}
                 data-testid="room-id"
-                className="font-mono text-3xl md:text-4xl font-bold tracking-[0.3em] text-primary bg-card/50 rounded-lg px-4 py-2 inline-block"
+                className="font-mono text-2xl md:text-3xl font-bold tracking-[0.2em] text-primary bg-card/50 rounded px-3 py-1 inline-block"
               >
                 {room.code}
               </p>
-              <div className="flex items-center justify-center gap-3">
+              <div className="flex items-center justify-center gap-2">
                 <span
-                  className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                     gameState.matchType === 'ranked'
                       ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
                       : 'bg-muted text-muted-foreground border border-border'
@@ -782,40 +789,34 @@ export default function Room() {
                   {gameState.matchType === 'ranked' ? 'Ranked' : 'Casual'}
                 </span>
                 {gameState.matchType !== 'ranked' && (
-                  <span className="text-xs text-muted-foreground">
-                    {(gameState.spectatorCount ?? Object.values(gameState.players).filter(p => p.isSpectator).length)}/3 spectators for Ranked
+                  <span className="text-[10px] text-muted-foreground">
+                    {(gameState.spectatorCount ?? Object.values(gameState.players).filter(p => p.isSpectator).length)}/3 for Ranked
                   </span>
                 )}
               </div>
             </div>
           </div>
         ) : (
-          <div className="flex flex-col lg:flex-row gap-3">
-            <div ref={gameInfoRef} className="hidden lg:block lg:w-80 lg:order-1">
+          <div className="flex flex-col lg:flex-row gap-2 h-full">
+            <div ref={gameInfoRef} className="hidden lg:block lg:w-64 shrink-0">
               <GameInfo roomId={roomId!} currentPlayerName={userSession.playerName ?? undefined} />
             </div>
 
-            <div className="flex-1 space-y-3 lg:order-2">
+            <div className="flex-1 min-w-0 flex flex-col gap-2">
               {!hasCurrentPlayer ? (
-                <Card className="border-border bg-card">
-                  <CardHeader>
-                    <CardTitle>Join as Spectator</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                      This match is already live. You can still join the audience and help unlock
-                      voting when enough spectators are present.
-                    </p>
-                    <Button onClick={handleJoinAsSpectator} className="h-11 w-full">
-                      <Users className="mr-2 h-4 w-4" />
-                      Join Spectator View
-                    </Button>
-                  </CardContent>
-                </Card>
+                <div className="border border-border bg-card rounded-lg p-3 text-center">
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Match is live. Join the audience to unlock voting.
+                  </p>
+                  <Button onClick={handleJoinAsSpectator} className="h-9 w-full">
+                    <Users className="mr-2 h-4 w-4" />
+                    Join as Spectator
+                  </Button>
+                </div>
               ) : (
                 <>
                   {gameState.status === 'playing' && (
-                    <div ref={roundStageRef}>
+                    <div ref={roundStageRef} className="shrink-0">
                       <RoundStage
                         roundNumber={gameState.currentRound || 1}
                         genre={gameState.roundState?.currentTileGenre}
@@ -832,10 +833,10 @@ export default function Room() {
                       />
                     </div>
                   )}
-                  {userSession.isSpectator ? (
-                    <SpectatorView bingoBoardRefs={bingoBoardRefs} />
-                  ) : (
-                    <div className="flex flex-col">
+                  <div className="flex-1 min-h-0">
+                    {userSession.isSpectator ? (
+                      <SpectatorView bingoBoardRefs={bingoBoardRefs} />
+                    ) : (
                       <PlayerView
                         bingoBoardRef={(el) => {
                           bingoBoardRefs.current[0] = el;
@@ -843,8 +844,8 @@ export default function Room() {
                         roomId={roomId!}
                         playerName={userSession.playerName ?? undefined}
                       />
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </>
               )}
             </div>
@@ -873,23 +874,23 @@ export default function Room() {
       {/* Match-end overlay */}
       {gameState.status === 'finished' && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="text-center space-y-4 p-8 rounded-2xl border border-border bg-card shadow-2xl max-w-sm mx-4">
-            <h2 className="font-['Righteous'] text-3xl text-primary">
+          <div className="text-center space-y-3 p-6 rounded-xl border border-border bg-card shadow-2xl max-w-xs mx-4">
+            <h2 className="font-['Righteous'] text-2xl text-primary">
               {gameState.matchType === 'ranked' ? 'Victory!' : 'Match Over'}
             </h2>
             {gameState.matchType === 'ranked' && gameState.winner ? (
-              <p className="text-lg text-foreground">
-                <span className="font-bold text-yellow-400">{gameState.winner}</span> wins with bingo!
+              <p className="text-base text-foreground">
+                <span className="font-bold text-yellow-400">{gameState.winner}</span> wins!
               </p>
             ) : (
-              <p className="text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 {gameState.matchType === 'ranked'
                   ? 'No bingo this time'
-                  : 'Good game! Resetting for next match'}
+                  : 'Good game! Resetting...'}
               </p>
             )}
             {resetCountdown !== null && resetCountdown > 0 && (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 New match in {resetCountdown}s
               </p>
             )}
@@ -906,7 +907,8 @@ export default function Room() {
                     setResetCountdown(null);
                   }
                 }}
-                className="mt-2"
+                className="mt-1"
+                size="sm"
               >
                 Reset Now
               </Button>
