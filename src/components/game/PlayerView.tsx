@@ -12,6 +12,7 @@ import { useGame } from '@/context/useGame';
 import { gameApi } from '@/services/api';
 import { usePlayerColors } from '@/hooks/usePlayerColors';
 import { Wifi, WifiOff, Music } from 'lucide-react';
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 
 interface PlayerViewProps {
   roomId: string;
@@ -111,10 +112,6 @@ export const PlayerView = memo(
 
     const currentPlayerColorIndex = playerData ? playerColors.get(playerData.id) : undefined;
 
-    const handleTimeUp = () => {
-      toast.info("Time's up! Moving to next turn...");
-    };
-
     const handleBingoNotificationComplete = () => {
       setShowBingoNotification(false);
     };
@@ -122,7 +119,7 @@ export const PlayerView = memo(
     if (!playerData) {
       return (
         <div className="text-center py-8">
-          <p className="text-muted-foreground">Failed to load player data</p>
+          <p className="text-zinc-400">Failed to load player data</p>
         </div>
       );
     }
@@ -132,11 +129,11 @@ export const PlayerView = memo(
       return (
         <div
           data-testid="connection-status"
-          className={`flex items-center gap-1 text-xs ${isConnected ? 'text-green-500' : 'text-gray-500'}`}
+          className={`flex items-center gap-1 text-xs ${isConnected ? 'text-green-500' : 'text-zinc-500'}`}
         >
           <span
             className={`h-2 w-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}
-          ></span>
+          />
           <span>{isConnected ? 'Online' : 'Offline'}</span>
         </div>
       );
@@ -159,89 +156,122 @@ export const PlayerView = memo(
         ? `text-player-${currentPlayerColorIndex + 1}`
         : 'text-primary';
 
+    const playerBorderAccent =
+      currentPlayerColorIndex !== undefined
+        ? `border-player-${currentPlayerColorIndex + 1}`
+        : 'border-primary';
+
     return (
-      <div
-        ref={ref}
-        className={`grid grid-cols-1 lg:grid-cols-[10rem_1fr] gap-3 ${!playerData.isConnected ? 'opacity-50' : ''}`}
-      >
-        {/* Player Info Column — compact horizontal row on mobile, sidebar on desktop */}
-        <div className="flex items-center gap-3 lg:flex-col lg:items-stretch">
+      <div ref={ref} className="flex flex-col gap-3">
+        {/* Desktop: horizontal player bar */}
+        <div className="hidden lg:flex items-center gap-3 rounded-lg bg-zinc-900 px-4 py-3">
           <div
-            className={`flex-1 rounded-lg border border-zinc-700 bg-zinc-900 p-2 border-l-4 ${playerTextAccent.replace('text-', 'border-')}`}
+            className={`flex h-9 w-9 items-center justify-center rounded-full ${playerAccentClasses}`}
           >
+            <Music className="h-4 w-4" />
+          </div>
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <div
-                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${playerAccentClasses}`}
-              >
-                <Music className="h-3.5 w-3.5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-zinc-100 truncate">{playerData.name}</p>
-                <div className="flex items-center gap-1.5">
-                  <TitleBadge title={playerData.currentTitle} compact />
-                  <ConnectionStatus />
-                </div>
-              </div>
-            </div>
-
-            {gameState.status === 'playing' && gameState.roundState?.currentTileGenre && (
-                <p className="mt-1.5 text-xs font-semibold text-zinc-400">
-                  Upload for{' '}
-                  <span className={`${playerTextAccent} font-bold`}>
-                    {gameState.roundState.currentTileGenre}
-                  </span>
-                </p>
-            )}
-
-            <div className="mt-1.5">
-              <ScoreDisplay
-                scoreInfo={playerData.scoreInfo || null}
-                playerName={playerData.name}
-                isCurrentPlayer={true}
-                hasWon={gameState.status === 'finished' && gameState.winner === playerData.id}
-                eloRating={playerData.eloRating}
-                showPlayerName={false}
-              />
+              <p className="text-sm font-semibold text-zinc-100 truncate">{playerData.name}</p>
+              <TitleBadge title={playerData.currentTitle} compact />
+              <ConnectionStatus />
             </div>
           </div>
-        </div>
-
-        {/* Game Board Column */}
-        <div>
-          <BingoBoard
-            ref={bingoBoardRef}
-            playerId={playerData.id}
+          <ScoreDisplay
+            scoreInfo={playerData.scoreInfo || null}
             playerName={playerData.name}
-            isDiscordVerified={playerData.isDiscordVerified}
-            discordUsername={playerData.discordUsername}
-            boardData={{
-              tiles: playerData.tiles || [],
-            }}
-            onTileClick={handleTileClick}
-            isInteractive={gameState.status === 'playing' && !currentPlayer?.isSpectator}
-            isTileInteractive={(tileId) => {
-              const tile = playerData.tiles.find((entry) => entry.id === tileId);
-              return !!tile && tile.status === 'empty' && isCurrentRoundTile(tile);
-            }}
-            playerColorIndex={currentPlayerColorIndex}
+            isCurrentPlayer={true}
+            hasWon={gameState.status === 'finished' && gameState.winner === playerData.id}
+            eloRating={playerData.eloRating}
+            showPlayerName={false}
           />
-
-          <UploadDrawer
-            isOpen={isDrawerOpen}
-            onClose={() => setIsDrawerOpen(false)}
-            tile={selectedTile?.tile || null}
-            onUpload={handleUpload}
-          />
+          {gameState.status === 'playing' && gameState.roundState?.currentTileGenre && (
+            <p className="text-xs text-zinc-400">
+              Upload for{' '}
+              <span className={`font-semibold ${playerTextAccent}`}>
+                {gameState.roundState.currentTileGenre}
+              </span>
+            </p>
+          )}
         </div>
 
-        {/* Bingo Notification */}
+        {/* Mobile: accordion */}
+        <div className="lg:hidden">
+          <Accordion type="single" collapsible>
+            <AccordionItem value="player-info" className="border-none">
+              <AccordionTrigger className="rounded-lg bg-zinc-800 px-4 py-3 hover:bg-zinc-700 hover:translate-x-0.5 transition-all duration-150">
+                <div className="flex items-center gap-3">
+                  <div className={`flex h-8 w-8 items-center justify-center rounded-full ${playerAccentClasses}`}>
+                    <Music className="h-4 w-4" />
+                  </div>
+                  <span className="text-sm font-semibold text-zinc-100">{playerData.name}</span>
+                  <span className="ml-auto text-xs text-zinc-400 tabular-nums">
+                    {playerData.scoreInfo?.score ?? 0} pts
+                  </span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="rounded-b-lg bg-zinc-900 px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <TitleBadge title={playerData.currentTitle} compact />
+                    <ConnectionStatus />
+                  </div>
+                  {gameState.status === 'playing' && gameState.roundState?.currentTileGenre && (
+                    <p className="text-xs text-zinc-400">
+                      Upload for{' '}
+                      <span className={`font-semibold ${playerTextAccent}`}>
+                        {gameState.roundState.currentTileGenre}
+                      </span>
+                    </p>
+                  )}
+                </div>
+                <div className="mt-2">
+                  <ScoreDisplay
+                    scoreInfo={playerData.scoreInfo || null}
+                    playerName={playerData.name}
+                    isCurrentPlayer={true}
+                    hasWon={gameState.status === 'finished' && gameState.winner === playerData.id}
+                    eloRating={playerData.eloRating}
+                    showPlayerName={false}
+                  />
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </div>
+
+        {/* Board — full width */}
+        <BingoBoard
+          ref={bingoBoardRef}
+          playerId={playerData.id}
+          playerName={playerData.name}
+          isDiscordVerified={playerData.isDiscordVerified}
+          discordUsername={playerData.discordUsername}
+          boardData={{
+            tiles: playerData.tiles || [],
+          }}
+          onTileClick={handleTileClick}
+          isInteractive={gameState.status === 'playing' && !currentPlayer?.isSpectator}
+          isTileInteractive={(tileId) => {
+            const tile = playerData.tiles.find((entry) => entry.id === tileId);
+            return !!tile && tile.status === 'empty' && isCurrentRoundTile(tile);
+          }}
+          playerColorIndex={currentPlayerColorIndex}
+        />
+
+        <UploadDrawer
+          isOpen={isDrawerOpen}
+          onClose={() => setIsDrawerOpen(false)}
+          tile={selectedTile?.tile || null}
+          onUpload={handleUpload}
+        />
+
         <BingoNotification
           isVisible={showBingoNotification}
           isDoubleBingo={isDoubleBingo}
           onComplete={handleBingoNotificationComplete}
         />
 
-        {/* Winner Announcement */}
         {gameState.status === 'finished' && gameState.winner && (
           <WinnerAnnouncement
             winnerName={players.find((p) => p.id === gameState.winner)?.name || 'Unknown'}
@@ -251,7 +281,6 @@ export const PlayerView = memo(
           />
         )}
 
-        {/* Game Over Screen (shown only when finished without a winner) */}
         {gameState.status === 'finished' && !gameState.winner && (
           <GameOverScreen
             isVisible={true}
