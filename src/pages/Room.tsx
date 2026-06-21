@@ -650,27 +650,22 @@ export default function Room() {
 
   if (loading || isReconnecting) {
     return (
-      <div className="min-h-screen bg-background p-4">
-        <header className="border-b border-border bg-background">
-          <div className="container mx-auto flex h-12 items-center justify-between">
-            <h1 className="text-2xl font-bold text-foreground md:text-3xl">Sound Royale</h1>
-            <div className="flex items-center gap-2">
-              <Button onClick={() => navigate('/')} variant="outline">
-                <Users className="mr-2 h-5 w-5" />
-                Home
-              </Button>
-            </div>
+      <div className="h-dvh flex flex-col bg-background">
+        <header className="shrink-0 border-b border-border bg-background px-3 py-1.5">
+          <div className="container mx-auto flex h-8 items-center justify-between">
+            <h1 className="font-['Righteous'] text-lg tracking-tight text-primary">Sound Royale</h1>
+            <Button onClick={() => navigate('/')} variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground">
+              <ArrowLeft className="mr-1 h-3.5 w-3.5" />
+              Leave
+            </Button>
           </div>
         </header>
-
-        <main className="container mx-auto p-4 lg:p-6">
-          <div className="flex items-center justify-center h-64">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-              <p className="text-muted-foreground">
-                {isReconnecting ? 'Reconnecting to room...' : 'Loading room...'}
-              </p>
-            </div>
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-3"></div>
+            <p className="text-sm text-muted-foreground">
+              {isReconnecting ? 'Reconnecting...' : 'Loading room...'}
+            </p>
           </div>
         </main>
       </div>
@@ -679,16 +674,14 @@ export default function Room() {
 
   if (error || !room) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Card className="w-full max-w-md">
-          <CardContent className="text-center py-8">
-            <p className="text-destructive mb-4">{error || 'Room not found'}</p>
-            <Button onClick={() => navigate('/')}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Lobby
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="h-dvh flex items-center justify-center bg-background px-4">
+        <div className="text-center space-y-3">
+          <p className="text-destructive text-sm">{error || 'Room not found'}</p>
+          <Button onClick={() => navigate('/')} variant="outline" size="sm">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Lobby
+          </Button>
+        </div>
       </div>
     );
   }
@@ -717,34 +710,34 @@ export default function Room() {
           <div
             ref={joinBattleCardRef}
             data-testid="lobby"
-            className="border-border bg-card w-full max-w-2xl mx-auto rounded-lg p-3 md:p-4 shadow-lg"
+            className="border-border bg-card w-full max-w-[28rem] mx-auto rounded-xl p-4 shadow-lg"
           >
             <h2 className="text-lg font-bold mb-2">Join Battle</h2>
             {hasCurrentPlayer ? (
-              <div className="text-center py-2">
-                <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-green-500/20 mb-2 ring-2 ring-green-500/50">
-                  <Users className="h-6 w-6 text-green-500" />
+              <div className="text-center py-3">
+                <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-green-500/15 mb-3 ring-2 ring-green-500/30">
+                  <Users className="h-5 w-5 text-green-500" />
                 </div>
-                <h3 className="text-base font-semibold mb-1">You're in battle!</h3>
+                <h3 className="text-base font-semibold text-zinc-100 mb-1">You're in battle!</h3>
                 {isHost && activePlayersCount >= 2 ? (
-                  <div className="space-y-2 mt-2">
-                    <p className="text-sm text-muted-foreground">Ready to start battle!</p>
+                  <div className="space-y-3 mt-3">
+                    <p className="text-sm text-zinc-400">Ready to start battle!</p>
                     <Button
                       ref={(el) => (actionButtonRefs.current[0] = el)}
                       data-testid="start-battle"
                       onClick={handleStartGame}
-                      className="h-10 text-lg font-bold shadow-lg w-full"
+                      className="h-11 text-base font-semibold w-full bg-red-500 hover:opacity-90 text-white active:scale-[0.97] rounded-lg"
                     >
-                      <Play className="mr-2 h-5 w-5" />
+                      <Play className="mr-2 h-4 w-4" />
                       Start Battle
                     </Button>
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground flex items-center justify-center space-x-2">
+                  <p className="text-sm text-zinc-400 flex items-center justify-center space-x-2">
                     <span>Waiting for contestants</span>
-                    <span className="relative flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
                     </span>
                   </p>
                 )}
@@ -754,7 +747,7 @@ export default function Room() {
                 <Button
                   ref={(el) => (actionButtonRefs.current[1] = el)}
                   onClick={handleJoinAsPlayer}
-                  className="h-10"
+                  className="h-11 bg-red-500 hover:opacity-90 text-white active:scale-[0.97] rounded-lg text-sm font-semibold"
                 >
                   <Users className="mr-2 h-4 w-4" />
                   Join Player
@@ -763,18 +756,18 @@ export default function Room() {
                   ref={(el) => (actionButtonRefs.current[2] = el)}
                   onClick={handleJoinAsSpectator}
                   variant="outline"
-                  className="h-10"
+                  className="h-11 rounded-lg text-sm border-zinc-700 text-zinc-100 hover:bg-zinc-800"
                 >
                   <Settings className="mr-2 h-4 w-4" />
                   Spectate
                 </Button>
               </div>
             )}
-            <div className="text-center text-sm text-muted-foreground mt-3 space-y-1">
+            <div className="text-center mt-3 space-y-1.5">
               <p
                 ref={roomCodeRef}
                 data-testid="room-id"
-                className="font-mono text-2xl md:text-3xl font-bold tracking-[0.2em] text-primary bg-card/50 rounded px-3 py-1 inline-block"
+                className="font-mono text-2xl md:text-3xl font-bold tracking-[0.2em] text-zinc-100 bg-zinc-800 rounded-lg px-4 py-1.5 inline-block"
               >
                 {room.code}
               </p>
@@ -782,14 +775,14 @@ export default function Room() {
                 <span
                   className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                     gameState.matchType === 'ranked'
-                      ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
-                      : 'bg-muted text-muted-foreground border border-border'
+                      ? 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/25'
+                      : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
                   }`}
                 >
                   {gameState.matchType === 'ranked' ? 'Ranked' : 'Casual'}
                 </span>
                 {gameState.matchType !== 'ranked' && (
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className="text-[10px] text-zinc-500">
                     {(gameState.spectatorCount ?? Object.values(gameState.players).filter(p => p.isSpectator).length)}/3 for Ranked
                   </span>
                 )}
@@ -804,11 +797,11 @@ export default function Room() {
 
             <div className="flex-1 min-w-0 flex flex-col gap-2">
               {!hasCurrentPlayer ? (
-                <div className="border border-border bg-card rounded-lg p-3 text-center">
-                  <p className="text-sm text-muted-foreground mb-2">
+                <div className="border border-zinc-700 bg-zinc-900 rounded-xl p-4 text-center">
+                  <p className="text-sm text-zinc-400 mb-3">
                     Match is live. Join the audience to unlock voting.
                   </p>
-                  <Button onClick={handleJoinAsSpectator} className="h-9 w-full">
+                  <Button onClick={handleJoinAsSpectator} className="h-10 w-full rounded-lg text-sm border-zinc-700 text-zinc-100 hover:bg-zinc-800">
                     <Users className="mr-2 h-4 w-4" />
                     Join as Spectator
                   </Button>
@@ -873,24 +866,24 @@ export default function Room() {
 
       {/* Match-end overlay */}
       {gameState.status === 'finished' && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="text-center space-y-3 p-6 rounded-xl border border-border bg-card shadow-2xl max-w-xs mx-4">
-            <h2 className="font-['Righteous'] text-2xl text-primary">
-              {gameState.matchType === 'ranked' ? 'Victory!' : 'Match Over'}
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70">
+          <div className="text-center space-y-3 p-6 rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl max-w-xs mx-4">
+            <h2 className="font-['Righteous'] text-2xl text-zinc-100">
+              {gameState.matchType === 'ranked' && gameState.winner ? 'Victory!' : 'Match Over'}
             </h2>
             {gameState.matchType === 'ranked' && gameState.winner ? (
-              <p className="text-base text-foreground">
-                <span className="font-bold text-yellow-400">{gameState.winner}</span> wins!
+              <p className="text-base text-zinc-300">
+                <span className="font-bold text-yellow-400">{gameState.winner}</span> wins with bingo!
               </p>
             ) : (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-zinc-400">
                 {gameState.matchType === 'ranked'
                   ? 'No bingo this time'
-                  : 'Good game! Resetting...'}
+                  : 'Good game! Resetting for next match'}
               </p>
             )}
             {resetCountdown !== null && resetCountdown > 0 && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-zinc-500">
                 New match in {resetCountdown}s
               </p>
             )}
@@ -907,10 +900,9 @@ export default function Room() {
                     setResetCountdown(null);
                   }
                 }}
-                className="mt-1"
-                size="sm"
+                className="mt-2 bg-red-500 hover:opacity-90 text-white active:scale-[0.97] rounded-lg h-10 text-sm font-semibold"
               >
-                Reset Now
+                Play Again
               </Button>
             )}
           </div>

@@ -24,40 +24,7 @@ export function RoundStage({
   spectatorCount,
   votesRecorded = 0,
 }: RoundStageProps) {
-  const [rouletteIndex, setRouletteIndex] = useState(0);
-  const [isRouletting, setIsRouletting] = useState(false);
   const [fallbackTimeRemaining, setFallbackTimeRemaining] = useState<number | null>(null);
-  const [votingJustOpened, setVotingJustOpened] = useState(false);
-
-  // Flash animation when voting opens
-  useEffect(() => {
-    if (votingOpen && !votingJustOpened) {
-      setVotingJustOpened(true);
-      const timeoutId = setTimeout(() => setVotingJustOpened(false), 2000);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [votingOpen, votingJustOpened]);
-
-  useEffect(() => {
-    if (!genre) return;
-
-    setIsRouletting(true);
-    setRouletteIndex(0);
-
-    const intervalId = window.setInterval(() => {
-      setRouletteIndex((prev) => (prev + 1) % GENRES.length);
-    }, 90);
-
-    const timeoutId = window.setTimeout(() => {
-      window.clearInterval(intervalId);
-      setIsRouletting(false);
-    }, 1200);
-
-    return () => {
-      window.clearInterval(intervalId);
-      window.clearTimeout(timeoutId);
-    };
-  }, [genre, roundNumber]);
 
   useEffect(() => {
     if (!timerEndsAt || (timeRemaining !== null && timeRemaining !== undefined)) {
@@ -75,7 +42,7 @@ export function RoundStage({
     return () => window.clearInterval(intervalId);
   }, [timerEndsAt, timeRemaining]);
 
-  const displayGenre = isRouletting ? GENRES[rouletteIndex] : genre || 'Waiting';
+  const displayGenre = genre || 'Waiting';
   const formattedTime = useMemo(() => {
     const rawTime = timeRemaining ?? fallbackTimeRemaining;
     if (rawTime === null || rawTime === undefined) return null;
@@ -89,14 +56,13 @@ export function RoundStage({
     <section
       data-testid="round-stage"
       className={cn(
-        'rounded-lg border border-border bg-card p-2.5 md:p-3',
-        votingJustOpened && 'ring-2 ring-primary',
+        'rounded-lg border border-zinc-700 bg-zinc-900 p-2.5 md:p-3',
       )}
     >
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <div className="mb-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            <span className="relative overflow-hidden rounded-full border border-muted bg-muted px-3 py-1 font-medium">
+            <span className="relative overflow-hidden rounded-full border border-zinc-700 bg-zinc-800 px-2.5 py-0.5 font-medium">
               <AnimatePresence mode="wait">
                 <motion.span
                   key={roundNumber}
@@ -111,12 +77,12 @@ export function RoundStage({
               </AnimatePresence>
             </span>
             <span
-              className={cn(
-                'inline-flex items-center gap-1 rounded-full px-3 py-1 font-semibold transition-all',
-                votingOpen
-                  ? 'bg-primary/10 border border-primary/40 text-primary'
-                  : 'bg-muted border border-border text-muted-foreground',
-              )}
+                  className={cn(
+                    'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold transition-all',
+                    votingOpen
+                      ? 'bg-green-500/10 border border-green-500/30 text-green-400'
+                      : 'bg-zinc-800 border border-zinc-700 text-zinc-400',
+                  )}
             >
               {votingOpen ? (
                 <AnimatePresence mode="wait">
@@ -162,7 +128,7 @@ export function RoundStage({
                 isRouletting && 'animate-spin',
               )}
             >
-              <Disc3 className="h-8 w-8 text-muted-foreground" />
+              <Disc3 className="h-6 w-6 text-zinc-500" />
             </div>
             <div className="min-w-0">
               <p className="text-sm font-medium uppercase text-muted-foreground">Active Genre</p>
@@ -173,10 +139,9 @@ export function RoundStage({
                   animate={{ y: 0, opacity: 1, scale: 1 }}
                   exit={{ y: -20, opacity: 0 }}
                   transition={transitions.springBouncy}
-                  className={cn(
-                    'break-words text-4xl font-bold leading-tight text-foreground md:text-5xl',
-                    isRouletting && 'text-primary',
-                  )}
+                    className={cn(
+                      'break-words text-2xl font-bold leading-tight text-zinc-100 md:text-3xl',
+                    )}
                 >
                   {displayGenre}
                 </motion.h2>
@@ -185,27 +150,27 @@ export function RoundStage({
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:w-80 lg:grid-cols-1">
-          <div className="rounded-lg border border-muted/70 bg-muted/70 p-4">
-            <div className="mb-1 flex items-center gap-2 text-sm text-muted-foreground">
-              <Clock className="h-4 w-4 text-primary" />
-              Time Remaining
+          <div className="grid gap-2 sm:grid-cols-2 lg:w-48 lg:grid-cols-1">
+            <div className="rounded-lg border border-zinc-700 bg-zinc-800 p-2.5">
+              <div className="mb-0.5 flex items-center gap-1.5 text-xs text-zinc-500">
+                <Clock className="h-3 w-3" />
+                Time
+              </div>
+              <div className="font-mono text-xl font-bold text-zinc-100">
+                {formattedTime ?? '--:--'}
+              </div>
             </div>
-            <div className="font-mono text-3xl font-bold text-foreground">
-              {formattedTime ?? '--:--'}
-            </div>
-          </div>
-          <div
-            className={cn(
-              'rounded-lg border p-4 transition-all',
-              votingOpen ? 'border-primary/40 bg-primary/5' : 'border-border bg-muted',
-            )}
-          >
-            <div className="mb-1 flex items-center gap-2 text-sm text-muted-foreground">
-              <Vote className={cn('h-4 w-4', votingOpen ? 'text-primary' : 'text-primary')} />
-              {votingOpen ? 'Vote Status' : 'Round Mode'}
-            </div>
-            <div className="text-sm font-medium text-foreground">
+            <div
+              className={cn(
+                'rounded-lg border p-2.5',
+                votingOpen ? 'border-green-500/30 bg-green-500/5' : 'border-zinc-700 bg-zinc-800',
+              )}
+            >
+              <div className="mb-0.5 flex items-center gap-1.5 text-xs text-zinc-500">
+                <Vote className="h-3 w-3" />
+                {votingOpen ? 'Vote Status' : 'Round Mode'}
+              </div>
+              <div className="text-xs font-medium text-zinc-300">
               {votingOpen ? (
                 <AnimatePresence mode="wait">
                   <motion.span
@@ -216,13 +181,13 @@ export function RoundStage({
                     transition={transitions.springBouncy}
                     className="text-primary font-semibold"
                   >
-                    {votesRecorded} votes recorded
+                    {votesRecorded} votes
                   </motion.span>
                 </AnimatePresence>
               ) : spectatorCount >= 3 ? (
-                `${spectatorCount} spectators can vote`
+                `${spectatorCount} spectators voting`
               ) : (
-                `${spectatorCount}/3 spectators for voting`
+                `${spectatorCount}/3 for voting`
               )}
             </div>
           </div>
