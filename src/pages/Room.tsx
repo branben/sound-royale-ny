@@ -7,8 +7,10 @@ import {
 } from '@/components/ui/accordion';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { ArrowLeft, Users, Play, Settings, Vote, Trophy } from 'lucide-react';
+import { ArrowLeft, Users, Play, Trophy } from 'lucide-react';
+
 import { normalizeRoomWinner, roomApi, gameApi } from '@/services/api';
 import { getDiscordSession } from '@/services/discordSession';
 import { BingoBoard } from '@/components/game/BingoBoard';
@@ -37,6 +39,8 @@ export default function Room() {
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [hostMigration, setHostMigration] = useState<{ newHostName: string } | null>(null);
+  const [joinName, setJoinName] = useState('');
+
 
   const {
     userSession,
@@ -139,8 +143,12 @@ export default function Room() {
   const handleJoinAsPlayer = async () => {
     if (!roomId) return;
 
-    const name = userSession.playerName || window.prompt('Enter your name:');
-    if (!name?.trim()) return;
+    const name = (userSession.playerName || joinName).trim();
+    if (!name) {
+      toast.error('Enter a name to join');
+      return;
+    }
+
 
     try {
       const player = await gameApi.joinRoom(
@@ -401,34 +409,15 @@ export default function Room() {
       return;
     }
 
-    if (gameState.status === 'lobby') {
-      // Room code does a dramatic reveal
-      if (roomCodeRef.current) {
-        gsap.from(roomCodeRef.current, {
-          scale: 0.5,
-          opacity: 0,
-          ease: 'elastic.out(1, 0.5)',
-          duration: 0.8,
-        });
-      }
-
-      // "Join Battle" card fades in and slides up
-      if (joinBattleCardRef.current) {
-        gsap.from(joinBattleCardRef.current, {
-          y: 20,
-          opacity: 0,
-          duration: 0.5,
-          delay: 0.2,
-        });
-      }
-
-      if (roomCodeRef.current) {
-        gsap.from(roomCodeRef.current, { opacity: 0, duration: 0.3 });
-      }
-      if (joinBattleCardRef.current) {
-        gsap.from(joinBattleCardRef.current, { opacity: 0, duration: 0.3 });
-      }
+    if (gameState.status === 'lobby' && roomCodeRef.current) {
+      gsap.from(roomCodeRef.current, {
+        scale: 0.92,
+        opacity: 0,
+        ease: 'power2.out',
+        duration: 0.25,
+      });
     }
+
   }, [gameState.status]); // Only re-run entrance animations on status change, not players update
 
   // Auto-reset after match ends
@@ -490,11 +479,11 @@ export default function Room() {
         </header>
         <main className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-3"></div>
             <p className="text-sm text-muted-foreground">
-              {isReconnecting ? 'Reconnecting...' : 'Loading room...'}
+              {isReconnecting ? 'Reconnecting…' : 'Loading room…'}
             </p>
           </div>
+
         </main>
       </div>
     );
@@ -515,9 +504,8 @@ export default function Room() {
   }
 
   return (
-    <div className="h-dvh flex flex-col bg-background relative">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/[0.03] via-transparent to-transparent pointer-events-none" />
-      <header className="shrink-0 border-b border-border bg-background px-3 py-1.5 relative z-10">
+    <div className="h-dvh flex flex-col bg-background">
+      <header className="shrink-0 border-b border-border bg-background px-3 py-1.5">
         <div className="container mx-auto flex h-8 items-center justify-between">
           <h1 className="font-['Righteous'] text-lg md:text-xl tracking-tight text-primary">
             Sound Royale
@@ -534,17 +522,28 @@ export default function Room() {
         </div>
       </header>
 
-      <main className="relative z-10 flex-1 flex flex-col items-center px-4 py-8">
+      <main className="flex-1 flex flex-col items-center px-4 py-8">
         {gameState.status === 'lobby' ? (
           <>
-            <h1 className="text-4xl md:text-5xl font-['Righteous'] tracking-tight text-zinc-100 mb-1">
-              BATTLE ROOM
-            </h1>
+            <div className="flex items-center gap-3 mb-1">
+              <h1 className="text-2xl font-['Righteous'] tracking-tight text-zinc-100">
+                BATTLE ROOM
+              </h1>
+              <span
+                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                  gameState.matchType === 'ranked'
+                    ? 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/25'
+                    : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+                }`}
+              >
+                {gameState.matchType === 'ranked' ? 'Ranked' : 'Casual'}
+              </span>
+            </div>
             <p className="text-sm text-zinc-500 mb-8">
               {hasCurrentPlayer ? "You're in the arena" : 'Choose your role'}
             </p>
 
-            <div className="w-full max-w-[32rem] rounded-xl bg-zinc-900 p-6">
+            <div className="w-full max-w-[32rem] rounded-xl bg-zinc-900 border border-zinc-800 p-6">
               {hasCurrentPlayer ? (
                 <div className="text-center py-4">
                   <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-500/15 mb-4">
@@ -558,7 +557,7 @@ export default function Room() {
                         ref={(el) => (actionButtonRefs.current[0] = el)}
                         data-testid="start-battle"
                         onClick={handleStartGame}
-                        className="h-12 w-full text-base font-['Righteous'] tracking-wider uppercase bg-red-500 hover:bg-red-600 hover:translate-y-[-1px] active:translate-y-0 active:scale-[0.98] text-white rounded-lg shadow-lg shadow-red-500/20 transition-all duration-150"
+                        className="h-12 w-full text-base font-['Righteous'] tracking-wider uppercase bg-red-500 hover:bg-red-600 active:scale-[0.97] text-white rounded-lg transition-colors"
                       >
                         <Play className="mr-2 h-5 w-5" />
                         Start Battle
@@ -566,11 +565,8 @@ export default function Room() {
                     </div>
                   ) : (
                     <div className="flex items-center justify-center gap-2 py-3">
-                      <span className="relative flex h-2.5 w-2.5">
-                        <span className="absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75 animate-ping" />
-                        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
-                      </span>
-                      <span className="text-sm text-zinc-400">Waiting for opponent...</span>
+                      <span className="inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+                      <span className="text-sm text-zinc-400">Waiting for opponent…</span>
                     </div>
                   )}
                 </div>
@@ -580,58 +576,55 @@ export default function Room() {
                     <p
                       ref={roomCodeRef}
                       data-testid="room-id"
-                      className="font-mono text-4xl md:text-5xl font-bold tracking-[0.3em] text-zinc-100"
+                      className="font-mono text-5xl md:text-6xl font-bold tracking-[0.3em] text-zinc-100"
                     >
                       {room.code}
                     </p>
                     <p className="text-xs text-zinc-500 mt-2">Send this to invite players</p>
-                    <div className="mt-3">
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                          gameState.matchType === 'ranked'
-                            ? 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/25'
-                            : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
-                        }`}
-                      >
-                        {gameState.matchType === 'ranked' ? 'Ranked' : 'Casual'}
-                      </span>
-                    </div>
                   </div>
 
-                  <Accordion type="single" collapsible>
-                    <AccordionItem value="join" className="border-none">
-                      <AccordionTrigger className="h-12 rounded-lg bg-red-500 hover:bg-red-600 hover:translate-y-[-1px] text-white text-base font-['Righteous'] tracking-wider uppercase justify-center data-[state=open]:rounded-b-none active:translate-y-0 active:scale-[0.98] transition-all duration-150 shadow-lg shadow-red-500/20">
-                        <Play className="mr-2 h-5 w-5" />
-                        Join Battle
-                      </AccordionTrigger>
-                      <AccordionContent className="rounded-b-lg bg-zinc-800 px-4 py-4">
-                        <div className="grid grid-cols-1 gap-2">
-                          <Button
-                            ref={(el) => (actionButtonRefs.current[1] = el)}
-                            onClick={handleJoinAsPlayer}
-                            className="h-12 bg-red-500 hover:bg-red-600 hover:translate-y-[-1px] active:translate-y-0 active:scale-[0.98] text-white text-sm font-semibold transition-all duration-150"
-                          >
-                            <Users className="mr-2 h-4 w-4" />
-                            Join as Player
-                          </Button>
-                          <Button
-                            ref={(el) => (actionButtonRefs.current[2] = el)}
-                            onClick={handleJoinAsSpectator}
-                            className="h-12 border-zinc-600 text-zinc-100 hover:bg-zinc-700 hover:translate-y-[-1px] active:translate-y-0 active:scale-[0.98] text-sm font-semibold transition-all duration-150"
-                          >
-                            <Settings className="mr-2 h-4 w-4" />
-                            Spectate
-                          </Button>
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
+                  {!userSession.playerName && (
+                    <div className="space-y-1.5">
+                      <label htmlFor="join-name" className="text-xs text-zinc-400">
+                        Your name
+                      </label>
+                      <Input
+                        id="join-name"
+                        value={joinName}
+                        onChange={(e) => setJoinName(e.target.value)}
+                        placeholder="Enter your producer name"
+                        maxLength={24}
+                        className="h-10 bg-zinc-800 border-zinc-700 text-zinc-100"
+                      />
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      ref={(el) => (actionButtonRefs.current[1] = el)}
+                      onClick={handleJoinAsPlayer}
+                      className="h-12 bg-red-500 hover:bg-red-600 active:scale-[0.97] text-white text-sm font-['Righteous'] tracking-wider uppercase rounded-lg transition-colors"
+                    >
+                      <Users className="mr-2 h-4 w-4" />
+                      Join as Player
+                    </Button>
+                    <Button
+                      ref={(el) => (actionButtonRefs.current[2] = el)}
+                      variant="outline"
+                      onClick={handleJoinAsSpectator}
+                      className="h-12 border-zinc-700 bg-transparent text-zinc-100 hover:bg-zinc-800 text-sm font-semibold rounded-lg transition-colors"
+                    >
+                      Spectate
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
           </>
+
         ) : (
-          <div className="flex flex-col lg:flex-row gap-2 h-full">
+          <div className="flex flex-col lg:flex-row gap-2 h-full w-full">
+
             <div ref={gameInfoRef} className="hidden lg:block lg:w-64 shrink-0">
               <GameInfo roomId={roomId!} currentPlayerName={userSession.playerName ?? undefined} />
             </div>
@@ -639,7 +632,8 @@ export default function Room() {
             <div className="lg:hidden mb-2">
               <Accordion type="single" collapsible>
                 <AccordionItem value="leaderboard" className="border-none">
-                  <AccordionTrigger className="rounded-lg bg-zinc-800 px-4 py-3 text-sm font-medium text-zinc-100 hover:bg-zinc-700 hover:translate-x-0.5 transition-all">
+                  <AccordionTrigger className="rounded-lg bg-zinc-800 px-4 py-3 text-sm font-medium text-zinc-100 hover:bg-zinc-700 transition-colors">
+
                     <div className="flex items-center gap-2">
                       <Trophy className="h-4 w-4 text-yellow-500" />
                       Leaderboard
@@ -653,7 +647,7 @@ export default function Room() {
                   </AccordionContent>
                 </AccordionItem>
                 <AccordionItem value="audience" className="border-none">
-                  <AccordionTrigger className="rounded-lg bg-zinc-800 px-4 py-3 text-sm font-medium text-zinc-100 hover:bg-zinc-700 hover:translate-x-0.5 transition-all">
+                  <AccordionTrigger className="rounded-lg bg-zinc-800 px-4 py-3 text-sm font-medium text-zinc-100 hover:bg-zinc-700 transition-colors">
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-zinc-400" />
                       Audience
@@ -761,22 +755,17 @@ export default function Room() {
 
       {/* Match-end overlay */}
       {gameState.status === 'finished' && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70">
-          <div className="text-center space-y-3 p-6 rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl max-w-xs mx-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 animate-in fade-in zoom-in-95 duration-300">
+          <div className="text-center space-y-3 p-6 rounded-xl border border-zinc-700 bg-zinc-900 shadow-lg max-w-xs mx-4">
             <h2 className="font-['Righteous'] text-2xl text-zinc-100">
-              {gameState.matchType === 'ranked' && gameState.winner ? 'Victory!' : 'Good game!'}
+              {gameState.winner ? 'Winner!' : 'Good game'}
             </h2>
-            {gameState.matchType === 'ranked' && gameState.winner ? (
+            {gameState.winner ? (
               <p className="text-base text-zinc-300">
-                <span className="font-bold text-yellow-400">{gameState.winner}</span> wins with
-                bingo!
+                <span className="font-bold text-yellow-400">{gameState.winner}</span> takes the bingo.
               </p>
             ) : (
-              <p className="text-sm text-zinc-400">
-                {gameState.matchType === 'ranked'
-                  ? 'No bingo this time'
-                  : 'Good game! Resetting for next match'}
-              </p>
+              <p className="text-sm text-zinc-400">No bingo this round.</p>
             )}
             {resetCountdown !== null && resetCountdown > 0 && (
               <p className="text-xs text-zinc-500">New match in {resetCountdown}s</p>
@@ -795,7 +784,7 @@ export default function Room() {
                     setResetCountdown(null);
                   }
                 }}
-                className="mt-2 bg-red-500 hover:opacity-90 text-white active:scale-[0.97] rounded-lg h-10 text-sm font-semibold"
+                className="mt-2 bg-red-500 hover:bg-red-600 text-white active:scale-[0.97] rounded-lg h-10 text-sm font-semibold transition-colors"
               >
                 Play Again
               </Button>
@@ -803,6 +792,7 @@ export default function Room() {
           </div>
         </div>
       )}
+
     </div>
   );
 }
