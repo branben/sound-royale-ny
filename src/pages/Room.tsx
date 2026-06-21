@@ -7,8 +7,10 @@ import {
 } from '@/components/ui/accordion';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { ArrowLeft, Users, Play, Settings, Vote, Trophy } from 'lucide-react';
+import { ArrowLeft, Users, Play, Trophy } from 'lucide-react';
+
 import { normalizeRoomWinner, roomApi, gameApi } from '@/services/api';
 import { getDiscordSession } from '@/services/discordSession';
 import { BingoBoard } from '@/components/game/BingoBoard';
@@ -37,6 +39,8 @@ export default function Room() {
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [hostMigration, setHostMigration] = useState<{ newHostName: string } | null>(null);
+  const [joinName, setJoinName] = useState('');
+
 
   const {
     userSession,
@@ -139,8 +143,12 @@ export default function Room() {
   const handleJoinAsPlayer = async () => {
     if (!roomId) return;
 
-    const name = userSession.playerName || window.prompt('Enter your name:');
-    if (!name?.trim()) return;
+    const name = (userSession.playerName || joinName).trim();
+    if (!name) {
+      toast.error('Enter a name to join');
+      return;
+    }
+
 
     try {
       const player = await gameApi.joinRoom(
