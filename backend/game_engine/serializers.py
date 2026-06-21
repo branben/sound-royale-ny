@@ -294,6 +294,7 @@ class RoomSerializer(serializers.ModelSerializer):
             "code",
             "name",
             "status",
+            "match_type",
             "current_round",
             "winner",
             "created_at",

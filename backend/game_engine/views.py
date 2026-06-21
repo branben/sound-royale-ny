@@ -360,6 +360,9 @@ def normalize_genre(value):
 
 
 def _resolve_bingo_and_winner(room, player):
+    if room.status == Room.Status.FINISHED:
+        return
+
     all_players_with_tiles = room.players.filter(
         is_spectator=False
     ).prefetch_related(
@@ -787,6 +790,10 @@ class RoomViewSet(viewsets.ModelViewSet):
         with transaction.atomic():
             # Change room status
             room.status = Room.Status.PLAYING
+
+            # Determine match type based on current spectator count
+            spectator_count = room.players.filter(is_spectator=True).count()
+            room.match_type = Room.MatchType.RANKED if spectator_count >= 3 else Room.MatchType.CASUAL
             room.save()
 
             # Tiles are now created when players join, not when game starts
@@ -824,6 +831,7 @@ class RoomViewSet(viewsets.ModelViewSet):
         return Response(
             {
                 "status": "Game started",
+                "match_type": room.match_type,
                 "first_round": RoundSerializer(first_round).data,
             },
             status=status.HTTP_200_OK,
@@ -891,34 +899,22 @@ class RoomViewSet(viewsets.ModelViewSet):
 
         try:
             with transaction.atomic():
-                # Validate room state before starting transaction
-                if room.status == Room.Status.PLAYING:
-                    # Check if there are active tiles that shouldn't be deleted
-                    active_tiles = Tile.objects.filter(
-                        player__room=room,
-                        status=Tile.Status.COMPLETE
-                    ).count()
-
-                    if active_tiles > 0:
-                        return Response(
-                            {
-                                "error": "Cannot reset game with completed tiles",
-                                "active_tiles": active_tiles
-                            },
-                            status=status.HTTP_400_BAD_REQUEST,
-                        )
-
                 # Store original state for potential rollback logging
                 original_round = room.current_round
                 original_status = room.status
 
-                # Step 1: Delete existing tiles (atomic operation)
+                # Step 1: Delete existing rounds and tiles (atomic operation)
+                Round.objects.filter(room=room).delete()
                 deleted_count, _ = Tile.objects.filter(player__room=room).delete()
 
-                # Step 2: Update room state
+                # Step 2: Update room state for new match
                 room.status = Room.Status.LOBBY
-                room.current_round += 1
+                room.current_round = 1
                 room.winner = None
+
+                # Re-evaluate match type for the new match based on current spectators
+                spectator_count = room.players.filter(is_spectator=True).count()
+                room.match_type = Room.MatchType.RANKED if spectator_count >= 3 else Room.MatchType.CASUAL
                 room.save()
 
                 # Step 3: Get players and validate
@@ -966,6 +962,7 @@ class RoomViewSet(viewsets.ModelViewSet):
                 return Response(
                     {
                         "status": "Game reset successfully",
+                        "match_type": room.match_type,
                         "round": room.current_round,
                         "tiles_created": len(created_tiles),
                         "players": players.count(),
@@ -1108,14 +1105,20 @@ class RoomViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        with transaction.atomic():
-            vote = Vote.objects.create(
-                round=current_round,
-                voter=voter,
-                voted_for=voted_for_player,
+        try:
+            with transaction.atomic():
+                vote = Vote.objects.create(
+                    round=current_round,
+                    voter=voter,
+                    voted_for=voted_for_player,
+                )
+                current_round.votes_recorded += 1
+                current_round.save()
+        except IntegrityError:
+            return Response(
+                {"error": "You have already voted in this round"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-            current_round.votes_recorded += 1
-            current_round.save()
 
         audit_logger.info(
             "vote_cast",
@@ -1327,6 +1330,7 @@ class RoomViewSet(viewsets.ModelViewSet):
                     "total_rounds": room.total_rounds,
                     "winner": resolution_result["winner"].name if resolution_result else None,
                     "elo_gained": resolution_result["elo_gain"] if resolution_result else 0,
+                    "draw": resolution_result is None,
                 },
                 status=status.HTTP_200_OK,
             )
@@ -1742,8 +1746,9 @@ class TileViewSet(viewsets.ModelViewSet):
                 tile.audio_file = audio_file
             tile.save()
 
-            # Check for bingo lines and resolve winner
-            _resolve_bingo_and_winner(room, player)
+            # Check for bingo lines and resolve winner (ranked matches only)
+            if room.match_type == Room.MatchType.RANKED:
+                _resolve_bingo_and_winner(room, player)
 
             transaction.on_commit(lambda: broadcast_game_update(room))
 

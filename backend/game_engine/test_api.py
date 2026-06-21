@@ -598,7 +598,7 @@ class RoomAPITestCase(TestCase):
         
         self.room.refresh_from_db()
         self.assertEqual(self.room.status, Room.Status.LOBBY)
-        self.assertEqual(self.room.current_round, 3)  # Should increment
+        self.assertEqual(self.room.current_round, 1)  # Reset to 1 for new match
         self.assertIsNone(self.room.winner)
 
     def test_reset_game_not_host(self):
