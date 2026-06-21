@@ -22,6 +22,7 @@ import { VotingPanel } from '@/components/game/VotingPanel';
 import { TitleBadge } from '@/components/game/TitleBadge';
 import { GameTutorial } from '@/components/game/GameTutorial';
 import { DiscordVerifiedIcon } from '@/components/game/DiscordVerifiedIcon';
+import { HostMigrationIndicator } from '@/components/game/HostMigrationIndicator';
 import { useGame, useGameRefresh, useGameRefreshEffect } from '@/context/useGame';
 import { useUser } from '@/context/UserContext';
 import type { GameState, RoomResponse, Player } from '@/types/game';
@@ -176,6 +177,7 @@ export default function Room() {
   const [hasLoaded, setHasLoaded] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [hostMigration, setHostMigration] = useState<{ newHostName: string } | null>(null);
 
   const {
     userSession,
@@ -197,6 +199,20 @@ export default function Room() {
   const roundStageRef = useRef<HTMLDivElement | null>(null);
   const bingoBoardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const gameInfoRef = useRef(null);
+
+  // Track host migration: detect when host changes mid-game
+  const prevHostIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const players = Object.values(gameState.players ?? {});
+    const currentHost = players.find((p) => p.isHost && !p.isSpectator);
+    const currentHostId = currentHost?.id ?? null;
+
+    if (prevHostIdRef.current && prevHostIdRef.current !== currentHostId && currentHost) {
+      setHostMigration({ newHostName: currentHost.name });
+      setTimeout(() => setHostMigration(null), 5000);
+    }
+    prevHostIdRef.current = currentHostId;
+  }, [gameState.players]);
 
   // Show tutorial for first-time players when game starts
   useEffect(() => {
@@ -457,6 +473,7 @@ export default function Room() {
           gameId: roomData.code,
           roomCode: roomData.code,
           status: roomData.status,
+          matchType: roomData.match_type ?? 'casual',
           currentRound: roomData.current_round,
           winner: normalizeRoomWinner(roomData.winner),
           players,
@@ -531,14 +548,17 @@ export default function Room() {
         });
       }
 
-      // Action buttons stagger in
-      gsap.from(actionButtonRefs.current, {
-        y: 20,
-        opacity: 0,
-        stagger: 0.1,
-        duration: 0.4,
-        delay: 0.3,
-      });
+      // Action buttons stagger in — filter nulls from conditional rendering
+      const buttons = actionButtonRefs.current.filter((el): el is HTMLButtonElement => el !== null);
+      if (buttons.length > 0) {
+        gsap.from(buttons, {
+          y: 20,
+          opacity: 0,
+          stagger: 0.1,
+          duration: 0.4,
+          delay: 0.3,
+        });
+      }
     } else if (gameState.status === 'playing') {
       // RoundStage slides in from the top
       if (roundStageRef.current) {
@@ -550,10 +570,10 @@ export default function Room() {
       }
 
       // Each BingoBoard staggers in from the left with a slight delay between players
-      // Ensure there are actual producers before attempting to animate
-      const producers = Object.values(gameState.players).filter((player) => !player.isSpectator);
-      if (producers.length > 0) {
-        gsap.from(bingoBoardRefs.current, {
+      // Filter out null refs — child components may not have mounted yet
+      const boards = bingoBoardRefs.current.filter((el): el is HTMLDivElement => el !== null);
+      if (boards.length > 0) {
+        gsap.from(boards, {
           x: -30,
           opacity: 0,
           stagger: 0.15,
@@ -573,6 +593,45 @@ export default function Room() {
       }
     }
   }, [gameState.status, gameState.players]); // Rerun animations when game state changes to 'lobby' or 'playing'
+
+  // Auto-reset after match ends
+  const [resetCountdown, setResetCountdown] = useState<number | null>(null);
+  useEffect(() => {
+    if (gameState.status !== 'finished' || !userSession.playerSecret) {
+      setResetCountdown(null);
+      return;
+    }
+
+    setResetCountdown(5);
+    const interval = setInterval(() => {
+      setResetCountdown((prev) => {
+        if (prev === null || prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [gameState.status, userSession.playerSecret]);
+
+  useEffect(() => {
+    if (resetCountdown !== 0 || !roomId || !userSession.playerSecret) return;
+
+    gameApi.resetGame(roomId, userSession.playerSecret)
+      .then(() => {
+        setForceRefresh(Date.now());
+        toast.success('New match starting!');
+      })
+      .catch((err) => {
+        console.error('Auto-reset failed:', err);
+        toast.error('Failed to start new match');
+      })
+      .finally(() => {
+        setResetCountdown(null);
+      });
+  }, [resetCountdown, roomId, userSession.playerSecret, setForceRefresh]);
 
   if (loading || isReconnecting) {
     return (
@@ -703,6 +762,22 @@ export default function Room() {
               >
                 {room.code}
               </p>
+              <div className="flex items-center justify-center gap-3">
+                <span
+                  className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                    gameState.matchType === 'ranked'
+                      ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                      : 'bg-muted text-muted-foreground border border-border'
+                  }`}
+                >
+                  {gameState.matchType === 'ranked' ? 'Ranked' : 'Casual'}
+                </span>
+                {gameState.matchType !== 'ranked' && (
+                  <span className="text-xs text-muted-foreground">
+                    {(gameState.spectatorCount ?? Object.values(gameState.players).filter(p => p.isSpectator).length)}/3 spectators for Ranked
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         ) : (
@@ -778,6 +853,57 @@ export default function Room() {
           onDismiss={handleTutorialDismiss}
           isActive={showTutorial}
         />
+      )}
+
+      {/* Host migration banner */}
+      <HostMigrationIndicator
+        newHostName={hostMigration?.newHostName ?? ''}
+        isVisible={hostMigration !== null}
+      />
+
+      {/* Match-end overlay */}
+      {gameState.status === 'finished' && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="text-center space-y-4 p-8 rounded-2xl border border-border bg-card shadow-2xl max-w-sm mx-4">
+            <h2 className="font-['Righteous'] text-3xl text-primary">
+              {gameState.matchType === 'ranked' ? 'Victory!' : 'Match Over'}
+            </h2>
+            {gameState.matchType === 'ranked' && gameState.winner ? (
+              <p className="text-lg text-foreground">
+                <span className="font-bold text-yellow-400">{gameState.winner}</span> wins with bingo!
+              </p>
+            ) : (
+              <p className="text-muted-foreground">
+                {gameState.matchType === 'ranked'
+                  ? 'No bingo this time'
+                  : 'Good game! Resetting for next match'}
+              </p>
+            )}
+            {resetCountdown !== null && resetCountdown > 0 && (
+              <p className="text-sm text-muted-foreground">
+                New match in {resetCountdown}s
+              </p>
+            )}
+            {userSession.isHost && (
+              <Button
+                onClick={() => {
+                  if (roomId && userSession.playerSecret) {
+                    gameApi.resetGame(roomId, userSession.playerSecret)
+                      .then(() => {
+                        setForceRefresh(Date.now());
+                        toast.success('New match starting!');
+                      })
+                      .catch(() => toast.error('Failed to reset'));
+                    setResetCountdown(null);
+                  }
+                }}
+                className="mt-2"
+              >
+                Reset Now
+              </Button>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

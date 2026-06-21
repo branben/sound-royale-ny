@@ -241,6 +241,7 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
             gameId: newState.gameId || roomCode,
             roomCode: newState.roomCode || roomCode,
             status: newState.status,
+            matchType: newState.matchType,
             players,
             currentRound: newState.currentRound,
             winner: newState.winner,
@@ -257,10 +258,21 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
         case 'timer_tick':
           setTimeRemaining(message.payload.timeRemaining);
           break;
-        case 'turn_change':
-        case 'player_joined':
-        case 'player_left':
-          break;
+         case 'turn_change':
+         case 'player_joined':
+         case 'player_left':
+           break;
+         case 'host_migrated': {
+           const { newHostId } = message.payload;
+           setGameState((prev) => {
+             const updatedPlayers: GameState['players'] = {};
+             for (const [id, player] of Object.entries(prev.players)) {
+               updatedPlayers[id] = { ...player, isHost: id === newHostId };
+             }
+             return { ...prev, players: updatedPlayers };
+           });
+           break;
+         }
       }
     };
 
