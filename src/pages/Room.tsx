@@ -632,7 +632,8 @@ export default function Room() {
             <div className="lg:hidden mb-2">
               <Accordion type="single" collapsible>
                 <AccordionItem value="leaderboard" className="border-none">
-                  <AccordionTrigger className="rounded-lg bg-zinc-800 px-4 py-3 text-sm font-medium text-zinc-100 hover:bg-zinc-700 hover:translate-x-0.5 transition-all">
+                  <AccordionTrigger className="rounded-lg bg-zinc-800 px-4 py-3 text-sm font-medium text-zinc-100 hover:bg-zinc-700 transition-colors">
+
                     <div className="flex items-center gap-2">
                       <Trophy className="h-4 w-4 text-yellow-500" />
                       Leaderboard
@@ -646,7 +647,7 @@ export default function Room() {
                   </AccordionContent>
                 </AccordionItem>
                 <AccordionItem value="audience" className="border-none">
-                  <AccordionTrigger className="rounded-lg bg-zinc-800 px-4 py-3 text-sm font-medium text-zinc-100 hover:bg-zinc-700 hover:translate-x-0.5 transition-all">
+                  <AccordionTrigger className="rounded-lg bg-zinc-800 px-4 py-3 text-sm font-medium text-zinc-100 hover:bg-zinc-700 transition-colors">
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-zinc-400" />
                       Audience
@@ -754,22 +755,17 @@ export default function Room() {
 
       {/* Match-end overlay */}
       {gameState.status === 'finished' && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70">
-          <div className="text-center space-y-3 p-6 rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl max-w-xs mx-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 animate-in fade-in zoom-in-95 duration-300">
+          <div className="text-center space-y-3 p-6 rounded-xl border border-zinc-700 bg-zinc-900 shadow-lg max-w-xs mx-4">
             <h2 className="font-['Righteous'] text-2xl text-zinc-100">
-              {gameState.matchType === 'ranked' && gameState.winner ? 'Victory!' : 'Good game!'}
+              {gameState.winner ? 'Winner!' : 'Good game'}
             </h2>
-            {gameState.matchType === 'ranked' && gameState.winner ? (
+            {gameState.winner ? (
               <p className="text-base text-zinc-300">
-                <span className="font-bold text-yellow-400">{gameState.winner}</span> wins with
-                bingo!
+                <span className="font-bold text-yellow-400">{gameState.winner}</span> takes the bingo.
               </p>
             ) : (
-              <p className="text-sm text-zinc-400">
-                {gameState.matchType === 'ranked'
-                  ? 'No bingo this time'
-                  : 'Good game! Resetting for next match'}
-              </p>
+              <p className="text-sm text-zinc-400">No bingo this round.</p>
             )}
             {resetCountdown !== null && resetCountdown > 0 && (
               <p className="text-xs text-zinc-500">New match in {resetCountdown}s</p>
@@ -788,7 +784,7 @@ export default function Room() {
                     setResetCountdown(null);
                   }
                 }}
-                className="mt-2 bg-red-500 hover:opacity-90 text-white active:scale-[0.97] rounded-lg h-10 text-sm font-semibold"
+                className="mt-2 bg-red-500 hover:bg-red-600 text-white active:scale-[0.97] rounded-lg h-10 text-sm font-semibold transition-colors"
               >
                 Play Again
               </Button>
@@ -796,6 +792,7 @@ export default function Room() {
           </div>
         </div>
       )}
+
     </div>
   );
 }
