@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { useGame } from '@/context/useGame';
 import { useUser } from '@/context/UserContext';
 import { useMemo, useState, useEffect, useRef } from 'react';
-import { AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { gameApi } from '@/services/api';
 import { VictoryCelebration } from '@/components/game/VictoryCelebration';
