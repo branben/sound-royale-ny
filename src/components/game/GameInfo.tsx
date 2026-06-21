@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { useGame } from '@/context/useGame';
 import { useUser } from '@/context/UserContext';
 import { useMemo, useState, useEffect, useRef } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { gameApi } from '@/services/api';
 import { VictoryCelebration } from '@/components/game/VictoryCelebration';
@@ -13,9 +14,8 @@ import { PlayerProfileModal } from '@/components/game/PlayerProfileModal';
 import { TitleBadge } from '@/components/game/TitleBadge';
 import { DiscordVerifiedIcon } from '@/components/game/DiscordVerifiedIcon';
 import type { GameState } from '@/types/game';
-import { motion, AnimatePresence } from 'framer-motion';
-import { transitions, variants, stagger } from '@/lib/motion';
 import { usePlayerColors } from '@/hooks/usePlayerColors';
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 
 interface GameInfoProps {
   roomId: string;
@@ -242,8 +242,8 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
   return (
     <Card className="border-border bg-card mb-6">
       <CardContent className="p-4">
-        <div className="text-sm font-bold uppercase tracking-[0.2em] text-primary pb-2 mb-4 border-b border-primary/20">
-          Scoreboard
+        <div className="text-sm font-semibold text-zinc-100 pb-2 mb-4 border-b border-zinc-700">
+          Leaderboard
         </div>
         <div className="flex items-center gap-2 mb-3">
           <div
@@ -252,18 +252,18 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
               gameState.status === 'playing'
                 ? 'bg-green-500'
                 : gameState.status === 'lobby'
-                  ? 'bg-yellow-500 animate-pulse'
+                  ? 'bg-yellow-500'
                   : 'bg-muted-foreground',
             )}
           />
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          <span className="text-xs font-medium text-zinc-500">
             {gameState.status === 'lobby'
               ? 'Waiting'
               : gameState.status === 'playing'
                 ? 'Live'
                 : 'Ended'}
           </span>
-          <span className="ml-2 px-3 py-1 rounded-full bg-secondary text-secondary-foreground text-xs font-semibold uppercase tracking-wide">
+          <span className="ml-2 px-3 py-1 rounded-full bg-zinc-800 text-zinc-300 text-xs font-medium">
             Round {gameState.currentRound}
           </span>
           {displayTimeLeft !== null && gameState.status === 'playing' && (
@@ -271,7 +271,7 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
               className={cn(
                 'ml-auto px-3 py-1 rounded-full text-base font-mono font-bold flex items-center gap-1',
                 displayTimeLeft !== null && displayTimeLeft <= 30
-                  ? 'bg-destructive/30 text-destructive animate-pulse'
+                  ? 'bg-destructive/30 text-destructive'
                   : 'bg-primary/15 text-primary',
               )}
             >
@@ -424,7 +424,7 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
           </div>
 
           <div className="space-y-2">
-            <div className="font-semibold text-foreground">Game Status</div>
+            <div className="font-semibold text-zinc-100">Game status</div>
             <div className="text-sm text-muted-foreground">
               <div className="text-xs text-muted-foreground">
                 {gameState.status === 'lobby' && 'Waiting for at least 2 players to start the game'}
@@ -441,7 +441,7 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
                     className={cn(
                       'flex items-center gap-1 ml-2 px-3 py-1 rounded-full text-base font-mono font-bold',
                       displayTimeLeft <= 30
-                        ? 'bg-destructive/30 text-destructive animate-pulse'
+                        ? 'bg-destructive/30 text-destructive'
                         : 'bg-primary/15 text-primary',
                     )}
                   >
@@ -472,8 +472,7 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
               </div>
             )}
             {gameState.winner && (
-              <div className="relative flex items-center gap-2 mt-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 animate-glow">
-                <div className="absolute inset-0 -z-10 rounded-lg bg-yellow-500 opacity-20 blur-md animate-pulse" />
+              <div className="flex items-center gap-2 mt-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
                 <div className="flex items-center gap-2">
                   <div>
                     <Trophy className="h-10 w-10 text-yellow-500" />
@@ -499,7 +498,7 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
 
             {gameState.status === 'finished' && isHost && (
               <Button onClick={handleResetGame} className="w-full mt-4" variant="outline">
-                Play Again
+                Next Match
               </Button>
             )}
           </div>
