@@ -258,6 +258,11 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
         case 'timer_tick':
           setTimeRemaining(message.payload.timeRemaining);
           break;
+         case 'error':
+           if (isMounted.current) {
+             setError(message.payload.message);
+           }
+           break;
          case 'turn_change':
          case 'player_joined':
          case 'player_left':

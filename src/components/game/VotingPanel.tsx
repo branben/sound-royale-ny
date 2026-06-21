@@ -77,14 +77,13 @@ export function VotingPanel({
       setHasVoted(true);
       toast.success('Vote submitted!');
     } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } }; message?: string };
       const message =
-        error instanceof Error
-          ? error.message
-          : typeof error === 'object' && error !== null && 'message' in error
-            ? String((error as { message: unknown }).message)
-            : 'Unknown error';
+        err.response?.data?.error ||
+        (error instanceof Error ? error.message : null) ||
+        'Failed to submit vote';
       console.error('Vote error:', message);
-      toast.error('Failed to submit vote. Please try again.');
+      toast.error(message);
     } finally {
       setIsVoting(false);
       setSelectedPlayerId(null);

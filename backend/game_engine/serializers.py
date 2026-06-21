@@ -319,6 +319,7 @@ class RoomDetailSerializer(serializers.ModelSerializer):
             "code",
             "name",
             "status",
+            "match_type",
             "current_round",
             "winner",
             "created_at",
@@ -432,6 +433,7 @@ class GameStateSerializer(serializers.ModelSerializer):
         fields = [
             "id",  # This will be gameId in frontend
             "status",
+            "match_type",
             "current_round",
             "winner",
             "players",
@@ -540,6 +542,9 @@ class GameStateSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         # Rename 'id' to 'gameId' to match frontend
         data["gameId"] = data.pop("id")
+        # Rename 'match_type' to 'matchType'
+        if "match_type" in data:
+            data["matchType"] = data.pop("match_type")
         # Rename 'current_round' to 'currentRound'
         data["currentRound"] = data.pop("current_round")
         # Rename 'round_state' to 'roundState'

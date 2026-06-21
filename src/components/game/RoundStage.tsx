@@ -49,6 +49,8 @@ export function RoundStage({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   }, [fallbackTimeRemaining, timeRemaining]);
 
+  const isRouletting = !genre;
+
   return (
     <section
       data-testid="round-stage"

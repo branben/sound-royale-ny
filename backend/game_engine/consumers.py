@@ -133,7 +133,16 @@ class GameConsumer(AsyncWebsocketConsumer):
         await self.channel_layer.group_discard(self.game_group_name, self.channel_name)
 
     async def receive(self, text_data):
-        text_data_json = json.loads(text_data)
+        try:
+            text_data_json = json.loads(text_data)
+        except (json.JSONDecodeError, ValueError):
+            await self.send(
+                text_data=json.dumps(
+                    {"type": "error", "payload": {"code": "INVALID_JSON", "message": "Invalid JSON"}}
+                )
+            )
+            return
+
         message_type = text_data_json.get("type")
 
         # Security: Reject forbidden message types that should only come from server
@@ -173,15 +182,26 @@ class GameConsumer(AsyncWebsocketConsumer):
             )
 
         # Broadcast the message to all clients in the room
-        if message_type == "bingo_achievement":
-            await self.channel_layer.group_send(
-                self.game_group_name,
-                {"type": "bingo_achievement", "payload": text_data_json.get("payload")},
-            )
-        elif message_type == "vote_submitted":
-            await self.channel_layer.group_send(
-                self.game_group_name,
-                {"type": "vote_submitted", "payload": text_data_json.get("payload")},
+        try:
+            if message_type == "bingo_achievement":
+                await self.channel_layer.group_send(
+                    self.game_group_name,
+                    {"type": "bingo_achievement", "payload": text_data_json.get("payload")},
+                )
+            elif message_type == "vote_submitted":
+                await self.channel_layer.group_send(
+                    self.game_group_name,
+                    {"type": "vote_submitted", "payload": text_data_json.get("payload")},
+                )
+        except Exception as e:
+            logger.exception("Error processing WebSocket message in room %s", self.game_id)
+            await self.send(
+                text_data=json.dumps(
+                    {
+                        "type": "error",
+                        "payload": {"code": "PROCESSING_ERROR", "message": "Failed to process message"},
+                    }
+                )
             )
 
     async def game_state_update(self, event):
