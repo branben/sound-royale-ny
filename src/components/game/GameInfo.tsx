@@ -15,6 +15,7 @@ import { TitleBadge } from '@/components/game/TitleBadge';
 import { DiscordVerifiedIcon } from '@/components/game/DiscordVerifiedIcon';
 import type { GameState } from '@/types/game';
 import { usePlayerColors } from '@/hooks/usePlayerColors';
+import { stagger, variants, transitions } from '@/lib/motion';
 import {
   Accordion,
   AccordionItem,
