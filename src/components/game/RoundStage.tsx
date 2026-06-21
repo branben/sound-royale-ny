@@ -52,18 +52,13 @@ export function RoundStage({
   const isRouletting = !genre;
 
   return (
-    <section
-      data-testid="round-stage"
-      className="border-b border-zinc-700/50 pb-3 mb-3"
-    >
+    <section data-testid="round-stage" className="border-b border-zinc-700/50 pb-3 mb-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="text-xs text-zinc-500 uppercase tracking-wider">
             Round {roundNumber}
           </span>
-          <span className="text-lg font-semibold text-zinc-100">
-            {displayGenre}
-          </span>
+          <span className="text-lg font-semibold text-zinc-100">{displayGenre}</span>
         </div>
         <div className="flex items-center gap-3">
           <span className="font-mono text-lg tabular-nums text-zinc-100">

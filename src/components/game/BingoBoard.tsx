@@ -126,12 +126,12 @@ export const BingoBoard = memo(
               <motion.div
                 key={tile.id}
                 layout
-                  className={cn(
-                    'h-2 w-2 rounded-full transition-colors',
-                    tile.status === 'empty' && 'bg-zinc-700',
-                    tile.status === 'pending' && (accent ? `${accent.dot}` : 'bg-zinc-500'),
-                    tile.status === 'complete' && 'bg-green-500',
-                  )}
+                className={cn(
+                  'h-2 w-2 rounded-full transition-colors',
+                  tile.status === 'empty' && 'bg-zinc-700',
+                  tile.status === 'pending' && (accent ? `${accent.dot}` : 'bg-zinc-500'),
+                  tile.status === 'complete' && 'bg-green-500',
+                )}
               />
             ))}
           </div>

@@ -1,5 +1,10 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from '@/components/ui/accordion';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -451,7 +456,8 @@ export default function Room() {
   useEffect(() => {
     if (resetCountdown !== 0 || !roomId || !userSession.playerSecret) return;
 
-    gameApi.resetGame(roomId, userSession.playerSecret)
+    gameApi
+      .resetGame(roomId, userSession.playerSecret)
       .then(() => {
         setForceRefresh(Date.now());
         toast.success('New match starting!');
@@ -471,7 +477,12 @@ export default function Room() {
         <header className="shrink-0 border-b border-border bg-background px-3 py-1.5">
           <div className="container mx-auto flex h-8 items-center justify-between">
             <h1 className="font-['Righteous'] text-lg tracking-tight text-primary">Sound Royale</h1>
-            <Button onClick={() => navigate('/')} variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground">
+            <Button
+              onClick={() => navigate('/')}
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-muted-foreground"
+            >
               <ArrowLeft className="mr-1 h-3.5 w-3.5" />
               Leave
             </Button>
@@ -530,7 +541,7 @@ export default function Room() {
               BATTLE ROOM
             </h1>
             <p className="text-sm text-zinc-500 mb-8">
-              {hasCurrentPlayer ? "You're in the arena" : "Choose your role"}
+              {hasCurrentPlayer ? "You're in the arena" : 'Choose your role'}
             </p>
 
             <div className="w-full max-w-[32rem] rounded-xl bg-zinc-900 p-6">
@@ -635,7 +646,10 @@ export default function Room() {
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="rounded-b-lg bg-zinc-900 px-4 py-3">
-                    <GameInfo roomId={roomId!} currentPlayerName={userSession.playerName ?? undefined} />
+                    <GameInfo
+                      roomId={roomId!}
+                      currentPlayerName={userSession.playerName ?? undefined}
+                    />
                   </AccordionContent>
                 </AccordionItem>
                 <AccordionItem value="audience" className="border-none">
@@ -643,11 +657,13 @@ export default function Room() {
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-zinc-400" />
                       Audience
-                      <span className="text-xs text-zinc-500">({Object.values(gameState.players).filter(p => p.isSpectator).length})</span>
+                      <span className="text-xs text-zinc-500">
+                        ({Object.values(gameState.players).filter((p) => p.isSpectator).length})
+                      </span>
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="rounded-b-lg bg-zinc-900 px-4 py-3">
-                    {Object.values(gameState.players).filter(p => p.isSpectator).length === 0 ? (
+                    {Object.values(gameState.players).filter((p) => p.isSpectator).length === 0 ? (
                       <div className="flex flex-col items-center py-3 text-center">
                         <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-dashed border-zinc-600 mb-2">
                           <Users className="h-5 w-5 text-zinc-600" />
@@ -657,12 +673,17 @@ export default function Room() {
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        {Object.values(gameState.players).filter(p => p.isSpectator).map((player) => (
-                          <div key={player.id} className="flex items-center gap-2 text-sm text-zinc-300">
-                            <span className="truncate">{player.name}</span>
-                            <TitleBadge title={player.currentTitle} compact />
-                          </div>
-                        ))}
+                        {Object.values(gameState.players)
+                          .filter((p) => p.isSpectator)
+                          .map((player) => (
+                            <div
+                              key={player.id}
+                              className="flex items-center gap-2 text-sm text-zinc-300"
+                            >
+                              <span className="truncate">{player.name}</span>
+                              <TitleBadge title={player.currentTitle} compact />
+                            </div>
+                          ))}
                       </div>
                     )}
                   </AccordionContent>
@@ -676,7 +697,10 @@ export default function Room() {
                   <p className="text-sm text-zinc-400 mb-3">
                     Match is live. Join the audience to unlock voting.
                   </p>
-                  <Button onClick={handleJoinAsSpectator} className="h-10 w-full rounded-lg text-sm border-zinc-700 text-zinc-100 hover:bg-zinc-800">
+                  <Button
+                    onClick={handleJoinAsSpectator}
+                    className="h-10 w-full rounded-lg text-sm border-zinc-700 text-zinc-100 hover:bg-zinc-800"
+                  >
                     <Users className="mr-2 h-4 w-4" />
                     Join as Spectator
                   </Button>
@@ -744,7 +768,8 @@ export default function Room() {
             </h2>
             {gameState.matchType === 'ranked' && gameState.winner ? (
               <p className="text-base text-zinc-300">
-                <span className="font-bold text-yellow-400">{gameState.winner}</span> wins with bingo!
+                <span className="font-bold text-yellow-400">{gameState.winner}</span> wins with
+                bingo!
               </p>
             ) : (
               <p className="text-sm text-zinc-400">
@@ -754,15 +779,14 @@ export default function Room() {
               </p>
             )}
             {resetCountdown !== null && resetCountdown > 0 && (
-              <p className="text-xs text-zinc-500">
-                New match in {resetCountdown}s
-              </p>
+              <p className="text-xs text-zinc-500">New match in {resetCountdown}s</p>
             )}
             {userSession.isHost && (
               <Button
                 onClick={() => {
                   if (roomId && userSession.playerSecret) {
-                    gameApi.resetGame(roomId, userSession.playerSecret)
+                    gameApi
+                      .resetGame(roomId, userSession.playerSecret)
                       .then(() => {
                         setForceRefresh(Date.now());
                         toast.success('New match starting!');

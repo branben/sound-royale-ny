@@ -113,9 +113,7 @@ export const BingoTile = memo(function BingoTile({
       'bg-zinc-800 border-zinc-700',
       accent ? accent.emptyHoverBorder : 'hover:border-zinc-600',
     ),
-    pending: accent
-      ? `${accent.pendingBg} ${accent.pendingBorder}`
-      : 'bg-zinc-800 border-zinc-600',
+    pending: accent ? `${accent.pendingBg} ${accent.pendingBorder}` : 'bg-zinc-800 border-zinc-600',
     complete: accent
       ? `${accent.pendingBg} ${accent.pendingBorder}`
       : 'bg-green-500/10 border-green-500',

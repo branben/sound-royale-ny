@@ -50,9 +50,7 @@ export const WinnerAnnouncement: React.FC<WinnerAnnouncementProps> = ({
               WINNER!
             </h2>
 
-            <div className="text-lg font-semibold text-zinc-100 mb-2">
-              {winnerName}
-            </div>
+            <div className="text-lg font-semibold text-zinc-100 mb-2">{winnerName}</div>
 
             {score !== undefined && (
               <div className="text-sm text-zinc-400 mb-4">
@@ -66,9 +64,7 @@ export const WinnerAnnouncement: React.FC<WinnerAnnouncementProps> = ({
               </div>
             )}
 
-            <div className="text-xs text-zinc-500">
-              Congratulations on your victory!
-            </div>
+            <div className="text-xs text-zinc-500">Congratulations on your victory!</div>
           </motion.div>
         </motion.div>
       )}

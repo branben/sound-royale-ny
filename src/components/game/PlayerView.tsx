@@ -12,7 +12,12 @@ import { useGame } from '@/context/useGame';
 import { gameApi } from '@/services/api';
 import { usePlayerColors } from '@/hooks/usePlayerColors';
 import { Wifi, WifiOff, Music } from 'lucide-react';
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from '@/components/ui/accordion';
 
 interface PlayerViewProps {
   roomId: string;
@@ -131,9 +136,7 @@ export const PlayerView = memo(
           data-testid="connection-status"
           className={`flex items-center gap-1 text-xs ${isConnected ? 'text-green-500' : 'text-zinc-500'}`}
         >
-          <span
-            className={`h-2 w-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}
-          />
+          <span className={`h-2 w-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
           <span>{isConnected ? 'Online' : 'Offline'}</span>
         </div>
       );
@@ -201,7 +204,9 @@ export const PlayerView = memo(
             <AccordionItem value="player-info" className="border-none">
               <AccordionTrigger className="rounded-lg bg-zinc-800 px-4 py-3 hover:bg-zinc-700 hover:translate-x-0.5 transition-all duration-150">
                 <div className="flex items-center gap-3">
-                  <div className={`flex h-8 w-8 items-center justify-center rounded-full ${playerAccentClasses}`}>
+                  <div
+                    className={`flex h-8 w-8 items-center justify-center rounded-full ${playerAccentClasses}`}
+                  >
                     <Music className="h-4 w-4" />
                   </div>
                   <span className="text-sm font-semibold text-zinc-100">{playerData.name}</span>

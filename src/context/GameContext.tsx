@@ -258,26 +258,26 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
         case 'timer_tick':
           setTimeRemaining(message.payload.timeRemaining);
           break;
-         case 'error':
-           if (isMounted.current) {
-             setError(message.payload.message);
-           }
-           break;
-         case 'turn_change':
-         case 'player_joined':
-         case 'player_left':
-           break;
-         case 'host_migrated': {
-           const { newHostId } = message.payload;
-           setGameState((prev) => {
-             const updatedPlayers: GameState['players'] = {};
-             for (const [id, player] of Object.entries(prev.players)) {
-               updatedPlayers[id] = { ...player, isHost: id === newHostId };
-             }
-             return { ...prev, players: updatedPlayers };
-           });
-           break;
-         }
+        case 'error':
+          if (isMounted.current) {
+            setError(message.payload.message);
+          }
+          break;
+        case 'turn_change':
+        case 'player_joined':
+        case 'player_left':
+          break;
+        case 'host_migrated': {
+          const { newHostId } = message.payload;
+          setGameState((prev) => {
+            const updatedPlayers: GameState['players'] = {};
+            for (const [id, player] of Object.entries(prev.players)) {
+              updatedPlayers[id] = { ...player, isHost: id === newHostId };
+            }
+            return { ...prev, players: updatedPlayers };
+          });
+          break;
+        }
       }
     };
 

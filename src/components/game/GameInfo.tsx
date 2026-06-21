@@ -15,7 +15,12 @@ import { TitleBadge } from '@/components/game/TitleBadge';
 import { DiscordVerifiedIcon } from '@/components/game/DiscordVerifiedIcon';
 import type { GameState } from '@/types/game';
 import { usePlayerColors } from '@/hooks/usePlayerColors';
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from '@/components/ui/accordion';
 
 interface GameInfoProps {
   roomId: string;

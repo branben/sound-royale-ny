@@ -10,7 +10,12 @@ import { cn } from '@/lib/utils';
 import { usePlayerColors } from '@/hooks/usePlayerColors';
 import { Trophy, Eye, Vote, Users } from 'lucide-react';
 import { DiscordVerifiedIcon } from './DiscordVerifiedIcon';
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from '@/components/ui/accordion';
 
 interface SpectatorViewProps {
   bingoBoardRefs?: React.MutableRefObject<(HTMLDivElement | null)[]>;
