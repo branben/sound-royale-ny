@@ -511,8 +511,17 @@ export default function Room() {
 
   useGameRefreshEffect(fetchRoom);
 
+  // Track which statuses we've already animated entrance for
+  const animatedStatusRef = useRef<string | null>(null);
+
   useEffect(() => {
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // Only run entrance animations once per status transition, not on every players update
+    if (animatedStatusRef.current === gameState.status) {
+      return;
+    }
+    animatedStatusRef.current = gameState.status;
 
     if (prefersReducedMotion) {
       // Lobby State
@@ -592,7 +601,7 @@ export default function Room() {
         });
       }
     }
-  }, [gameState.status, gameState.players]); // Rerun animations when game state changes to 'lobby' or 'playing'
+  }, [gameState.status]); // Only re-run entrance animations on status change, not players update
 
   // Auto-reset after match ends
   const [resetCountdown, setResetCountdown] = useState<number | null>(null);
