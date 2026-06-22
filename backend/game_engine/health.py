@@ -44,13 +44,20 @@ class HealthCheckView(View):
                 'default', {}
             ).get('CONFIG', {}).get('hosts', [('127.0.0.1', 6379)])
 
-            host, port = channel_config[0]
-            if isinstance(host, str) and host.startswith('redis://'):
-                r = redis_lib.from_url(host, socket_timeout=3)
+            if channel_config:
+                first_host = channel_config[0]
+                if isinstance(first_host, str) and first_host.startswith('redis://'):
+                    r = redis_lib.from_url(first_host, socket_timeout=3)
+                elif isinstance(first_host, (list, tuple)) and len(first_host) == 2:
+                    host, port = first_host
+                    r = redis_lib.Redis(host=host, port=port, socket_timeout=3)
+                else:
+                    r = redis_lib.Redis(host=first_host, socket_timeout=3)
+                r.ping()
+                r.close()
             else:
-                r = redis_lib.Redis(host=host, port=port, socket_timeout=3)
-            r.ping()
-            r.close()
+                redis_status = "error"
+                logger.warning("Health check: No Redis hosts configured")
         except Exception as exc:
             redis_status = "error"
             overall_status = "error"
