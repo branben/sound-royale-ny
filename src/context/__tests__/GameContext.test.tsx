@@ -18,7 +18,7 @@ vi.mock('../UserContext', () => ({
 // Mock the API module
 vi.mock('@/services/api', () => ({
   roomApi: {
-    getRoom: vi.fn(),
+    getRoom: vi.fn().mockResolvedValue({ players: [] }),
   },
   gameApi: {},
   normalizeRoomWinner: vi.fn((w: unknown) => {
@@ -27,6 +27,7 @@ vi.mock('@/services/api', () => ({
     if (typeof w === 'object' && w !== null && 'id' in w) return (w as { id: string }).id;
     return undefined;
   }),
+  getStoredAccessToken: vi.fn(() => null),
 }));
 
 // Mock the gameSocket module

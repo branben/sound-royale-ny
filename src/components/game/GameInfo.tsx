@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { useGame } from '@/context/useGame';
 import { useUser } from '@/context/UserContext';
 import { useMemo, useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { gameApi } from '@/services/api';
 import { VictoryCelebration } from '@/components/game/VictoryCelebration';
@@ -15,7 +15,6 @@ import { TitleBadge } from '@/components/game/TitleBadge';
 import { DiscordVerifiedIcon } from '@/components/game/DiscordVerifiedIcon';
 import type { GameState } from '@/types/game';
 import { usePlayerColors } from '@/hooks/usePlayerColors';
-import { stagger, variants, transitions } from '@/lib/motion';
 import {
   Accordion,
   AccordionItem,
@@ -292,22 +291,18 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
               <Users className="h-4 w-4" />
               Players ({activePlayers.length})
             </div>
-            <AnimatePresence mode="popLayout">
-              <motion.div variants={stagger.container} initial="hidden" animate="visible">
-                {activePlayers.map((player: Player) => (
-                  <motion.div
-                    key={player.id}
-                    variants={variants.slideInLeft}
-                    transition={transitions.smooth}
-                    layout
-                    className={cn(
-                      'flex items-center justify-between p-2 rounded-lg bg-background/60 border transition-all duration-200 border-l-4',
-                      playerBorder(player.id),
-                      playerBorderHover(player.id),
-                      player.name === currentPlayerName && 'ring-2 ' + playerRing(player.id),
-                      !player.isConnected && 'border-red-500/30 opacity-70',
-                    )}
-                  >
+            <div className="space-y-2">
+              {activePlayers.map((player: Player) => (
+                <div
+                  key={player.id}
+                  className={cn(
+                    'flex items-center justify-between p-2 rounded-lg bg-background/60 border transition-all duration-200 border-l-4',
+                    playerBorder(player.id),
+                    playerBorderHover(player.id),
+                    player.name === currentPlayerName && 'ring-2 ' + playerRing(player.id),
+                    !player.isConnected && 'border-red-500/30 opacity-70',
+                  )}
+                >
                     <div className="flex min-w-0 flex-col gap-1">
                       <div className="flex items-center gap-2">
                         <button
@@ -371,10 +366,9 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
                         </Button>
                       )}
                     </div>
-                  </motion.div>
-                ))}
-              </motion.div>
-            </AnimatePresence>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="space-y-2">
