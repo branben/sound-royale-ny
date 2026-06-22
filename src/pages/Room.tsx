@@ -524,103 +524,107 @@ export default function Room() {
 
       <main className="flex-1 flex flex-col items-center px-4 py-8">
         {gameState.status === 'lobby' ? (
-          <>
-            <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-2xl font-['Righteous'] tracking-tight text-zinc-100">
-                BATTLE ROOM
-              </h1>
+          <div className="w-full max-w-xl mx-auto flex flex-col items-center">
+            {/* Stage label — small, Poppins, no second Righteous wordmark */}
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs font-medium uppercase tracking-[0.2em] text-zinc-500">
+                Battle Room
+              </span>
               <span
-                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
                   gameState.matchType === 'ranked'
-                    ? 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/25'
+                    ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/30'
                     : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
                 }`}
               >
                 {gameState.matchType === 'ranked' ? 'Ranked' : 'Casual'}
               </span>
             </div>
-            <p className="text-sm text-zinc-500 mb-8">
-              {hasCurrentPlayer ? "You're in the arena" : 'Choose your role'}
+
+            {/* Hero room code — the focal element */}
+            <p className="text-xs uppercase tracking-[0.3em] text-zinc-500 mb-3">Room Code</p>
+            <p
+              ref={roomCodeRef}
+              data-testid="room-id"
+              className="font-mono text-7xl md:text-8xl font-bold tracking-[0.25em] text-zinc-100 mb-2 leading-none"
+            >
+              {room.code}
+            </p>
+            <p className="text-sm text-zinc-500 mb-10">
+              {hasCurrentPlayer
+                ? "You're in. Share the code to fill the room."
+                : 'Share this code to invite players.'}
             </p>
 
-            <div className="w-full max-w-[32rem] rounded-xl bg-zinc-900 border border-zinc-800 p-6">
+            <div className="w-full max-w-md rounded-xl bg-card border border-border p-6">
               {hasCurrentPlayer ? (
-                <div className="text-center py-4">
-                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-500/15 mb-4">
-                    <Users className="h-6 w-6 text-green-500" />
+                <div className="text-center">
+                  <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-green-500/15 mb-3">
+                    <Users className="h-5 w-5 text-green-500" />
                   </div>
-                  <h2 className="text-lg font-semibold text-zinc-100 mb-2">You're in the arena</h2>
+                  <h2 className="text-base font-semibold text-zinc-100 mb-1">In the arena</h2>
                   {isHost && activePlayersCount >= 2 ? (
-                    <div className="space-y-3 mt-4">
-                      <p className="text-sm text-zinc-400">Ready to start battle!</p>
+                    <div className="space-y-3 mt-5">
+                      <p className="text-xs text-zinc-500">{activePlayersCount} producers ready</p>
                       <Button
                         ref={(el) => (actionButtonRefs.current[0] = el)}
                         data-testid="start-battle"
                         onClick={handleStartGame}
-                        className="h-12 w-full text-base font-['Righteous'] tracking-wider uppercase bg-red-500 hover:bg-red-600 active:scale-[0.97] text-white rounded-lg transition-colors"
+                        className="h-12 w-full text-sm font-semibold uppercase tracking-wider bg-primary hover:bg-primary/90 active:scale-[0.97] text-primary-foreground rounded-lg transition-colors"
                       >
-                        <Play className="mr-2 h-5 w-5" />
-                        Start Battle
+                        <Play className="mr-2 h-4 w-4" />
+                        Start Match
                       </Button>
                     </div>
                   ) : (
                     <div className="flex items-center justify-center gap-2 py-3">
-                      <span className="inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+                      <span className="inline-flex h-2 w-2 rounded-full bg-yellow-500" />
                       <span className="text-sm text-zinc-400">Waiting for opponent…</span>
                     </div>
                   )}
                 </div>
               ) : (
-                <div className="space-y-5">
-                  <div className="text-center">
-                    <p
-                      ref={roomCodeRef}
-                      data-testid="room-id"
-                      className="font-mono text-5xl md:text-6xl font-bold tracking-[0.3em] text-zinc-100"
-                    >
-                      {room.code}
-                    </p>
-                    <p className="text-xs text-zinc-500 mt-2">Send this to invite players</p>
-                  </div>
-
+                <div className="space-y-4">
                   {!userSession.playerName && (
                     <div className="space-y-1.5">
-                      <label htmlFor="join-name" className="text-xs text-zinc-400">
+                      <label
+                        htmlFor="join-name"
+                        className="text-xs font-medium uppercase tracking-[0.15em] text-zinc-500"
+                      >
                         Your name
                       </label>
                       <Input
                         id="join-name"
                         value={joinName}
                         onChange={(e) => setJoinName(e.target.value)}
-                        placeholder="Enter your producer name"
+                        placeholder="Producer name"
                         maxLength={24}
-                        className="h-10 bg-zinc-800 border-zinc-700 text-zinc-100"
+                        className="h-11 bg-secondary border-border text-zinc-100"
                       />
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      ref={(el) => (actionButtonRefs.current[1] = el)}
-                      onClick={handleJoinAsPlayer}
-                      className="h-12 bg-red-500 hover:bg-red-600 active:scale-[0.97] text-white text-sm font-['Righteous'] tracking-wider uppercase rounded-lg transition-colors"
-                    >
-                      <Users className="mr-2 h-4 w-4" />
-                      Join as Player
-                    </Button>
-                    <Button
-                      ref={(el) => (actionButtonRefs.current[2] = el)}
-                      variant="outline"
-                      onClick={handleJoinAsSpectator}
-                      className="h-12 border-zinc-700 bg-transparent text-zinc-100 hover:bg-zinc-800 text-sm font-semibold rounded-lg transition-colors"
-                    >
-                      Spectate
-                    </Button>
-                  </div>
+                  {/* One primary CTA — Join. Spectate is secondary */}
+                  <Button
+                    ref={(el) => (actionButtonRefs.current[1] = el)}
+                    onClick={handleJoinAsPlayer}
+                    className="h-12 w-full bg-primary hover:bg-primary/90 active:scale-[0.97] text-primary-foreground text-sm font-semibold uppercase tracking-wider rounded-lg transition-colors"
+                  >
+                    <Users className="mr-2 h-4 w-4" />
+                    Join as Player
+                  </Button>
+                  <Button
+                    ref={(el) => (actionButtonRefs.current[2] = el)}
+                    variant="ghost"
+                    onClick={handleJoinAsSpectator}
+                    className="h-9 w-full text-xs text-zinc-400 hover:text-zinc-100 hover:bg-secondary"
+                  >
+                    Or watch as spectator
+                  </Button>
                 </div>
               )}
             </div>
-          </>
+          </div>
 
         ) : (
           <div className="flex flex-col lg:flex-row gap-2 h-full w-full">

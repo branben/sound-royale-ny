@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Gamepad2, HelpCircle, Trophy } from 'lucide-react';
+import { HelpCircle, Trophy } from 'lucide-react';
 import { roomApi, gameApi, discordApi } from '@/services/api';
 import { useUser } from '@/context/UserContext';
 import { ThemeId, DiscordAccountStatus } from '@/types/game';
@@ -272,20 +272,15 @@ export default function Lobby() {
       data-testid="lobby"
       className="min-h-screen bg-background flex flex-col"
     >
-      {/* Top bar */}
-      <header className="flex items-center justify-between px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div
-            ref={iconRef}
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900 border border-zinc-700"
-          >
-            <Gamepad2 className="h-5 w-5 text-primary" />
-          </div>
-          <span className="text-xl font-['Righteous'] tracking-tight text-foreground">
-            SOUND ROYALE
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
+      {/* Top bar — single wordmark only, no decorative icon */}
+      <header className="flex items-center justify-between px-6 py-5">
+        <span
+          ref={iconRef}
+          className="text-base font-['Righteous'] tracking-[0.05em] text-muted-foreground"
+        >
+          SOUND ROYALE
+        </span>
+        <div className="flex items-center gap-1">
           <Button
             variant="ghost"
             size="sm"
@@ -309,16 +304,16 @@ export default function Lobby() {
       {/* Main content — fills remaining space, centered */}
       <main className="flex-1 flex items-center justify-center px-4 pb-8">
         <div className="w-full max-w-md">
-          {/* Title area */}
-          <div className="text-center mb-8">
+          {/* Hero: single Righteous wordmark + Poppins tagline */}
+          <div className="text-center mb-10">
             <h1
               ref={titleRef}
-              className="text-5xl md:text-6xl font-['Righteous'] tracking-tight text-foreground leading-none mb-3"
+              className="text-5xl md:text-6xl font-['Righteous'] tracking-tight text-foreground leading-none mb-4"
             >
               SOUND ROYALE
             </h1>
-            <p ref={taglineRef} className="text-base text-muted-foreground max-w-xs mx-auto">
-              Compete head-to-head. Upload beats. Claim tiles. Win bingo.
+            <p ref={taglineRef} className="text-sm text-muted-foreground">
+              Multiplayer music bingo. Upload beats, claim tiles, win the round.
             </p>
           </div>
 
