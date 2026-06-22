@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Gamepad2, HelpCircle, Trophy } from 'lucide-react';
+import { HelpCircle, Trophy } from 'lucide-react';
 import { roomApi, gameApi, discordApi } from '@/services/api';
 import { useUser } from '@/context/UserContext';
 import { ThemeId, DiscordAccountStatus } from '@/types/game';
