@@ -380,40 +380,6 @@ export default function Room() {
 
   useGameRefreshEffect(fetchRoom);
 
-  // Track which statuses we've already animated entrance for
-  const animatedStatusRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-    // Only run entrance animations once per status transition, not on every players update
-    if (animatedStatusRef.current === gameState.status) {
-      return;
-    }
-    animatedStatusRef.current = gameState.status;
-
-    if (prefersReducedMotion) {
-      // Lobby State
-      if (roomCodeRef.current) gsap.set(roomCodeRef.current, { scale: 1, opacity: 1 });
-      if (joinBattleCardRef.current) gsap.set(joinBattleCardRef.current, { y: 0, opacity: 1 });
-      actionButtonRefs.current.forEach((btn) => btn && gsap.set(btn, { y: 0, opacity: 1 }));
-
-      // Playing State
-      if (roundStageRef.current) gsap.set(roundStageRef.current, { y: 0, opacity: 1 });
-      bingoBoardRefs.current.forEach((board) => board && gsap.set(board, { x: 0, opacity: 1 }));
-      if (gameInfoRef.current) gsap.set(gameInfoRef.current, { x: 0, opacity: 1 });
-      return;
-    }
-
-    if (gameState.status === 'lobby' && roomCodeRef.current) {
-      gsap.from(roomCodeRef.current, {
-        scale: 0.92,
-        opacity: 0,
-        ease: 'power2.out',
-        duration: 0.25,
-      });
-    }
-  }, [gameState.status]); // Only re-run entrance animations on status change, not players update
 
   // Auto-reset after match ends
   const [resetCountdown, setResetCountdown] = useState<number | null>(null);
@@ -540,7 +506,7 @@ export default function Room() {
             <p
               ref={roomCodeRef}
               data-testid="room-id"
-              className="font-mono text-7xl md:text-8xl font-bold tracking-[0.25em] text-zinc-100 mb-2 leading-none"
+              className="font-mono text-7xl md:text-8xl font-bold tracking-[0.25em] text-zinc-100 mb-2 leading-none transition-all duration-200"
             >
               {room.code}
             </p>
@@ -700,7 +666,7 @@ export default function Room() {
               ) : (
                 <>
                   {gameState.status === 'playing' && (
-                    <div ref={roundStageRef} className="shrink-0">
+                    <div ref={roundStageRef} className="shrink-0 transition-all duration-200">
                       <RoundStage
                         roundNumber={gameState.currentRound || 1}
                         genre={gameState.roundState?.currentTileGenre}
