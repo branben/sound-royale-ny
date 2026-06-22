@@ -14,6 +14,7 @@ from .views import (
     discord_unlink_account,
     discord_account_status,
     log_client_error,
+    health_check,
 )
 from .webhooks import LinearWebhookView
 
@@ -24,6 +25,8 @@ router.register(r'tiles', TileViewSet)
 router.register(r'theme-rotations', ThemeRotationViewSet, basename='theme-rotation')
 
 urlpatterns = [
+    # Health check (no auth, no CSRF — for Docker HEALTHCHECK and load balancers)
+    path('health/', health_check, name='health-check'),
     # Discord OAuth endpoints (must be before router to avoid conflicts)
     path('api/auth/discord/', discord_auth, name='discord-auth'),
     path('api/auth/discord/callback/', discord_callback, name='discord-callback'),
