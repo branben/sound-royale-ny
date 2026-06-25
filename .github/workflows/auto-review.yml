@@ -1,0 +1,129 @@
+name: Auto Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  auto-review:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install gh CLI
+        run: |
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/githubcli.list > /dev/null
+          sudo apt update && sudo apt install -y gh
+
+      - name: Configure gh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh auth status
+
+      - name: Install OmniRoute
+        run: npm install -g omniroute
+
+      - name: Run Auto-Review
+        env:
+          AGENTMAIL_API_KEY: ${{ secrets.AGENTMAIL_API_KEY }}
+          OMNIROUTE_API_KEY: ${{ secrets.OMNIROUTE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          # Fetch PR diff
+          DIFF=$(gh pr diff "$PR_NUMBER" --repo "$REPO")
+          
+          # Save diff to temp file
+          echo "$DIFF" > /tmp/pr-diff.txt
+          
+          # Create review request email via AgentMail
+          python3 << 'PYEOF'
+          import urllib.request
+          import json
+          import os
+          
+          api_key = os.environ["AGENTMAIL_API_KEY"]
+          inbox = "luna-cto@agentmail.to"
+          
+          # Read diff
+          with open("/tmp/pr-diff.txt") as f:
+              diff = f.read()
+          
+          # Build review request
+          subject = f"[PR Review] {os.environ['REPO']}#{os.environ['PR_NUMBER']} — {os.environ['PR_TITLE']}"
+          
+          # Extract changed files from diff
+          import re
+          changed_files = re.findall(r'diff --git a/(.+?) b/', diff)
+          changed_files_str = "\n".join(f"  - {f}" for f in changed_files[:20])
+          
+          body = f"""## PR Review Request
+
+          **PR:** {os.environ['PR_URL']}
+          **Project:** sound-royale-ny
+          **Changed Files:**
+          {changed_files_str}
+
+          ### Diff
+          ```diff
+          {diff[:8000]}
+          ```
+
+          ### Review Focus
+          Security vulnerabilities, architecture compliance, code quality.
+
+          Please dispatch to security, quality, and architecture agents for review.
+          """
+          
+          # Send to orchestrator inbox
+          url = f"https://api.agentmail.to/v0/inboxes/{inbox}/messages/send"
+          data = json.dumps({
+              "to": [inbox],
+              "subject": subject,
+              "text": body,
+          }).encode()
+          
+          req = urllib.request.Request(url, data=data, method="POST", headers={
+              "Authorization": f"Bearer {api_key}",
+              "Content-Type": "application/json",
+          })
+          
+          try:
+              with urllib.request.urlopen(req, timeout=30) as resp:
+                  print(f"Review request sent: {resp.status}")
+          except Exception as e:
+              print(f"Failed to send: {e}")
+          PYEOF
+
+      - name: Run Auto-Review Daemon
+        env:
+          AGENTMAIL_API_KEY: ${{ secrets.AGENTMAIL_API_KEY }}
+          OMNIROUTE_API_KEY: ${{ secrets.OMNIROUTE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Install omniroute
+          npm install -g omniroute
+          
+          # Run daemon (will pick up the review request from AgentMail)
+          python3 scripts/auto-review-daemon.py --once
