@@ -36,7 +36,7 @@ class HealthCheckView(View):
 
         checks["database"] = db_status
 
-         redis_status = "ok"
+        redis_status = "ok"
         try:
             import redis as redis_lib
 
