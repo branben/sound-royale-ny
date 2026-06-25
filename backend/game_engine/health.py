@@ -36,7 +36,7 @@ class HealthCheckView(View):
 
         checks["database"] = db_status
 
-        redis_status = "ok"
+         redis_status = "ok"
         try:
             import redis as redis_lib
 
@@ -55,11 +55,10 @@ class HealthCheckView(View):
                     r = redis_lib.Redis(host=first_host, socket_timeout=3)
                 r.ping()
                 r.close()
-             else:
+            else:
                 redis_status = "not_configured"
         except Exception as exc:
-            redis_status = "error"
-            overall_status = "error"
+            redis_status = "degraded"
             logger.warning("Health check: Redis unreachable — %s", exc)
 
         checks["redis"] = redis_status
