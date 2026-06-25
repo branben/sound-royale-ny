@@ -54,7 +54,7 @@ check_file() {
     fi
 
     # Pattern 3+4: Bare except with pass or only comment (Python)
-    if awk '/^[[:space:]]*except[[:space:]]+.*:/{found=1; line=NR; next} found && NR==line+1 && /^[[:space:]]*pass/{print "BARE_EXCEPT:" line; found=0} found && NR>line+1{found=0}' "$file" 2>/dev/null | grep -q "BARE_EXCEPT"; then
+    if awk '/^[[:space:]]*except[[:space:]]*.*:/{found=1; line=NR; next} found && NR==line+1 && /^[[:space:]]*pass/{print "BARE_EXCEPT:" line; found=0} found && NR>line+1{found=0}' "$file" 2>/dev/null | grep -q "BARE_EXCEPT"; then
         echo -e "${RED}✗${NC} $file: Bare except with pass (silent error)"
         file_issues=$((file_issues + 1))
     fi
