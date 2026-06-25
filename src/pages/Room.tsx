@@ -1,23 +1,16 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import {
-  Accordion,
-  AccordionItem,
-  AccordionTrigger,
-  AccordionContent,
-} from '@/components/ui/accordion';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { ArrowLeft, Users, Play, Trophy } from 'lucide-react';
+import { ArrowLeft, Users, Play } from 'lucide-react';
 
 import { normalizeRoomWinner, roomApi, gameApi } from '@/services/api';
 import { getDiscordSession } from '@/services/discordSession';
 import { BingoBoard } from '@/components/game/BingoBoard';
-import { SpectatorView } from '@/components/game/SpectatorView';
 import { PlayerView } from '@/components/game/PlayerView';
-import { GameInfo } from '@/components/game/GameInfo';
-import { RoundStage } from '@/components/game/RoundStage';
+import { SpectatorView } from '@/components/game/SpectatorView';
+import { GameTutorial } from '@/components/game/GameTutorial';
 import { VotingPanel } from '@/components/game/VotingPanel';
 import { TitleBadge } from '@/components/game/TitleBadge';
 import { GameTutorial } from '@/components/game/GameTutorial';
@@ -39,7 +32,6 @@ export default function Room() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [hostMigration, setHostMigration] = useState<{ newHostName: string } | null>(null);
   const [joinName, setJoinName] = useState('');
-
 
   const {
     userSession,
@@ -146,7 +138,6 @@ export default function Room() {
       toast.error('Enter a name to join');
       return;
     }
-
 
     try {
       const player = await gameApi.joinRoom(
@@ -445,7 +436,6 @@ export default function Room() {
               {isReconnecting ? 'Reconnecting…' : 'Loading room…'}
             </p>
           </div>
-
         </main>
       </div>
     );
@@ -466,11 +456,7 @@ export default function Room() {
   }
 
   return (
-    <div className="h-dvh flex flex-col bg-background relative">
-      {/* Ambient gradient — very subtle, 2.5× more subtle than lobby */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/[0.03] via-transparent to-transparent pointer-events-none" />
-      {/* Grain texture — breaks digital flatness */}
-      <div className="absolute inset-0 opacity-[0.015] pointer-events-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIj48ZmlsdGVyIGlkPSJhIiB4PSIwIiB5PSIwIj48ZmVUdXJidWxlbmNlIGJhc2VGcmVxdWVuY3k9Ii43NSIgc3RpdGNoVGlsZXM9InN0aXRjaCIgdHlwZT0iZnJhY3RhbE5vaXNlIi8+PGZpbHRlci8+PHJlY3Qgd2lkdGg9IjMwMCUiIGhlaWdodD0iMzAwIiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMDMiLz48L3N2Zz4=')]" />
+    <div className="h-dvh flex flex-col bg-background">
       <header className="shrink-0 border-b border-border bg-background px-3 py-1.5">
         <div className="container mx-auto flex h-8 items-center justify-between">
           <h1 className="font-['Righteous'] text-lg md:text-xl tracking-tight text-primary">
@@ -512,7 +498,7 @@ export default function Room() {
             <p
               ref={roomCodeRef}
               data-testid="room-id"
-              className="font-mono text-7xl md:text-8xl font-bold tracking-[0.25em] text-zinc-100 mb-2 leading-none transition-all duration-200"
+              className="font-mono text-7xl md:text-8xl font-bold tracking-[0.25em] text-zinc-100 mb-2 leading-none"
             >
               {room.code}
             </p>
@@ -591,70 +577,91 @@ export default function Room() {
               )}
             </div>
           </div>
-
         ) : (
-          <div className="flex flex-col lg:flex-row gap-2 h-full w-full">
+          <div className="flex flex-col lg:flex-row gap-4 h-full w-full">
+            {/* Left Panel: Players + Spectators (1/3) */}
+            <div className="lg:w-72 xl:w-80 shrink-0 flex flex-col gap-3">
+              {/* Section title */}
+              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+                Players
+              </span>
 
-            <div ref={gameInfoRef} className="hidden lg:block lg:w-64 shrink-0 transition-all duration-200">
-              <GameInfo roomId={roomId!} currentPlayerName={userSession.playerName ?? undefined} />
-            </div>
-
-            <div className="lg:hidden mb-2">
-              <Accordion type="single" collapsible>
-                <AccordionItem value="leaderboard" className="border-none">
-                  <AccordionTrigger className="rounded-lg bg-zinc-800 px-4 py-3 text-sm font-medium text-zinc-100 hover:bg-zinc-700 transition-colors">
-
-                    <div className="flex items-center gap-2">
-                      <Trophy className="h-4 w-4 text-yellow-500" />
-                      Leaderboard
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent className="rounded-b-lg bg-zinc-900 px-4 py-3">
-                    <GameInfo
-                      roomId={roomId!}
-                      currentPlayerName={userSession.playerName ?? undefined}
-                    />
-                  </AccordionContent>
-                </AccordionItem>
-                <AccordionItem value="audience" className="border-none">
-                  <AccordionTrigger className="rounded-lg bg-zinc-800 px-4 py-3 text-sm font-medium text-zinc-100 hover:bg-zinc-700 transition-colors">
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-zinc-400" />
-                      Audience
-                      <span className="text-xs text-zinc-500">
-                        ({Object.values(gameState.players).filter((p) => p.isSpectator).length})
-                      </span>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent className="rounded-b-lg bg-zinc-900 px-4 py-3">
-                    {Object.values(gameState.players).filter((p) => p.isSpectator).length === 0 ? (
-                      <div className="flex flex-col items-center py-3 text-center">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-dashed border-zinc-600 mb-2">
-                          <Users className="h-5 w-5 text-zinc-600" />
+              {/* Player cards */}
+              {Object.values(gameState.players)
+                .filter((p) => !p.isSpectator && !p.name?.startsWith('Spectator '))
+                .map((player) => {
+                  const isCurrentPlayer = player.id === userSession.playerId;
+                  const playerColorClass = isCurrentPlayer ? 'text-player-1' : 'text-player-2';
+                  const avatarRingClass = isCurrentPlayer ? 'ring-player-1/50' : 'ring-player-2/50';
+                  const avatarBgClass = isCurrentPlayer ? 'bg-player-1' : 'bg-player-2';
+                  return (
+                    <div
+                      key={player.id}
+                      className="bg-card border border-border rounded-xl p-3 cursor-pointer hover:bg-zinc-800/80 transition-colors"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div
+                          className={`h-9 w-9 rounded-full ${avatarBgClass} ring-2 ${avatarRingClass} flex items-center justify-center`}
+                        >
+                          <span className="text-sm font-bold text-white">
+                            {player.name.charAt(0).toUpperCase()}
+                          </span>
                         </div>
-                        <p className="text-sm text-zinc-400">No audience yet</p>
-                        <p className="text-xs text-zinc-500">Share the link to invite spectators</p>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-sm font-semibold ${playerColorClass} truncate`}>
+                              {player.name}
+                            </span>
+                            {player.isHost && (
+                              <span className="text-[10px] text-yellow-500">★</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[10px] text-zinc-500">
+                              {player.scoreInfo?.score ?? 0} pts
+                            </span>
+                            <TitleBadge title={player.currentTitle} compact />
+                          </div>
+                        </div>
                       </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {Object.values(gameState.players)
-                          .filter((p) => p.isSpectator)
-                          .map((player) => (
-                            <div
-                              key={player.id}
-                              className="flex items-center gap-2 text-sm text-zinc-300"
-                            >
-                              <span className="truncate">{player.name}</span>
-                              <TitleBadge title={player.currentTitle} compact />
-                            </div>
-                          ))}
-                      </div>
-                    )}
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
+                    </div>
+                  );
+                })}
+
+              {/* Spectators */}
+              {Object.values(gameState.players).filter(
+                (p) => p.isSpectator || p.name?.startsWith('Spectator '),
+              ).length > 0 && (
+                <div className="bg-card border border-border rounded-xl p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-zinc-500">
+                      Audience
+                    </span>
+                    <span className="text-[10px] text-zinc-600">
+                      {
+                        Object.values(gameState.players).filter(
+                          (p) => p.isSpectator || p.name?.startsWith('Spectator '),
+                        ).length
+                      }
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {Object.values(gameState.players)
+                      .filter((p) => p.isSpectator || p.name?.startsWith('Spectator '))
+                      .map((player) => (
+                        <div key={player.id} className="flex items-center gap-2">
+                          <span className="text-xs text-zinc-400 truncate">
+                            {player.name.replace('Spectator ', '')}
+                          </span>
+                          <TitleBadge title={player.currentTitle} compact />
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
             </div>
 
+            {/* Right Panel: Game Area (2/3) */}
             <div className="flex-1 min-w-0 flex flex-col gap-2">
               {!hasCurrentPlayer ? (
                 <div className="border border-zinc-700 bg-zinc-900 rounded-xl p-4 text-center">
@@ -672,7 +679,7 @@ export default function Room() {
               ) : (
                 <>
                   {gameState.status === 'playing' && (
-                    <div ref={roundStageRef} className="shrink-0 transition-all duration-200">
+                    <div ref={roundStageRef} className="shrink-0">
                       <RoundStage
                         roundNumber={gameState.currentRound || 1}
                         genre={gameState.roundState?.currentTileGenre}
@@ -732,7 +739,8 @@ export default function Room() {
             </h2>
             {gameState.winner ? (
               <p className="text-base text-zinc-300">
-                <span className="font-bold text-yellow-400">{gameState.winner}</span> takes the bingo.
+                <span className="font-bold text-yellow-400">{gameState.winner}</span> takes the
+                bingo.
               </p>
             ) : (
               <p className="text-sm text-zinc-400">No bingo this round.</p>
@@ -762,7 +770,6 @@ export default function Room() {
           </div>
         </div>
       )}
-
     </div>
   );
 }

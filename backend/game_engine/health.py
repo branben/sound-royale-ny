@@ -55,9 +55,8 @@ class HealthCheckView(View):
                     r = redis_lib.Redis(host=first_host, socket_timeout=3)
                 r.ping()
                 r.close()
-            else:
-                redis_status = "error"
-                logger.warning("Health check: No Redis hosts configured")
+             else:
+                redis_status = "not_configured"
         except Exception as exc:
             redis_status = "error"
             overall_status = "error"
