@@ -138,7 +138,7 @@ export const BingoBoard = memo(
         </div>
 
         <div className="grid grid-cols-3 gap-1.5">
-          {boardData.tiles.map((tile) => (
+          {boardData.tiles.map((tile, idx) => (
             <BingoTile
               key={tile.id}
               tile={tile}
@@ -146,6 +146,7 @@ export const BingoBoard = memo(
               isInteractive={isInteractive && (isTileInteractive?.(tile.id) ?? true)}
               isActiveRoundTile={isTileInteractive?.(tile.id)}
               playerColorIndex={playerColorIndex}
+              index={idx}
             />
           ))}
         </div>

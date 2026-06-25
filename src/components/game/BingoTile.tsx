@@ -11,8 +11,8 @@ interface BingoTileProps {
   isInteractive?: boolean;
   isActiveRoundTile?: boolean;
   playerColorIndex?: number;
+  index?: number;
 }
-
 // Complete tailwind class strings so Tailwind JIT scanner finds them
 const TILE_ACCENT = [
   {
@@ -55,6 +55,7 @@ export const BingoTile = memo(function BingoTile({
   isInteractive = false,
   isActiveRoundTile,
   playerColorIndex,
+  index = 0,
 }: BingoTileProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [prevStatus, setPrevStatus] = useState(tile.status);
@@ -136,13 +137,15 @@ export const BingoTile = memo(function BingoTile({
       whileTap={isInteractive ? hover.tap : undefined}
       className={cn(
         'relative aspect-square w-full rounded-lg border-2 transition-colors duration-300',
-        isInteractive && 'hover:scale-[1.03]', // Added hover scale for interactive tiles
+        isInteractive && 'hover:scale-[1.03]',
         'flex flex-col items-center justify-center gap-1 p-2',
         'group',
         statusStyles[tile.status],
-        tile.status === 'empty' && 'shadow-[inset_0_2px_8px_rgba(0,0,0,0.3)]', // Added inner shadow for empty tiles
+        tile.status === 'empty' && 'shadow-[inset_0_2px_8px_rgba(0,0,0,0.3)]',
         !isInteractive && 'cursor-not-allowed opacity-45',
+        'tile-enter',
       )}
+      style={{ animationDelay: `${index * 60}ms` }}
     >
       {isActiveRoundTile && tile.status === 'empty' && (
         <div
