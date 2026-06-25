@@ -70,6 +70,8 @@ playwright-report/
 
 # --- Other junk ---
 scripts/
+# Exception: guardrail scripts are tracked in repo
+!scripts/check-anti-patterns.sh
 backend/gaia/
 backend/media/
 backend/practical-exercises.md

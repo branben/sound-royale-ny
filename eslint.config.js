@@ -21,6 +21,10 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
       "@typescript-eslint/no-unused-vars": "off",
+      // Guardrail: empty catch blocks silently swallow errors (churn driver #2)
+      "no-empty": ["error", { allowEmptyCatch: false }],
+      // Guardrail: console.error alone doesn't surface errors to users (churn driver #2)
+      "no-console": ["warn", { allow: ["warn", "error"] }],
     },
   },
 );
