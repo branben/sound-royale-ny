@@ -241,4 +241,3 @@ jobs:
 
       - name: Verify success-criteria.json has no gaps
         run: python3 check-success-criteria.py
-
