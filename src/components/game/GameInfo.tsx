@@ -335,6 +335,7 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
                         <Crown className="h-4 w-4 text-yellow-500" />
                       )}
                     </div>
+
                   </div>
                   <div className="flex items-center gap-2">
                     {gameState.status === 'playing' && gameState.roundState?.votingOpen && (

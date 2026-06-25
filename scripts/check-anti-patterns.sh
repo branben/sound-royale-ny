@@ -65,10 +65,9 @@ check_file() {
         file_issues=$((file_issues + 1))
     fi
 
-    # Pattern 6: console.error as only error handling (heuristic)
-    # Only flag if console.error is the last statement in a catch block
-    if grep -nE 'console\.(error|warn)\([^)]*\)\s*;\s*$' "$file" 2>/dev/null; then
-        echo -e "${YELLOW}⚠${NC} $file: console.error/warn without re-throw or user feedback"
+    # Pattern 6: console.error/warn inside catch block (likely silent)
+    if awk '/catch\s*(\([^)]*\))?\s*\{/{in_catch=1; next} in_catch && /\}/{in_catch=0} in_catch && /console\.(error|warn)\(/{print "CONSOLE_IN_CATCH:" NR; in_catch=0}' "$file" 2>/dev/null | grep -q "CONSOLE_IN_CATCH"; then
+        echo -e "${YELLOW}⚠${NC} $file: console.error/warn inside catch block without re-throw or user feedback"
         file_issues=$((file_issues + 1))
     fi
 
