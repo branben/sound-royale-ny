@@ -211,9 +211,15 @@ jobs:
   semantic-guardrails:
     name: Semantic Guardrails
     runs-on: ubuntu-latest
+    needs: [frontend-checks, django-tests]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Install cocoindex
+        run: |
+          pip install --upgrade pip
+          pip install 'cocoindex-code[full]'
 
       - name: Semantic regression scan
         run: bash scripts/semantic-scan.sh
