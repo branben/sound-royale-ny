@@ -24,7 +24,7 @@ export default tseslint.config(
       // Guardrail: empty catch blocks silently swallow errors (churn driver #2)
       "no-empty": ["error", { allowEmptyCatch: false }],
       // Guardrail: console.error alone doesn't surface errors to users (churn driver #2)
-      "no-console": ["warn", { allow: ["warn", "error"] }],
+      "no-console": ["warn", { allow: ["warn"] }],
     },
   },
 );
