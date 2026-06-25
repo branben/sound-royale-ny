@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sound Royale — Room Mockup v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Righteous&display=swap" rel="stylesheet">
+<style>
+/* ── Design System Tokens ── */
+:root {
+  --bg: #09090b;
+  --surface: #18181b;
+  --surface-elev: #27272a;
+  --border: #3f3f46;
+  --text: #fafafa;
+  --text-sec: #a1a1aa;
+  --text-muted: #52525b;
+  --primary: #ef4444;
+  --primary-hover: #dc2626;
+  --player-1: #ef4444;
+  --player-2: #3b82f6;
+  --player-3: #eab308;
+  --player-4: #22c55e;
+  --success: #22c55e;
+  --warning: #eab308;
+  --font-display: 'Righteous', cursive;
+  --font-body: 'Poppins', sans-serif;
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+/* ── Layout ── */
+.room {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* ── Header ── */
+.header {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 6px 16px;
+  background: var(--bg);
+}
+.header__inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 36px;
+}
+.header__logo {
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--primary);
+  letter-spacing: -0.01em;
+}
+.header__leave {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--text-sec);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.header__leave:hover { background: var(--surface-elev); color: var(--text); }
+
+/* ── Main Content ── */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 24px;
+}
+
+/* ── LOBBY STATE ── */
+.lobby {
+  max-width: 460px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.lobby__label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.25em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.lobby__code {
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 72px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--text);
+  line-height: 1;
+  margin-bottom: 8px;
+}
+.lobby__hint {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-bottom: 40px;
+}
+.lobby__card {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+}
+
+/* Player chips */
+.player-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+.player-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--surface-elev);
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.player-chip__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.player-chip--p1 .player-chip__dot { background: var(--player-1); }
+.player-chip--p2 .player-chip__dot { background: var(--player-2); }
+.player-chip--p3 .player-chip__dot { background: var(--player-3); }
+.player-chip--p4 .player-chip__dot { background: var(--player-4); }
+.player-chip--spec .player-chip__dot { background: var(--text-muted); }
+
+/* Join form */
+.join-form { display: flex; flex-direction: column; gap: 12px; }
+.join-form__label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
+}
+.join-form__input {
+  height: 44px;
+  background: var(--surface-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 14px;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  outline: none;
+}
+.join-form__input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(239,68,68,0.15); }
+.join-form__input::placeholder { color: var(--text-muted); }
+
+/* Buttons */
+.btn {
+  height: 48px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.15s;
+}
+.btn--primary { background: var(--primary); color: white; }
+.btn--primary:hover { background: var(--primary-hover); }
+.btn--primary:active { transform: scale(0.97); }
+.btn--ghost {
+  background: transparent;
+  color: var(--text-sec);
+  border: 1px solid var(--border);
+  height: 36px;
+  font-size: 12px;
+}
+.btn--ghost:hover { background: var(--surface-elev); color: var(--text); }
+.btn--outline {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  height: 40px;
+  font-size: 13px;
+}
+.btn--outline:hover { background: var(--surface-elev); }
+.btn--full { width: 100%; }
+
+/* ── PLAYING STATE ── */
+.playing {
+  display: flex;
+  gap: 24px;
+  width: 100%;
+  max-width: 1280px;
+  min-height: 100%;
+}
+
+/* Left panel: Players (1/3) */
+.players-panel {
+  width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.players-panel__title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--text-muted);
+}
+
+/* Player cards — NEW: avatar ring + colored name, no left border */
+.player-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.player-card:hover { background: var(--surface-elev); }
+
+.player-card__avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: white;
+  flex-shrink: 0;
+  border: 2px solid transparent;
+}
+.player-card--p1 .player-card__avatar { background: var(--player-1); border-color: rgba(239,68,68,0.5); }
+.player-card--p2 .player-card__avatar { background: var(--player-2); border-color: rgba(59,130,246,0.5); }
+.player-card--p3 .player-card__avatar { background: var(--player-3); border-color: rgba(234,179,8,0.5); }
+.player-card--p4 .player-card__avatar { background: var(--player-4); border-color: rgba(34,197,94,0.5); }
+
+.player-card__info { flex: 1; min-width: 0; }
+.player-card__name {
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.player-card--p1 .player-card__name { color: var(--player-1); }
+.player-card--p2 .player-card__name { color: var(--player-2); }
+.player-card--p3 .player-card__name { color: var(--player-3); }
+.player-card--p4 .player-card__name { color: var(--player-4); }
+
+.player-card__score {
+  font-size: 11px;
+  color: var(--text-sec);
+  margin-top: 2px;
+}
+.player-card__title-badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--warning);
+}
+.player-card__host {
+  font-size: 10px;
+  color: var(--warning);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* Meta row: title + host */
+.player-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* Spectators — real users with titles */
+.spectators {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+.spectators__count {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+.spectators__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.spectator-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.spectator-user__name {
+  color: var(--text-sec);
+  font-weight: 500;
+}
+.spectator-user__title {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  background: var(--surface-elev);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* ── Genre Radar Popover ── */
+.radar-popover {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 8px;
+  background: var(--surface-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  width: 240px;
+  z-index: 10;
+  box-shadow: 0 12px 24px rgba(0,0,0,0.5);
+}
+.radar-popover__name {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.radar-popover__stats {
+  font-size: 11px;
+  color: var(--text-sec);
+  margin-bottom: 12px;
+}
+.radar-chart {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
+}
+.radar-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+}
+.radar-item__label {
+  color: var(--text-sec);
+  flex: 1;
+}
+.radar-item__bar {
+  width: 50px;
+  height: 4px;
+  background: var(--bg);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.radar-item__fill {
+  height: 100%;
+  border-radius: 2px;
+}
+.radar-item__fill--win { background: var(--success); }
+.radar-item__fill--lose { background: var(--primary); }
+.radar-item__val {
+  font-size: 10px;
+  color: var(--text-muted);
+  width: 20px;
+  text-align: right;
+}
+
+/* Right panel: Game area (2/3) */
+.game-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* Round stage */
+.round-stage {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.round-stage__left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.round-stage__label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--text-muted);
+}
+.round-stage__genre {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+.round-stage__timer {
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+}
+.round-stage__timer--urgent { color: var(--primary); }
+.round-stage__status {
+  font-size: 12px;
+  color: var(--text-sec);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Bingo grid */
+.bingo {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  flex: 1;
+  max-width: 480px;
+}
+.tile {
+  aspect-ratio: 1;
+  background: var(--surface-elev);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  position: relative;
+  transition: border-color 0.2s;
+}
+.tile--p1 { border-color: var(--player-1); background: rgba(239,68,68,0.06); }
+.tile--p2 { border-color: var(--player-2); background: rgba(59,130,246,0.06); }
+.tile--p3 { border-color: var(--player-3); background: rgba(234,179,8,0.06); }
+.tile--p4 { border-color: var(--player-4); background: rgba(34,197,94,0.06); }
+.tile--won-p1 { background: var(--player-1); }
+.tile--won-p2 { background: var(--player-2); }
+.tile--won-p3 { background: var(--player-3); }
+.tile--won-p4 { background: var(--player-4); }
+.tile--active { border-width: 3px; }
+
+.tile__genre {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-sec);
+  text-align: center;
+  line-height: 1.2;
+}
+.tile__player {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-top: 4px;
+}
+.tile--p1 .tile__player, .tile--won-p1 .tile__player { color: rgba(255,255,255,0.8); }
+.tile--p2 .tile__player, .tile--won-p2 .tile__player { color: rgba(255,255,255,0.8); }
+.tile--won-p3 .tile__player { color: rgba(0,0,0,0.7); }
+.tile--won-p4 .tile__player { color: rgba(255,255,255,0.8); }
+
+.tile__icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(9,9,9,0.3);
+  margin-bottom: 4px;
+}
+.tile__icon svg { width: 14px; height: 14px; color: var(--text-sec); }
+
+/* Voting */
+.voting {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+.vote-btn {
+  flex: 1;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+.vote-btn:hover { background: var(--surface-elev); }
+.vote-btn--p1:hover { border-color: var(--player-1); color: var(--player-1); }
+.vote-btn--p2:hover { border-color: var(--player-2); color: var(--player-2); }
+.vote-btn__count {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 2px;
+}
+
+/* ── SPECTATE VIEW ── */
+.spectate-view {
+  width: 100%;
+  max-width: 1280px;
+}
+.spectate-view__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+.spectate-view__label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.spectate-view__Timer {
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.split-boards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.split-board {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+.split-board__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.split-board__name {
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.split-board__score {
+  font-size: 12px;
+  color: var(--text-sec);
+}
+.split-board--p1 .split-board__name { color: var(--player-1); }
+.split-board--p2 .split-board__name { color: var(--player-2); }
+
+.split-board .bingo {
+  gap: 6px;
+  max-width: none;
+}
+
+/* ── FINISHED OVERLAY ── */
+.finished-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(9,9,9,0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+.finished-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 32px;
+  text-align: center;
+  max-width: 320px;
+  width: 90%;
+}
+.finished-card__title {
+  font-family: var(--font-display);
+  font-size: 28px;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.finished-card__winner {
+  font-size: 16px;
+  color: var(--text-sec);
+  margin-bottom: 4px;
+}
+.finished-card__winner-name {
+  font-weight: 700;
+  color: var(--warning);
+}
+.finished-card__countdown {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+}
+
+/* ── ANIMATIONS ── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.85); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes timer-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+@keyframes tile-pop {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.anim-fade-in { animation: fade-in 250ms ease-out both; }
+.anim-scale-in { animation: scale-in 300ms ease-out both; }
+.anim-slide-up { animation: slide-up 300ms ease-out both; }
+.anim-tile-pop { animation: tile-pop 400ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.anim-delay-1 { animation-delay: 80ms; }
+.anim-delay-2 { animation-delay: 160ms; }
+.anim-delay-3 { animation-delay: 240ms; }
+.anim-delay-4 { animation-delay: 320ms; }
+.anim-delay-5 { animation-delay: 400ms; }
+
+.timer-urgent { animation: timer-pulse 1s ease-in-out infinite; }
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .playing {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .players-panel {
+    width: 100%;
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 8px;
+  }
+  .players-panel__title { display: none; }
+  .player-card { min-width: 200px; flex-shrink: 0; }
+  .spectators { display: none; }
+  .lobby__code { font-size: 52px; }
+  .bingo { gap: 6px; }
+  .tile__genre { font-size: 9px; }
+  .split-boards { grid-template-columns: 1fr; }
+}
+
+/* ── Tab nav for mockup ── */
+.tabs {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px;
+  z-index: 100;
+}
+.tab {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-sec);
+  background: none;
+  border: none;
+  font-family: var(--font-body);
+}
+.tab:hover { color: var(--text); }
+.tab.active { background: var(--primary); color: white; }
+
+/* ── State visibility ── */
+.state { display: none; }
+.state.active { display: flex; }
+.state.lobby.active { display: flex; }
+.state.playing.active { display: flex; }
+.state.spectate-view.active { display: flex; }
+
+/* ── Player card wrapper for popover positioning ── */
+.player-card-wrap {
+  position: relative;
+}
+</style>
+</head>
+<body>
+
+<div class="room">
+  <header class="header">
+    <div class="header__inner">
+      <div class="header__logo">Sound Royale</div>
+      <button class="header__leave">← Leave</button>
+    </div>
+  </header>
+
+  <main class="main">
+
+    <!-- ═══ LOBBY STATE ═══ -->
+    <div class="state lobby active" id="state-lobby">
+      <div class="lobby">
+        <div class="lobby__label anim-fade-in">Battle Room</div>
+        <div class="lobby__code anim-scale-in">X7K9M</div>
+        <div class="lobby__hint anim-fade-in anim-delay-1">Share this code to invite players.</div>
+
+        <div class="lobby__card anim-slide-up anim-delay-2">
+          <div class="player-chips">
+            <div class="player-chip player-chip--p1">
+              <span class="player-chip__dot"></span>
+              You (P1)
+            </div>
+            <div class="player-chip player-chip--p2">
+              <span class="player-chip__dot"></span>
+              Opponent
+            </div>
+            <div class="player-chip player-chip--spec">
+              <span class="player-chip__dot"></span>
+              5 spectators
+            </div>
+          </div>
+
+          <div class="join-form">
+            <label class="join-form__label">Your name</label>
+            <input class="join-form__input" placeholder="Producer name" value="">
+            <button class="btn btn--primary btn--full">Join as Player</button>
+            <button class="btn btn--ghost btn--full">Or watch as spectator</button>
+          </div>
+        </div>
+
+        <button class="btn btn--primary btn--full" style="margin-top:20px; max-width:460px;">
+          ▶ Start Match
+        </button>
+      </div>
+    </div>
+
+    <!-- ═══ PLAYING STATE ═══ -->
+    <div class="state playing" id="state-playing">
+      <div class="players-panel">
+        <div class="players-panel__title anim-fade-in">Players</div>
+
+        <!-- P1 card with radar popover -->
+        <div class="player-card-wrap">
+          <div class="player-card player-card--p1 anim-slide-up anim-delay-1">
+            <div class="player-card__avatar">Y</div>
+            <div class="player-card__info">
+              <div class="player-card__name">
+                You
+                <span class="player-card__host">★</span>
+              </div>
+              <div class="player-card__meta">
+                <span class="player-card__title-badge">🔥 On Fire</span>
+                <span class="player-card__score">5/9 tiles · 32 pts</span>
+              </div>
+            </div>
+          </div>
+          <!-- Genre radar popover (hidden by default, shown on click) -->
+          <div class="radar-popover" id="radar-p1">
+            <div class="radar-popover__name" style="color:var(--player-1)">You</div>
+            <div class="radar-popover__stats">ELO 1,247 · 12 matches</div>
+            <div class="radar-chart">
+              <div class="radar-item">
+                <span class="radar-item__label">Hip-Hop</span>
+                <div class="radar-item__bar"><div class="radar-item__fill radar-item__fill--win" style="width:85%"></div></div>
+                <span class="radar-item__val">85%</span>
+              </div>
+              <div class="radar-item">
+                <span class="radar-item__label">Trap</span>
+                <div class="radar-item__bar"><div class="radar-item__fill radar-item__fill--win" style="width:72%"></div></div>
+                <span class="radar-item__val">72%</span>
+              </div>
+              <div class="radar-item">
+                <span class="radar-item__label">Lo-Fi</span>
+                <div class="radar-item__bar"><div class="radar-item__fill radar-item__fill--win" style="width:60%"></div></div>
+                <span class="radar-item__val">60%</span>
+              </div>
+              <div class="radar-item">
+                <span class="radar-item__label">Rock</span>
+                <div class="radar-item__bar"><div class="radar-item__fill radar-item__fill--lose" style="width:35%"></div></div>
+                <span class="radar-item__val">35%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- P2 card -->
+        <div class="player-card player-card--p2 anim-slide-up anim-delay-2">
+          <div class="player-card__avatar">O</div>
+          <div class="player-card__info">
+            <div class="player-card__name">Opponent</div>
+            <div class="player-card__meta">
+              <span class="player-card__title-badge">🎵 Beat Machine</span>
+              <span class="player-card__score">3/9 tiles · 18 pts</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Spectators: real users with titles -->
+        <div class="spectators anim-fade-in anim-delay-3">
+          <div class="spectators__count">Audience (5)</div>
+          <div class="spectators__list">
+            <div class="spectator-user">
+              <span class="spectator-user__name">DJ_Microphone</span>
+              <span class="spectator-user__title">🎧 Listener</span>
+            </div>
+            <div class="spectator-user">
+              <span class="spectator-user__name">bassQueen</span>
+              <span class="spectator-user__title">🏆 Champion</span>
+            </div>
+            <div class="spectator-user">
+              <span class="spectator-user__name">NYProducer99</span>
+            </div>
+            <div class="spectator-user">
+              <span class="spectator-user__name">vinyl_archivist</span>
+              <span class="spectator-user__title">🔍 Scout</span>
+            </div>
+            <div class="spectator-user">
+              <span class="spectator-user__name">soundwave</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="game-area">
+        <div class="round-stage anim-fade-in">
+          <div class="round-stage__left">
+            <span class="round-stage__label">Round 3</span>
+            <span class="round-stage__genre">Hip-Hop</span>
+          </div>
+          <div class="round-stage__timer">0:45</div>
+          <div class="round-stage__status">
+            <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--success);"></span>
+            Voting open
+          </div>
+        </div>
+
+        <div class="bingo">
+          <div class="tile tile--p1 anim-tile-pop anim-delay-1">
+            <div class="tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+            <span class="tile__genre">Trap</span>
+            <span class="tile__player">P1</span>
+          </div>
+          <div class="tile tile--won-p1 anim-tile-pop anim-delay-2">
+            <div class="tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+            <span class="tile__genre">Boom Bap</span>
+            <span class="tile__player">P1</span>
+          </div>
+          <div class="tile anim-tile-pop anim-delay-3">
+            <div class="tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+            <span class="tile__genre">Lo-Fi</span>
+          </div>
+          <div class="tile tile--p2 anim-tile-pop anim-delay-1">
+            <div class="tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+            <span class="tile__genre">Drill</span>
+            <span class="tile__player">P2</span>
+          </div>
+          <div class="tile tile--won-p2 anim-tile-pop anim-delay-2">
+            <div class="tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+            <span class="tile__genre">Rage</span>
+            <span class="tile__player">P2</span>
+          </div>
+          <div class="tile anim-tile-pop anim-delay-3">
+            <div class="tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+            <span class="tile__genre">Phonk</span>
+          </div>
+          <div class="tile anim-tile-pop anim-delay-1">
+            <div class="tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+            <span class="tile__genre">Afrobeats</span>
+          </div>
+          <div class="tile anim-tile-pop anim-delay-2">
+            <div class="tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+            <span class="tile__genre">Jersey</span>
+          </div>
+          <div class="tile tile--won-p1 anim-tile-pop anim-delay-3">
+            <div class="tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+            <span class="tile__genre">Neo Soul</span>
+            <span class="tile__player">P1</span>
+          </div>
+        </div>
+
+        <div class="voting anim-fade-in anim-delay-4">
+          <button class="vote-btn vote-btn--p1">
+            👍 P1 <span class="vote-btn__count">2</span>
+          </button>
+          <button class="vote-btn vote-btn--p2">
+            👍 P2 <span class="vote-btn__count">1</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ SPECTATE VIEW ═══ -->
+    <div class="state spectate-view" id="state-spectate">
+      <div class="spectate-view__bar">
+        <div class="spectate-view__label">
+          <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--primary);"></span>
+          Spectating
+        </div>
+        <div class="spectate-view__timer">0:45</div>
+        <div class="spectate-view__label">
+          <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--success);"></span>
+          Voting open
+        </div>
+      </div>
+
+      <div class="split-boards">
+        <div class="split-board split-board--p1">
+          <div class="split-board__header">
+            <div class="split-board__name">
+              <div class="player-card__avatar" style="width:28px;height:28px;font-size:12px;background:var(--player-1);">Y</div>
+              You (P1)
+            </div>
+            <div class="split-board__score">5/9 tiles · 32 pts</div>
+          </div>
+          <div class="bingo">
+            <div class="tile tile--p1"><div class="tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div><span class="tile__genre">Trap</span><span class="tile__player">P1</span></div>
+            <div class="tile tile--won-p1"><div class="tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div><span class="tile__genre">Boom Bap</span></div>
+            <div class="tile"><div class="tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div><span class="tile__genre">Lo-Fi</span></div>
+            <div class="tile"><div class="tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div><span class="tile__genre">Afro</span></div>
+            <div class="tile"><div class="tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div><span class="tile__genre">House</span></div>
+            <div class="tile"><div class="tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div><span class="tile__genre">R&B</span></div>
+            <div class="tile"><div class="tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div><span class="tile__genre">Jazz</span></div>
+            <div class="tile"><div class="tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div><span class="tile__genre">Indie</span></div>
+            <div class="tile tile--won-p1"><div class="tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div><span class="tile__genre">Neo Soul</span></div>
+          </div>
+        </div>
+
+        <div class="split-board split-board--p2">
+          <div class="split-board__header">
+            <div class="split-board__name">
+              <div class="player-card__avatar" style="width:28px;height:28px;font-size:12px;background:var(--player-2);">O</div>
+              Opponent (P2)
+            </div>
+            <div class="split-board__score">3/9 tiles · 18 pts</div>
+          </div>
+          <div class="bingo">
+            <div class="tile"><div class="tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div><span class="tile__genre">Trap</span></div>
+            <div class="tile"><div class="tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div><span class="tile__genre">Boom Bap</span></div>
+            <div class="tile"><div class="tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div><span class="tile__genre">Lo-Fi</span></div>
+            <div class="tile tile--p2"><div class="tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div><span class="tile__genre">Drill</span><span class="tile__player">P2</span></div>
+            <div class="tile tile--won-p2"><div class="tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div><span class="tile__genre">Rage</span></div>
+            <div class="tile"><div class="tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div><span class="tile__genre">Phonk</span></div>
+            <div class="tile"><div class="tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div><span class="tile__genre">Afro</span></div>
+            <div class="tile"><div class="tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div><span class="tile__genre">House</span></div>
+            <div class="tile"><div class="tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div><span class="tile__genre">R&B</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="voting" style="max-width:480px;margin:12px auto 0;">
+        <button class="vote-btn vote-btn--p1">👍 Vote P1 <span class="vote-btn__count">2</span></button>
+        <button class="vote-btn vote-btn--p2">👍 Vote P2 <span class="vote-btn__count">1</span></button>
+      </div>
+    </div>
+
+    <!-- ═══ FINISHED STATE ═══ -->
+    <div class="state" id="state-finished">
+      <div class="finished-overlay">
+        <div class="finished-card anim-scale-in">
+          <div class="finished-card__title">Winner!</div>
+          <div class="finished-card__winner">
+            <span class="finished-card__winner-name">You</span> takes the bingo.
+          </div>
+          <div class="finished-card__countdown">New match in 5s</div>
+          <button class="btn btn--primary btn--full">Play Again</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Tab switcher -->
+<div class="tabs">
+  <button class="tab active" onclick="showState('lobby')">Lobby</button>
+  <button class="tab" onclick="showState('playing')">Playing</button>
+  <button class="tab" onclick="showState('spectate')">Spectate</button>
+  <button class="tab" onclick="showState('finished')">Finished</button>
+</div>
+
+<script>
+function showState(name) {
+  document.querySelectorAll('.state').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('state-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// Toggle radar popover on player card click
+document.querySelectorAll('.player-card').forEach(card => {
+  card.addEventListener('click', function() {
+    const popover = this.parentElement.querySelector('.radar-popover');
+    if (popover) {
+      popover.style.display = popover.style.display === 'block' ? 'none' : 'block';
+    }
+  });
+});
+</script>
+
+</body>
+</html>

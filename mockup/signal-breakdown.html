@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Signal Breakdown — Auto-Generated</title>
+<style>
+:root {
+  --bg: #09090b;
+  --surface: #18181b;
+  --surface-elev: #27272a;
+  --border: #3f3f46;
+  --text: #fafafa;
+  --text-sec: #a1a1aa;
+  --text-muted: #52525b;
+  --green: #22c55e;
+  --red: #ef4444;
+  --blue: #3b82f6;
+  --yellow: #eab308;
+  --purple: #a855f7;
+  --font: 'SF Mono', ui-monospace, monospace;
+  --font-body: 'Poppins', sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+.signal-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px;
+  margin: 32px auto;
+  max-width: 880px;
+}
+
+/* Header */
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.header__left { display: flex; align-items: baseline; gap: 12px; }
+.header__ticker { font-size: 28px; font-weight: 700; font-family: var(--font); }
+.header__sector {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--surface-elev);
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.header__price { font-size: 28px; font-weight: 700; font-family: var(--font); }
+.header__meta { text-align: right; }
+.header__meta-score { font-size: 13px; color: var(--yellow); font-weight: 700; }
+.header__meta-time { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+/* Chart */
+.chart-wrap {
+  background: rgba(39,39,42,0.3);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+.chart-svg { width: 100%; height: 260px; display: block; }
+
+/* Levels row */
+.levels {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.level {
+  background: var(--surface-elev);
+  border-radius: 8px;
+  padding: 10px 12px;
+  text-align: center;
+}
+.level__type { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 4px; }
+.level__price { font-size: 16px; font-weight: 700; font-family: var(--font); }
+.level--resistance .level__price { color: var(--red); }
+.level--entry .level__price { color: var(--blue); }
+.level--stop .level__price { color: var(--red); }
+.level--target .level__price { color: var(--green); }
+
+/* Signal details grid */
+.signal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.detail-card {
+  background: var(--surface-elev);
+  border-radius: 8px;
+  padding: 12px;
+}
+.detail-card__label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 4px; }
+.detail-card__value { font-size: 18px; font-weight: 700; font-family: var(--font); }
+.detail-card__sub { font-size: 11px; color: var(--text-sec); margin-top: 2px; }
+
+/* Narrative */
+.section {
+  margin-bottom: 20px;
+}
+.section__title {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+}
+.section__title-icon { font-size: 16px; }
+.section p { font-size: 13px; color: var(--text-sec); line-height: 1.7; margin-bottom: 8px; }
+.section p strong { color: var(--text); }
+.highlight-green { color: var(--green); font-weight: 600; }
+.highlight-red { color: var(--red); font-weight: 600; }
+.highlight-yellow { color: var(--yellow); font-weight: 600; }
+.highlight-blue { color: var(--blue); font-weight: 600; }
+
+/* What we're waiting for */
+.waiting {
+  background: rgba(168,85,247,0.06);
+  border: 1px solid rgba(168,85,247,0.2);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+.waiting__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--text-sec);
+  line-height: 1.6;
+}
+.waiting__item:last-child { margin-bottom: 0; }
+.waiting__icon { flex-shrink: 0; margin-top: 2px; }
+.waiting__text strong { color: var(--text); }
+
+/* Pattern history */
+.pattern-history {
+  background: var(--surface-elev);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+.pattern-history__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.pattern-history__label { font-size: 12px; font-weight: 700; color: var(--text); }
+.pattern-history__count { font-size: 11px; color: var(--text-muted); }
+.pattern-row {
+  display: grid;
+  grid-template-columns: 80px 1fr 100px 80px;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 0;
+  border-top: 1px solid rgba(63,63,70,0.5);
+  font-size: 12px;
+}
+.pattern-row:first-of-type { border-top: none; }
+.pattern-row__date { font-family: var(--font); color: var(--text-sec); font-size: 11px; }
+.pattern-row__desc { color: var(--text-sec); }
+.pattern-row__result { font-weight: 700; font-family: var(--font); font-size: 12px; }
+.pattern-row__result--win { color: var(--green); }
+.pattern-row__result--loss { color: var(--red); }
+
+/* Retail box */
+.retail {
+  background: rgba(234,179,8,0.04);
+  border: 1px solid rgba(234,179,8,0.15);
+  border-radius: 10px;
+  padding: 16px;
+}
+.retail__title { font-size: 13px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+.retail p { font-size: 13px; color: var(--text-sec); line-height: 1.7; margin-bottom: 10px; }
+.retail p strong { color: var(--text); }
+.retail__reaction {
+  background: var(--surface-elev);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--text-sec);
+  font-style: italic;
+  margin: 8px 0;
+}
+
+/* Legend */
+.legend {
+  display: flex;
+  gap: 14px;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.legend__item { display: flex; align-items: center; gap: 4px; }
+.legend__dot { width: 6px; height: 6px; border-radius: 1px; }
+
+/* Multiple signals */
+.signals-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Nav */
+.nav {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px;
+  z-index: 100;
+}
+.nav__btn {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-sec);
+  background: none;
+  border: none;
+  font-family: var(--font-body);
+}
+.nav__btn:hover { color: var(--text); }
+.nav__btn.active { background: var(--primary); color: white; }
+
+/* Loading */
+.loading {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+</style>
+</head>
+<body>
+
+<div class="nav" id="nav"></div>
+<div id="app">
+  <div class="loading">Loading signals...</div>
+</div>
+
+<script>
+// ── Embedded scan data (would be fetched from API in production) ──
+const SCAN_DATA = {
+  scan_date: "2026-06-24",
+  tickers_scanned: 48,
+  signals_found: 39,
+  signals: [
+    { ticker: "COHR", entry_time: "2026-04-21T15:00:00+00:00", entry_price: 347.035, stop_price: 305.39, confluence_score: 7, runner_score: 0, risk_pct: 12.0, target_1r: 388.68, target_3r: 471.97 },
+    { ticker: "NET", entry_time: "2026-04-08T15:00:00+00:00", entry_price: 213.795, stop_price: 190.97, confluence_score: 6, runner_score: 0, risk_pct: 10.68, target_1r: 236.62, target_3r: 282.26 },
+    { ticker: "IREN", entry_time: "2026-05-07T13:00:00+00:00", entry_price: 59.81, stop_price: 52.63, confluence_score: 6, runner_score: 0, risk_pct: 12.0, target_1r: 66.99, target_3r: 81.35 },
+    { ticker: "AAOI", entry_time: "2026-04-14T14:00:00+00:00", entry_price: 151.56, stop_price: 133.37, confluence_score: 5, runner_score: 1, risk_pct: 12.0, target_1r: 169.75, target_3r: 206.12 },
+    { ticker: "INTC", entry_time: "2026-05-13T14:00:00+00:00", entry_price: 121.68, stop_price: 107.08, confluence_score: 5, runner_score: 0, risk_pct: 12.0, target_1r: 136.28, target_3r: 165.48 },
+    { ticker: "PLTR", entry_time: "2026-03-20T14:00:00+00:00", entry_price: 154.90, stop_price: 136.31, confluence_score: 5, runner_score: 0, risk_pct: 12.0, target_1r: 173.49, target_3r: 210.67 },
+    { ticker: "QQQ", entry_time: "2026-05-15T15:00:00+00:00", entry_price: 728.27, stop_price: 693.90, confluence_score: 5, runner_score: 0, risk_pct: 4.7, target_1r: 762.64, target_3r: 831.38 },
+    { ticker: "NVDA", entry_time: "2026-06-10T13:30:00+00:00", entry_price: 224.50, stop_price: 217.09, confluence_score: 3, runner_score: 0, risk_pct: 3.3, target_1r: 231.91, target_3r: 246.73 },
+    { ticker: "AMD", entry_time: "2026-06-08T11:00:00+00:00", entry_price: 451.09, stop_price: 400.57, confluence_score: 3, runner_score: 1, risk_pct: 11.2, target_1r: 501.61, target_3r: 602.65 },
+    { ticker: "AVGO", entry_time: "2026-05-22T10:00:00+00:00", entry_price: 421.83, stop_price: 403.71, confluence_score: 4, runner_score: 0, risk_pct: 4.3, target_1r: 439.95, target_3r: 476.19 },
+    { ticker: "BIIB", entry_time: "2026-04-30T13:00:00+00:00", entry_price: 128.57, stop_price: 126.91, confluence_score: 4, runner_score: 1, risk_pct: 1.2, target_1r: 130.23, target_3r: 133.55 },
+    { ticker: "REGN", entry_time: "2026-03-15T14:00:00+00:00", entry_price: 759.21, stop_price: 732.64, confluence_score: 3, runner_score: 0, risk_pct: 3.5, target_1r: 785.78, target_3r: 38.92 },
+    { ticker: "MRNA", entry_time: "2026-02-20T10:00:00+00:00", entry_price: 47.79, stop_price: 44.54, confluence_score: 3, runner_score: 0, risk_pct: 6.8, target_1r: 51.04, target_3r: 57.54 },
+    { ticker: "VRTX", entry_time: "2026-04-05T11:00:00+00:00", entry_price: 457.29, stop_price: 441.29, confluence_score: 3, runner_score: 1, risk_pct: 3.5, target_1r: 473.29, target_3r: 505.29 },
+    { ticker: "COIN", entry_time: "2026-06-01T09:00:00+00:00", entry_price: 206.25, stop_price: 182.53, confluence_score: 4, runner_score: 0, risk_pct: 11.5, target_1r: 229.97, target_3r: 277.41 },
+    { ticker: "MARA", entry_time: "2026-05-28T15:00:00+00:00", entry_price: 10.54, stop_price: 9.28, confluence_score: 3, runner_score: 1, risk_pct: 12.0, target_1r: 11.80, target_3r: 14.32 },
+    { ticker: "LITE", entry_time: "2026-02-17T15:00:00+00:00", entry_price: 587.24, stop_price: 516.77, confluence_score: 3, runner_score: 1, risk_pct: 12.0, target_1r: 657.71, target_3r: 798.65 },
+    { ticker: "IPGP", entry_time: "2025-12-09T15:00:00+00:00", entry_price: 83.38, stop_price: 75.79, confluence_score: 4, runner_score: 1, risk_pct: 9.11, target_1r: 90.97, target_3r: 106.16 },
+    { ticker: "LASE", entry_time: "2026-03-31T14:00:00+00:00", entry_price: 0.9684, stop_price: 0.852, confluence_score: 4, runner_score: 1, risk_pct: 12.0, target_1r: 1.0846, target_3r: 1.317 },
+    { ticker: "LASR", entry_time: "2026-04-16T14:00:00+00:00", entry_price: 68.74, stop_price: 60.49, confluence_score: 3, runner_score: 0, risk_pct: 12.0, target_1r: 76.99, target_3r: 93.49 },
+    { ticker: "LPTH", entry_time: "2026-05-01T10:00:00+00:00", entry_price: 1.87, stop_price: 1.65, confluence_score: 3, runner_score: 0, risk_pct: 11.8, target_1r: 2.09, target_3r: 2.53 }
+  ]
+};
+
+// ── Pattern history database (simulated — would come from backtest DB) ──
+const PATTERN_HISTORY = {
+  COHR: [
+    { date: "2026-04-21", desc: "Reversal off $310 support", result: "win", resultText: "+12.3%" },
+    { date: "2026-03-10", desc: "Breakout above $280 base", result: "win", resultText: "+8.7%" },
+    { date: "2026-01-28", desc: "Failed breakout at $295", result: "loss", resultText: "-4.1%" },
+    { date: "2025-11-15", desc: "Reversal off $250 support", result: "win", resultText: "+15.2%" },
+  ],
+  NET: [
+    { date: "2026-04-08", desc: "Breakout from consolidation", result: "win", resultText: "+9.8%" },
+    { date: "2026-02-20", desc: "Failed breakout at $195", result: "loss", resultText: "-6.2%" },
+    { date: "2025-12-01", desc: "Reversal off $170 support", result: "win", resultText: "+11.1%" },
+  ],
+  IREN: [
+    { date: "2026-05-07", desc: "Breakout above $55 resistance", result: "win", resultText: "+7.4%" },
+    { date: "2026-03-22", desc: "Reversal off $48 support", result: "win", resultText: "+10.2%" },
+    { date: "2026-01-10", desc: "Failed breakdown at $52", result: "loss", resultText: "-3.8%" },
+  ],
+  AAOI: [
+    { date: "2026-04-14", desc: "Breakout above $140 base", result: "win", resultText: "+6.5%" },
+    { date: "2026-02-28", desc: "Reversal off $120 support", result: "win", resultText: "+8.9%" },
+    { date: "2025-12-10", desc: "Failed breakout at $155", result: "loss", resultText: "-5.5%" },
+  ],
+  INTC: [
+    { date: "2026-05-13", desc: "Breakout from pennant", result: "win", resultText: "+4.2%" },
+    { date: "2026-03-15", desc: "Reversal off $105 support", result: "loss", resultText: "-3.1%" },
+    { date: "2025-11-20", desc: "Breakout above $115", result: "win", resultText: "+9.0%" },
+  ],
+};
+
+// ── Generate candle data from signal context ──
+function generateCandles(signal) {
+  const candles = [];
+  const entry = signal.entry_price;
+  const stop = signal.stop_price;
+  const target = signal.target_1r;
+  const isLong = entry > stop;
+  
+  // Generate 20 candles: downtrend/reversal → approach to entry
+  let price = isLong ? entry - (entry - stop) * 1.2 : entry + (stop - entry) * 1.2;
+  const volatility = (entry - stop) * 0.3;
+  
+  for (let i = 0; i < 20; i++) {
+    const progress = i / 19;
+    const trend = isLong ? 1 : -1;
+    const base = price + trend * progress * (target - price) * 0.8;
+    const noise = (Math.sin(i * 1.7) * volatility * 0.5) + (Math.cos(i * 2.3) * volatility * 0.3);
+    const open = base + noise * 0.3;
+    const close = base + noise;
+    const high = Math.max(open, close) + Math.abs(noise) * 0.4;
+    const low = Math.min(open, close) - Math.abs(noise) * 0.4;
+    candles.push({ open, close, high, low, vol: 0.5 + Math.random() * 0.5 });
+  }
+  return candles;
+}
+
+// ── Render SVG chart ──
+function renderChart(signal, candles) {
+  const W = 800, H = 260, pad = { left: 50, right: 10, top: 10, bottom: 20 };
+  const entry = signal.entry_price;
+  const stop = signal.stop_price;
+  const target = signal.target_1r;
+  const isLong = entry > stop;
+  
+  const allPrices = candles.flatMap(c => [c.high, c.low]);
+  const minPrice = Math.min(...allPrices, stop) - 2;
+  const maxPrice = Math.max(...allPrices, target) + 2;
+  const priceRange = maxPrice - minPrice;
+  
+  const yScale = (p) => pad.top + (1 - (p - minPrice) / priceRange) * (H - pad.top - pad.bottom);
+  const candleW = (W - pad.left - pad.right) / candles.length;
+  
+  let svg = `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+  
+  // Grid
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (i / 4) * (H - pad.top - pad.bottom);
+    const price = maxPrice - (i / 4) * priceRange;
+    svg += `<line x1="${pad.left}" y1="${y}" x2="${W - pad.right}" y2="${y}" stroke="#27272a" stroke-width="0.5"/>`;
+    svg += `<text x="${pad.left - 5}" y="${y + 3}" fill="#52525b" font-size="9" text-anchor="end" font-family="SF Mono">$${price.toFixed(0)}</text>`;
+  }
+  
+  // Resistance (entry level from above)
+  const resY = yScale(Math.max(entry, target) + priceRange * 0.05);
+  svg += `<line x1="${pad.left}" y1="${resY}" x2="${W - pad.right}" y2="${resY}" stroke="#ef4444" stroke-width="1" stroke-dasharray="4,3" opacity="0.6"/>`;
+  svg += `<text x="${W - pad.right + 2}" y="${resY + 3}" fill="#ef4444" font-size="9" font-family="SF Mono">Resistance</text>`;
+  
+  // Support (stop level)
+  const supY = yScale(Math.min(stop, minPrice + priceRange * 0.05));
+  svg += `<line x1="${pad.left}" y1="${supY}" x2="${W - pad.right}" y2="${supY}" stroke="#22c55e" stroke-width="1" stroke-dasharray="4,3" opacity="0.6"/>`;
+  svg += `<text x="${W - pad.right + 2}" y="${supY + 3}" fill="#22c55e" font-size="9" font-family="SF Mono">Support</text>`;
+  
+  // Entry level
+  const entryY = yScale(entry);
+  svg += `<line x1="${pad.left}" y1="${entryY}" x2="${W - pad.right}" y2="${entryY}" stroke="#3b82f6" stroke-width="1" stroke-dasharray="4,3" opacity="0.6"/>`;
+  svg += `<text x="${W - pad.right + 2}" y="${entryY + 3}" fill="#3b82f6" font-size="9" font-family="SF Mono">Entry $${entry.toFixed(0)}</text>`;
+  
+  // Trend line
+  const trendStart = isLong ? candles[0].close : candles[0].close;
+  const trendEnd = isLong ? entry : entry;
+  svg += `<line x1="${pad.left + 10}" y1="${yScale(trendStart)}" x2="${W - pad.right - 10}" y2="${yScale(trendEnd)}" stroke="#3b82f6" stroke-width="1.5" opacity="0.3"/>`;
+  
+  // Candles
+  candles.forEach((c, i) => {
+    const x = pad.left + i * candleW + candleW * 0.1;
+    const w = candleW * 0.8;
+    const isUp = c.close >= c.open;
+    const color = isUp ? '#22c55e' : '#ef4444';
+    const bodyTop = yScale(Math.max(c.open, c.close));
+    const bodyBot = yScale(Math.min(c.open, c.close));
+    const bodyH = Math.max(bodyBot - bodyTop, 1);
+    
+    svg += `<rect x="${x}" y="${bodyTop}" width="${w}" height="${bodyH}" fill="${color}" rx="1.5" opacity="0.9"/>`;
+    svg += `<line x1="${x + w/2}" y1="${yScale(c.high)}" x2="${x + w/2}" y2="${yScale(c.low)}" stroke="${color}" stroke-width="1"/>`;
+  });
+  
+  // Current price marker
+  const lastCandle = candles[candles.length - 1];
+  svg += `<rect x="${W - pad.right - 55}" y="${yScale(lastCandle.close) - 8}" width="48" height="16" fill="#3b82f6" rx="3"/>`;
+  svg += `<text x="${W - pad.right - 31}" y="${yScale(lastCandle.close) + 4}" fill="white" font-size="9" text-anchor="middle" font-family="SF Mono">$${lastCandle.close.toFixed(2)}</text>`;
+  
+  // Volume bars
+  candles.forEach((c, i) => {
+    const x = pad.left + i * candleW + candleW * 0.2;
+    const h = c.vol * 12;
+    const color = c.close >= c.open ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)';
+    svg += `<rect x="${x}" y="${H - pad.bottom - h}" width="${candleW * 0.6}" height="${h}" fill="${color}" rx="1"/>`;
+  });
+  
+  svg += `</svg>`;
+  return svg;
+}
+
+// ── Generate narrative based on signal characteristics ──
+function generateNarrative(signal) {
+  const isLong = signal.entry_price > signal.stop_price;
+  const direction = isLong ? 'LONG' : 'SHORT';
+  const dirColor = isLong ? 'highlight-green' : 'highlight-red';
+  const riskDollar = Math.abs(signal.entry_price - signal.stop_price);
+  const rewardDollar = Math.abs(signal.target_1r - signal.entry_price);
+  const rrRatio = rewardDollar / riskDollar;
+  
+  const setups = {
+    highConfluence: [
+      `${signal.ticker} has triggered a <span class="highlight-yellow">${signal.confluence_score}/9 confluence signal</span> — one of the strongest setups we see. Multiple independent factors are aligning.`,
+      `The convergence of ${signal.confluence_score} separate confluence factors tells us this isn't noise. This is the kind of setup that institutional flow is built on.`
+    ],
+    runner: [
+      `This is flagged as a <span class="highlight-blue">runner</span> — the kind of setup that tends to accelerate once it starts. Expect momentum, not chop.`,
+      `Runner classification means we're not looking for a small scalp. This is a trend-continuation play with potential for a sustained move.`
+    ],
+    reversal: [
+      `Price is attempting a reversal after a sustained move. The key question: is this a reversal or a fakeout? The ${signal.confluence_score}/9 score suggests real conviction.`,
+      `Reversals are dangerous, but high-confluence reversals are where the big money is made. The market is telling us something has changed.`
+    ]
+  };
+  
+  let narrative = '';
+  
+  // Setup description
+  if (signal.confluence_score >= 6) {
+    narrative += `<p><strong>The Setup:</strong> ${setups.highConfluence[0]}</p>`;
+    narrative += `<p>${setups.highConfluence[1]}</p>`;
+  } else if (signal.confluence_score >= 4) {
+    narrative += `<p><strong>The Setup:</strong> ${signal.ticker} is showing a <span class="highlight-blue">${signal.confluence_score}/9 confluence score</span> — a solid setup with multiple confirming factors.</p>`;
+  } else {
+    narrative += `<p><strong>The Setup:</strong> ${signal.ticker} has triggered at <span class="highlight-yellow">${signal.confluence_score}/9 confluence</span>. Lower score, but still valid within the broader context.</p>`;
+  }
+  
+  // Runner note
+  if (signal.runner_score > 0) {
+    narrative += `<p><strong>Runner Classification:</strong> ${setups.runner[0]}</p>`;
+  }
+  
+  // Bulls vs Bears
+  narrative += `<p><strong>What the Bulls Are Thinking:</strong> <em>"${isLong ? 'We have the trend in our favor. Structure is bullish — higher lows, higher highs. This entry is above support, and the risk is defined. If we break resistance, this runs.' : 'The downtrend is intact. We\'re selling into strength, and the resistance level is holding. Our risk is capped at the swing high.'}"</em></p>`;
+  
+  narrative += `<p><strong>What the Bears Are Thinking:</strong> <em>"${isLong ? 'This is a dead cat bounce. The broader trend is down, and we\'re seeing a lower high forming. We\'ll short the resistance above.' : 'We\'re in control. Price is making lower highs and lower lows. This is a trend continuation setup — we\'re selling into every rally.'}"</em></p>`;
+  
+  // Risk/reward
+  html += `<p><strong>Risk/Reward:</strong> Risk is <span class="highlight-red">${signal.risk_pct}% ($${riskDollar.toFixed(2)})</span>. 1R = <span class="highlight-green">$${rewardDollar.toFixed(2)}</span> — take half off here, move stop to entry. 3R = <span class="highlight-green">$${signal.target_3r.toFixed(2)}</span> — full position target.</p>`;
+  
+  return narrative;
+}
+
+// ── Generate "What We're Waiting For" section ──
+function generateWaiting(signal) {
+  const isLong = signal.entry_price > signal.stop_price;
+  const entry = signal.entry_price;
+  const stop = signal.stop_price;
+  const target = signal.target_1r;
+  
+  let html = '<div class="waiting">';
+  html += '<div class="section__title"><span class="section__title-icon">⏳</span> What We\'re Waiting For</div>';
+  
+  if (isLong) {
+    html += `<div class="waiting__item"><span class="waiting__icon">1️⃣</span><span class="waiting__text"><strong>Price to hold above $${(entry - (entry - stop) * 0.3).toFixed(2)}</strong> — the zone just above entry that confirms bulls are defending the level. If it holds, we're in.</span></div>`;
+    html += `<div class="waiting__item"><span class="waiting__icon">2️⃣</span><span class="waiting__text"><strong>Break above $${entry.toFixed(2)} with volume</strong> — we need to see conviction, not just a wick. A strong close above entry on elevated volume confirms the breakout.</span></div>`;
+    html += `<div class="waiting__item"><span class="waiting__icon">3️⃣</span><span class="waiting__text"><strong>1R target at $${target.toFixed(2)}</strong> — take 50% off here, move stop to breakeven. Let the rest ride toward 3R ($${signal.target_3r.toFixed(2)}).</span></div>`;
+    html += `<div class="waiting__item"><span class="waiting__icon">🛑</span><span class="waiting__text"><strong>Invalidation: close below $${stop.toFixed(2)}</strong> — if price breaks below support, the setup fails. No questions asked. Cut it.</span></div>`;
+  } else {
+    html += `<div class="waiting__item"><span class="waiting__icon">1️⃣</span><span class="waiting__text"><strong>Price to reject $${(entry + (stop - entry) * 0.3).toFixed(2)}</strong> — the zone just below entry that confirms bears are defending.</span></div>`;
+    html += `<div class="waiting__item"><span class="waiting__icon">2️⃣</span><span class="waiting__text"><strong>Break below $${entry.toFixed(2)} with volume</strong> — we need to see sellers stepping in with conviction.</span></div>`;
+    html += `<div class="waiting__item"><span class="waiting__icon">3️⃣</span><span class="waiting__text"><strong>1R target at $${target.toFixed(2)}</strong> — take 50% off here, move stop to breakeven. Let the rest ride toward 3R ($${signal.target_3r.toFixed(2)}).</span></div>`;
+    html += `<div class="waiting__item"><span class="waiting__icon">🛑</span><span class="waiting__text"><strong>Invalidation: close above $${stop.toFixed(2)}</strong> — if price breaks above resistance, the short thesis is dead.</span></div>`;
+  }
+  
+  html += '</div>';
+  return html;
+}
+
+// ── Generate pattern history ──
+function generatePatternHistory(ticker) {
+  const history = PATTERN_HISTORY[ticker] || [];
+  if (history.length === 0) return '';
+  
+  let html = '<div class="pattern-history">';
+  html += `<div class="pattern-history__header"><span class="pattern-history__label">📊 Recent Pattern History for ${ticker}</span><span class="pattern-history__count">${history.length} occurrences</span></div>`;
+  
+  history.forEach(h => {
+    const resultClass = h.result === 'win' ? 'pattern-row__result--win' : 'pattern-row__result--loss';
+    const icon = h.result === 'win' ? '✓' : '✗';
+    html += `<div class="pattern-row">
+      <span class="pattern-row__date">${h.date}</span>
+      <span class="pattern-row__desc">${h.desc}</span>
+      <span class="pattern-row__result ${resultClass}">${icon} ${h.resultText}</span>
+    </div>`;
+  });
+  
+  html += '</div>';
+  return html;
+}
+
+// ── Generate retail psychology section ──
+function generateRetailPsychology(signal) {
+  const isLong = signal.entry_price > signal.stop_price;
+  const entry = signal.entry_price;
+  const stop = signal.stop_price;
+  
+  let html = '<div class="retail">';
+  html += '<div class="retail__title">🤡 What Retail Traders Are Doing</div>';
+  
+  if (isLong) {
+    html += `<p><strong>The Pattern Recognition Crowd:</strong> Most retail traders see the recent red candles and think <span class="highlight-red">"downtrend, I'll short this."</span> They draw a trendline from the top-left down to the bottom-right and conclude: this is going lower. They short at support — and get stopped out as the reversal happens.</p>`;
+    
+    html += `<div class="retail__reaction">💬 <strong>Retail reaction at $${stop.toFixed(0)}:</strong> "It's going lower! The trend is down!" → Shorts at support. Then price rips to $${entry.toFixed(0)} in 20 minutes. Stopped out. Down bad.</div>`;
+    
+    html += `<p><strong>The Support/Resistance Crowd:</strong> The more experienced retail traders see the $${stop.toFixed(0)} support held twice and think "bounce play." They go long with a stop below $${(stop - (entry - stop) * 0.1).toFixed(0)}. They're feeling smart — until price stalls at $${entry.toFixed(0)} and they have to decide: take profits now or gamble on a breakout?</p>`;
+    
+    html += `<div class="retail__reaction">💬 <strong>Retail reaction at $${entry.toFixed(0)}:</strong> "I'll take my profits here, resistance is above." → Sells at $${entry.toFixed(0)}. If it breaks, they FOMO back in 2% higher. Either way, they miss the move or chase it.</div>`;
+    
+    html += `<p><strong>The Bottom Line:</strong> Retail is fighting the last war. They see the downtrend and want to short the bounce. We are front-running the <span class="highlight-green">breakout of the downtrend</span>. The signal fired because price already flipped structure — it made a higher low at $${stop.toFixed(0)} and is now pressing toward a higher high. The trend has already changed. Retail just hasn't noticed yet.</p>`;
+  } else {
+    html += `<p><strong>The Pattern Recognition Crowd:</strong> They see the green candles and think <span class="highlight-green">"uptrend, I'll go long."</span> They buy the breakout above resistance — and get stopped out as price reverses lower.</p>`;
+    
+    html += `<div class="retail__reaction">💬 <strong>Retail reaction at $${(entry + (entry - stop) * 0.2).toFixed(0)}:</strong> "Breakout! I'm buying!" → Longs at resistance. Then price drops to $${stop.toFixed(0)}. Stopped out.</div>`;
+    
+    html += `<p><strong>The Bottom Line:</strong> Retail is buying the breakout. We are <span class="highlight-red">selling into the breakout</span> because the broader trend is down. The signal fired because this is a lower high in a downtrend — not a breakout.</p>`;
+  }
+  
+  html += '</div>';
+  return html;
+}
+
+// ── Render a single signal card ──
+function renderSignalCard(signal, index) {
+  const isLong = signal.entry_price > signal.stop_price;
+  const direction = isLong ? 'LONG' : 'SHORT';
+  const dirColor = isLong ? 'highlight-green' : 'highlight-red';
+  const candles = generateCandles(signal);
+  const date = new Date(signal.entry_time);
+  const formattedDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  
+  let html = `<div class="signal-card">`;
+  
+  // Header
+  html += `<div class="header">
+    <div class="header__left">
+      <span class="header__ticker">${signal.ticker}</span>
+      <span class="header__sector">Photonics</span>
+    </div>
+    <div class="header__meta">
+      <div class="header__meta-score">Score: ${signal.confluence_score}/9 ${signal.runner_score > 0 ? '· Runner' : ''}</div>
+      <div class="header__meta-time">${formattedDate}</div>
+    </div>
+  </div>`;
+  
+  // Chart
+  html += `<div class="chart-wrap">${renderChart(signal, candles)}</div>`;
+  
+  // Levels
+  const resistance = Math.max(signal.entry_price, signal.target_1r) + (signal.target_1r - signal.entry_price) * 0.1;
+  const support = Math.min(signal.stop_price, signal.entry_price - (signal.entry_price - signal.stop_price) * 0.5);
+  html += `<div class="levels">
+    <div class="level level--resistance"><div class="level__type">Resistance</div><div class="level__price">$${resistance.toFixed(2)}</div></div>
+    <div class="level level--entry"><div class="level__type">Entry</div><div class="level__price">$${signal.entry_price.toFixed(2)}</div></div>
+    <div class="level level--stop"><div class="level__type">Stop</div><div class="level__price">$${signal.stop_price.toFixed(2)}</div></div>
+    <div class="level level--target"><div class="level__type">1R Target</div><div class="level__price">$${signal.target_1r.toFixed(2)}</div></div>
+  </div>`;
+  
+  // Signal details
+  html += `<div class="signal-grid">
+    <div class="detail-card"><div class="detail-card__label">Direction</div><div class="detail-card__value ${dirColor}">${direction}</div></div>
+    <div class="detail-card"><div class="detail-card__label">Risk</div><div class="detail-card__value">${signal.risk_pct}%</div><div class="detail-card__sub">$${Math.abs(signal.entry_price - signal.stop_price).toFixed(2)}</div></div>
+    <div class="detail-card"><div class="detail-card__label">Reward (1R)</div><div class="detail-card__value highlight-green">+$${(signal.target_1r - signal.entry_price).toFixed(2)}</div><div class="detail-card__sub">${(signal.target_1r / signal.entry_price * 100 - 100).toFixed(1)}% gain</div></div>
+  </div>`;
+  
+  // Narrative
+  html += `<div class="section"><div class="section__title"><span class="section__title-icon">📖</span> Breakdown</div>${generateNarrative(signal)}</div>`;
+  
+  // What we're waiting for
+  html += generateWaiting(signal);
+  
+  // Pattern history
+  html += generatePatternHistory(signal.ticker);
+  
+  // Retail psychology
+  html += generateRetailPsychology(signal);
+  
+  html += `</div>`;
+  return html;
+}
+
+// ── Render all signals ──
+function renderSignals(signals) {
+  const sorted = signals.sort((a, b) => b.confluence_score - a.confluence_score);
+  const topSignals = sorted.slice(0, 5); // Show top 5
+  
+  let html = '';
+  topSignals.forEach((signal, i) => {
+    html += renderSignalCard(signal, i);
+  });
+  
+  // Summary for remaining
+  if (sorted.length > 5) {
+    const remaining = sorted.slice(5);
+    html += `<div class="signal-card" style="padding:20px;">
+      <div class="section__title" style="margin-bottom:12px;">📋 Additional Signals (${remaining.length})</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));gap:8px;">`;
+    remaining.forEach(s => {
+      const isLong = s.entry_price > s.stop_price;
+      html += `<div style="background:var(--surface-elev);border-radius:8px;padding:10px;display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-weight:700;font-family:var(--font);">${s.ticker}</span>
+        <span style="font-size:11px;color:${isLong ? 'var(--green)' : 'var(--red)'};font-weight:600;">${isLong ? 'LONG' : 'SHORT'} · ${s.confluence_score}/9</span>
+      </div>`;
+    });
+    html += `</div></div>`;
+  }
+  
+  return html;
+}
+
+// ── Navigation ──
+function renderNav(signals) {
+  const sorted = signals.sort((a, b) => b.confluence_score - a.confluence_score);
+  const top5 = sorted.slice(0, 5);
+  
+  let html = '';
+  top5.forEach((s, i) => {
+    html += `<button class="nav__btn ${i === 0 ? 'active' : ''}" onclick="scrollToSignal(${i})">${s.ticker}</button>`;
+  });
+  
+  document.getElementById('nav').innerHTML = html;
+}
+
+function scrollToSignal(index) {
+  const cards = document.querySelectorAll('.signal-card');
+  if (cards[index]) {
+    cards[index].scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  document.querySelectorAll('.nav__btn').forEach((btn, i) => {
+    btn.classList.toggle('active', i === index);
+  });
+}
+
+// ── Init ──
+function init() {
+  const app = document.getElementById('app');
+  app.innerHTML = renderSignals(SCAN_DATA.signals);
+  renderNav(SCAN_DATA.signals);
+}
+
+init();
+</script>
+</body>
+</html>
