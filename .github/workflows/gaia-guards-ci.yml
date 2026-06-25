@@ -207,3 +207,13 @@ jobs:
             exit 1
           fi
           echo "✓ No absolute file URLs found"
+
+  semantic-guardrails:
+    name: Semantic Guardrails
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Semantic regression scan
+        run: bash scripts/semantic-scan.sh
