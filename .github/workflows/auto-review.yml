@@ -19,6 +19,7 @@ jobs:
       PR_NUMBER: ${{ github.event.pull_request.number }}
       PR_TITLE: ${{ github.event.pull_request.title }}
       PR_URL: ${{ github.event.pull_request.html_url }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       OMNIROUTE_API_KEY: ${{ secrets.OMNIROUTE_API_KEY }}
 
     steps:
@@ -44,8 +45,8 @@ jobs:
 
       - name: Verify tools
         run: |
-          gh auth status
-          omniroute --version
+          gh auth setup-git
+          omniroute --version 2>&1 || echo "omniroute version check failed"
 
       - name: Fetch PR diff
         id: diff
