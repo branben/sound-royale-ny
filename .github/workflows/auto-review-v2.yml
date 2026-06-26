@@ -94,33 +94,25 @@ jobs:
 
       - name: Write prompts
         run: |
-          DIFF=$(gh pr diff "${{ steps.pr_info.outputs.number }}" --repo "$REPO")
-          CHANGED="${{ steps.files.outputs.files }}"
-          export DIFF_CONTENT="$DIFF"
-          export CHANGED_FILES="$CHANGED"
+          gh pr diff "${{ steps.pr_info.outputs.number }}" --repo "$REPO" > /tmp/pr-diff.txt
+          echo "${{ steps.files.outputs.files }}" > /tmp/changed-files.txt
           python3 scripts/ci/write_prompts.py
 
       - name: Run security review
         id: security
         run: |
-          export DIFF_CONTENT="$(gh pr diff "${{ steps.pr_info.outputs.number }}" --repo "$REPO")"
-          export CHANGED_FILES="${{ steps.files.outputs.files }}"
           python3 scripts/ci/llm_review.py /tmp/security-prompt.txt /tmp/security-findings.json owl-alpha "You are a security-focused code reviewer. Output ONLY valid JSON, no markdown."
           echo "count=$(cat /tmp/security-findings.json | jq length)"
 
       - name: Run quality review
         id: quality
         run: |
-          export DIFF_CONTENT="$(gh pr diff "${{ steps.pr_info.outputs.number }}" --repo "$REPO")"
-          export CHANGED_FILES="${{ steps.files.outputs.files }}"
           python3 scripts/ci/llm_review.py /tmp/quality-prompt.txt /tmp/quality-findings.json always-on-free "You are a code quality reviewer. Output ONLY valid JSON, no markdown."
           echo "count=$(cat /tmp/quality-findings.json | jq length)"
 
       - name: Run architecture review
         id: architecture
         run: |
-          export DIFF_CONTENT="$(gh pr diff "${{ steps.pr_info.outputs.number }}" --repo "$REPO")"
-          export CHANGED_FILES="${{ steps.files.outputs.files }}"
           python3 scripts/ci/llm_review.py /tmp/arch-prompt.txt /tmp/arch-findings.json owl-alpha "You are an architecture reviewer. Output ONLY valid JSON, no markdown."
           echo "count=$(cat /tmp/arch-findings.json | jq length)"
 
