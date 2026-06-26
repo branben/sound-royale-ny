@@ -4,126 +4,423 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+permissions:
+  pull-requests: write
+  contents: read
+
 jobs:
   auto-review:
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-      contents: read
-    
+    if: "!github.event.pull_request.user.login.includes('[bot]')"
+
+    env:
+      REPO: ${{ github.repository }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_TITLE: ${{ github.event.pull_request.title }}
+      PR_URL: ${{ github.event.pull_request.html_url }}
+      AGENTMAIL_API_KEY: ${{ secrets.AGENTMAIL_API_KEY }}
+      OMNIROUTE_API_KEY: ${{ secrets.OMNIROUTE_API_KEY }}
+
     steps:
-      - name: Checkout
+      - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: 'pip'
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
+          cache: 'npm'
 
-      - name: Install gh CLI
+      - name: Install dependencies
         run: |
-          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/githubcli.list > /dev/null
-          sudo apt update && sudo apt install -y gh
+          pip install --upgrade pip
+          npm install -g omniroute
 
-      - name: Configure gh
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify tools
         run: |
           gh auth status
+          omniroute --version
 
-      - name: Install OmniRoute
-        run: npm install -g omniroute
-
-      - name: Run Auto-Review
-        env:
-          AGENTMAIL_API_KEY: ${{ secrets.AGENTMAIL_API_KEY }}
-          OMNIROUTE_API_KEY: ${{ secrets.OMNIROUTE_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_URL: ${{ github.event.pull_request.html_url }}
+      - name: Fetch PR diff
+        id: diff
         run: |
-          # Fetch PR diff
-          DIFF=$(gh pr diff "$PR_NUMBER" --repo "$REPO")
-          
-          # Save diff to temp file
-          echo "$DIFF" > /tmp/pr-diff.txt
-          
-          # Create review request email via AgentMail
+          DIFF=$(gh pr diff "$PR_NUMBER" --repo "$REPO" 2>&1)
+          echo "diff<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$DIFF" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "Fetched diff: $(echo "$DIFF" | wc -l) lines"
+
+      - name: Extract changed files
+        id: files
+        run: |
+          CHANGED=$(echo "${{ steps.diff.outputs.diff }}" | grep '^diff --git' | sed 's|diff --git a/\(.\+\) b/.\+|\1|' | head -20)
+          echo "files<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$CHANGED" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "Changed files:"
+          echo "$CHANGED"
+
+      - name: Run security review
+        id: security
+        run: |
           python3 << 'PYEOF'
-          import urllib.request
+          import json, os, subprocess, re, sys
+
+          diff = os.environ.get("DIFF_CONTENT", "")
+          changed_files = os.environ.get("CHANGED_FILES", "").strip().split("\n")
+
+          prompt = f"""You are a security-focused code reviewer for a Django + React + TypeScript + WebSocket application.
+
+Review this PR diff for security vulnerabilities.
+
+## Changed Files
+{os.environ.get("CHANGED_FILES", "")}
+
+## Diff
+```diff
+{diff[:8000]}
+```
+
+Check for: injection (SQL, XSS, command), broken auth, hardcoded secrets, insecure deserialization, missing input validation, OWASP Top 10.
+
+Output ONLY a JSON array. If no findings, output [].
+
+Format each finding:
+{{"severity":"critical|high|medium|low|info","file":"<filename>","line":<number_or_null>,"cwe":"CWE-XXX","description":"<issue>","impact":"<risk>","fix":"<suggestion>"}}"""
+
+          with open("/tmp/security-prompt.txt", "w") as f:
+              f.write(prompt)
+
+          cmd = [
+              "npx", "omniroute", "chat",
+              "--file", "/tmp/security-prompt.txt",
+              "--combo", "owl-alpha",
+              "--system", "You are a security-focused code reviewer. Output ONLY valid JSON — no markdown, no commentary.",
+              "--temperature", "0.1",
+              "--max-tokens", "2000",
+              "--no-history",
+          ]
+
+          result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+
+          if result.returncode != 0:
+              print(f"Security review error: {result.stderr[:200]}", file=sys.stderr)
+              print("findings=[]")
+              sys.exit(0)
+
+          output = result.stdout.strip()
+          lines = output.split("\n")
+          content_lines = []
+          in_content = False
+          for line in lines:
+              if line.startswith("\U0001f4cb") or ("[" in line and "\u00b7" in line):
+                  continue
+              if line.strip() == "":
+                  if in_content:
+                      content_lines.append(line)
+                  continue
+              in_content = True
+              content_lines.append(line)
+
+          output = "\n".join(content_lines).strip()
+
+          if "```" in output:
+              output = output.split("```")[1]
+              if output.startswith("json"):
+                  output = output[4:]
+              output = output.strip()
+
+          for i, c in enumerate(output):
+              if c in ("[", "{"):
+                  output = output[i:]
+                  break
+
+          try:
+              findings = json.loads(output)
+              if not isinstance(findings, list):
+                  findings = []
+          except json.JSONDecodeError:
+              findings = []
+
+          with open("/tmp/security-findings.json", "w") as f:
+              json.dump(findings, f, indent=2)
+
+          print(f"findings={json.dumps(findings)}")
+          print(f"count={len(findings)}")
+          if any(f.get("severity") in ("critical", "high") for f in findings):
+              print("verdict=REQUEST_CHANGES")
+          elif findings:
+              print("verdict=COMMENT")
+          else:
+              print("verdict=APPROVE")
+          PYEOF
+        env:
+          DIFF_CONTENT: ${{ steps.diff.outputs.diff }}
+          CHANGED_FILES: ${{ steps.files.outputs.files }}
+
+      - name: Run quality review
+        id: quality
+        run: |
+          python3 << 'PYEOF'
+          import json, os, subprocess, sys
+
+          diff = os.environ.get("DIFF_CONTENT", "")
+          changed_files = os.environ.get("CHANGED_FILES", "").strip().split("\n")
+
+          prompt = f"""You are a code quality reviewer for a React + TypeScript + Tailwind + Django application.
+
+Review this PR diff for code quality issues.
+
+## Changed Files
+{os.environ.get("CHANGED_FILES", "")}
+
+## Diff
+```diff
+{diff[:6000]}
+```
+
+Check for: unused imports, missing cleanup after refactor, accessibility issues, type safety (any, @ts-ignore), code duplication, error handling anti-patterns.
+
+Output ONLY a JSON array. If no findings, output [].
+
+Format: {{"severity":"low|info","file":"<filename>","line":<number_or_null>,"description":"<issue>","fix":"<suggestion>"}}"""
+
+          with open("/tmp/quality-prompt.txt", "w") as f:
+              f.write(prompt)
+
+          cmd = [
+              "npx", "omniroute", "chat",
+              "--file", "/tmp/quality-prompt.txt",
+              "--combo", "always-on-free",
+              "--system", "You are a code quality reviewer. Output ONLY valid JSON — no markdown, no commentary.",
+              "--temperature", "0.2",
+              "--max-tokens", "1500",
+              "--no-history",
+          ]
+
+          result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+
+          if result.returncode != 0:
+              print(f"Quality review error: {result.stderr[:200]}", file=sys.stderr)
+              print("findings=[]")
+              sys.exit(0)
+
+          output = result.stdout.strip()
+          lines = output.split("\n")
+          content_lines = []
+          in_content = False
+          for line in lines:
+              if line.startswith("\U0001f4cb") or ("[" in line and "\u00b7" in line):
+                  continue
+              if line.strip() == "":
+                  if in_content:
+                      content_lines.append(line)
+                  continue
+              in_content = True
+              content_lines.append(line)
+
+          output = "\n".join(content_lines).strip()
+
+          if "```" in output:
+              output = output.split("```")[1]
+              if output.startswith("json"):
+                  output = output[4:]
+              output = output.strip()
+
+          for i, c in enumerate(output):
+              if c in ("[", "{"):
+                  output = output[i:]
+                  break
+
+          try:
+              findings = json.loads(output)
+              if not isinstance(findings, list):
+                  findings = []
+          except json.JSONDecodeError:
+              findings = []
+
+          with open("/tmp/quality-findings.json", "w") as f:
+              json.dump(findings, f, indent=2)
+
+          print(f"findings={json.dumps(findings)}")
+          print(f"count={len(findings)}")
+          PYEOF
+        env:
+          DIFF_CONTENT: ${{ steps.diff.outputs.diff }}
+          CHANGED_FILES: ${{ steps.files.outputs.files }}
+
+      - name: Run architecture review
+        id: architecture
+        run: |
+          python3 << 'PYEOF'
+          import json, os, subprocess, sys
+
+          diff = os.environ.get("DIFF_CONTENT", "")
+          changed_files = os.environ.get("CHANGED_FILES", "").strip().split("\n")
+
+          prompt = f"""You are an architecture reviewer for a Django + React + WebSocket multiplayer game.
+
+Review this PR diff for architectural compliance.
+
+## Changed Files
+{os.environ.get("CHANGED_FILES", "")}
+
+## Diff
+```diff
+{diff[:6000]}
+```
+
+Check for: broken component contracts, new implicit dependencies, circular imports, state machine violations, mixing of concerns (infra in domain code), WebSocket flow integrity.
+
+Output ONLY a JSON array. If no findings, output [].
+
+Format: {{"severity":"medium|low|info","file":"<filename>","line":<number_or_null>,"description":"<issue>","fix":"<suggestion>"}}"""
+
+          with open("/tmp/arch-prompt.txt", "w") as f:
+              f.write(prompt)
+
+          cmd = [
+              "npx", "omniroute", "chat",
+              "--file", "/tmp/arch-prompt.txt",
+              "--combo", "owl-alpha",
+              "--system", "You are an architecture reviewer. Output ONLY valid JSON — no markdown, no commentary.",
+              "--temperature", "0.15",
+              "--max-tokens", "1500",
+              "--no-history",
+          ]
+
+          result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+
+          if result.returncode != 0:
+              print(f"Architecture review error: {result.stderr[:200]}", file=sys.stderr)
+              print("findings=[]")
+              sys.exit(0)
+
+          output = result.stdout.strip()
+          lines = output.split("\n")
+          content_lines = []
+          in_content = False
+          for line in lines:
+              if line.startswith("\U0001f4cb") or ("[" in line and "\u00b7" in line):
+                  continue
+              if line.strip() == "":
+                  if in_content:
+                      content_lines.append(line)
+                  continue
+              in_content = True
+              content_lines.append(line)
+
+          output = "\n".join(content_lines).strip()
+
+          if "```" in output:
+              output = output.split("```")[1]
+              if output.startswith("json"):
+                  output = output[4:]
+              output = output.strip()
+
+          for i, c in enumerate(output):
+              if c in ("[", "{"):
+                  output = output[i:]
+                  break
+
+          try:
+              findings = json.loads(output)
+              if not isinstance(findings, list):
+                  findings = []
+          except json.JSONDecodeError:
+              findings = []
+
+          with open("/tmp/arch-findings.json", "w") as f:
+              json.dump(findings, f, indent=2)
+
+          print(f"findings={json.dumps(findings)}")
+          print(f"count={len(findings)}")
+          PYEOF
+        env:
+          DIFF_CONTENT: ${{ steps.diff.outputs.diff }}
+          CHANGED_FILES: ${{ steps.files.outputs.files }}
+
+      - name: Synthesize and post review
+        if: always()
+        run: |
+          python3 << 'PYEOF'
           import json
           import os
-          
-          api_key = os.environ["AGENTMAIL_API_KEY"]
-          inbox = "luna-cto@agentmail.to"
-          
-          # Read diff
-          with open("/tmp/pr-diff.txt") as f:
-              diff = f.read()
-          
-          # Build review request
-          subject = f"[PR Review] {os.environ['REPO']}#{os.environ['PR_NUMBER']} — {os.environ['PR_TITLE']}"
-          
-          # Extract changed files from diff
+          import subprocess
           import re
-          changed_files = re.findall(r'diff --git a/(.+?) b/', diff)
-          changed_files_str = "\n".join(f"  - {f}" for f in changed_files[:20])
-          
-          body = f"""## PR Review Request
+          from datetime import datetime, timezone
 
-          **PR:** {os.environ['PR_URL']}
-          **Project:** sound-royale-ny
-          **Changed Files:**
-          {changed_files_str}
+          all_findings = []
+          for agent in ["security", "quality", "architecture"]:
+              path = f"/tmp/{agent}-findings.json"
+              if os.path.exists(path):
+                  with open(path) as f:
+                      findings = json.load(f)
+                      for f_item in findings:
+                          f_item["agent"] = agent
+                          all_findings.append(f_item)
 
-          ### Diff
-          ```diff
-          {diff[:8000]}
-          ```
+          critical = [f for f in all_findings if f.get("severity") == "critical"]
+          high = [f for f in all_findings if f.get("severity") == "high"]
+          medium = [f for f in all_findings if f.get("severity") == "medium"]
+          low = [f for f in all_findings if f.get("severity") == "low"]
+          info = [f for f in all_findings if f.get("severity") == "info"]
 
-          ### Review Focus
-          Security vulnerabilities, architecture compliance, code quality.
+          if critical or high:
+              verdict = "\U0001f534 **REQUEST_CHANGES**"
+          elif medium:
+              verdict = "\U0001f7e1 **COMMENT**"
+          elif low:
+              verdict = "\U0001f7e2 **APPROVE** with suggestions"
+          else:
+              verdict = "\u2705 **APPROVE** — no issues found"
 
-          Please dispatch to security, quality, and architecture agents for review.
-          """
-          
-          # Send to orchestrator inbox
-          url = f"https://api.agentmail.to/v0/inboxes/{inbox}/messages/send"
-          data = json.dumps({
-              "to": [inbox],
-              "subject": subject,
-              "text": body,
-          }).encode()
-          
-          req = urllib.request.Request(url, data=data, method="POST", headers={
-              "Authorization": f"Bearer {api_key}",
-              "Content-Type": "application/json",
-          })
-          
-          try:
-              with urllib.request.urlopen(req, timeout=30) as resp:
-                  print(f"Review request sent: {resp.status}")
-          except Exception as e:
-              print(f"Failed to send: {e}")
+          lines = [verdict, ""]
+          lines.append("<!-- auto-review:synthesis -->")
+          lines.append(f"*Automated review at {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}*")
+          lines.append("")
+
+          for severity, items in [
+              ("\U0001f534 Critical", critical),
+              ("\U0001f7e0 High", high),
+              ("\U0001f7e1 Medium", medium),
+              ("\U0001f7e2 Low", low),
+              ("\u2139\ufe0f Info", info),
+          ]:
+              if items:
+                  lines.append(f"### {severity}")
+                  for f in items:
+                      cwe = f.get("cwe", "")
+                      file_ref = f.get("file", "unknown")
+                      line_ref = f.get("line", "")
+                      line_str = f":{line_ref}" if line_ref else ""
+                      lines.append(f"- **{file_ref}{line_str}** ({cwe}): {f.get('description', '')}")
+                      if f.get("fix"):
+                          lines.append(f"  - \U0001f4a1 Fix: {f['fix']}")
+                  lines.append("")
+
+          lines.append("---")
+          lines.append("*This review was generated automatically by OmniRoute LLM agents. Please verify findings before acting.*")
+
+          body = "\n".join(lines)
+
+          result = subprocess.run(
+              ["gh", "pr", "comment", os.environ["PR_NUMBER"], "--repo", os.environ["REPO"], "--body", body],
+              capture_output=True, text=True
+          )
+
+          if result.returncode == 0:
+              print(f"Posted review with {len(all_findings)} findings")
+          else:
+              print(f"Failed to post: {result.stderr}")
+              print("Review body:")
+              print(body[:500])
           PYEOF
-
-      - name: Run Auto-Review Daemon
-        env:
-          AGENTMAIL_API_KEY: ${{ secrets.AGENTMAIL_API_KEY }}
-          OMNIROUTE_API_KEY: ${{ secrets.OMNIROUTE_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-        run: |
-          # Install omniroute
-          npm install -g omniroute
-          
-          # Run daemon (will pick up the review request from AgentMail)
-          python3 scripts/auto-review-daemon.py --once
