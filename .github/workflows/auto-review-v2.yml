@@ -2,10 +2,11 @@ name: Auto Review
 
 on:
   push:
+    branches:
+      - '**'
     branches-ignore:
       - main
       - master
-      - develop
 
 permissions:
   pull-requests: write
@@ -15,7 +16,6 @@ permissions:
 jobs:
   auto-review:
     runs-on: ubuntu-latest
-
 
     env:
       REPO: ${{ github.repository }}
@@ -43,11 +43,6 @@ jobs:
       - name: Install OmniRoute
         run: npm install -g omniroute
 
-      - name: Verify tools
-        run: |
-          gh auth setup-git
-          omniroute --version 2>&1 || echo "omniroute version check failed"
-
       - name: Find PR for branch
         id: pr_info
         run: |
@@ -58,17 +53,11 @@ jobs:
             exit 1
           fi
 
-          PR_TITLE=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json title -q '.title')
-          PR_URL=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json url -q '.url')
-
           echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
-          echo "title=$PR_TITLE" >> "$GITHUB_OUTPUT"
-          echo "url=$PR_URL" >> "$GITHUB_OUTPUT"
-          echo "PR: #$PR_NUMBER - $PR_TITLE"
+          echo "PR: #$PR_NUMBER"
 
       - name: Fetch PR diff
         id: diff
-        if: steps.pr_info.outputs.skip != 'true'
         run: |
           DIFF=$(gh pr diff "${{ steps.pr_info.outputs.number }}" --repo "$REPO" 2>&1)
           echo "diff<<EOF" >> "$GITHUB_OUTPUT"
@@ -85,466 +74,135 @@ jobs:
 
       - name: Ensure labels exist
         run: |
-          gh label create needs-human-review --color "ededed" --description "Auto-review escalated — needs human reviewer" --repo "$REPO" 2>/dev/null || true
+          gh label create needs-human-review --color "ededed" --description "Auto-review escalated - needs human reviewer" --repo "$REPO" 2>/dev/null || true
           gh label create auto-reviewed --color "0e8a16" --description "Auto-reviewed by LLM agents" --repo "$REPO" 2>/dev/null || true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Write prompts
+        run: |
+          DIFF="${{ steps.diff.outputs.diff }}"
+          CHANGED="${{ steps.files.outputs.files }}"
+
+          cat > /tmp/security-prompt.txt << PROMPT
+          You are a security-focused code reviewer for a Django + React + TypeScript + WebSocket application.
+
+          Review this PR diff for security vulnerabilities.
+
+          ## Changed Files
+          ${CHANGED}
+
+          ## Diff
+          ```diff
+          ${DIFF:0:8000}
+          ```
+
+          Check for: injection (SQL, XSS, command), broken auth, hardcoded secrets, insecure deserialization, missing input validation, OWASP Top 10.
+
+          Output ONLY a JSON array. If no findings, output [].
+
+          Format each finding:
+          {"severity":"critical|high|medium|low|info","file":"<filename>","line":<number_or_null>","cwe":"CWE-XXX","description":"<issue>","impact":"<risk>","fix":"<suggestion>"}
+          PROMPT
+
+          cat > /tmp/quality-prompt.txt << PROMPT
+          You are a code quality reviewer for a React + TypeScript + Tailwind + Django application.
+
+          Review this PR diff for code quality issues.
+
+          ## Changed Files
+          ${CHANGED}
+
+          ## Diff
+          ```diff
+          ${DIFF:0:6000}
+          ```
+
+          Check for: unused imports, missing cleanup after refactor, accessibility issues, type safety (any, @ts-ignore), code duplication, error handling anti-patterns.
+
+          Output ONLY a JSON array. If no findings, output [].
+
+          Format: {"severity":"low|info","file":"<filename>","line":<number_or_null>","description":"<issue>","fix":"<suggestion>"}
+          PROMPT
+
+          cat > /tmp/arch-prompt.txt << PROMPT
+          You are an architecture reviewer for a Django + React + WebSocket multiplayer game.
+
+          Review this PR diff for architectural compliance.
+
+          ## Changed Files
+          ${CHANGED}
+
+          ## Diff
+          ```diff
+          ${DIFF:0:6000}
+          ```
+
+          Check for: broken component contracts, new implicit dependencies, circular imports, state machine violations, mixing of concerns (infra in domain code), WebSocket flow integrity.
+
+          Output ONLY a JSON array. If no findings, output [].
+
+          Format: {"severity":"medium|low|info","file":"<filename>","line":<number_or_null>","description":"<issue>","fix":"<suggestion>"}
+          PROMPT
+
+          echo "Prompts written"
+
       - name: Run security review
         id: security
         run: |
-          python3 << 'PYEOF'
-          import json, os, subprocess, sys
+          DIFF=$(gh pr diff "${{ steps.pr_info.outputs.number }}" --repo "$REPO")
+          echo "$DIFF" > /tmp/diff-content.txt
+          CHANGED="${{ steps.files.outputs.files }}"
+          echo "$CHANGED" > /tmp/changed-files.txt
 
-          diff = os.environ.get("DIFF_CONTENT", "")
-          prompt = f"""You are a security-focused code reviewer for a Django + React + TypeScript + WebSocket application.
+          export DIFF_CONTENT="$DIFF"
+          export CHANGED_FILES="$CHANGED"
 
-Review this PR diff for security vulnerabilities.
+          python3 scripts/ci/llm_review.py /tmp/security-prompt.txt /tmp/security-findings.json owl-alpha "You are a security-focused code reviewer. Output ONLY valid JSON, no markdown."
 
-## Changed Files
-{os.environ.get("CHANGED_FILES", "")}
-
-## Diff
-```diff
-{diff[:8000]}
-```
-
-Check for: injection (SQL, XSS, command), broken auth, hardcoded secrets, insecure deserialization, missing input validation, OWASP Top 10.
-
-Output ONLY a JSON array. If no findings, output [].
-
-Format each finding:
-{{"severity":"critical|high|medium|low|info","file":"<filename>","line":<number_or_null>,"cwe":"CWE-XXX","description":"<issue>","impact":"<risk>","fix":"<suggestion>"}}"""
-
-          with open("/tmp/security-prompt.txt", "w") as f:
-              f.write(prompt)
-
-          cmd = [
-              "npx", "omniroute", "chat",
-              "--file", "/tmp/security-prompt.txt",
-              "--combo", "owl-alpha",
-              "--system", "You are a security-focused code reviewer. Output ONLY valid JSON — no markdown, no commentary.",
-              "--temperature", "0.1",
-              "--max-tokens", "2000",
-              "--no-history",
-          ]
-
-          result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
-
-          if result.returncode != 0:
-              print(f"error: {result.stderr[:200]}", file=sys.stderr)
-              print("findings=[]")
-              sys.exit(0)
-
-          output = result.stdout.strip()
-          lines = output.split("\n")
-          content_lines = []
-          in_content = False
-          for line in lines:
-              if line.startswith("\U0001f4cb") or ("[" in line and "\u00b7" in line):
-                  continue
-              if line.strip() == "":
-                  if in_content:
-                      content_lines.append(line)
-                  continue
-              in_content = True
-              content_lines.append(line)
-
-          output = "\n".join(content_lines).strip()
-
-          if "```" in output:
-              output = output.split("```")[1]
-              if output.startswith("json"):
-                  output = output[4:]
-              output = output.strip()
-
-          for i, c in enumerate(output):
-              if c in ("[", "{"):
-                  output = output[i:]
-                  break
-
-          try:
-              findings = json.loads(output)
-              if not isinstance(findings, list):
-                  findings = []
-          except json.JSONDecodeError:
-              findings = []
-
-          with open("/tmp/security-findings.json", "w") as f:
-              json.dump(findings, f, indent=2)
-
-          print(f"findings={json.dumps(findings)}")
-          print(f"count={len(findings)}")
-          if any(f.get("severity") in ("critical", "high") for f in findings):
-              print("verdict=REQUEST_CHANGES")
-          elif findings:
-              print("verdict=COMMENT")
-          else:
-              print("verdict=APPROVE")
-          PYEOF
-        env:
-          PR_NUMBER: ${{ steps.pr_info.outputs.number }}
-          PR_TITLE: ${{ steps.pr_info.outputs.title }}
-          PR_URL: ${{ steps.pr_info.outputs.url }}
-          DIFF_CONTENT: ${{ steps.diff.outputs.diff }}
-          CHANGED_FILES: ${{ steps.files.outputs.files }}
+          echo "result=$(cat /tmp/security-findings.json | jq -c .)"
 
       - name: Run quality review
         id: quality
         run: |
-          python3 << 'PYEOF'
-          import json, os, subprocess, sys
+          DIFF=$(gh pr diff "${{ steps.pr_info.outputs.number }}" --repo "$REPO")
+          echo "$DIFF" > /tmp/diff-content.txt
+          CHANGED="${{ steps.files.outputs.files }}"
+          echo "$CHANGED" > /tmp/changed-files.txt
 
-          diff = os.environ.get("DIFF_CONTENT", "")
-          prompt = f"""You are a code quality reviewer for a React + TypeScript + Tailwind + Django application.
+          export DIFF_CONTENT="$DIFF"
+          export CHANGED_FILES="$CHANGED"
 
-Review this PR diff for code quality issues.
+          python3 scripts/ci/llm_review.py /tmp/quality-prompt.txt /tmp/quality-findings.json always-on-free "You are a code quality reviewer. Output ONLY valid JSON, no markdown."
 
-## Changed Files
-{os.environ.get("CHANGED_FILES", "")}
-
-## Diff
-```diff
-{diff[:6000]}
-```
-
-Check for: unused imports, missing cleanup after refactor, accessibility issues, type safety (any, @ts-ignore), code duplication, error handling anti-patterns.
-
-Output ONLY a JSON array. If no findings, output [].
-
-Format: {{"severity":"low|info","file":"<filename>","line":<number_or_null>,"description":"<issue>","fix":"<suggestion>"}}"""
-
-          with open("/tmp/quality-prompt.txt", "w") as f:
-              f.write(prompt)
-
-          cmd = [
-              "npx", "omniroute", "chat",
-              "--file", "/tmp/quality-prompt.txt",
-              "--combo", "always-on-free",
-              "--system", "You are a code quality reviewer. Output ONLY valid JSON — no markdown, no commentary.",
-              "--temperature", "0.2",
-              "--max-tokens", "1500",
-              "--no-history",
-          ]
-
-          result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
-
-          if result.returncode != 0:
-              print(f"error: {result.stderr[:200]}", file=sys.stderr)
-              print("findings=[]")
-              sys.exit(0)
-
-          output = result.stdout.strip()
-          lines = output.split("\n")
-          content_lines = []
-          in_content = False
-          for line in lines:
-              if line.startswith("\U0001f4cb") or ("[" in line and "\u00b7" in line):
-                  continue
-              if line.strip() == "":
-                  if in_content:
-                      content_lines.append(line)
-                  continue
-              in_content = True
-              content_lines.append(line)
-
-          output = "\n".join(content_lines).strip()
-
-          if "```" in output:
-              output = output.split("```")[1]
-              if output.startswith("json"):
-                  output = output[4:]
-              output = output.strip()
-
-          for i, c in enumerate(output):
-              if c in ("[", "{"):
-                  output = output[i:]
-                  break
-
-          try:
-              findings = json.loads(output)
-              if not isinstance(findings, list):
-                  findings = []
-          except json.JSONDecodeError:
-              findings = []
-
-          with open("/tmp/quality-findings.json", "w") as f:
-              json.dump(findings, f, indent=2)
-
-          print(f"findings={json.dumps(findings)}")
-          print(f"count={len(findings)}")
-          PYEOF
-        env:
-          PR_NUMBER: ${{ steps.pr_info.outputs.number }}
-          PR_TITLE: ${{ steps.pr_info.outputs.title }}
-          PR_URL: ${{ steps.pr_info.outputs.url }}
-          DIFF_CONTENT: ${{ steps.diff.outputs.diff }}
-          CHANGED_FILES: ${{ steps.files.outputs.files }}
+          echo "result=$(cat /tmp/quality-findings.json | jq -c .)"
 
       - name: Run architecture review
         id: architecture
         run: |
-          python3 << 'PYEOF'
-          import json, os, subprocess, sys
+          DIFF=$(gh pr diff "${{ steps.pr_info.outputs.number }}" --repo "$REPO")
+          echo "$DIFF" > /tmp/diff-content.txt
+          CHANGED="${{ steps.files.outputs.files }}"
+          echo "$CHANGED" > /tmp/changed-files.txt
 
-          diff = os.environ.get("DIFF_CONTENT", "")
-          prompt = f"""You are an architecture reviewer for a Django + React + WebSocket multiplayer game.
+          export DIFF_CONTENT="$DIFF"
+          export CHANGED_FILES="$CHANGED"
 
-Review this PR diff for architectural compliance.
+          python3 scripts/ci/llm_review.py /tmp/arch-prompt.txt /tmp/arch-findings.json owl-alpha "You are an architecture reviewer. Output ONLY valid JSON, no markdown."
 
-## Changed Files
-{os.environ.get("CHANGED_FILES", "")}
-
-## Diff
-```diff
-{diff[:6000]}
-```
-
-Check for: broken component contracts, new implicit dependencies, circular imports, state machine violations, mixing of concerns (infra in domain code), WebSocket flow integrity.
-
-Output ONLY a JSON array. If no findings, output [].
-
-Format: {{"severity":"medium|low|info","file":"<filename>","line":<number_or_null>,"description":"<issue>","fix":"<suggestion>"}}"""
-
-          with open("/tmp/arch-prompt.txt", "w") as f:
-              f.write(prompt)
-
-          cmd = [
-              "npx", "omniroute", "chat",
-              "--file", "/tmp/arch-prompt.txt",
-              "--combo", "owl-alpha",
-              "--system", "You are an architecture reviewer. Output ONLY valid JSON — no markdown, no commentary.",
-              "--temperature", "0.15",
-              "--max-tokens", "1500",
-              "--no-history",
-          ]
-
-          result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
-
-          if result.returncode != 0:
-              print(f"error: {result.stderr[:200]}", file=sys.stderr)
-              print("findings=[]")
-              sys.exit(0)
-
-          output = result.stdout.strip()
-          lines = output.split("\n")
-          content_lines = []
-          in_content = False
-          for line in lines:
-              if line.startswith("\U0001f4cb") or ("[" in line and "\u00b7" in line):
-                  continue
-              if line.strip() == "":
-                  if in_content:
-                      content_lines.append(line)
-                  continue
-              in_content = True
-              content_lines.append(line)
-
-          output = "\n".join(content_lines).strip()
-
-          if "```" in output:
-              output = output.split("```")[1]
-              if output.startswith("json"):
-                  output = output[4:]
-              output = output.strip()
-
-          for i, c in enumerate(output):
-              if c in ("[", "{"):
-                  output = output[i:]
-                  break
-
-          try:
-              findings = json.loads(output)
-              if not isinstance(findings, list):
-                  findings = []
-          except json.JSONDecodeError:
-              findings = []
-
-          with open("/tmp/arch-findings.json", "w") as f:
-              json.dump(findings, f, indent=2)
-
-          print(f"findings={json.dumps(findings)}")
-          print(f"count={len(findings)}")
-          PYEOF
-        env:
-          PR_NUMBER: ${{ steps.pr_info.outputs.number }}
-          PR_TITLE: ${{ steps.pr_info.outputs.title }}
-          PR_URL: ${{ steps.pr_info.outputs.url }}
-          DIFF_CONTENT: ${{ steps.diff.outputs.diff }}
-          CHANGED_FILES: ${{ steps.files.outputs.files }}
+          echo "result=$(cat /tmp/arch-findings.json | jq -c .)"
 
       - name: Synthesize and post review
         if: always()
         id: synthesize
+        env:
+          PR_NUMBER: ${{ steps.pr_info.outputs.number }}
         run: |
-          python3 << 'PYEOF'
-          import json
-          import os
-          import subprocess
-          from datetime import datetime, timezone
+          python3 scripts/ci/synthesize_review.py
 
-          all_findings = []
-          for agent in ["security", "quality", "architecture"]:
-              path = f"/tmp/{agent}-findings.json"
-              if os.path.exists(path):
-                  with open(path) as f:
-                      findings = json.load(f)
-                      for f_item in findings:
-                          f_item["agent"] = agent
-                          all_findings.append(f_item)
-
-          critical = [f for f in all_findings if f.get("severity") == "critical"]
-          high = [f for f in all_findings if f.get("severity") == "high"]
-          medium = [f for f in all_findings if f.get("severity") == "medium"]
-          low = [f for f in all_findings if f.get("severity") == "low"]
-          info = [f for f in all_findings if f.get("severity") == "info"]
-
-          if critical or high:
-              verdict = "\U0001f534 **REQUEST_CHANGES**"
-          elif medium:
-              verdict = "\U0001f7e1 **COMMENT**"
-          elif low:
-              verdict = "\U0001f7e2 **APPROVE** with suggestions"
-          else:
-              verdict = "\u2705 **APPROVE** — no issues found"
-
-          lines = [verdict, ""]
-          lines.append("<!-- auto-review:synthesis -->")
-          lines.append(f"*Automated review at {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}*")
-          lines.append("")
-
-          for severity, items in [
-              ("\U0001f534 Critical", critical),
-              ("\U0001f7e0 High", high),
-              ("\U0001f7e1 Medium", medium),
-              ("\U0001f7e2 Low", low),
-              ("\u2139\ufe0f Info", info),
-          ]:
-              if items:
-                  lines.append(f"### {severity}")
-                  for f in items:
-                      cwe = f.get("cwe", "")
-                      file_ref = f.get("file", "unknown")
-                      line_ref = f.get("line", "")
-                      line_str = f":{line_ref}" if line_ref else ""
-                      lines.append(f"- **{file_ref}{line_str}** ({cwe}): {f.get('description', '')}")
-                      if f.get("fix"):
-                          lines.append(f"  - \U0001f4a1 Fix: {f['fix']}")
-                  lines.append("")
-
-          lines.append("---")
-          lines.append("*This review was generated automatically by OmniRoute LLM agents. Please verify findings before acting.*")
-
-          body = "\n".join(lines)
-
-          pr_number = os.environ["PR_NUMBER"]
-          result = subprocess.run(
-              ["gh", "pr", "comment", pr_number, "--repo", os.environ["REPO"], "--body", body],
-              capture_output=True, text=True
-          )
-
-          if result.returncode == 0:
-              print(f"posted=true")
-              print(f"findings_count={len(all_findings)}")
-              print(f"critical={len(critical)}")
-              print(f"high={len(high)}")
-              print(f"needs_human={'true' if critical or high else 'false'}")
-          else:
-              print(f"posted=false")
-              print(f"error={result.stderr[:200]}")
-          PYEOF
-
-      - name: Add labels based on findings
+      - name: Add labels and status check
         if: always()
         env:
           PR_NUMBER: ${{ steps.pr_info.outputs.number }}
         run: |
-          python3 << 'PYEOF'
-          import json
-          import os
-          import subprocess
-
-          all_findings = []
-          for agent in ["security", "quality", "architecture"]:
-              path = f"/tmp/{agent}-findings.json"
-              if os.path.exists(path):
-                  with open(path) as f:
-                      findings = json.load(f)
-                      all_findings.extend(findings)
-
-          labels_to_add = []
-
-          if any(f.get("severity") in ("critical", "high") for f in all_findings):
-              labels_to_add.append("needs-human-review")
-
-          if all_findings:
-              labels_to_add.append("auto-reviewed")
-
-          if labels_to_add:
-              subprocess.run(
-                  ["gh", "pr", "edit", os.environ["PR_NUMBER"], "--repo", os.environ["REPO"],
-                   "--add-label", ",".join(labels_to_add)],
-                  capture_output=True, text=True
-              )
-              print(f"Added labels: {', '.join(labels_to_add)}")
-          else:
-              print("No labels to add")
-          PYEOF
-
-      - name: Set commit status check
-        if: always()
-        env:
-          PR_NUMBER: ${{ steps.pr_info.outputs.number }}
-          PR_URL: ${{ steps.pr_info.outputs.url }}
-        run: |
-          python3 << 'PYEOF'
-          import json
-          import os
-          import subprocess
-          from datetime import datetime, timezone
-
-          all_findings = []
-          for agent in ["security", "quality", "architecture"]:
-              path = f"/tmp/{agent}-findings.json"
-              if os.path.exists(path):
-                  with open(path) as f:
-                      findings = json.load(f)
-                      all_findings.extend(findings)
-
-          critical = [f for f in all_findings if f.get("severity") == "critical"]
-          high = [f for f in all_findings if f.get("severity") == "high"]
-
-          sha = subprocess.run(
-              ["git", "rev-parse", "HEAD"],
-              capture_output=True, text=True
-          ).stdout.strip()
-
-          if critical:
-              state = "failure"
-              description = f"{len(critical)} critical security finding(s) need resolution"
-          elif high:
-              state = "failure"
-              description = f"{len(high)} high-severity finding(s) need human review"
-          elif all_findings:
-              state = "success"
-              description = f"Auto-review complete: {len(all_findings)} findings (no critical/high)"
-          else:
-              state = "success"
-              description = "Auto-review complete: no issues found"
-
-          payload = json.dumps({
-              "state": state,
-              "description": description,
-              "context": "auto-review/llm",
-              "target_url": f"{os.environ['PR_URL']}/files"
-          })
-
-          subprocess.run(
-              ["gh", "api", f"repos/{os.environ['REPO']}/statuses/{sha}",
-               "-X", "POST", "-H", "Accept: application/vnd.github+json",
-               "-d", payload],
-              capture_output=True, text=True
-          )
-
-          print(f"Status check: {state} - {description}")
-          PYEOF
+          python3 scripts/ci/post_review.py
