@@ -3,11 +3,6 @@ name: Auto Review
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-  push:
-    branches:
-      - 'quality/**'
-      - 'feat/**'
-      - 'fix/**'
 
 permissions:
   pull-requests: write
@@ -17,7 +12,7 @@ permissions:
 jobs:
   auto-review:
     runs-on: ubuntu-latest
-    if: "!github.event.pull_request || !github.event.pull_request.user.login.includes('[bot]')"
+
 
     env:
       REPO: ${{ github.repository }}
@@ -53,20 +48,9 @@ jobs:
       - name: Determine PR info
         id: pr_info
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            PR_NUMBER="${{ github.event.pull_request.number }}"
-            PR_TITLE="${{ github.event.pull_request.title }}"
-            PR_URL="${{ github.event.pull_request.html_url }}"
-          else
-            PR_NUMBER=$(gh pr list --repo "$REPO" --state open --head "${{ github.ref_name }}" --json number -q '.[0].number')
-            PR_TITLE=$(gh pr list --repo "$REPO" --state open --head "${{ github.ref_name }}" --json title -q '.[0].title')
-            PR_URL=$(gh pr list --repo "$REPO" --state open --head "${{ github.ref_name }}" --json url -q '.[0].url')
-          fi
-
-          if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "null" ]; then
-            echo "No open PR found for branch ${{ github.ref_name }}"
-            exit 1
-          fi
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          PR_URL="${{ github.event.pull_request.html_url }}"
 
           echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
           echo "title=$PR_TITLE" >> "$GITHUB_OUTPUT"
