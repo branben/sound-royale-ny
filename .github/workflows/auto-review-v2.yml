@@ -66,10 +66,24 @@ jobs:
       - name: Extract changed files
         id: files
         run: |
-          CHANGED=$(echo "${{ steps.diff.outputs.diff }}" | grep '^diff --git' | sed 's|diff --git a/\(.\+\) b/.\+|\1|' | head -20)
-          echo "files<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$CHANGED" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          python3 << 'PYEOF'
+          import os, subprocess
+          diff = subprocess.run(["gh", "pr", "diff", os.environ["PR_NUMBER"], "--repo", os.environ["REPO"]], capture_output=True, text=True).stdout
+          changed = []
+          for line in diff.split("\n"):
+              if line.startswith("diff --git"):
+                  # Extract filename from "diff --git a/path b/path"
+                  parts = line.split(" b/")
+                  if len(parts) == 2:
+                      changed.append(parts[0].replace("diff --git a/", ""))
+          result = "\n".join(changed[:20])
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"files<<EOF\n{result}\nEOF\n")
+          print(f"Found {len(changed)} changed files")
+          PYEOF
+        env:
+          PR_NUMBER: ${{ steps.pr_info.outputs.number }}
+          REPO: ${{ github.repository }}
 
       - name: Ensure labels exist
         run: |
@@ -80,116 +94,35 @@ jobs:
 
       - name: Write prompts
         run: |
-          DIFF="${{ steps.diff.outputs.diff }}"
+          DIFF=$(gh pr diff "${{ steps.pr_info.outputs.number }}" --repo "$REPO")
           CHANGED="${{ steps.files.outputs.files }}"
-
-          cat > /tmp/security-prompt.txt << PROMPT
-          You are a security-focused code reviewer for a Django + React + TypeScript + WebSocket application.
-
-          Review this PR diff for security vulnerabilities.
-
-          ## Changed Files
-          ${CHANGED}
-
-          ## Diff
-          ```diff
-          ${DIFF:0:8000}
-          ```
-
-          Check for: injection (SQL, XSS, command), broken auth, hardcoded secrets, insecure deserialization, missing input validation, OWASP Top 10.
-
-          Output ONLY a JSON array. If no findings, output [].
-
-          Format each finding:
-          {"severity":"critical|high|medium|low|info","file":"<filename>","line":<number_or_null>","cwe":"CWE-XXX","description":"<issue>","impact":"<risk>","fix":"<suggestion>"}
-          PROMPT
-
-          cat > /tmp/quality-prompt.txt << PROMPT
-          You are a code quality reviewer for a React + TypeScript + Tailwind + Django application.
-
-          Review this PR diff for code quality issues.
-
-          ## Changed Files
-          ${CHANGED}
-
-          ## Diff
-          ```diff
-          ${DIFF:0:6000}
-          ```
-
-          Check for: unused imports, missing cleanup after refactor, accessibility issues, type safety (any, @ts-ignore), code duplication, error handling anti-patterns.
-
-          Output ONLY a JSON array. If no findings, output [].
-
-          Format: {"severity":"low|info","file":"<filename>","line":<number_or_null>","description":"<issue>","fix":"<suggestion>"}
-          PROMPT
-
-          cat > /tmp/arch-prompt.txt << PROMPT
-          You are an architecture reviewer for a Django + React + WebSocket multiplayer game.
-
-          Review this PR diff for architectural compliance.
-
-          ## Changed Files
-          ${CHANGED}
-
-          ## Diff
-          ```diff
-          ${DIFF:0:6000}
-          ```
-
-          Check for: broken component contracts, new implicit dependencies, circular imports, state machine violations, mixing of concerns (infra in domain code), WebSocket flow integrity.
-
-          Output ONLY a JSON array. If no findings, output [].
-
-          Format: {"severity":"medium|low|info","file":"<filename>","line":<number_or_null>","description":"<issue>","fix":"<suggestion>"}
-          PROMPT
-
-          echo "Prompts written"
+          export DIFF_CONTENT="$DIFF"
+          export CHANGED_FILES="$CHANGED"
+          python3 scripts/ci/write_prompts.py
 
       - name: Run security review
         id: security
         run: |
-          DIFF=$(gh pr diff "${{ steps.pr_info.outputs.number }}" --repo "$REPO")
-          echo "$DIFF" > /tmp/diff-content.txt
-          CHANGED="${{ steps.files.outputs.files }}"
-          echo "$CHANGED" > /tmp/changed-files.txt
-
-          export DIFF_CONTENT="$DIFF"
-          export CHANGED_FILES="$CHANGED"
-
+          export DIFF_CONTENT="$(gh pr diff "${{ steps.pr_info.outputs.number }}" --repo "$REPO")"
+          export CHANGED_FILES="${{ steps.files.outputs.files }}"
           python3 scripts/ci/llm_review.py /tmp/security-prompt.txt /tmp/security-findings.json owl-alpha "You are a security-focused code reviewer. Output ONLY valid JSON, no markdown."
-
-          echo "result=$(cat /tmp/security-findings.json | jq -c .)"
+          echo "count=$(cat /tmp/security-findings.json | jq length)"
 
       - name: Run quality review
         id: quality
         run: |
-          DIFF=$(gh pr diff "${{ steps.pr_info.outputs.number }}" --repo "$REPO")
-          echo "$DIFF" > /tmp/diff-content.txt
-          CHANGED="${{ steps.files.outputs.files }}"
-          echo "$CHANGED" > /tmp/changed-files.txt
-
-          export DIFF_CONTENT="$DIFF"
-          export CHANGED_FILES="$CHANGED"
-
+          export DIFF_CONTENT="$(gh pr diff "${{ steps.pr_info.outputs.number }}" --repo "$REPO")"
+          export CHANGED_FILES="${{ steps.files.outputs.files }}"
           python3 scripts/ci/llm_review.py /tmp/quality-prompt.txt /tmp/quality-findings.json always-on-free "You are a code quality reviewer. Output ONLY valid JSON, no markdown."
-
-          echo "result=$(cat /tmp/quality-findings.json | jq -c .)"
+          echo "count=$(cat /tmp/quality-findings.json | jq length)"
 
       - name: Run architecture review
         id: architecture
         run: |
-          DIFF=$(gh pr diff "${{ steps.pr_info.outputs.number }}" --repo "$REPO")
-          echo "$DIFF" > /tmp/diff-content.txt
-          CHANGED="${{ steps.files.outputs.files }}"
-          echo "$CHANGED" > /tmp/changed-files.txt
-
-          export DIFF_CONTENT="$DIFF"
-          export CHANGED_FILES="$CHANGED"
-
+          export DIFF_CONTENT="$(gh pr diff "${{ steps.pr_info.outputs.number }}" --repo "$REPO")"
+          export CHANGED_FILES="${{ steps.files.outputs.files }}"
           python3 scripts/ci/llm_review.py /tmp/arch-prompt.txt /tmp/arch-findings.json owl-alpha "You are an architecture reviewer. Output ONLY valid JSON, no markdown."
-
-          echo "result=$(cat /tmp/arch-findings.json | jq -c .)"
+          echo "count=$(cat /tmp/arch-findings.json | jq length)"
 
       - name: Synthesize and post review
         if: always()
