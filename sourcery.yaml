@@ -1,5 +1,6 @@
 # Sourcery configuration for Sound Royale (free tier)
 # Only exclude patterns are customized; all default rules active.
+# Teaching mode enabled: Sourcery adapts to feedback via thumbs up/down.
 
 exclude:
   - backend/game_engine/migrations
