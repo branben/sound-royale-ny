@@ -1,4 +1,5 @@
 name: CodeQL Security Analysis
+# Trigger re-run after repo visibility change to public
 
 on:
   pull_request:
