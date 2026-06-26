@@ -17,7 +17,7 @@ permissions:
 jobs:
   auto-review:
     runs-on: ubuntu-latest
-    if: "!github.event.pull_request.user.login.includes('[bot]')"
+    if: "github.event_name == 'push' || !github.event.pull_request.user.login.includes('[bot]')"
 
     env:
       REPO: ${{ github.repository }}
