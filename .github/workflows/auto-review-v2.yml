@@ -51,7 +51,13 @@ jobs:
       - name: Find PR for branch
         id: pr_info
         run: |
-          PR_NUMBER=$(gh pr list --repo "$REPO" --state open --head "${{ github.ref_name }}" --json number -q '.[0].number // empty')
+          if [ -n "${{ github.event.pull_request.number }}" ]; then
+            # Triggered by pull_request event
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+          else
+            # Triggered by push or workflow_dispatch — resolve from branch name
+            PR_NUMBER=$(gh pr list --repo "$REPO" --state open --head "${{ github.ref_name }}" --json number -q '.[0].number // empty')
+          fi
 
           if [ -z "$PR_NUMBER" ]; then
             echo "No open PR for branch ${{ github.ref_name }}"
