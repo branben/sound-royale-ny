@@ -216,10 +216,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
       - name: Install cocoindex
         run: |
           pip install --upgrade pip
-          pip install 'cocoindex-code[full]'
+          pip install 'cocoindex-code[full]==0.1.0'
+
+      - name: Verify cocoindex available
+        run: cocoindex --version
 
       - name: Semantic regression scan
         run: bash scripts/semantic-scan.sh

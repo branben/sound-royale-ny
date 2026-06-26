@@ -56,7 +56,8 @@ class HealthCheckView(View):
                 r.ping()
                 r.close()
             else:
-                redis_status = "not_configured"
+                redis_status = "error"
+                overall_status = "error"
         except Exception as exc:
             redis_status = "degraded"
             logger.warning("Health check: Redis unreachable — %s", exc)

@@ -1,6 +1,8 @@
 name: Auto Review
 
 on:
+  pull_request:
+    types: [opened, synchronize, reopened]
   push:
     branches-ignore:
       - main
@@ -11,6 +13,10 @@ permissions:
   pull-requests: write
   contents: read
   statuses: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   auto-review:
@@ -96,7 +102,7 @@ jobs:
         run: |
           gh pr diff "${{ steps.pr_info.outputs.number }}" --repo "$REPO" > /tmp/pr-diff.txt
           echo "${{ steps.files.outputs.files }}" > /tmp/changed-files.txt
-          python3 scripts/ci/write_prompts.py
+          python3 scripts/ci/write_prompts.py scripts/ci/prompts/django-reviewer-prompt.txt
 
       - name: Run security review
         id: security
@@ -115,6 +121,13 @@ jobs:
         run: |
           python3 scripts/ci/llm_review.py /tmp/arch-prompt.txt /tmp/arch-findings.json owl-alpha "You are an architecture reviewer. Output ONLY valid JSON, no markdown."
           echo "count=$(cat /tmp/arch-findings.json | jq length)"
+
+      - name: Run Django/Channels domain review
+        id: django
+        run: |
+          python3 scripts/ci/write_prompts.py scripts/ci/prompts/django-reviewer-prompt.txt
+          python3 scripts/ci/llm_review.py /tmp/django-prompt.txt /tmp/django-findings.json owl-alpha "You are a Django + Channels domain expert. Output ONLY valid JSON, no markdown." scripts/ci/prompts/django-reviewer-prompt.txt
+          echo "count=$(cat /tmp/django-findings.json | jq length)"
 
       - name: Synthesize and post review
         if: always()
