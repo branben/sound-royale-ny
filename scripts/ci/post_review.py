@@ -3,7 +3,7 @@
 import json, os, subprocess
 
 all_findings = []
-for agent in ["security", "quality", "architecture"]:
+for agent in ["security", "quality", "architecture", "django"]:
     path = f"/tmp/{agent}-findings.json"
     if os.path.exists(path):
         with open(path) as f:

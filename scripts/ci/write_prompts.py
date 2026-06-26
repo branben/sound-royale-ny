@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Write LLM review prompts to files."""
-import os
+import os, sys
 
 diff = open("/tmp/pr-diff.txt").read()
 changed = open("/tmp/changed-files.txt").read().strip()
+context_file = sys.argv[1] if len(sys.argv) > 1 else None
 
 security_prompt = (
     "You are a security-focused code reviewer for a Django + React + TypeScript + WebSocket application.\n\n"
@@ -45,8 +46,13 @@ arch_prompt = (
     "```\n\n"
     "Check for: broken component contracts, new implicit dependencies, circular imports, state machine violations, mixing of concerns (infra in domain code), WebSocket flow integrity.\n\n"
     "Output ONLY a JSON array. If no findings, output [].\n\n"
-    'Format: {"severity":"medium|low|info","file":"<filename>","line":<number_or_null>","description":"<issue>","fix":"<suggestion>"}\n'
+    'Format: {"severity":"medium|low|info","file":"<filename>","line":<number_or_null>,"description":"<issue>","fix":"<suggestion>"}\n'
 )
+
+django_prompt = ""
+if context_file and os.path.exists(context_file):
+    with open(context_file) as f:
+        django_prompt = f.read()
 
 with open("/tmp/security-prompt.txt", "w") as f:
     f.write(security_prompt)
@@ -54,5 +60,9 @@ with open("/tmp/quality-prompt.txt", "w") as f:
     f.write(quality_prompt)
 with open("/tmp/arch-prompt.txt", "w") as f:
     f.write(arch_prompt)
+if django_prompt and changed:
+    base = os.path.splitext(changed.split("\n")[0].strip())[0] if changed.strip() else "diff"
+    with open("/tmp/django-prompt.txt", "w") as f:
+        f.write(django_prompt + "\n\n## Changed Files\n" + changed + "\n\n## Diff\n```diff\n" + f"{diff[:8000]}\n```\n")
 
 print("Prompts written")

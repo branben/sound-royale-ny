@@ -6,12 +6,15 @@ prompt_file = sys.argv[1]
 output_file = sys.argv[2]
 combo = sys.argv[3]
 system_prompt = sys.argv[4]
+context_file = sys.argv[5] if len(sys.argv) > 5 else None
 
 with open(prompt_file) as f:
     prompt = f.read()
 
-with open(prompt_file) as f:
-    prompt = f.read()
+if context_file and os.path.exists(context_file):
+    with open(context_file) as f:
+        context = f.read()
+    prompt = context + "\n\n## PR Diff\n\n" + prompt
 
 cmd = [
     "npx", "omniroute", "chat",

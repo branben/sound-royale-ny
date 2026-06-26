@@ -21,10 +21,14 @@ echo ""
 echo "═══ Semantic Regression Scan ═══"
 echo ""
 
-# Check if cocoindex is available
+# Check if cocoindex is available — fail-closed in CI
 if ! command -v cocoindex &> /dev/null; then
     echo -e "${YELLOW}⚠${NC} cocoindex not available — skipping semantic scan"
     echo "Install cocoindex to enable this guardrail layer."
+    if [ "${CI:-}" = "true" ]; then
+        echo -e "${RED}FAIL: cocoindex missing in CI — cannot skip scan${NC}"
+        exit 1
+    fi
     exit 0
 fi
 

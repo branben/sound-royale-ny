@@ -4,14 +4,14 @@ from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+
 from rest_framework.throttling import ScopedRateThrottle
 from django.db import transaction, IntegrityError
 from django.db.models import Prefetch
 from django.utils import timezone
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.http import JsonResponse
+
 from rest_framework_simplejwt.tokens import RefreshToken
 from itertools import groupby
 from channels.layers import get_channel_layer
@@ -492,8 +492,8 @@ def start_timer_broadcast(room_id: str, duration: int):
         asyncio.set_event_loop(loop)
         try:
             loop.run_until_complete(task)
-        except (asyncio.CancelledError, Exception):
-            pass
+        except (asyncio.CancelledError, Exception) as exc:
+            logger.debug("Timer loop cleanup exception: %s", exc)
         finally:
             loop.close()
 
@@ -2049,9 +2049,3 @@ def log_client_error(request):
         logger.error(f"Failed to log client error: {e}")
         return Response({"error": "Failed to log error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
-@api_view(["GET"])
-@permission_classes([AllowAny])
-def health_check(request):
-    """Health check endpoint for Docker HEALTHCHECK and load balancers."""
-    return JsonResponse({"status": "ok"})

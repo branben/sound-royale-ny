@@ -69,10 +69,11 @@ test-results/
 playwright-report/
 
 # --- Other junk ---
-scripts/
-# Exceptions: guardrail scripts are tracked in repo
+scripts/*
+# Exceptions: guardrail scripts and CI review scripts are tracked in repo
 !scripts/check-anti-patterns.sh
 !scripts/semantic-scan.sh
+!scripts/ci/
 backend/gaia/
 backend/media/
 backend/practical-exercises.md

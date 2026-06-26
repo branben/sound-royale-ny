@@ -12,3 +12,7 @@
 ## Security
 - [ ] No secrets/PII in logs, artifacts, or committed files
 - [ ] No `.beads/` tracked
+
+## Churn Guardrails Acknowledgement
+- [ ] I have read [AGENTS.md](AGENTS.md#active-guardrails)
+- [ ] My change does not introduce: empty catch blocks, missing @transaction.atomic, unauthenticated endpoints, or secrets in URLs

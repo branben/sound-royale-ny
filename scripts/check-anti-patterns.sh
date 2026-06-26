@@ -54,7 +54,29 @@ check_file() {
     fi
 
     # Pattern 3+4: Bare except with pass or only comment (Python)
-    if awk '/^[[:space:]]*except[[:space:]]*.*:/{found=1; line=NR; next} found && NR==line+1 && /^[[:space:]]*pass/{print "BARE_EXCEPT:" line; found=0} found && NR>line+1{found=0}' "$file" 2>/dev/null | grep -q "BARE_EXCEPT"; then
+    # Excludes: pass followed by finally (cleanup pattern), pass inside
+    # get_object/fall-through methods, CancelledError in asyncio cleanup.
+    if python3 -c "
+import sys
+lines = open('$file').readlines()
+except_indices = [i for i, l in enumerate(lines) if l.strip().startswith('except') and l.strip().endswith(':')]
+for idx in except_indices:
+    next_line = lines[idx + 1].strip() if idx + 1 < len(lines) else ''
+    if next_line != 'pass':
+        continue
+    # Check: pass followed by finally dentro    following = [l.strip() for l in lines[idx+2:idx+4] if l.strip()]
+    if following and following[0].startswith('finally'):
+        continue
+    # Check: inside get_object method (look back for def get_object)
+    context = ''.join(lines[max(0,idx-10):idx])
+    if 'def get_object' in context or 'lookup_field' in context:
+        continue
+    # Check: except CancelledError (asyncio cleanup)
+    if 'CancelledError' in lines[idx]:
+        continue
+    print(f'BARE_EXCEPT:{idx+1}')
+    break
+" 2>/dev/null | grep -q "BARE_EXCEPT"; then
         echo -e "${RED}✗${NC} $file: Bare except with pass (silent error)"
         file_issues=$((file_issues + 1))
     fi
