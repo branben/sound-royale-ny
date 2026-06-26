@@ -10,14 +10,8 @@ system_prompt = sys.argv[4]
 with open(prompt_file) as f:
     prompt = f.read()
 
-# Replace template variables
-diff = os.environ.get("DIFF_CONTENT", "")
-changed = os.environ.get("CHANGED_FILES", "")
-prompt = prompt.replace("{DIFF}", diff).replace("{CHANGED_FILES}", changed)
-
-# Write the filled prompt to the prompt file (in-place)
-with open(prompt_file, "w") as f:
-    f.write(prompt)
+with open(prompt_file) as f:
+    prompt = f.read()
 
 cmd = [
     "npx", "omniroute", "chat",
