@@ -34,7 +34,7 @@ jobs:
               github.rest.pulls.listFiles.endpoint.merge({ owner: context.repo.owner, repo: context.repo.repo, pull_number: pr.number })
             );
             const changedFiles = files.map(f => f.filename);
-            const touchesCritical = changedPaths.some(p => changedFiles.includes(p));
+            const touchesCritical = criticalPaths.some(p => changedFiles.includes(p));
             const additions = files.reduce((sum, f) => sum + f.additions, 0);
             const prSize = additions;
 
