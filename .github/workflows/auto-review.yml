@@ -7,6 +7,7 @@ on:
 permissions:
   pull-requests: write
   contents: read
+  statuses: write
 
 jobs:
   auto-review:
@@ -18,7 +19,6 @@ jobs:
       PR_NUMBER: ${{ github.event.pull_request.number }}
       PR_TITLE: ${{ github.event.pull_request.title }}
       PR_URL: ${{ github.event.pull_request.html_url }}
-      AGENTMAIL_API_KEY: ${{ secrets.AGENTMAIL_API_KEY }}
       OMNIROUTE_API_KEY: ${{ secrets.OMNIROUTE_API_KEY }}
 
     steps:
@@ -39,10 +39,8 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          npm install -g omniroute
+      - name: Install OmniRoute
+        run: npm install -g omniroute
 
       - name: Verify tools
         run: |
@@ -56,7 +54,6 @@ jobs:
           echo "diff<<EOF" >> "$GITHUB_OUTPUT"
           echo "$DIFF" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
-          echo "Fetched diff: $(echo "$DIFF" | wc -l) lines"
 
       - name: Extract changed files
         id: files
@@ -65,18 +62,21 @@ jobs:
           echo "files<<EOF" >> "$GITHUB_OUTPUT"
           echo "$CHANGED" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
-          echo "Changed files:"
-          echo "$CHANGED"
+
+      - name: Ensure labels exist
+        run: |
+          gh label create needs-human-review --color "ededed" --description "Auto-review escalated — needs human reviewer" --repo "$REPO" 2>/dev/null || true
+          gh label create auto-reviewed --color "0e8a16" --description "Auto-reviewed by LLM agents" --repo "$REPO" 2>/dev/null || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run security review
         id: security
         run: |
           python3 << 'PYEOF'
-          import json, os, subprocess, re, sys
+          import json, os, subprocess, sys
 
           diff = os.environ.get("DIFF_CONTENT", "")
-          changed_files = os.environ.get("CHANGED_FILES", "").strip().split("\n")
-
           prompt = f"""You are a security-focused code reviewer for a Django + React + TypeScript + WebSocket application.
 
 Review this PR diff for security vulnerabilities.
@@ -112,7 +112,7 @@ Format each finding:
           result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
 
           if result.returncode != 0:
-              print(f"Security review error: {result.stderr[:200]}", file=sys.stderr)
+              print(f"error: {result.stderr[:200]}", file=sys.stderr)
               print("findings=[]")
               sys.exit(0)
 
@@ -173,8 +173,6 @@ Format each finding:
           import json, os, subprocess, sys
 
           diff = os.environ.get("DIFF_CONTENT", "")
-          changed_files = os.environ.get("CHANGED_FILES", "").strip().split("\n")
-
           prompt = f"""You are a code quality reviewer for a React + TypeScript + Tailwind + Django application.
 
 Review this PR diff for code quality issues.
@@ -209,7 +207,7 @@ Format: {{"severity":"low|info","file":"<filename>","line":<number_or_null>,"des
           result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
 
           if result.returncode != 0:
-              print(f"Quality review error: {result.stderr[:200]}", file=sys.stderr)
+              print(f"error: {result.stderr[:200]}", file=sys.stderr)
               print("findings=[]")
               sys.exit(0)
 
@@ -264,8 +262,6 @@ Format: {{"severity":"low|info","file":"<filename>","line":<number_or_null>,"des
           import json, os, subprocess, sys
 
           diff = os.environ.get("DIFF_CONTENT", "")
-          changed_files = os.environ.get("CHANGED_FILES", "").strip().split("\n")
-
           prompt = f"""You are an architecture reviewer for a Django + React + WebSocket multiplayer game.
 
 Review this PR diff for architectural compliance.
@@ -300,7 +296,7 @@ Format: {{"severity":"medium|low|info","file":"<filename>","line":<number_or_nul
           result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
 
           if result.returncode != 0:
-              print(f"Architecture review error: {result.stderr[:200]}", file=sys.stderr)
+              print(f"error: {result.stderr[:200]}", file=sys.stderr)
               print("findings=[]")
               sys.exit(0)
 
@@ -350,12 +346,12 @@ Format: {{"severity":"medium|low|info","file":"<filename>","line":<number_or_nul
 
       - name: Synthesize and post review
         if: always()
+        id: synthesize
         run: |
           python3 << 'PYEOF'
           import json
           import os
           import subprocess
-          import re
           from datetime import datetime, timezone
 
           all_findings = []
@@ -418,9 +414,102 @@ Format: {{"severity":"medium|low|info","file":"<filename>","line":<number_or_nul
           )
 
           if result.returncode == 0:
-              print(f"Posted review with {len(all_findings)} findings")
+              print(f"posted=true")
+              print(f"findings_count={len(all_findings)}")
+              print(f"critical={len(critical)}")
+              print(f"high={len(high)}")
+              print(f"needs_human={'true' if critical or high else 'false'}")
           else:
-              print(f"Failed to post: {result.stderr}")
-              print("Review body:")
-              print(body[:500])
+              print(f"posted=false")
+              print(f"error={result.stderr[:200]}")
+          PYEOF
+
+      - name: Add labels based on findings
+        if: always()
+        run: |
+          python3 << 'PYEOF'
+          import json
+          import os
+          import subprocess
+
+          all_findings = []
+          for agent in ["security", "quality", "architecture"]:
+              path = f"/tmp/{agent}-findings.json"
+              if os.path.exists(path):
+                  with open(path) as f:
+                      findings = json.load(f)
+                      all_findings.extend(findings)
+
+          labels_to_add = []
+
+          if any(f.get("severity") in ("critical", "high") for f in all_findings):
+              labels_to_add.append("needs-human-review")
+
+          if all_findings:
+              labels_to_add.append("auto-reviewed")
+
+          if labels_to_add:
+              subprocess.run(
+                  ["gh", "pr", "edit", os.environ["PR_NUMBER"], "--repo", os.environ["REPO"],
+                   "--add-label", ",".join(labels_to_add)],
+                  capture_output=True, text=True
+              )
+              print(f"Added labels: {', '.join(labels_to_add)}")
+          else:
+              print("No labels to add")
+          PYEOF
+
+      - name: Set commit status check
+        if: always()
+        run: |
+          python3 << 'PYEOF'
+          import json
+          import os
+          import subprocess
+          from datetime import datetime, timezone
+
+          all_findings = []
+          for agent in ["security", "quality", "architecture"]:
+              path = f"/tmp/{agent}-findings.json"
+              if os.path.exists(path):
+                  with open(path) as f:
+                      findings = json.load(f)
+                      all_findings.extend(findings)
+
+          critical = [f for f in all_findings if f.get("severity") == "critical"]
+          high = [f for f in all_findings if f.get("severity") == "high"]
+
+          sha = subprocess.run(
+              ["git", "rev-parse", "HEAD"],
+              capture_output=True, text=True
+          ).stdout.strip()
+
+          if critical:
+              state = "failure"
+              description = f"{len(critical)} critical security finding(s) need resolution"
+          elif high:
+              state = "failure"
+              description = f"{len(high)} high-severity finding(s) need human review"
+          elif all_findings:
+              state = "success"
+              description = f"Auto-review complete: {len(all_findings)} findings (no critical/high)"
+          else:
+              state = "success"
+              description = "Auto-review complete: no issues found"
+
+          payload = json.dumps({
+              "state": state,
+              "description": description,
+              "context": "auto-review/llm",
+              "target_url": f"{os.environ['PR_URL']}/files"
+          })
+
+          subprocess.run(
+              ["gh", "api", f"repos/{os.environ['REPO']}/statuses/{sha}",
+               "-X", "POST", "-H", "Accept: application/vnd.github+json",
+               "-d", payload],
+              capture_output=True, text=True
+          )
+
+          print(f"Status check: {state} - {description}")
           PYEOF
