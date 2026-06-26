@@ -3,6 +3,11 @@ name: Auto Review
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - 'quality/**'
+      - 'feat/**'
+      - 'fix/**'
 
 permissions:
   pull-requests: write
@@ -16,9 +21,6 @@ jobs:
 
     env:
       REPO: ${{ github.repository }}
-      PR_NUMBER: ${{ github.event.pull_request.number }}
-      PR_TITLE: ${{ github.event.pull_request.title }}
-      PR_URL: ${{ github.event.pull_request.html_url }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       OMNIROUTE_API_KEY: ${{ secrets.OMNIROUTE_API_KEY }}
 
@@ -48,10 +50,33 @@ jobs:
           gh auth setup-git
           omniroute --version 2>&1 || echo "omniroute version check failed"
 
+      - name: Determine PR info
+        id: pr_info
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+            PR_TITLE="${{ github.event.pull_request.title }}"
+            PR_URL="${{ github.event.pull_request.html_url }}"
+          else
+            PR_NUMBER=$(gh pr list --repo "$REPO" --state open --head "${{ github.ref_name }}" --json number -q '.[0].number')
+            PR_TITLE=$(gh pr list --repo "$REPO" --state open --head "${{ github.ref_name }}" --json title -q '.[0].title')
+            PR_URL=$(gh pr list --repo "$REPO" --state open --head "${{ github.ref_name }}" --json url -q '.[0].url')
+          fi
+
+          if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "null" ]; then
+            echo "No open PR found for branch ${{ github.ref_name }}"
+            exit 1
+          fi
+
+          echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "title=$PR_TITLE" >> "$GITHUB_OUTPUT"
+          echo "url=$PR_URL" >> "$GITHUB_OUTPUT"
+          echo "PR: #$PR_NUMBER - $PR_TITLE"
+
       - name: Fetch PR diff
         id: diff
         run: |
-          DIFF=$(gh pr diff "$PR_NUMBER" --repo "$REPO" 2>&1)
+          DIFF=$(gh pr diff "${{ steps.pr_info.outputs.number }}" --repo "$REPO" 2>&1)
           echo "diff<<EOF" >> "$GITHUB_OUTPUT"
           echo "$DIFF" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
@@ -164,6 +189,9 @@ Format each finding:
               print("verdict=APPROVE")
           PYEOF
         env:
+          PR_NUMBER: ${{ steps.pr_info.outputs.number }}
+          PR_TITLE: ${{ steps.pr_info.outputs.title }}
+          PR_URL: ${{ steps.pr_info.outputs.url }}
           DIFF_CONTENT: ${{ steps.diff.outputs.diff }}
           CHANGED_FILES: ${{ steps.files.outputs.files }}
 
@@ -253,6 +281,9 @@ Format: {{"severity":"low|info","file":"<filename>","line":<number_or_null>,"des
           print(f"count={len(findings)}")
           PYEOF
         env:
+          PR_NUMBER: ${{ steps.pr_info.outputs.number }}
+          PR_TITLE: ${{ steps.pr_info.outputs.title }}
+          PR_URL: ${{ steps.pr_info.outputs.url }}
           DIFF_CONTENT: ${{ steps.diff.outputs.diff }}
           CHANGED_FILES: ${{ steps.files.outputs.files }}
 
@@ -342,6 +373,9 @@ Format: {{"severity":"medium|low|info","file":"<filename>","line":<number_or_nul
           print(f"count={len(findings)}")
           PYEOF
         env:
+          PR_NUMBER: ${{ steps.pr_info.outputs.number }}
+          PR_TITLE: ${{ steps.pr_info.outputs.title }}
+          PR_URL: ${{ steps.pr_info.outputs.url }}
           DIFF_CONTENT: ${{ steps.diff.outputs.diff }}
           CHANGED_FILES: ${{ steps.files.outputs.files }}
 
@@ -409,8 +443,9 @@ Format: {{"severity":"medium|low|info","file":"<filename>","line":<number_or_nul
 
           body = "\n".join(lines)
 
+          pr_number = os.environ["PR_NUMBER"]
           result = subprocess.run(
-              ["gh", "pr", "comment", os.environ["PR_NUMBER"], "--repo", os.environ["REPO"], "--body", body],
+              ["gh", "pr", "comment", pr_number, "--repo", os.environ["REPO"], "--body", body],
               capture_output=True, text=True
           )
 
@@ -427,6 +462,8 @@ Format: {{"severity":"medium|low|info","file":"<filename>","line":<number_or_nul
 
       - name: Add labels based on findings
         if: always()
+        env:
+          PR_NUMBER: ${{ steps.pr_info.outputs.number }}
         run: |
           python3 << 'PYEOF'
           import json
@@ -462,6 +499,9 @@ Format: {{"severity":"medium|low|info","file":"<filename>","line":<number_or_nul
 
       - name: Set commit status check
         if: always()
+        env:
+          PR_NUMBER: ${{ steps.pr_info.outputs.number }}
+          PR_URL: ${{ steps.pr_info.outputs.url }}
         run: |
           python3 << 'PYEOF'
           import json
