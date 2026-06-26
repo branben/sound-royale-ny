@@ -2,8 +2,8 @@
 """Write LLM review prompts to files."""
 import os
 
-diff = os.environ["DIFF_CONTENT"]
-changed = os.environ["CHANGED_FILES"]
+diff = open("/tmp/pr-diff.txt").read()
+changed = open("/tmp/changed-files.txt").read().strip()
 
 security_prompt = (
     "You are a security-focused code reviewer for a Django + React + TypeScript + WebSocket application.\n\n"
