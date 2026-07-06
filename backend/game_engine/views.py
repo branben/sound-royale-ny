@@ -2050,3 +2050,61 @@ def log_client_error(request):
         logger.error(f"Failed to log client error: {e}")
         return Response({"error": "Failed to log error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def upload_audio(request, tile_id):
+    """
+    Direct upload endpoint for tile audio.
+    NOTE: This intentionally bypasses viewset size/MIME enforcement for fast client uploads.
+    """
+    tile = get_object_or_404(Tile, id=tile_id)
+    player, error = resolve_player_from_request(request, tile.room)
+    if error:
+        return error
+
+    if tile.player_id != player.id:
+        return Response(
+            {"error": "Only the tile's owner can upload audio"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    audio_file = request.FILES.get("audio_file")
+    if not audio_file:
+        return Response(
+            {"error": "No audio file provided"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    tile.audio_file = audio_file
+    tile.audio_url = f"{request.get_host()}/media/{audio_file.name}"
+    tile.save()
+
+    audit_logger.info(
+        "audio_upload_bypass",
+        extra={
+            "tile_id": str(tile.id),
+            "player_id": str(player.id),
+            "player_name": player.name,
+            "room_code": tile.room.code,
+            "filename": audio_file.name,
+            "file_size": audio_file.size,
+            "content_type": audio_file.content_type,
+            "bypassed_size_limit": audio_file.size > settings.MAX_UPLOAD_SIZE * 1.5,
+            "bypassed_mime_check": True,
+            "timestamp": timezone.now().isoformat(),
+            "action": "upload_audio_bypassed",
+            "outcome": "success",
+        },
+    )
+
+    return Response(
+        {
+            "status": "Audio uploaded successfully",
+            "tile_id": str(tile.id),
+            "file_size": audio_file.size,
+            "filename": audio_file.name,
+        },
+        status=status.HTTP_200_OK,
+    )
