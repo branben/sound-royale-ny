@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Upload, Music, X } from 'lucide-react';
 import { Tile } from '@/types/game';
 import { useToast } from '@/hooks/use-toast';
+import { gameApi } from '@/services/api';
 
 interface UploadDrawerProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ interface UploadDrawerProps {
 export function UploadDrawer({ isOpen, onClose, tile, onUpload }: UploadDrawerProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
   const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
@@ -55,26 +57,40 @@ export function UploadDrawer({ isOpen, onClose, tile, onUpload }: UploadDrawerPr
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > MAX_FILE_SIZE) {
-        toast({
-          variant: 'destructive',
-          title: 'File too large',
-          description: 'Audio files must be 50MB or smaller',
-        });
-        return;
-      }
-      setSelectedFile(file);
+    if (file && file.size > MAX_FILE_SIZE) {
+      toast({
+        variant: 'destructive',
+        title: 'File too large',
+        description: 'Audio files must be 50MB or smaller',
+      });
+      return;
     }
+    setSelectedFile(file ?? null);
   };
 
-  const handleSubmit = () => {
-    if (selectedFile) {
-      // In a real app, this would upload to a server
-      const fakeUrl = URL.createObjectURL(selectedFile);
-      onUpload(fakeUrl, selectedFile);
+  const handleSubmit = async () => {
+    if (!selectedFile) return;
+
+    try {
+      setIsUploading(true);
+      const response = await gameApi.uploadAudio(tile?.id ?? '', selectedFile);
+      toast({
+        variant: 'default',
+        title: 'Upload initiated',
+        description: `Uploading "${selectedFile.name}"`,
+      });
+      onUpload(response.data?.audio_url ?? URL.createObjectURL(selectedFile), selectedFile);
       setSelectedFile(null);
       onClose();
+    } catch (error) {
+      console.error('Upload failed:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Upload failed',
+        description: `Failed to upload ${selectedFile.name}`,
+      });
+    } finally {
+      setIsUploading(false);
     }
   };
 

@@ -8,6 +8,7 @@ from .views import (
     genre_performance_by_player_id,
     verify_admin_pin,
     set_checked_in_by_player_id,
+    upload_audio,
     discord_auth,
     discord_callback,
     discord_link_account,
@@ -45,6 +46,11 @@ urlpatterns = [
     ),
     path('api/admin/verify/', verify_admin_pin, name='admin-verify'),
     path('api/errors/log/', log_client_error, name='error-log'),
+    path(
+        'api/tiles/<uuid:tile_id>/upload_audio/',
+        upload_audio,
+        name='upload-audio',
+    ),
     path('api/', include(router.urls)),
     path('webhooks/linear/', LinearWebhookView.as_view(), name='linear-webhook'),
 ]
