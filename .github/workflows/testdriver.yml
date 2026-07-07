@@ -1,0 +1,56 @@
+name: TestDriver.ai Tests
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # required to mint the OIDC token for auth
+      contents: read
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    # Authenticate to TestDriver via GitHub OIDC. Once the TestDriver GitHub App
+    # is authorized for your org (https://console.testdriver.ai), no stored
+    # secret is needed — the action mints an OIDC token and exchanges it for the
+    # team's key at run time. A TD_API_KEY secret is only a fallback.
+    - name: Authenticate to TestDriver
+      uses: testdriverai/action@test
+      with:
+        channel: test
+        api-key: ${{ secrets.TD_API_KEY }}
+
+    # Runs only the TestDriver computer-use tests (kept in tests/testdriver/**
+    # with their own config, separate from the repo's jsdom unit tests and
+    # Playwright E2E suite).
+    #
+    # Set the SOUND_ROYALE_URL repo variable to the deployment you want to smoke
+    # test (Settings -> Secrets and variables -> Actions -> Variables).
+    - name: Run TestDriver.ai tests
+      env:
+        SOUND_ROYALE_URL: ${{ vars.SOUND_ROYALE_URL }}
+      run: npx vitest run --config vitest.testdriver.config.mjs
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: test-results/
+        retention-days: 30
