@@ -1,52 +1,77 @@
 import React from 'react';
 import { render, screen, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { GameProvider, GameContext } from '../GameContext';
+import { GameProvider, GameStateContext, GameContext } from '../GameContext';
 import { useUser } from '../UserContext';
-import { roomApi } from '@/services/api';
 
 // Mock the UserContext
 vi.mock('../UserContext', () => ({
   useUser: vi.fn(),
 }));
 
-// Capture the options object passed to gameSocket.connect so the test can
-// invoke onConnect / onDisconnect the way the real socket service would.
-const connectOptions: Array<{
-  onConnect?: () => Promise<void> | void;
-  onDisconnect?: (reason: string) => void;
-}> = [];
+// Mock the API module — getRoom returns a full authoritative room snapshot.
+const mockRoomResponse = {
+  code: 'ABCD',
+  status: 'playing',
+  players: [
+    {
+      id: 'player-1',
+      name: 'TestPlayer',
+      is_host: true,
+      is_ready: true,
+      board: {
+        tiles: [{ id: 'tile-1', genre: 'House', status: 'complete' as const }],
+      },
+    },
+    {
+      id: 'player-2',
+      name: 'OtherPlayer',
+      is_host: false,
+      is_ready: false,
+      tiles: [{ id: 'tile-2', genre: 'Techno', status: 'pending' as const }],
+    },
+  ],
+  current_round: 2,
+};
 
-// Mock the API module
+const getRoomMock = vi.fn().mockResolvedValue(mockRoomResponse);
+
 vi.mock('@/services/api', () => ({
   roomApi: {
-    getRoom: vi.fn(),
+    getRoom: (...args: unknown[]) => getRoomMock(...(args as [string])),
   },
   gameApi: {},
+  getStoredAccessToken: vi.fn(() => null),
   normalizeRoomWinner: vi.fn((w: unknown) => {
     if (!w) return undefined;
     if (typeof w === 'string') return w;
     if (typeof w === 'object' && w !== null && 'id' in w) return (w as { id: string }).id;
     return undefined;
   }),
-  getStoredAccessToken: vi.fn(() => null),
 }));
 
-// Mock the gameSocket module capturing connect options
+// Capture the socket callbacks so the test can drive connect/disconnect.
+const connectOptions: {
+  onConnect?: () => void | Promise<void>;
+  onDisconnect?: (r: string) => void;
+} = {};
+const connectMock = vi.fn((options: typeof connectOptions) => {
+  connectOptions.onConnect = options.onConnect;
+  connectOptions.onDisconnect = options.onDisconnect;
+});
+
 vi.mock('@/services/gameSocket', () => ({
   __esModule: true,
   default: {
-    connect: vi.fn((options: { onConnect?: () => void; onDisconnect?: (r: string) => void }) => {
-      connectOptions.push(options);
-    }),
+    connect: (...args: unknown[]) =>
+      (connectMock as (o: typeof connectOptions) => void)(...(args as [typeof connectOptions])),
     disconnect: vi.fn(),
     send: vi.fn(),
     isConnected: vi.fn().mockReturnValue(false),
   },
   gameSocket: {
-    connect: vi.fn((options: { onConnect?: () => void; onDisconnect?: (r: string) => void }) => {
-      connectOptions.push(options);
-    }),
+    connect: (...args: unknown[]) =>
+      (connectMock as (o: typeof connectOptions) => void)(...(args as [typeof connectOptions])),
     disconnect: vi.fn(),
     send: vi.fn(),
     isConnected: vi.fn().mockReturnValue(false),
@@ -73,7 +98,6 @@ vi.mock('framer-motion', () => ({
 }));
 
 const mockUseUser = useUser as unknown as ReturnType<typeof vi.fn>;
-const getRoom = roomApi.getRoom as unknown as ReturnType<typeof vi.fn>;
 
 function createDefaultUserSession() {
   return {
@@ -99,137 +123,120 @@ function createDefaultUserSession() {
   };
 }
 
-function makeRoomResponse(overrides: Record<string, unknown> = {}) {
-  return {
-    code: 'ABCD',
-    status: 'playing' as const,
-    current_round: 3,
-    players: [
-      {
-        id: 'player-1',
-        name: 'TestPlayer',
-        board: { tiles: [{ id: 'tile-1', genre: 'House', status: 'empty' as const }] },
-      },
-      {
-        id: 'player-2',
-        name: 'OtherPlayer',
-        board: { tiles: [{ id: 'tile-2', genre: 'Techno', status: 'complete' as const }] },
-      },
-    ],
-    ...overrides,
-  };
-}
-
-function ContextReader() {
-  const ctx = React.useContext(GameContext);
+function StateReader() {
+  const ctx = React.useContext(GameStateContext);
   if (!ctx) return null;
   return (
     <div>
       <div data-testid="status">{ctx.gameState.status}</div>
-      <div data-testid="current-round">{ctx.gameState.currentRound}</div>
       <div data-testid="player-count">{Object.keys(ctx.gameState.players).length}</div>
+      <div data-testid="current-round">{ctx.gameState.currentRound}</div>
+      <div data-testid="is-reconnecting">{String(ctx.isReconnecting)}</div>
     </div>
   );
 }
 
-describe('GameContext WebSocket reconnect (guardrail #101)', () => {
+describe('GameContext reconnect', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    connectOptions.length = 0;
+    connectOptions.onConnect = undefined;
+    connectOptions.onDisconnect = undefined;
+    getRoomMock.mockResolvedValue(mockRoomResponse);
     mockUseUser.mockReturnValue(createDefaultUserSession());
-    getRoom.mockResolvedValue(makeRoomResponse());
   });
 
-  function lastConnectOptions() {
-    expect(connectOptions.length).toBeGreaterThan(0);
-    return connectOptions[connectOptions.length - 1];
-  }
-
-  it('re-fetches full room state (replacing, not merging) when onConnect fires', async () => {
+  it('re-fetches full game state via getRoom on onConnect and REPLACES (not merges) state', async () => {
     render(
       <GameProvider roomCode="ABCD">
-        <ContextReader />
+        <StateReader />
       </GameProvider>,
     );
 
-    // Initial mount fetch resolves.
-    await waitFor(() => expect(getRoom).toHaveBeenCalled());
+    // The initial mount fetch should call getRoom once.
+    await waitFor(() => expect(getRoomMock).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByTestId('player-count').textContent).toBe('2'));
 
-    // Simulate a reconnect: socket service calls onConnect after reopening.
+    const callsBeforeReconnect = getRoomMock.mock.calls.length;
+
+    // Simulate a fresh authoritative snapshot from the server with fewer
+    // players and a different round — a REPLACE must drop the old players.
+    const staleResponse = {
+      ...mockRoomResponse,
+      current_round: 7,
+      players: [
+        {
+          id: 'player-1',
+          name: 'TestPlayer',
+          board: { tiles: [] },
+        },
+      ],
+    };
+    getRoomMock.mockResolvedValueOnce(staleResponse);
+
+    // Drive the socket (re)connect callback.
+    expect(connectOptions.onConnect).toBeTypeOf('function');
     await act(async () => {
-      await lastConnectOptions().onConnect?.();
+      await connectOptions.onConnect!();
     });
 
-    // Full playing-room state replaces the initial state.
-    expect(screen.getByTestId('status').textContent).toBe('playing');
-    expect(screen.getByTestId('current-round').textContent).toBe('3');
-    expect(screen.getByTestId('player-count').textContent).toBe('2');
+    // getRoom was called again on reconnect.
+    expect(getRoomMock.mock.calls.length).toBe(callsBeforeReconnect + 1);
+    expect(getRoomMock).toHaveBeenLastCalledWith('ABCD');
+
+    // State is REPLACED: only the 1 server player remains (no merge with prior 2).
+    await waitFor(() => expect(screen.getByTestId('player-count').textContent).toBe('1'));
+    expect(screen.getByTestId('current-round').textContent).toBe('7');
+
+    // Reconnecting flag is cleared once connected.
+    expect(screen.getByTestId('is-reconnecting').textContent).toBe('false');
   });
 
-  it('does not merge a stale partial board — reconnect replaces all players', async () => {
+  it('shows the ReconnectingBanner during the disconnect→reconnect window', async () => {
     render(
       <GameProvider roomCode="ABCD">
-        <ContextReader />
+        <StateReader />
       </GameProvider>,
     );
 
-    await waitFor(() => expect(getRoom).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(connectOptions.onDisconnect).toBeTypeOf('function'));
 
-    // A different player set comes back on reconnect.
-    getRoom.mockResolvedValueOnce(
-      makeRoomResponse({
-        players: [
-          { id: 'player-1', name: 'TestPlayer', board: { tiles: [] } },
-          { id: 'player-3', name: 'NewPlayer', board: { tiles: [] } },
-        ],
-      }),
-    );
-
-    await act(async () => {
-      await lastConnectOptions().onConnect?.();
+    // Disconnect fires — banner should become visible.
+    act(() => {
+      connectOptions.onDisconnect!('connection lost');
     });
 
-    // player-2 must be gone (replaced, not merged) and player-3 present.
-    expect(screen.getByTestId('player-count').textContent).toBe('2');
-  });
-
-  it('shows the Reconnecting banner during disconnect and hides it after reconnect', async () => {
-    render(
-      <GameProvider roomCode="ABCD">
-        <ContextReader />
-      </GameProvider>,
-    );
-
-    await waitFor(() => expect(getRoom).toHaveBeenCalled());
-
-    // Disconnect → banner visible.
-    await act(async () => {
-      lastConnectOptions().onDisconnect?.('connection lost');
-    });
     expect(screen.getByTestId('reconnecting-banner')).toBeTruthy();
+    expect(screen.getByTestId('is-reconnecting').textContent).toBe('true');
 
-    // Reconnect → banner hidden, getRoom called again.
+    // Reconnect fires — banner should disappear.
     await act(async () => {
-      await lastConnectOptions().onConnect?.();
+      await connectOptions.onConnect!();
     });
+
     expect(screen.queryByTestId('reconnecting-banner')).toBeNull();
-    expect(getRoom).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('is-reconnecting').textContent).toBe('false');
   });
 
-  it('onConnect is wired (not empty) and calls getRoom on reconnect', async () => {
+  it('exposes isReconnecting through the legacy useGame() context', async () => {
+    function LegacyReader() {
+      const ctx = React.useContext(GameContext);
+      return <div data-testid="legacy-reconnecting">{String(ctx?.isReconnecting)}</div>;
+    }
+
     render(
       <GameProvider roomCode="ABCD">
-        <ContextReader />
+        <LegacyReader />
       </GameProvider>,
     );
 
-    await waitFor(() => expect(getRoom).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.getByTestId('legacy-reconnecting').textContent).toBe('false'),
+    );
 
-    const callsBefore = getRoom.mock.calls.length;
-    await act(async () => {
-      await lastConnectOptions().onConnect?.();
+    act(() => {
+      connectOptions.onDisconnect!('connection lost');
     });
 
-    expect(getRoom.mock.calls.length).toBe(callsBefore + 1);
+    expect(screen.getByTestId('legacy-reconnecting').textContent).toBe('true');
   });
 });
