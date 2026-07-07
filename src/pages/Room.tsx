@@ -380,6 +380,42 @@ export default function Room() {
 
   useGameRefreshEffect(fetchRoom);
 
+  // Track which statuses we've already animated entrance for
+  const animatedStatusRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // Only run entrance animations once per status transition, not on every players update
+    if (animatedStatusRef.current === gameState.status) {
+      return;
+    }
+    animatedStatusRef.current = gameState.status;
+
+    if (prefersReducedMotion) {
+      // Lobby State
+      if (roomCodeRef.current) gsap.set(roomCodeRef.current, { scale: 1, opacity: 1 });
+      if (joinBattleCardRef.current) gsap.set(joinBattleCardRef.current, { y: 0, opacity: 1 });
+      actionButtonRefs.current.forEach((btn) => btn && gsap.set(btn, { y: 0, opacity: 1 }));
+
+      // Playing State
+      if (roundStageRef.current) gsap.set(roundStageRef.current, { y: 0, opacity: 1 });
+      bingoBoardRefs.current.forEach((board) => board && gsap.set(board, { x: 0, opacity: 1 }));
+      if (gameInfoRef.current) gsap.set(gameInfoRef.current, { x: 0, opacity: 1 });
+      return;
+    }
+
+    if (gameState.status === 'lobby' && roomCodeRef.current) {
+      gsap.from(roomCodeRef.current, {
+        scale: 0.92,
+        opacity: 0,
+        ease: 'power2.out',
+        duration: 0.25,
+      });
+    }
+  }, [gameState.status]); // Only re-run entrance animations on status change, not players update
+
+
   // Auto-reset after match ends
   const [resetCountdown, setResetCountdown] = useState<number | null>(null);
   useEffect(() => {
