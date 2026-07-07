@@ -7,10 +7,7 @@ interface ReconnectingBannerProps {
   className?: string;
 }
 
-export const ReconnectingBanner: React.FC<ReconnectingBannerProps> = ({
-  isVisible,
-  className,
-}) => {
+export const ReconnectingBanner: React.FC<ReconnectingBannerProps> = ({ isVisible, className }) => {
   if (!isVisible) return null;
 
   return (
