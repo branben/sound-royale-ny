@@ -296,7 +296,7 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
                 <div
                   key={player.id}
                   className={cn(
-                    'flex items-center justify-between p-2 rounded-lg bg-background/60 border transition-all duration-200 border-l-4',
+                    'flex items-center justify-between p-2 rounded-lg bg-background/60 border',
                     playerBorder(player.id),
                     playerBorderHover(player.id),
                     player.name === currentPlayerName && 'ring-2 ' + playerRing(player.id),

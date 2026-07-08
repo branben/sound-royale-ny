@@ -45,7 +45,7 @@ export function ConflictResolution({
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50">
       <div>
         <Card className="w-full max-w-md mx-4">
           <CardContent className="p-6 space-y-4">

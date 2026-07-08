@@ -62,7 +62,7 @@ export function CreateRoomForm({
         data-testid="create-room-submit-button"
         onClick={onCreate}
         disabled={!roomNameInput.trim() || isLoading}
-        className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-lg hover:shadow-xl transition-all duration-200"
+        className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 active:scale-[0.97] text-primary-foreground shadow-sm transition-colors"
         size="lg"
       >
         {isLoading ? (

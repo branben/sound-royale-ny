@@ -82,40 +82,6 @@ export function BattleTile({ genre, status, isInteractive, onUpload, className }
           </div>
         )}
       </div>
-
-      {/* Corner decorations */}
-      <div
-        className={cn(
-          'absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 rounded-tl-lg transition-colors',
-          isEmpty && 'border-primary/30',
-          isPending && 'border-primary',
-          isComplete && 'border-green-500',
-        )}
-      />
-      <div
-        className={cn(
-          'absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 rounded-tr-lg transition-colors',
-          isEmpty && 'border-primary/30',
-          isPending && 'border-primary',
-          isComplete && 'border-green-500',
-        )}
-      />
-      <div
-        className={cn(
-          'absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 rounded-bl-lg transition-colors',
-          isEmpty && 'border-primary/30',
-          isPending && 'border-primary',
-          isComplete && 'border-green-500',
-        )}
-      />
-      <div
-        className={cn(
-          'absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 rounded-br-lg transition-colors',
-          isEmpty && 'border-primary/30',
-          isPending && 'border-primary',
-          isComplete && 'border-green-500',
-        )}
-      />
     </div>
   );
 }

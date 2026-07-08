@@ -72,7 +72,6 @@ export const BingoBoard = memo(
         transition={{ duration: 0.3 }}
         className={cn(
           'flex flex-col gap-2 rounded-lg border border-zinc-700 bg-zinc-900 p-2',
-          accent ? `border-l-4 ${accent.border}` : '',
           'shadow-sm',
           className,
         )}

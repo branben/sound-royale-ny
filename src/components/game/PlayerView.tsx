@@ -202,7 +202,7 @@ export const PlayerView = memo(
         <div className="lg:hidden">
           <Accordion type="single" collapsible>
             <AccordionItem value="player-info" className="border-none">
-              <AccordionTrigger className="rounded-lg bg-zinc-800 px-4 py-3 hover:bg-zinc-700 hover:translate-x-0.5 transition-all duration-150">
+              <AccordionTrigger className="rounded-lg bg-zinc-800 px-4 py-3 hover:bg-zinc-700 transition-colors">
                 <div className="flex items-center gap-3">
                   <div
                     className={`flex h-8 w-8 items-center justify-center rounded-full ${playerAccentClasses}`}

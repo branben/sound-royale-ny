@@ -54,7 +54,7 @@ export function VictoryCelebration({ winnerName, isVisible, onComplete }: Victor
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/40" />
 
       <motion.div
         className="relative z-10 text-center space-y-4"
@@ -62,7 +62,7 @@ export function VictoryCelebration({ winnerName, isVisible, onComplete }: Victor
         animate={{ scale: 1, y: 0, opacity: 1 }}
         transition={transitions.springBouncy}
       >
-        <div className="bg-background border-2 border-primary rounded-2xl p-8 shadow-xl">
+        <div className="bg-background border-2 border-primary rounded-2xl p-8 shadow-lg">
           <motion.div
             className="flex items-center justify-center gap-4 mb-4"
             initial={{ y: -40, rotate: -10 }}
