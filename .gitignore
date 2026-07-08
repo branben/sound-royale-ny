@@ -70,10 +70,6 @@ playwright-report/
 
 # --- Other junk ---
 scripts/
-!scripts/
-!scripts/conductor/
-scripts/conductor/*
-!scripts/conductor/dispatch.sh
 backend/gaia/
 backend/media/
 backend/practical-exercises.md
@@ -121,3 +117,11 @@ deacon/
 # CocoIndex Code (ccc)
 /.cocoindex_code/
 .worktrees
+
+# --- Local agent/scratch surfaces (NOT version-controlled; harness works from shared state) ---
+.agents/
+.claude/
+.codex/
+.ce-loop/
+data/
+
