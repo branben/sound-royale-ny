@@ -162,9 +162,11 @@
         },
         {
           "id": "ranked-voting-gate",
-          "description": "Voting requires >=3 spectators (per VotingPanel.tsx:105).",
-          "testRefs": [],
-          "status": "gap"
+          "description": "Voting requires >=3 spectators (per VotingPanel.tsx:105, backend views.py:1095).",
+          "testRefs": [
+            "tests/e2e/live/ranked-full-game.spec.ts > enforces >=3 spectator gate for ranked voting"
+          ],
+          "status": "covered"
         },
         {
           "id": "ranked-elo",
@@ -204,11 +206,6 @@
       "mode": "casual",
       "criterion": "casual-no-elo",
       "note": "No test asserts casual results are excluded from ELO/leaderboard."
-    },
-    {
-      "mode": "ranked",
-      "criterion": "ranked-voting-gate",
-      "note": "VotingPanel.tsx:105 enforces >=3 spectators; no e2e asserts the gate blocks voting below threshold."
     }
   ]
 }
