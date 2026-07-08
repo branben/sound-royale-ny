@@ -1,5 +1,6 @@
 from django.test import TestCase
 from django.test import override_settings
+from django.urls import reverse
 from rest_framework.test import APIClient
 from unittest.mock import patch, MagicMock
 from .models import Room, Player, Round, Vote
@@ -8,6 +9,44 @@ from .models import Room, Player, Round, Vote
 class GameEngineBasicTestCase(TestCase):
     def test_django_test_framework_works(self):
         self.assertTrue(True)
+
+
+class HealthCheckTestCase(TestCase):
+    @patch('game_engine.health.connections')
+    @patch('redis.Redis')
+    def test_health_check_returns_200_when_healthy(self, mock_redis, mock_connections):
+        """Health check returns 200 when DB and Redis are reachable."""
+        mock_connections.__getitem__.return_value.ensure_connection.return_value = None
+        mock_connections.__getitem__.return_value.close.return_value = None
+        mock_redis.return_value.ping.return_value = True
+        response = self.client.get('/health/')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["status"], "ok")
+        self.assertIn("checks", data)
+
+    @patch('game_engine.health.connections')
+    @patch('redis.Redis')
+    def test_health_check_returns_503_when_redis_down(self, mock_redis, mock_connections):
+        """Health check returns 503 when Redis is unreachable."""
+        mock_connections.__getitem__.return_value.ensure_connection.return_value = None
+        mock_connections.__getitem__.return_value.close.return_value = None
+        mock_redis.return_value.ping.side_effect = Exception("Connection refused")
+        response = self.client.get('/health/')
+        self.assertEqual(response.status_code, 503)
+        data = response.json()
+        self.assertEqual(data["status"], "error")
+        self.assertEqual(data["checks"]["redis"], "error")
+
+    @patch('game_engine.health.connections')
+    @patch('redis.Redis')
+    def test_health_check_no_auth_required(self, mock_redis, mock_connections):
+        """Health check is accessible without authentication."""
+        mock_connections.__getitem__.return_value.ensure_connection.return_value = None
+        mock_connections.__getitem__.return_value.close.return_value = None
+        mock_redis.return_value.ping.return_value = True
+        response = self.client.get('/health/')
+        self.assertEqual(response.status_code, 200)
 
 
 @override_settings(

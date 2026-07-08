@@ -26,7 +26,6 @@ import { HostMigrationIndicator } from '@/components/game/HostMigrationIndicator
 import { useGame, useGameRefresh, useGameRefreshEffect } from '@/context/useGame';
 import { useUser } from '@/context/UserContext';
 import type { GameState, RoomResponse, Player } from '@/types/game';
-import { gsap } from 'gsap';
 
 export default function Room() {
   const { id: roomId } = useParams<{ id: string }>();
@@ -40,7 +39,6 @@ export default function Room() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [hostMigration, setHostMigration] = useState<{ newHostName: string } | null>(null);
   const [joinName, setJoinName] = useState('');
-
 
   const {
     userSession,
@@ -57,7 +55,6 @@ export default function Room() {
   const { gameState, setGameState, timeRemaining } = useGame();
   const autoSpectatorJoinAttempted = useRef(false);
   const roomCodeRef = useRef(null);
-  const joinBattleCardRef = useRef(null);
   const actionButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const roundStageRef = useRef<HTMLDivElement | null>(null);
   const bingoBoardRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -148,7 +145,6 @@ export default function Room() {
       toast.error('Enter a name to join');
       return;
     }
-
 
     try {
       const player = await gameApi.joinRoom(
@@ -384,42 +380,6 @@ export default function Room() {
 
   useGameRefreshEffect(fetchRoom);
 
-  // Track which statuses we've already animated entrance for
-  const animatedStatusRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-    // Only run entrance animations once per status transition, not on every players update
-    if (animatedStatusRef.current === gameState.status) {
-      return;
-    }
-    animatedStatusRef.current = gameState.status;
-
-    if (prefersReducedMotion) {
-      // Lobby State
-      if (roomCodeRef.current) gsap.set(roomCodeRef.current, { scale: 1, opacity: 1 });
-      if (joinBattleCardRef.current) gsap.set(joinBattleCardRef.current, { y: 0, opacity: 1 });
-      actionButtonRefs.current.forEach((btn) => btn && gsap.set(btn, { y: 0, opacity: 1 }));
-
-      // Playing State
-      if (roundStageRef.current) gsap.set(roundStageRef.current, { y: 0, opacity: 1 });
-      bingoBoardRefs.current.forEach((board) => board && gsap.set(board, { x: 0, opacity: 1 }));
-      if (gameInfoRef.current) gsap.set(gameInfoRef.current, { x: 0, opacity: 1 });
-      return;
-    }
-
-    if (gameState.status === 'lobby' && roomCodeRef.current) {
-      gsap.from(roomCodeRef.current, {
-        scale: 0.92,
-        opacity: 0,
-        ease: 'power2.out',
-        duration: 0.25,
-      });
-    }
-
-  }, [gameState.status]); // Only re-run entrance animations on status change, not players update
-
   // Auto-reset after match ends
   const [resetCountdown, setResetCountdown] = useState<number | null>(null);
   useEffect(() => {
@@ -483,7 +443,6 @@ export default function Room() {
               {isReconnecting ? 'Reconnecting…' : 'Loading room…'}
             </p>
           </div>
-
         </main>
       </div>
     );
@@ -504,7 +463,11 @@ export default function Room() {
   }
 
   return (
-    <div className="h-dvh flex flex-col bg-background">
+    <div className="h-dvh flex flex-col bg-background relative">
+      {/* Ambient gradient — very subtle, 2.5× more subtle than lobby */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/[0.03] via-transparent to-transparent pointer-events-none" />
+      {/* Grain texture — breaks digital flatness */}
+      <div className="absolute inset-0 opacity-[0.015] pointer-events-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIj48ZmlsdGVyIGlkPSJhIiB4PSIwIiB5PSIwIj48ZmVUdXJidWxlbmNlIGJhc2VGcmVxdWVuY3k9Ii43NSIgc3RpdGNoVGlsZXM9InN0aXRjaCIgdHlwZT0iZnJhY3RhbE5vaXNlIi8+PGZpbHRlci8+PHJlY3Qgd2lkdGg9IjMwMCUiIGhlaWdodD0iMzAwIiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMDMiLz48L3N2Zz4=')]" />
       <header className="shrink-0 border-b border-border bg-background px-3 py-1.5">
         <div className="container mx-auto flex h-8 items-center justify-between">
           <h1 className="font-['Righteous'] text-lg md:text-xl tracking-tight text-primary">
@@ -546,7 +509,7 @@ export default function Room() {
             <p
               ref={roomCodeRef}
               data-testid="room-id"
-              className="font-mono text-7xl md:text-8xl font-bold tracking-[0.25em] text-zinc-100 mb-2 leading-none"
+              className="font-mono text-7xl md:text-8xl font-bold tracking-[0.25em] text-zinc-100 mb-2 leading-none transition-all duration-200"
             >
               {room.code}
             </p>
@@ -625,11 +588,12 @@ export default function Room() {
               )}
             </div>
           </div>
-
         ) : (
           <div className="flex flex-col lg:flex-row gap-2 h-full w-full">
-
-            <div ref={gameInfoRef} className="hidden lg:block lg:w-64 shrink-0">
+            <div
+              ref={gameInfoRef}
+              className="hidden lg:block lg:w-64 shrink-0 transition-all duration-200"
+            >
               <GameInfo roomId={roomId!} currentPlayerName={userSession.playerName ?? undefined} />
             </div>
 
@@ -637,7 +601,6 @@ export default function Room() {
               <Accordion type="single" collapsible>
                 <AccordionItem value="leaderboard" className="border-none">
                   <AccordionTrigger className="rounded-lg bg-zinc-800 px-4 py-3 text-sm font-medium text-zinc-100 hover:bg-zinc-700 transition-colors">
-
                     <div className="flex items-center gap-2">
                       <Trophy className="h-4 w-4 text-yellow-500" />
                       Leaderboard
@@ -706,7 +669,7 @@ export default function Room() {
               ) : (
                 <>
                   {gameState.status === 'playing' && (
-                    <div ref={roundStageRef} className="shrink-0">
+                    <div ref={roundStageRef} className="shrink-0 transition-all duration-200">
                       <RoundStage
                         roundNumber={gameState.currentRound || 1}
                         genre={gameState.roundState?.currentTileGenre}
@@ -766,7 +729,8 @@ export default function Room() {
             </h2>
             {gameState.winner ? (
               <p className="text-base text-zinc-300">
-                <span className="font-bold text-yellow-400">{gameState.winner}</span> takes the bingo.
+                <span className="font-bold text-yellow-400">{gameState.winner}</span> takes the
+                bingo.
               </p>
             ) : (
               <p className="text-sm text-zinc-400">No bingo this round.</p>
@@ -796,7 +760,6 @@ export default function Room() {
           </div>
         </div>
       )}
-
     </div>
   );
 }
