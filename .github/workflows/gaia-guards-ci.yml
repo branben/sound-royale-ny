@@ -226,3 +226,19 @@ jobs:
             exit 1
           fi
           echo "✓ No absolute file URLs found"
+
+  definition-of-done:
+    name: Definition of Done (success-criteria gate)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify success-criteria.json has no gaps
+        run: python3 check-success-criteria.py
+
