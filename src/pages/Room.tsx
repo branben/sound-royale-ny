@@ -464,10 +464,6 @@ export default function Room() {
 
   return (
     <div className="h-dvh flex flex-col bg-background relative">
-      {/* Ambient gradient — very subtle, 2.5× more subtle than lobby */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/[0.03] via-transparent to-transparent pointer-events-none" />
-      {/* Grain texture — breaks digital flatness */}
-      <div className="absolute inset-0 opacity-[0.015] pointer-events-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIj48ZmlsdGVyIGlkPSJhIiB4PSIwIiB5PSIwIj48ZmVUdXJidWxlbmNlIGJhc2VGcmVxdWVuY3k9Ii43NSIgc3RpdGNoVGlsZXM9InN0aXRjaCIgdHlwZT0iZnJhY3RhbE5vaXNlIi8+PGZpbHRlci8+PHJlY3Qgd2lkdGg9IjMwMCUiIGhlaWdodD0iMzAwIiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMDMiLz48L3N2Zz4=')]" />
       <header className="shrink-0 border-b border-border bg-background px-3 py-1.5">
         <div className="container mx-auto flex h-8 items-center justify-between">
           <h1 className="font-['Righteous'] text-lg md:text-xl tracking-tight text-primary">
@@ -509,7 +505,7 @@ export default function Room() {
             <p
               ref={roomCodeRef}
               data-testid="room-id"
-              className="font-mono text-7xl md:text-8xl font-bold tracking-[0.25em] text-zinc-100 mb-2 leading-none transition-all duration-200"
+              className="font-mono text-7xl md:text-8xl font-bold tracking-[0.25em] text-zinc-100 mb-2 leading-none"
             >
               {room.code}
             </p>
@@ -590,10 +586,7 @@ export default function Room() {
           </div>
         ) : (
           <div className="flex flex-col lg:flex-row gap-2 h-full w-full">
-            <div
-              ref={gameInfoRef}
-              className="hidden lg:block lg:w-64 shrink-0 transition-all duration-200"
-            >
+            <div ref={gameInfoRef} className="hidden lg:block lg:w-64 shrink-0 transition-all duration-200">
               <GameInfo roomId={roomId!} currentPlayerName={userSession.playerName ?? undefined} />
             </div>
 
@@ -669,7 +662,7 @@ export default function Room() {
               ) : (
                 <>
                   {gameState.status === 'playing' && (
-                    <div ref={roundStageRef} className="shrink-0 transition-all duration-200">
+                    <div ref={roundStageRef} className="shrink-0">
                       <RoundStage
                         roundNumber={gameState.currentRound || 1}
                         genre={gameState.roundState?.currentTileGenre}

@@ -2,9 +2,9 @@ name: Sound Royale CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ "**" ]
+    branches: ['**']
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -35,8 +35,8 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-          cache: "pip"
+          python-version: '3.11'
+          cache: 'pip'
 
       - name: Install dependencies
         run: |
@@ -176,6 +176,25 @@ jobs:
       - name: Shut down dev server
         if: always()
         run: kill $VITE_PID 2>/dev/null || true
+
+  ui-quality:
+    name: UI Quality Gate (Impeccable)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts --legacy-peer-deps
+
+      - name: Impeccable UI anti-pattern scan
+        run: npm run audit:ui
 
   repo-hygiene:
     name: Repository Hygiene

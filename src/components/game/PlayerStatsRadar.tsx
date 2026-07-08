@@ -18,6 +18,24 @@ import {
 } from 'recharts';
 import { Player, GenrePerformance } from '@/types/game';
 import { Flame } from 'lucide-react';
+import type { Payload as LegendPayload } from 'recharts/types/component/DefaultLegendContent';
+import type { Payload as TooltipPayload } from 'recharts/types/component/DefaultTooltipContent';
+
+interface RadarChartDatum {
+  axis: string;
+  wins: number;
+  losses: number;
+  isLegacy: boolean;
+}
+
+interface LegendContentProps {
+  payload?: readonly LegendPayload[];
+}
+
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: readonly TooltipPayload<number, string>[];
+}
 
 interface PlayerStatsRadarProps {
   player: Player;
@@ -103,9 +121,9 @@ export const PlayerStatsRadar: React.FC<PlayerStatsRadarProps> = ({
                 <Legend
                   verticalAlign="bottom"
                   height={36}
-                  content={({ payload }: any) => (
+                  content={({ payload }: LegendContentProps) => (
                     <div className="flex justify-center gap-4 text-xs">
-                      {payload.map((entry: any, index: number) => (
+                      {payload?.map((entry, index) => (
                         <div key={index} className="flex items-center gap-1">
                           <div className="w-3 h-3" style={{ backgroundColor: entry.color }} />
                           <span className="text-white">{entry.value}</span>
@@ -195,9 +213,9 @@ export const PlayerStatsRadar: React.FC<PlayerStatsRadarProps> = ({
               <Legend
                 verticalAlign="bottom"
                 height={36}
-                content={({ payload }: any) => (
+                content={({ payload }: LegendContentProps) => (
                   <div className="flex justify-center gap-4 text-xs">
-                    {payload.map((entry: any, index: number) => (
+                    {payload?.map((entry, index) => (
                       <div key={index} className="flex items-center gap-1">
                         <div className="w-3 h-3" style={{ backgroundColor: entry.color }} />
                         <span className="text-white">{entry.value}</span>
@@ -215,13 +233,13 @@ export const PlayerStatsRadar: React.FC<PlayerStatsRadarProps> = ({
   );
 };
 
-export const CustomTooltip = ({ active, payload }: any) => {
+export const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
   if (!active || !payload?.length) return null;
 
   return (
     <div className="rounded-lg border border-primary/30 bg-card px-3 py-2 text-xs text-white">
       <div className="font-medium mb-1">{payload[0].payload.axis}</div>
-      {payload.map((entry: any, index: number) => (
+      {payload.map((entry, index) => (
         <div key={index} className="flex items-center gap-2">
           <div className="w-2 h-2" style={{ backgroundColor: entry.color }} />
           <span className="text-gray-300">

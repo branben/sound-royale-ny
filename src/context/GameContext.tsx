@@ -11,6 +11,7 @@ import { GameState, TileStatus, RoomResponse, Tile } from '@/types/game';
 import { mockGameState } from '@/data/mockGameState';
 import { normalizeRoomWinner, roomApi, getStoredAccessToken } from '@/services/api';
 import gameSocket, { GameSocketMessage } from '@/services/gameSocket';
+import ReconnectingBanner from '@/components/game/ReconnectingBanner';
 import { useUser } from './UserContext';
 
 // ---------------------------------------------------------------------------
@@ -95,8 +96,65 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+  const [isReconnecting, setIsReconnecting] = useState(false);
 
   const isMounted = useRef(true);
+
+  // Map a backend RoomResponse into the normalized client GameState.
+  // Used both on initial mount and on WebSocket reconnect so that the
+  // full game state is REPLACED (not merged) after a disconnect, per guardrail #101.
+  const mapRoomToGameState = useCallback((roomData: RoomResponse): GameState => {
+    const players: GameState['players'] = {};
+    roomData.players.forEach((player) => {
+      const tiles =
+        player.board?.tiles ??
+        player.tiles?.map((tile) => ({
+          id: tile.id,
+          genre: tile.genre,
+          status: tile.status,
+          audioUrl: tile.audio_url,
+        })) ??
+        [];
+
+      players[player.id] = {
+        id: player.id,
+        name: player.name ?? '',
+        avatar: player.avatar,
+        isDiscordVerified: player.is_discord_verified,
+        discordUsername: player.discord_username,
+        discordAvatarUrl: player.discord_avatar_url,
+        board: { tiles },
+        isConnected: player.is_connected,
+        isSpectator: player.is_spectator,
+        isHost: player.is_host,
+        isReady: player.is_ready,
+        eloRating: player.elo_rating,
+        eloWins: player.elo_wins,
+        eloLosses: player.elo_losses,
+        eloMatches: player.elo_matches,
+        isCheckedIn: player.is_checked_in,
+        currentTitle: player.current_title,
+        scoreInfo: player.scoreInfo,
+      };
+    });
+
+    return {
+      gameId: roomData.code,
+      roomCode: roomData.code,
+      status: roomData.status,
+      players,
+      currentRound: roomData.current_round,
+      winner: normalizeRoomWinner(roomData.winner),
+      eloDeltas: roomData.elo_deltas?.map((d) => ({
+        playerId: d.player_id,
+        playerName: d.player_name,
+        previousElo: d.previous_elo,
+        newElo: d.new_elo,
+        delta: d.delta,
+        isWinner: d.is_winner,
+      })),
+    };
+  }, []);
 
   // Fetch real data from backend when not in E2E mode and roomCode is provided
   useEffect(() => {
@@ -119,58 +177,8 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
       try {
         const roomData: RoomResponse = await roomApi.getRoom(roomCode);
 
-        const players: GameState['players'] = {};
-        roomData.players.forEach((player) => {
-          const tiles =
-            player.board?.tiles ??
-            player.tiles?.map((tile) => ({
-              id: tile.id,
-              genre: tile.genre,
-              status: tile.status,
-              audioUrl: tile.audio_url,
-            })) ??
-            [];
-
-          players[player.id] = {
-            id: player.id,
-            name: player.name ?? '',
-            avatar: player.avatar,
-            isDiscordVerified: player.is_discord_verified,
-            discordUsername: player.discord_username,
-            discordAvatarUrl: player.discord_avatar_url,
-            board: { tiles },
-            isConnected: player.is_connected,
-            isSpectator: player.is_spectator,
-            isHost: player.is_host,
-            isReady: player.is_ready,
-            eloRating: player.elo_rating,
-            eloWins: player.elo_wins,
-            eloLosses: player.elo_losses,
-            eloMatches: player.elo_matches,
-            isCheckedIn: player.is_checked_in,
-            currentTitle: player.current_title,
-            scoreInfo: player.scoreInfo,
-          };
-        });
-
         if (isMounted.current) {
-          setGameState((prev) => ({
-            ...prev,
-            gameId: roomData.code,
-            roomCode: roomData.code,
-            status: roomData.status,
-            players,
-            currentRound: roomData.current_round,
-            winner: normalizeRoomWinner(roomData.winner),
-            eloDeltas: roomData.elo_deltas?.map((d) => ({
-              playerId: d.player_id,
-              playerName: d.player_name,
-              previousElo: d.previous_elo,
-              newElo: d.new_elo,
-              delta: d.delta,
-              isWinner: d.is_winner,
-            })),
-          }));
+          setGameState(mapRoomToGameState(roomData));
         }
       } catch (err) {
         if (isMounted.current)
@@ -186,7 +194,7 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
     return () => {
       isMounted.current = false;
     };
-  }, [roomCode, isE2E]);
+  }, [roomCode, isE2E, mapRoomToGameState]);
 
   useEffect(() => {
     if (isE2E || !roomCode) {
@@ -288,8 +296,29 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
       accessToken: getStoredAccessToken(),
       onMessage: handleMessage,
       onConnect: async () => {
-        // Intentionally not re-fetching room data here: the first useEffect
-        // already fetches on mount, and handleMessage processes real-time
+        // Guardrail #101: re-fetch the FULL game state on reconnect so the
+        // client never relies solely on incremental `game_state_update` events
+        // it may have missed during the disconnect window. The returned state
+        // REPLACES (not merges) the existing gameState.
+        setIsReconnecting(false);
+        setIsLoading(true);
+        setError(null);
+        try {
+          const roomData: RoomResponse = await roomApi.getRoom(roomCode);
+          if (isMounted.current) {
+            setGameState(mapRoomToGameState(roomData));
+          }
+        } catch (err) {
+          if (isMounted.current)
+            setError(err instanceof Error ? err.message : 'Failed to refetch room data');
+          console.error('Error refetching room data on reconnect:', err);
+        } finally {
+          if (isMounted.current) setIsLoading(false);
+        }
+      },
+      onDisconnect: () => {
+        // Show the reconnecting banner during the disconnect→reconnect window.
+        setIsReconnecting(true);
       },
       onError: (error) => console.error('[GameContext] WebSocket error:', error),
     });
@@ -423,7 +452,10 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
     <GameStateContext.Provider value={stateValue}>
       <GameTimerContext.Provider value={timerValue}>
         <GameActionsContext.Provider value={actionsValue}>
-          <GameContext.Provider value={legacyValue}>{children}</GameContext.Provider>
+          <GameContext.Provider value={legacyValue}>
+            <ReconnectingBanner visible={isReconnecting} />
+            {children}
+          </GameContext.Provider>
         </GameActionsContext.Provider>
       </GameTimerContext.Provider>
     </GameStateContext.Provider>

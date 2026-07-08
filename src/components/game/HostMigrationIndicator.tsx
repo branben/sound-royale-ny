@@ -19,7 +19,7 @@ export const HostMigrationIndicator: React.FC<HostMigrationIndicatorProps> = ({
     <div
       data-testid="host-migration-indicator"
       className={cn(
-        'fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-zinc-900 border border-zinc-700 border-l-4 border-l-yellow-500 rounded-lg px-4 py-2 shadow-md animate-in fade-in duration-300',
+        'fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 shadow-md animate-in fade-in duration-300',
         className,
       )}
     >

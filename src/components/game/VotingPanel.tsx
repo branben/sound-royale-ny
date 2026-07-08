@@ -152,7 +152,7 @@ export function VotingPanel({
                   whileTap={{ scale: 0.95 }}
                   transition={transitions.spring}
                   className={cn(
-                    'flex flex-col items-center gap-2 p-6 rounded-lg border-2 border-l-4 transition-all',
+                    'flex flex-col items-center gap-2 p-6 rounded-lg border-2 transition-colors',
                     card.borderHover,
                     card.bgHover,
                     'disabled:opacity-50 disabled:cursor-not-allowed',
