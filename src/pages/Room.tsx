@@ -40,7 +40,6 @@ export default function Room() {
   const [hostMigration, setHostMigration] = useState<{ newHostName: string } | null>(null);
   const [joinName, setJoinName] = useState('');
 
-
   const {
     userSession,
     setPlayerName,
@@ -146,7 +145,6 @@ export default function Room() {
       toast.error('Enter a name to join');
       return;
     }
-
 
     try {
       const player = await gameApi.joinRoom(
@@ -445,7 +443,6 @@ export default function Room() {
               {isReconnecting ? 'Reconnecting…' : 'Loading room…'}
             </p>
           </div>
-
         </main>
       </div>
     );
@@ -591,11 +588,12 @@ export default function Room() {
               )}
             </div>
           </div>
-
         ) : (
           <div className="flex flex-col lg:flex-row gap-2 h-full w-full">
-
-            <div ref={gameInfoRef} className="hidden lg:block lg:w-64 shrink-0 transition-all duration-200">
+            <div
+              ref={gameInfoRef}
+              className="hidden lg:block lg:w-64 shrink-0 transition-all duration-200"
+            >
               <GameInfo roomId={roomId!} currentPlayerName={userSession.playerName ?? undefined} />
             </div>
 
@@ -603,7 +601,6 @@ export default function Room() {
               <Accordion type="single" collapsible>
                 <AccordionItem value="leaderboard" className="border-none">
                   <AccordionTrigger className="rounded-lg bg-zinc-800 px-4 py-3 text-sm font-medium text-zinc-100 hover:bg-zinc-700 transition-colors">
-
                     <div className="flex items-center gap-2">
                       <Trophy className="h-4 w-4 text-yellow-500" />
                       Leaderboard
@@ -732,7 +729,8 @@ export default function Room() {
             </h2>
             {gameState.winner ? (
               <p className="text-base text-zinc-300">
-                <span className="font-bold text-yellow-400">{gameState.winner}</span> takes the bingo.
+                <span className="font-bold text-yellow-400">{gameState.winner}</span> takes the
+                bingo.
               </p>
             ) : (
               <p className="text-sm text-zinc-400">No bingo this round.</p>
@@ -762,7 +760,6 @@ export default function Room() {
           </div>
         </div>
       )}
-
     </div>
   );
 }

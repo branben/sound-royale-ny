@@ -303,69 +303,68 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
                     !player.isConnected && 'border-red-500/30 opacity-70',
                   )}
                 >
-                    <div className="flex min-w-0 flex-col gap-1">
-                      <div className="flex items-center gap-2">
-                        <button
-                          data-testid={`player-name-${player.name}`}
-                          onClick={() => handlePlayerClick(player)}
-                          className={cn(
-                            "min-w-0 break-words text-left text-sm font-['Poppins'] transition-colors cursor-pointer",
-                            playerTextHover(player.id),
-                            player.name === currentPlayerName &&
-                              'font-semibold ' + playerText(player.id),
-                          )}
-                        >
-                          {player.name} {player.name === currentPlayerName && '(You)'}
-                        </button>
-                        {player.isDiscordVerified && (
-                          <DiscordVerifiedIcon username={player.discordUsername} />
-                        )}
-                        <motion.div
-                          animate={{ opacity: player.isConnected ? 0 : 1 }}
-                          transition={{ duration: 0.2 }}
-                          className="inline-flex h-3 w-3 shrink-0 items-center justify-center text-red-500"
-                        >
-                          {!player.isConnected && (
-                            <span data-testid="disconnected-indicator">
-                              <WifiOff className="h-3 w-3" />
-                            </span>
-                          )}
-                        </motion.div>
-                        {gameState.winner === player.id && (
-                          <Crown className="h-4 w-4 text-yellow-500" />
-                        )}
-                      </div>
-                      <TitleBadge title={player.currentTitle} compact />
-                      {player.eloRating !== undefined && (
-                        <div
-                          data-testid={`player-elo-stats-${player.id}`}
-                          className="text-xs text-muted-foreground"
-                        >
-                          {formatPlayerEloStats(player)}
-                        </div>
-                      )}
-                    </div>
+                  <div className="flex min-w-0 flex-col gap-1">
                     <div className="flex items-center gap-2">
-                      {gameState.status === 'playing' && gameState.roundState?.votingOpen && (
-                        <span className="text-xs text-gray-400" data-testid="vote-count">
-                          {gameState.roundState.votesRecorded || 0}/
-                          {Object.values(gameState.players).filter((p) => !p.isSpectator).length ||
-                            0}{' '}
-                          votes
-                        </span>
+                      <button
+                        data-testid={`player-name-${player.name}`}
+                        onClick={() => handlePlayerClick(player)}
+                        className={cn(
+                          "min-w-0 break-words text-left text-sm font-['Poppins'] transition-colors cursor-pointer",
+                          playerTextHover(player.id),
+                          player.name === currentPlayerName &&
+                            'font-semibold ' + playerText(player.id),
+                        )}
+                      >
+                        {player.name} {player.name === currentPlayerName && '(You)'}
+                      </button>
+                      {player.isDiscordVerified && (
+                        <DiscordVerifiedIcon username={player.discordUsername} />
                       )}
-                      {isHost && player.id !== userSession.playerId && (
-                        <Button
-                          data-testid="kick-player"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleKickPlayer(player.id, player.name)}
-                          className="h-6 w-6 p-0 text-red-500 hover:text-red-600"
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
+                      <motion.div
+                        animate={{ opacity: player.isConnected ? 0 : 1 }}
+                        transition={{ duration: 0.2 }}
+                        className="inline-flex h-3 w-3 shrink-0 items-center justify-center text-red-500"
+                      >
+                        {!player.isConnected && (
+                          <span data-testid="disconnected-indicator">
+                            <WifiOff className="h-3 w-3" />
+                          </span>
+                        )}
+                      </motion.div>
+                      {gameState.winner === player.id && (
+                        <Crown className="h-4 w-4 text-yellow-500" />
                       )}
                     </div>
+                    <TitleBadge title={player.currentTitle} compact />
+                    {player.eloRating !== undefined && (
+                      <div
+                        data-testid={`player-elo-stats-${player.id}`}
+                        className="text-xs text-muted-foreground"
+                      >
+                        {formatPlayerEloStats(player)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {gameState.status === 'playing' && gameState.roundState?.votingOpen && (
+                      <span className="text-xs text-gray-400" data-testid="vote-count">
+                        {gameState.roundState.votesRecorded || 0}/
+                        {Object.values(gameState.players).filter((p) => !p.isSpectator).length || 0}{' '}
+                        votes
+                      </span>
+                    )}
+                    {isHost && player.id !== userSession.playerId && (
+                      <Button
+                        data-testid="kick-player"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleKickPlayer(player.id, player.name)}
+                        className="h-6 w-6 p-0 text-red-500 hover:text-red-600"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
