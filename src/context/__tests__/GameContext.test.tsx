@@ -240,10 +240,9 @@ describe('GameContext', () => {
     it('updateTileStatus updates a tile status for a player', () => {
       function TestComponent() {
         const ctx = React.useContext(GameContext);
-        if (!ctx) return null;
 
-        // Set up initial state with a player that has tiles
         React.useEffect(() => {
+          if (!ctx) return;
           ctx.setGameState((prev) => ({
             ...prev,
             players: {
@@ -259,7 +258,9 @@ describe('GameContext', () => {
               },
             },
           }));
-        }, [ctx.setGameState]);
+        }, [ctx?.setGameState]);
+
+        if (!ctx) return null;
 
         return (
           <div>
@@ -298,9 +299,9 @@ describe('GameContext', () => {
     it('setTileAudio updates audioUrl and sets status to complete', () => {
       function TestComponent() {
         const ctx = React.useContext(GameContext);
-        if (!ctx) return null;
 
         React.useEffect(() => {
+          if (!ctx) return;
           ctx.setGameState((prev) => ({
             ...prev,
             players: {
@@ -313,7 +314,9 @@ describe('GameContext', () => {
               },
             },
           }));
-        }, [ctx.setGameState]);
+        }, [ctx?.setGameState]);
+
+        if (!ctx) return null;
 
         return (
           <div>
@@ -353,9 +356,9 @@ describe('GameContext', () => {
     it('toggleReady toggles isReady for a player', () => {
       function TestComponent() {
         const ctx = React.useContext(GameContext);
-        if (!ctx) return null;
 
         React.useEffect(() => {
+          if (!ctx) return;
           ctx.setGameState((prev) => ({
             ...prev,
             players: {
@@ -367,7 +370,9 @@ describe('GameContext', () => {
               },
             },
           }));
-        }, [ctx.setGameState]);
+        }, [ctx?.setGameState]);
+
+        if (!ctx) return null;
 
         return (
           <div>
@@ -403,9 +408,9 @@ describe('GameContext', () => {
     it('incrementScore adds points to player score', () => {
       function TestComponent() {
         const ctx = React.useContext(GameContext);
-        if (!ctx) return null;
 
         React.useEffect(() => {
+          if (!ctx) return;
           ctx.setGameState((prev) => ({
             ...prev,
             players: {
@@ -417,7 +422,9 @@ describe('GameContext', () => {
               },
             },
           }));
-        }, [ctx.setGameState]);
+        }, [ctx?.setGameState]);
+
+        if (!ctx) return null;
 
         return (
           <div>
@@ -453,9 +460,9 @@ describe('GameContext', () => {
     it('incrementScore starts from 0 when player has no score', () => {
       function TestComponent() {
         const ctx = React.useContext(GameContext);
-        if (!ctx) return null;
 
         React.useEffect(() => {
+          if (!ctx) return;
           ctx.setGameState((prev) => ({
             ...prev,
             players: {
@@ -466,7 +473,9 @@ describe('GameContext', () => {
               },
             },
           }));
-        }, [ctx.setGameState]);
+        }, [ctx?.setGameState]);
+
+        if (!ctx) return null;
 
         return (
           <div>
