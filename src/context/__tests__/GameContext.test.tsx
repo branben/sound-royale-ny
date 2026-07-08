@@ -17,6 +17,7 @@ vi.mock('../UserContext', () => ({
 
 // Mock the API module
 vi.mock('@/services/api', () => ({
+  getStoredAccessToken: vi.fn(() => null),
   roomApi: {
     getRoom: vi.fn(),
   },

@@ -115,7 +115,6 @@ export default function Lobby() {
     gsap.from(mainCardRef.current, { opacity: 0, duration: 0.2, ease: 'power1.out' });
   }, []);
 
-
   const handleRoomJoined = (joinedRoomCode: string) => {
     setRoomCode(joinedRoomCode);
   };
@@ -268,10 +267,7 @@ export default function Lobby() {
   };
 
   return (
-    <div
-      data-testid="lobby"
-      className="min-h-screen bg-background flex flex-col"
-    >
+    <div data-testid="lobby" className="min-h-screen bg-background flex flex-col">
       {/* Top bar — single wordmark only, no decorative icon */}
       <header className="flex items-center justify-between px-6 py-5">
         <span
@@ -318,11 +314,7 @@ export default function Lobby() {
           </div>
 
           {/* Action card */}
-          <div
-            ref={mainCardRef}
-            className="bg-card border border-border rounded-2xl p-6 shadow-md"
-          >
-
+          <div ref={mainCardRef} className="bg-card border border-border rounded-2xl p-6 shadow-md">
             <LobbyModeSwitcher
               mode={mode}
               playerNameInput={playerNameInput}
