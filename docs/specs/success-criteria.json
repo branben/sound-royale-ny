@@ -142,8 +142,8 @@
         {
           "id": "casual-no-elo",
           "description": "Casual results do not affect ELO / ranked leaderboard.",
-          "testRefs": [],
-          "status": "gap"
+          "testRefs": ["tests/e2e/live/casual-no-elo.spec.ts"],
+          "status": "covered"
         }
       ]
     },
@@ -199,11 +199,6 @@
       "mode": "casual",
       "criterion": "casual-no-voting",
       "note": "Behavior exists in GameInfo.tsx:95 but no e2e asserts time-up ends round without voting."
-    },
-    {
-      "mode": "casual",
-      "criterion": "casual-no-elo",
-      "note": "No test asserts casual results are excluded from ELO/leaderboard."
     },
     {
       "mode": "ranked",
