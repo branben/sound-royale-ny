@@ -1,0 +1,214 @@
+{
+  "project": "sound-royale-ny",
+  "generated": "2026-07-08",
+  "modes": [
+    {
+      "id": "shared",
+      "name": "Cross-mode (applies to both casual and ranked)",
+      "criteria": [
+        {
+          "id": "setup-create-room",
+          "description": "A host can create a room; room code + player info returned.",
+          "testRefs": [
+            "src/services/__tests__/api.test.ts > roomApi > createRoom > sends correct payload and returns room code + player info"
+          ],
+          "status": "covered"
+        },
+        {
+          "id": "setup-join",
+          "description": "A second player can join; lobby state syncs for both.",
+          "testRefs": [
+            "tests/e2e/live/create-join-start.spec.ts > both players see correct lobby state after join"
+          ],
+          "status": "covered"
+        },
+        {
+          "id": "play-start",
+          "description": "Host starts the game; both players see the game board.",
+          "testRefs": [
+            "tests/e2e/live/create-join-start.spec.ts > host starts game and both players see game board"
+          ],
+          "status": "covered"
+        },
+        {
+          "id": "play-tile-submit",
+          "description": "Producers submit tiles (audio) for assigned genres.",
+          "testRefs": [
+            "tests/e2e/live/casual-full-game.spec.ts > should handle tile submission for random genres",
+            "src/services/__tests__/api.test.ts > gameApi > submitTile > sends FormData with audio_file and player_id"
+          ],
+          "status": "covered"
+        },
+        {
+          "id": "play-round-advance",
+          "description": "Rounds advance to bingo (win condition reached).",
+          "testRefs": [
+            "tests/e2e/live/casual-full-game.spec.ts > should play full casual game to bingo",
+            "tests/e2e/live/ranked-full-game.spec.ts > should play full ranked game with voting to bingo"
+          ],
+          "status": "covered"
+        },
+        {
+          "id": "rejoin-recovery",
+          "description": "A player reloading mid-game restores their board/state via rejoin.",
+          "testRefs": [
+            "tests/e2e/rejoin-recovery.spec.ts > restores a producer board through rejoin_game after reload",
+            "tests/e2e/rejoin-recovery.spec.ts > restores a spectator dashboard through rejoin_game after reload",
+            "tests/e2e/live/create-join-start.spec.ts > host status is restored after page refresh via rejoin flow"
+          ],
+          "status": "covered"
+        },
+        {
+          "id": "host-migration",
+          "description": "When the host disconnects, a migration indicator appears and control transfers.",
+          "testRefs": [
+            "tests/e2e/host-migration.spec.ts > host migration indicator appears when host disconnects"
+          ],
+          "status": "covered"
+        },
+        {
+          "id": "tie-breaking",
+          "description": "Winner declared by most lines; efficiency + simultaneous-completion tie-breakers handled and explained.",
+          "testRefs": [
+            "tests/e2e/tie-breaking.spec.ts > should declare player with most lines as winner",
+            "tests/e2e/tie-breaking.spec.ts > should use efficiency tie-breaker when lines are equal",
+            "tests/e2e/tie-breaking.spec.ts > should handle simultaneous completion tie-breaker",
+            "tests/e2e/tie-breaking.spec.ts > should show tie-breaker explanation in victory display"
+          ],
+          "status": "covered"
+        },
+        {
+          "id": "scoring-display",
+          "description": "Score display shows base (100/line), multi-line bonus, speed bonus, combined bonuses, completed-lines viz.",
+          "testRefs": [
+            "tests/e2e/score-display.spec.ts > should show base score calculation (100 points per line)",
+            "tests/e2e/score-display.spec.ts > should show multi-line bonus in ScoreDisplay",
+            "tests/e2e/score-display.spec.ts > should show speed bonus when completing quickly",
+            "tests/e2e/score-display.spec.ts > should show combined bonuses together",
+            "tests/e2e/score-display.spec.ts > should show completed lines visualization"
+          ],
+          "status": "covered"
+        },
+        {
+          "id": "pii-safety",
+          "description": "Player secret is never exposed in console logs.",
+          "testRefs": [
+            "tests/e2e/pii-prevention.spec.ts > should not expose playerSecret in console logs"
+          ],
+          "status": "covered"
+        },
+        {
+          "id": "share-invite",
+          "description": "Room share button is visible and clickable with correct behavior.",
+          "testRefs": [
+            "tests/e2e/share-invite.spec.ts > share button is visible in room page",
+            "tests/e2e/share-invite.spec.ts > share button is clickable and has correct behavior"
+          ],
+          "status": "covered"
+        },
+        {
+          "id": "lobby-shell",
+          "description": "Lobby/room/leaderboard/admin/404 surfaces render.",
+          "testRefs": [
+            "tests/e2e/integration-verification.spec.ts > lobby shell loads with title and room code input",
+            "tests/e2e/integration-verification.spec.ts > room page renders with mocked state",
+            "tests/e2e/integration-verification.spec.ts > leaderboard page loads",
+            "tests/e2e/integration-verification.spec.ts > admin page shows PIN input",
+            "tests/e2e/integration-verification.spec.ts > 404 navigation shows NotFound page"
+          ],
+          "status": "covered"
+        }
+      ]
+    },
+    {
+      "id": "casual",
+      "name": "Casual mode",
+      "criteria": [
+        {
+          "id": "casual-full-game",
+          "description": "A full casual game plays through rounds to bingo without voting.",
+          "testRefs": [
+            "tests/e2e/live/casual-full-game.spec.ts > should play full casual game to bingo",
+            "tests/e2e/live/casual-full-game.spec.ts > should handle tile submission for random genres"
+          ],
+          "status": "covered"
+        },
+        {
+          "id": "casual-no-voting",
+          "description": "Casual rounds end on time-up with no spectator voting (per GameInfo.tsx:95).",
+          "testRefs": [],
+          "status": "gap"
+        },
+        {
+          "id": "casual-no-elo",
+          "description": "Casual results do not affect ELO / ranked leaderboard.",
+          "testRefs": [],
+          "status": "gap"
+        }
+      ]
+    },
+    {
+      "id": "ranked",
+      "name": "Ranked mode",
+      "criteria": [
+        {
+          "id": "ranked-full-game",
+          "description": "A full ranked game plays through rounds with spectator voting to bingo.",
+          "testRefs": [
+            "tests/e2e/live/ranked-full-game.spec.ts > should play full ranked game with voting to bingo",
+            "tests/e2e/live/ranked-full-game.spec.ts > should handle voting phase in ranked mode"
+          ],
+          "status": "covered"
+        },
+        {
+          "id": "ranked-voting-gate",
+          "description": "Voting requires >=3 spectators (per VotingPanel.tsx:105).",
+          "testRefs": [],
+          "status": "gap"
+        },
+        {
+          "id": "ranked-elo",
+          "description": "ELO updates on win/loss, persists across games, does not affect spectators.",
+          "testRefs": [
+            "tests/e2e/elo-rating.spec.ts > should display ELO rating",
+            "tests/e2e/elo-rating.spec.ts > should show winner gains ELO",
+            "tests/e2e/elo-rating.spec.ts > should show loser loses ELO",
+            "tests/e2e/elo-rating.spec.ts > should show ELO stats in final standings",
+            "tests/e2e/elo-rating.spec.ts > should not affect spectator ELO",
+            "tests/e2e/elo-rating.spec.ts > should persist ELO across games"
+          ],
+          "status": "covered"
+        },
+        {
+          "id": "ranked-leaderboard",
+          "description": "Ranked players render on the leaderboard; profile modal + genre radar chart work.",
+          "testRefs": [
+            "tests/e2e/leaderboard-profile.spec.ts > leaderboard page renders ranked players",
+            "tests/e2e/leaderboard-profile.spec.ts > clicking player opens profile modal",
+            "tests/e2e/genre-heatmap-leaderboard.spec.ts > opens leaderboard from lobby and renders players sorted by ELO with genre summary",
+            "tests/e2e/genre-heatmap-leaderboard.spec.ts > renders the radar chart in the player profile modal",
+            "tests/e2e/titles.spec.ts > ranked title and ELO results render in match surfaces"
+          ],
+          "status": "covered"
+        }
+      ]
+    }
+  ],
+  "gaps": [
+    {
+      "mode": "casual",
+      "criterion": "casual-no-voting",
+      "note": "Behavior exists in GameInfo.tsx:95 but no e2e asserts time-up ends round without voting."
+    },
+    {
+      "mode": "casual",
+      "criterion": "casual-no-elo",
+      "note": "No test asserts casual results are excluded from ELO/leaderboard."
+    },
+    {
+      "mode": "ranked",
+      "criterion": "ranked-voting-gate",
+      "note": "VotingPanel.tsx:105 enforces >=3 spectators; no e2e asserts the gate blocks voting below threshold."
+    }
+  ]
+}

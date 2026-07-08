@@ -1,0 +1,117 @@
+{
+  "project": "sound-royale-ny",
+  "generated": "2026-07-08",
+  "sourceOfTruth": ["src/index.css (HSL token vars)", "tailwind.config.ts (theme.extend)"],
+  "tokens": {
+    "colors": [
+      "background",
+      "foreground",
+      "card",
+      "card-foreground",
+      "popover",
+      "popover-foreground",
+      "primary",
+      "primary-foreground",
+      "secondary",
+      "secondary-foreground",
+      "muted",
+      "muted-foreground",
+      "accent",
+      "accent-foreground",
+      "destructive",
+      "destructive-foreground",
+      "border",
+      "input",
+      "ring",
+      "sidebar-background",
+      "sidebar-foreground",
+      "sidebar-primary",
+      "sidebar-primary-foreground",
+      "sidebar-accent",
+      "sidebar-accent-foreground",
+      "sidebar-border",
+      "sidebar-ring",
+      "chart-1",
+      "chart-2",
+      "chart-3",
+      "chart-4",
+      "chart-5",
+      "player-1",
+      "player-2",
+      "player-3",
+      "player-4",
+      "success",
+      "warning",
+      "error"
+    ],
+    "spacing": ["tailwind default scale only (no arbitrary px offsets)"],
+    "radii": [
+      "lg=var(--radius)",
+      "md=calc(var(--radius)-2px)",
+      "sm=calc(var(--radius)-4px)",
+      "--radius=0.5rem"
+    ],
+    "fonts": ["sans=Poppins stack", "display=Righteous", "mono=SF Mono stack"],
+    "animations": [
+      "card-enter",
+      "fade-in",
+      "scale-in",
+      "slide-up",
+      "timer-urgent",
+      "glow",
+      "accordion-down",
+      "accordion-up"
+    ],
+    "shadows": ["shadow-sm", "shadow", "shadow-md", "shadow-lg (pure black rgba, no color tint)"]
+  },
+  "banned": [
+    {
+      "id": "hardcoded-hex",
+      "pattern": "(bg|text|border|ring|from|to|via|fill|stroke|shadow)-+\\[#([0-9a-fA-F]{3,8})\\]",
+      "reason": "Use semantic tokens (primary, destructive, player-N) not raw hex."
+    },
+    {
+      "id": "hardcoded-rgb",
+      "pattern": "(bg|text|border)-+\\[rgba?\\([^)]+\\)\\]",
+      "reason": "Raw rgb/rgba in className bypasses the token system."
+    },
+    {
+      "id": "hardcoded-hsl-class",
+      "pattern": "(bg|text|border)-+\\[hsl\\([^]]+\\)\\]",
+      "reason": "Use hsl(var(--token)) via token class, not inline hsl."
+    },
+    {
+      "id": "offscale-spacing",
+      "pattern": "(p|m|gap|px|py|mx|my)-+\\[\\d+(\\.\\d+)?(px|rem)\\]",
+      "reason": "Use the Tailwind spacing scale; arbitrary px breaks rhythm."
+    },
+    {
+      "id": "offscale-radius",
+      "pattern": "rounded-\\[\\d+(\\.\\d+)?(px|rem)\\]",
+      "reason": "Use rounded-lg/md/sm mapped to --radius."
+    },
+    {
+      "id": "raw-color-word",
+      "pattern": "(bg|text|border)-(red|blue|green|yellow|zinc|slate|gray|neutral)-\\d{2,3}",
+      "reason": "Only semantic tokens allowed (red-500 etc. are not in this system)."
+    }
+  ],
+  "allowedExceptions": [
+    {
+      "pattern": "bg-\\[url\\(.+\\)\\]",
+      "reason": "Background images (e.g. album art) are legitimate arbitrary values."
+    },
+    { "pattern": "transparent|inherit|currentColor", "reason": "Legitimate non-token values." },
+    {
+      "pattern": "opacity-\\[\\d+\\]|z-\\[\\d+\\]",
+      "reason": "Opacity/z-index overrides are routine and safe."
+    }
+  ],
+  "policy": {
+    "no-hardcoded-color": true,
+    "no-arbitrary-value": true,
+    "tokens-must-exist": true,
+    "enforcement": "warn",
+    "note": "Start in warn; ratchet to error after a cleanup PR removes current violations (see gate-rot lesson: banning instantly on many violations recreates the blockade)."
+  }
+}
