@@ -591,9 +591,10 @@ type TestFixtures = {
 };
 
 export const test = base.extend<TestFixtures>({
-  gameManager: async ({}, use) => {
+  gameManager: async (_, use) => {
     const manager = new GameStateManager();
     await manager.setup();
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- Playwright fixture, not a React hook
     await use(manager);
     await manager.teardown();
   },
@@ -610,6 +611,7 @@ export const test = base.extend<TestFixtures>({
     });
 
     const context = new PlayerContext(page, gameManager, playerId);
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- Playwright fixture, not a React hook
     await use(context);
   }
 });

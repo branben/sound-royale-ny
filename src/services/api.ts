@@ -109,7 +109,9 @@ api.interceptors.response.use(
             stack: error.stack || '',
           })
           .catch((err) => console.error('Failed to log error:', err));
-      } catch {}
+      } catch (e) {
+        void e; // non-fatal error-log failure
+      }
     }
 
     // Handle 401: attempt token refresh

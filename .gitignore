@@ -70,6 +70,10 @@ playwright-report/
 
 # --- Other junk ---
 scripts/
+!scripts/
+!scripts/conductor/
+scripts/conductor/*
+!scripts/conductor/dispatch.sh
 backend/gaia/
 backend/media/
 backend/practical-exercises.md

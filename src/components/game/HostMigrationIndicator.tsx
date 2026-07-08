@@ -29,5 +29,4 @@ export const HostMigrationIndicator: React.FC<HostMigrationIndicatorProps> = ({
       </div>
     </div>
   );
-
 };
