@@ -1,0 +1,60 @@
+name: TestDriver.ai Tests
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+# Least-privilege token for the OIDC exchange that the TestDriver action uses
+# to mint a short-lived API key (no long-lived TD_API_KEY secret required).
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  testdriver:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      # Repo convention (see .github/workflows/gaia-guards-ci.yml): install
+      # with --ignore-scripts --legacy-peer-deps, using the committed lockfile.
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --legacy-peer-deps
+
+      # Authenticate to TestDriver via GitHub OIDC. This only exports TD_API_KEY
+      # into the job environment; a later step runs the tests. If OIDC is not
+      # yet configured for this org, pass a stored key as a fallback:
+      #   with:
+      #     api-key: ${{ secrets.TD_API_KEY }}
+      - name: Authenticate to TestDriver
+        uses: testdriverai/action@test
+
+      # Runs ONLY the TestDriver computer-use tests (kept under tests/testdriver/**
+      # with their own config), separate from the repo's jsdom unit tests
+      # (vitest.config.ts) and Playwright E2E suite (playwright.config.ts).
+      #
+      # Set the SOUND_ROYALE_URL repo variable to the deployment you want to
+      # smoke test (Settings -> Secrets and variables -> Actions -> Variables).
+      # Until a production deployment exists this must be set, or tests will
+      # target the not-yet-resolving default (https://soundroyale.com).
+      - name: Run TestDriver.ai tests
+        env:
+          SOUND_ROYALE_URL: ${{ vars.SOUND_ROYALE_URL }}
+        run: npx vitest run --config vitest.testdriver.config.mjs
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: testdriver-results
+          path: test-results/
+          retention-days: 30
