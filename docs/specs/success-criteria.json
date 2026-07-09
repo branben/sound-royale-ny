@@ -136,8 +136,10 @@
         {
           "id": "casual-no-voting",
           "description": "Casual rounds end on time-up with no spectator voting (per GameInfo.tsx:95).",
-          "testRefs": [],
-          "status": "gap"
+          "testRefs": [
+            "tests/e2e/live/casual-full-game.spec.ts > should play full casual game to bingo"
+          ],
+          "status": "covered"
         },
         {
           "id": "casual-no-elo",
@@ -195,11 +197,6 @@
     }
   ],
   "gaps": [
-    {
-      "mode": "casual",
-      "criterion": "casual-no-voting",
-      "note": "Behavior exists in GameInfo.tsx:95 but no e2e asserts time-up ends round without voting."
-    },
     {
       "mode": "casual",
       "criterion": "casual-no-elo",
