@@ -57,6 +57,16 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
 - If a required sync or push is blocked, stop and report the exact command and error.
 <!-- END BEADS INTEGRATION -->
 
+## Agent skills
+
+### Issue tracker
+Primary tracker is **GitHub Issues** (`gh` CLI) — authoritative for issues/PRs and where CI runs. **beads** (`bd`) is the agent-dispatch layer: `bd ready` is what the Orca/Hermes loop reads to pick up *agent-ready* work. Map: GitHub issue = source of truth; bead = agent work-item derived from it. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+GitHub labels are NOT the canonical 5-role set; they map as: `needs-triage`→`GAIA`/`production-readiness`, `needs-info`→`question`, `ready-for-agent`→`auto-reviewed`/`cto-repo-orchestrator`, `ready-for-human`→`needs-human-review`, `wontfix`→`wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+**Single-context**: one `CONTEXT.md` at repo root. No `docs/adr/` yet. Engineering skills (`improve-codebase-architecture`, `diagnose`, `tdd`) read `CONTEXT.md` for domain language. See `docs/agents/domain.md`.
 
 ## Build & Test
 

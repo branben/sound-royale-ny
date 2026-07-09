@@ -1,36 +1,29 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import React from 'react';
+import { WifiOff } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface ReconnectingBannerProps {
-  /** Whether the banner should be shown (during a disconnect→reconnect window). */
-  visible: boolean;
+  isVisible: boolean;
+  className?: string;
 }
 
-/**
- * Lightweight banner shown while the WebSocket is reconnecting, so the player
- * knows why the board is momentarily frozen instead of assuming the room hung.
- * Visibility is driven by GameContext's `isReconnecting` state (set on
- * `onDisconnect`, cleared on `onConnect`).
- */
-export function ReconnectingBanner({ visible }: ReconnectingBannerProps) {
+export const ReconnectingBanner: React.FC<ReconnectingBannerProps> = ({ isVisible, className }) => {
+  if (!isVisible) return null;
+
   return (
-    <AnimatePresence>
-      {visible && (
-        <motion.div
-          data-testid="reconnecting-banner"
-          role="status"
-          aria-live="polite"
-          initial={{ opacity: 0, y: -16 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -16 }}
-          transition={{ duration: 0.2 }}
-          className="fixed top-0 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-amber-500/90 text-black font-semibold px-4 py-2 rounded-b-lg shadow-lg"
-        >
-          <span className="inline-block h-3 w-3 rounded-full bg-black/70 animate-pulse" />
-          Reconnecting…
-        </motion.div>
+    <div
+      data-testid="reconnecting-banner"
+      role="status"
+      aria-live="polite"
+      className={cn(
+        'fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-zinc-900 border border-zinc-700 border-l-4 border-l-amber-500 rounded-lg px-4 py-2 shadow-md animate-in fade-in duration-300',
+        className,
       )}
-    </AnimatePresence>
+    >
+      <div className="flex items-center gap-2">
+        <WifiOff className="h-5 w-5 text-amber-500" />
+        <span className="text-sm font-semibold text-zinc-100">Reconnecting…</span>
+      </div>
+    </div>
   );
-}
-
-export default ReconnectingBanner;
+};

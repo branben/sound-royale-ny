@@ -1,5 +1,13 @@
 import { Page, expect } from '@playwright/test';
-import { joinRoom, submitTile, nextTurn, castVote, getGameState, toggleReady, openVoting } from '../helpers';
+import {
+  joinRoom,
+  submitTile,
+  nextTurn,
+  castVote,
+  getGameState,
+  toggleReady,
+  openVoting,
+} from '../helpers';
 import { setupPlayerSession } from '../../helpers';
 import axios from 'axios';
 
@@ -40,20 +48,22 @@ export class PlayerPage {
       try {
         response = await axios.post(`${getApiBaseUrl()}/rooms/`, {
           name: 'Test Room',
-          player_name: this.name
+          player_name: this.name,
         });
         break;
       } catch (error: any) {
         if (i === MAX_RETRIES - 1) throw error;
         if (error.response?.status === 429) {
           const backoff = Math.min(Math.pow(2, i) * 1000, MAX_BACKOFF_MS);
-          console.log(`createRoom 429 rate limited, retrying in ${backoff}ms... (${i + 1}/${MAX_RETRIES})`);
-          await new Promise(r => setTimeout(r, backoff));
+          console.log(
+            `createRoom 429 rate limited, retrying in ${backoff}ms... (${i + 1}/${MAX_RETRIES})`,
+          );
+          await new Promise((r) => setTimeout(r, backoff));
           continue;
         }
         if (error.response?.status === 500) {
           console.log(`createRoom 500 error, retrying in 500ms... (${i + 1}/${MAX_RETRIES})`);
-          await new Promise(r => setTimeout(r, 500));
+          await new Promise((r) => setTimeout(r, 500));
           continue;
         }
         throw error;
@@ -74,8 +84,9 @@ export class PlayerPage {
       isSpectator: false,
     });
     await this.page.goto(`/room/${this.roomCode}`);
-    // Wait for lobby to confirm render
-    await expect(this.page.locator('data-testid=lobby')).toBeVisible({ timeout: 15000 });
+    // Wait for the room screen to confirm render (data-testid=lobby was removed
+    // from the Room UI; "room-id" is the stable anchor present for host + producers).
+    await expect(this.page.locator('data-testid=room-id')).toBeVisible({ timeout: 15000 });
 
     return this.roomCode;
   }
@@ -115,7 +126,7 @@ export class PlayerPage {
         isSpectator: false,
       });
       await this.page.goto(`/room/${roomCode}`);
-      await expect(this.page.locator('data-testid=lobby')).toBeVisible({ timeout: 15000 });
+      await expect(this.page.locator('data-testid=room-id')).toBeVisible({ timeout: 15000 });
     }
   }
 
@@ -146,7 +157,7 @@ export class PlayerPage {
 
     const matchingTile = roundGenre
       ? this.boardTiles.find(
-          t => t.status !== 'complete' && t.genre.toLowerCase() === roundGenre.toLowerCase()
+          (t) => t.status !== 'complete' && t.genre.toLowerCase() === roundGenre.toLowerCase(),
         )
       : undefined;
 
@@ -166,10 +177,10 @@ export class PlayerPage {
       console.error(`submitTile failed for ${this.name}: ${msg}`);
       throw error;
     }
-    
+
     // Mark as completed locally
     matchingTile.status = 'complete';
-    
+
     // Wait for submission to propagate
     await this.page.waitForTimeout(500);
     return true;
@@ -202,7 +213,7 @@ export class PlayerPage {
   async waitForState(expected: 'lobby' | 'playing' | 'voting' | 'finished'): Promise<void> {
     const maxWait = 30000; // 30 seconds
     const startTime = Date.now();
-    
+
     while (Date.now() - startTime < maxWait) {
       const state = await getGameState(this.roomCode);
       if (state.status === expected) {
@@ -210,7 +221,7 @@ export class PlayerPage {
       }
       await this.page.waitForTimeout(500);
     }
-    
+
     throw new Error(`Timed out waiting for state: ${expected}`);
   }
 
@@ -225,21 +236,21 @@ export class PlayerPage {
       const keys = Object.keys(state.players || {});
       throw new Error(
         `loadBoardTiles: player ${this.playerId} not found in state.players. ` +
-        `Keys: [${keys.join(', ')}], playerName: ${this.name}, role: ${this.role}`
+          `Keys: [${keys.join(', ')}], playerName: ${this.name}, role: ${this.role}`,
       );
     }
     const tiles = playerData.board?.tiles || playerData.tiles || [];
     if (tiles.length === 0) {
       throw new Error(
         `loadBoardTiles: player ${this.playerId} (${this.name}) has no tiles. ` +
-        `playerData keys: [${Object.keys(playerData).join(', ')}]`
+          `playerData keys: [${Object.keys(playerData).join(', ')}]`,
       );
     }
     this.boardTiles = tiles.map((t: any) => ({
       id: t.id,
       genre: t.genre,
       position: t.position,
-      status: t.status
+      status: t.status,
     }));
   }
 
@@ -251,6 +262,16 @@ export class PlayerPage {
 
   async assertVotingPanelVisible(): Promise<void> {
     await expect(this.page.getByTestId('voting-panel')).toBeVisible({ timeout: 15000 });
+  }
+
+  async assertCasualVotingDisabled(): Promise<void> {
+    // In casual mode (spectators < 3), time-up ends the round with no voting UI.
+    // The UI replaces the voting panel with a "Casual round complete" card that
+    // explicitly states no votes are recorded — assert that contract.
+    await expect(this.page.getByText('Casual round complete')).toBeVisible({ timeout: 15000 });
+    await expect(this.page.getByText('No votes are recorded for this round.')).toBeVisible({
+      timeout: 15000,
+    });
   }
 
   async assertWinnerVisible(winnerName: string): Promise<void> {
