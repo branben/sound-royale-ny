@@ -853,6 +853,81 @@ class VotingAPITestCase(TestCase):
         self.assertIn('Need at least 3 spectators', response.data['error'])
 
 
+class CasualNoVotingTestCase(TestCase):
+    """Prove casual rounds end on time-up with no spectator voting.
+
+    Mirrors success-criteria.json criterion 'casual-no-voting'.
+    In casual mode (spectators < 3), the round timer expiry must NOT open
+    voting, and the host must still be able to advance the round with zero
+    votes recorded.
+    """
+
+    def setUp(self):
+        self.client = APIClient()
+        self.room = Room.objects.create(name="Casual Room", code="5678")
+        self.host = Player.objects.create(
+            room=self.room,
+            name="HostPlayer",
+            is_host=True,
+            is_spectator=False,
+        )
+        self.producer = Player.objects.create(
+            room=self.room,
+            name="Producer2",
+            is_host=False,
+            is_spectator=False,
+        )
+        # Explicitly NO spectators -> casual mode
+        for p in [self.host, self.producer]:
+            create_user_for_player(p)
+        self.host_auth = get_jwt_header(self.host)
+
+    def _start_game(self):
+        url = reverse('room-start-game', kwargs={'code': '5678'})
+        response = self.client.post(
+            url, {'player_secret': str(self.host.player_secret)}, format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['match_type'], Room.MatchType.CASUAL)
+
+    def test_casual_open_voting_rejected_after_time_up(self):
+        self._start_game()
+        round_obj = Round.objects.filter(room=self.room).first()
+        # Simulate time-up: force timer_ends_at into the past and voting closed.
+        round_obj.timer_ends_at = timezone.now() - timezone.timedelta(seconds=1)
+        round_obj.voting_open = False
+        round_obj.save()
+
+        url = reverse('room-open-voting', kwargs={'code': '5678'})
+        response = self.client.post(
+            url, {'player_secret': str(self.host.player_secret)}, format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('casual mode - no voting', response.data['error'])
+
+    def test_casual_round_advances_without_votes(self):
+        self._start_game()
+        round_obj = Round.objects.filter(room=self.room).first()
+        round_obj.timer_ends_at = timezone.now() - timezone.timedelta(seconds=1)
+        round_obj.voting_open = False
+        round_obj.save()
+
+        # No votes exist for this round yet.
+        self.assertEqual(Vote.objects.filter(round=round_obj).count(), 0)
+
+        before_round = self.room.current_round
+        url = reverse('room-next-turn', kwargs={'code': '5678'})
+        response = self.client.post(
+            url, {'player_secret': str(self.host.player_secret)}, format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.room.refresh_from_db()
+        self.assertEqual(self.room.current_round, before_round + 1)
+        # Still no voting opened.
+        round_obj.refresh_from_db()
+        self.assertFalse(round_obj.voting_open)
+
+
 class APIErrorHandlingTestCase(TestCase):
     """Test API error handling and edge cases"""
 

@@ -1,3 +1,5 @@
+import os
+
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
@@ -14,6 +16,9 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from itertools import groupby
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+
+# Round duration in seconds. Override via SR_ROUND_SECONDS (e.g. for fast E2E).
+ROUND_SECONDS = int(os.getenv("SR_ROUND_SECONDS", "60"))
 import random
 import asyncio
 import json
@@ -814,20 +819,20 @@ class RoomViewSet(viewsets.ModelViewSet):
             first_genre = random.choice(available_genres)
 
             timer_started = timezone.now()
-            timer_ends = timer_started + timezone.timedelta(seconds=60)
+            timer_ends = timer_started + timezone.timedelta(seconds=ROUND_SECONDS)
 
             first_round = Round.objects.create(
                 room=room,
                 round_number=1,
                 current_tile_genre=first_genre,
-                timer_duration=60,
+                timer_duration=ROUND_SECONDS,
                 timer_started_at=timer_started,
                 timer_ends_at=timer_ends,
             )
 
         broadcast_game_update(room)
         broadcast_timer_tick(room)
-        start_timer_broadcast(room.id, 60)
+        start_timer_broadcast(room.id, ROUND_SECONDS)
 
         return Response(
             {
@@ -1337,14 +1342,14 @@ class RoomViewSet(viewsets.ModelViewSet):
             )
 
         timer_started = timezone.now()
-        timer_ends = timer_started + timezone.timedelta(seconds=60)
+        timer_ends = timer_started + timezone.timedelta(seconds=ROUND_SECONDS)
 
         with transaction.atomic():
             new_round = Round.objects.create(
                 room=room,
                 round_number=next_round_number,
                 current_tile_genre=next_genre,
-                timer_duration=60,
+                timer_duration=ROUND_SECONDS,
                 timer_started_at=timer_started,
                 timer_ends_at=timer_ends,
             )
@@ -1353,7 +1358,7 @@ class RoomViewSet(viewsets.ModelViewSet):
 
         broadcast_game_update(room)
         broadcast_timer_tick(room)
-        start_timer_broadcast(room.id, 60)
+        start_timer_broadcast(room.id, ROUND_SECONDS)
 
         return Response(
             {
@@ -1467,13 +1472,13 @@ class RoomViewSet(viewsets.ModelViewSet):
             )
 
         timer_started = timezone.now()
-        timer_ends = timer_started + timezone.timedelta(seconds=60)
+        timer_ends = timer_started + timezone.timedelta(seconds=ROUND_SECONDS)
 
         new_round = Round.objects.create(
             room=room,
             round_number=next_round_number,
             current_tile_genre=next_genre,
-            timer_duration=60,
+            timer_duration=ROUND_SECONDS,
             timer_started_at=timer_started,
             timer_ends_at=timer_ends,
         )
@@ -1482,7 +1487,7 @@ class RoomViewSet(viewsets.ModelViewSet):
 
         broadcast_game_update(room)
         broadcast_timer_tick(room)
-        start_timer_broadcast(room.id, 60)
+        start_timer_broadcast(room.id, ROUND_SECONDS)
 
         return Response(
             {
