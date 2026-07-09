@@ -135,15 +135,19 @@
         },
         {
           "id": "casual-no-voting",
-          "description": "Casual rounds end on time-up with no spectator voting (per GameInfo.tsx:95).",
-          "testRefs": [],
-          "status": "gap"
+          "description": "Casual rounds end on time-up with no spectator voting (per GameInfo.tsx:95, backend views.py:1751).",
+          "testRefs": [
+            "tests/e2e/live/casual-full-game.spec.ts > casual round ends on time-up with no spectator voting"
+          ],
+          "status": "covered"
         },
         {
           "id": "casual-no-elo",
-          "description": "Casual results do not affect ELO / ranked leaderboard.",
-          "testRefs": [],
-          "status": "gap"
+          "description": "Casual results do not affect ELO / ranked leaderboard (views.py:1751 gates resolution).",
+          "testRefs": [
+            "tests/e2e/live/casual-full-game.spec.ts > casual results do not affect ELO or ranked leaderboard"
+          ],
+          "status": "covered"
         }
       ]
     },
@@ -162,9 +166,11 @@
         },
         {
           "id": "ranked-voting-gate",
-          "description": "Voting requires >=3 spectators (per VotingPanel.tsx:105).",
-          "testRefs": [],
-          "status": "gap"
+          "description": "Voting requires >=3 spectators (per VotingPanel.tsx:105, backend views.py:1095).",
+          "testRefs": [
+            "tests/e2e/live/ranked-full-game.spec.ts > enforces >=3 spectator gate for ranked voting"
+          ],
+          "status": "covered"
         },
         {
           "id": "ranked-elo",
@@ -194,21 +200,5 @@
       ]
     }
   ],
-  "gaps": [
-    {
-      "mode": "casual",
-      "criterion": "casual-no-voting",
-      "note": "Behavior exists in GameInfo.tsx:95 but no e2e asserts time-up ends round without voting."
-    },
-    {
-      "mode": "casual",
-      "criterion": "casual-no-elo",
-      "note": "No test asserts casual results are excluded from ELO/leaderboard."
-    },
-    {
-      "mode": "ranked",
-      "criterion": "ranked-voting-gate",
-      "note": "VotingPanel.tsx:105 enforces >=3 spectators; no e2e asserts the gate blocks voting below threshold."
-    }
-  ]
+  "gaps": []
 }
