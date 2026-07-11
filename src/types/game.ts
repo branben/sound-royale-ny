@@ -105,15 +105,7 @@ export const GENRES = [
 export type Genre = (typeof GENRES)[number];
 
 export type ThemeId =
-  | 'classic'
-  | 'weekly'
-  | 'monthly'
-  | 'phonk'
-  | 'trap'
-  | 'lofi'
-  | 'house'
-  | 'electronic'
-  | 'custom';
+  'classic' | 'weekly' | 'monthly' | 'phonk' | 'trap' | 'lofi' | 'house' | 'electronic' | 'custom';
 
 export interface Theme {
   id: string;
