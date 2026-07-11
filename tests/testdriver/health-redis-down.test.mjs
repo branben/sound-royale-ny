@@ -21,6 +21,11 @@ const HARNESS_PY = readFileSync(
 // heredoc/quoting fragility.
 const b64 = (s) => Buffer.from(s, "utf8").toString("base64");
 
+// Async parse so the malformed-body check can be expressed as a framework
+// rejection assertion (TST-2) rather than a manual try/catch or a synchronous
+// guard. A non-JSON body makes this promise reject with the JSON.parse error.
+const parseJson = async (raw) => JSON.parse(raw);
+
 describe("BUG-2: /api/health/ must fail hard when Redis is down", () => {
   it("returns HTTP 503 + status:error while Redis is unreachable", async (context) => {
     const testdriver = TestDriver(context);
@@ -93,12 +98,12 @@ describe("BUG-2: /api/health/ must fail hard when Redis is down", () => {
     const httpCode = (probeOut.match(/HTTP_CODE=(\d+)/) || [])[1];
     const bodyRaw = (probeOut.match(/BODY=(\{.*\})/) || [])[1] || "{}";
 
-    // TST-2: assert on the parse via the framework rather than swallowing the
-    // error in a manual try/catch. A non-JSON body throws loudly *here*, at the
-    // point of failure, with a clear message — not as a confusing downstream
-    // assertion failure.
-    expect(() => JSON.parse(bodyRaw)).not.toThrow();
-    const body = JSON.parse(bodyRaw);
+    // TST-2: assert on the parse via the framework's rejection assertion rather
+    // than swallowing the error in a manual try/catch. A well-formed body makes
+    // parseJson resolve; a non-JSON body makes it reject and fails loudly *here*,
+    // at the point of failure, with a clear message.
+    await expect(parseJson(bodyRaw)).resolves.toBeTruthy();
+    const body = await parseJson(bodyRaw);
 
     // Sanity: Redis was genuinely seen as not healthy in this scenario.
     expect(body?.checks?.redis).not.toBe("ok");
