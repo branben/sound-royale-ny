@@ -373,7 +373,6 @@ export default function Room() {
 
   useGameRefreshEffect(fetchRoom);
 
-
   // Auto-reset after match ends
   const [resetCountdown, setResetCountdown] = useState<number | null>(null);
   useEffect(() => {
@@ -619,42 +618,22 @@ export default function Room() {
                         <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-dashed border-zinc-600 mb-2">
                           <Users className="h-5 w-5 text-zinc-600" />
                         </div>
+                        <p className="text-xs text-zinc-500">No spectators yet</p>
                       </div>
-                    </div>
-                  );
-                })}
-
-              {/* Spectators */}
-              {Object.values(gameState.players).filter(
-                (p) => p.isSpectator || p.name?.startsWith('Spectator '),
-              ).length > 0 && (
-                <div className="bg-card border border-border rounded-xl p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-zinc-500">
-                      Audience
-                    </span>
-                    <span className="text-[10px] text-zinc-600">
-                      {
-                        Object.values(gameState.players).filter(
-                          (p) => p.isSpectator || p.name?.startsWith('Spectator '),
-                        ).length
-                      }
-                    </span>
-                  </div>
-                  <div className="space-y-1.5">
-                    {Object.values(gameState.players)
-                      .filter((p) => p.isSpectator || p.name?.startsWith('Spectator '))
-                      .map((player) => (
-                        <div key={player.id} className="flex items-center gap-2">
-                          <span className="text-xs text-zinc-400 truncate">
-                            {player.name.replace('Spectator ', '')}
-                          </span>
-                          <TitleBadge title={player.currentTitle} compact />
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              )}
+                    ) : (
+                      <div className="space-y-1">
+                        {Object.values(gameState.players)
+                          .filter((p) => p.isSpectator)
+                          .map((player) => (
+                            <div key={player.id} className="flex items-center gap-2">
+                              <span className="text-xs text-zinc-400 truncate">{player.name}</span>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             </div>
 
             {/* Right Panel: Game Area (2/3) */}

@@ -147,7 +147,7 @@
 }
 
 .tile-enter {
-  animation: tile-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation: tile-pop 320ms cubic-bezier(0.25, 1, 0.5, 1) forwards;
 }
 
 /* ── Card Gentle Rise ── */
