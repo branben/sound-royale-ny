@@ -85,7 +85,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install --ignore-scripts --legacy-peer-deps
+        run: npm ci --ignore-scripts --legacy-peer-deps
 
       - name: Prettier formatting check
         run: npx prettier --check "src/**/*.{ts,tsx,css,json}"
@@ -191,7 +191,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install --ignore-scripts --legacy-peer-deps
+        run: npm ci --ignore-scripts --legacy-peer-deps
 
       - name: Impeccable UI anti-pattern scan
         run: npm run audit:ui

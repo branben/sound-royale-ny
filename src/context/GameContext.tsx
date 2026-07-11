@@ -236,9 +236,9 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
         const roomData: RoomResponse = await roomApi.getRoom(roomCode);
 
         if (isMounted.current) {
-        if (isMounted.current) {
-          setGameState(buildGameStateFromRoom(roomData));
-        }
+          if (isMounted.current) {
+            setGameState(buildGameStateFromRoom(roomData));
+          }
         }
       } catch (err) {
         if (isMounted.current)

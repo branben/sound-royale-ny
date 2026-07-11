@@ -415,7 +415,6 @@ export default function Room() {
     }
   }, [gameState.status]); // Only re-run entrance animations on status change, not players update
 
-
   // Auto-reset after match ends
   const [resetCountdown, setResetCountdown] = useState<number | null>(null);
   useEffect(() => {
@@ -622,7 +621,10 @@ export default function Room() {
           </div>
         ) : (
           <div className="flex flex-col lg:flex-row gap-2 h-full w-full">
-            <div ref={gameInfoRef} className="hidden lg:block lg:w-64 shrink-0 transition-all duration-200">
+            <div
+              ref={gameInfoRef}
+              className="hidden lg:block lg:w-64 shrink-0 transition-all duration-200"
+            >
               <GameInfo roomId={roomId!} currentPlayerName={userSession.playerName ?? undefined} />
             </div>
 
