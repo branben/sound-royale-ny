@@ -26,6 +26,9 @@ jobs:
       REPO: ${{ github.repository }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       OMNIROUTE_API_KEY: ${{ secrets.OMNIROUTE_API_KEY }}
+      # CLI reads OMNIROUTE_BASE_URL (not OMNIROUTE_URL); map the existing URL secret so CI
+      # targets the same OmniRoute endpoint as local runs instead of the public default.
+      OMNIROUTE_BASE_URL: ${{ secrets.OMNIROUTE_URL }}
 
     steps:
       - name: Checkout repo
