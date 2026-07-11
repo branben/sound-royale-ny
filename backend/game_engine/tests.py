@@ -1,9 +1,30 @@
 from django.test import TestCase
 from django.test import override_settings
-from django.urls import reverse
+from django.urls import URLPattern, get_resolver, reverse
 from rest_framework.test import APIClient
 from unittest.mock import patch, MagicMock
 from .models import Room, Player, Round, Vote
+
+
+def health_check_url():
+    """Resolve the root ``/health/`` endpoint without hardcoding the path.
+
+    The URL name ``health-check`` is registered twice — the project-level
+    ``/health/`` route (a direct pattern on the root URLconf) and the
+    ``game_engine`` ``/api/health/`` route (inside an ``include()``). A bare
+    ``reverse('health-check')`` is therefore ambiguous and would resolve to the
+    last-registered ``/api/health/`` route, silently retargeting these tests.
+
+    Walk the top-level URL patterns of the root resolver and reverse only the
+    direct ``health-check`` pattern (the ``/health/`` route lives directly on
+    the project URLconf; the ``/api/health/`` one is nested in an included
+    resolver, so it is skipped here). Falls back to a plain ``reverse`` if the
+    project route is ever renamed/removed.
+    """
+    for pattern in get_resolver().url_patterns:
+        if isinstance(pattern, URLPattern) and pattern.name == "health-check":
+            return "/" + str(pattern.pattern)
+    return reverse("health-check")
 
 
 class GameEngineBasicTestCase(TestCase):
@@ -20,7 +41,7 @@ class HealthCheckTestCase(TestCase):
         mock_connections.__getitem__.return_value.close.return_value = None
         mock_from_url.return_value.ping.return_value = True
         mock_from_url.return_value.close.return_value = None
-        response = self.client.get('/health/')
+        response = self.client.get(health_check_url())
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["status"], "ok")
@@ -33,7 +54,7 @@ class HealthCheckTestCase(TestCase):
         mock_connections.__getitem__.return_value.ensure_connection.return_value = None
         mock_connections.__getitem__.return_value.close.return_value = None
         mock_from_url.return_value.ping.side_effect = Exception("Connection refused")
-        response = self.client.get('/health/')
+        response = self.client.get(health_check_url())
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["status"], "ok")
@@ -47,7 +68,7 @@ class HealthCheckTestCase(TestCase):
         mock_connections.__getitem__.return_value.close.return_value = None
         mock_from_url.return_value.ping.return_value = True
         mock_from_url.return_value.close.return_value = None
-        response = self.client.get('/health/')
+        response = self.client.get(health_check_url())
         self.assertEqual(response.status_code, 200)
 
 
