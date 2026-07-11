@@ -26,6 +26,10 @@ jobs:
       REPO: ${{ github.repository }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       OMNIROUTE_API_KEY: ${{ secrets.OMNIROUTE_API_KEY }}
+      # omniroute CLI reads OMNIROUTE_BASE_URL (not OMNIROUTE_URL). Map the URL secret
+      # (Cloudflare tunnel to the local OmniRoute API on :20128) so CI reaches the same
+      # endpoint as local runs instead of the unreachable public default.
+      OMNIROUTE_BASE_URL: ${{ secrets.OMNIROUTE_URL }}
 
     steps:
       - name: Checkout repo
