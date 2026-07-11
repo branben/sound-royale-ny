@@ -12,6 +12,10 @@ class GameEngineBasicTestCase(TestCase):
 
 
 class HealthCheckTestCase(TestCase):
+    def setUp(self):
+        # Resolve via URL name so the test stays correct if the path changes.
+        self.health_url = reverse('health-check')
+
     @patch('game_engine.health.connections')
     @patch('redis.from_url')
     def test_health_check_returns_200_when_healthy(self, mock_from_url, mock_connections):
@@ -20,7 +24,7 @@ class HealthCheckTestCase(TestCase):
         mock_connections.__getitem__.return_value.close.return_value = None
         mock_from_url.return_value.ping.return_value = True
         mock_from_url.return_value.close.return_value = None
-        response = self.client.get('/health/')
+        response = self.client.get(self.health_url)
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["status"], "ok")
@@ -33,7 +37,7 @@ class HealthCheckTestCase(TestCase):
         mock_connections.__getitem__.return_value.ensure_connection.return_value = None
         mock_connections.__getitem__.return_value.close.return_value = None
         mock_from_url.return_value.ping.side_effect = Exception("Connection refused")
-        response = self.client.get('/health/')
+        response = self.client.get(self.health_url)
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["status"], "ok")
@@ -47,7 +51,7 @@ class HealthCheckTestCase(TestCase):
         mock_connections.__getitem__.return_value.close.return_value = None
         mock_from_url.return_value.ping.return_value = True
         mock_from_url.return_value.close.return_value = None
-        response = self.client.get('/health/')
+        response = self.client.get(self.health_url)
         self.assertEqual(response.status_code, 200)
 
 
