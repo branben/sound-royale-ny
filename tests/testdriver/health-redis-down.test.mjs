@@ -91,13 +91,18 @@ describe("BUG-2: /api/health/ must fail hard when Redis is down", () => {
     console.log("Health probe output:\n" + probeOut);
 
     const httpCode = (probeOut.match(/HTTP_CODE=(\d+)/) || [])[1];
-    const bodyRaw = (probeOut.match(/BODY=(\{.*\})/) || [])[1] || "{}";
-    let body = {};
-    try {
-      body = JSON.parse(bodyRaw);
-    } catch {
-      /* leave body empty; assertions below will fail loudly */
-    }
+    const bodyRaw = (probeOut.match(/BODY=(\{.*\})/) || [])[1] || "";
+
+    // TST-2: don't swallow a parse failure in a manual try/catch and rely on a
+    // downstream assertion to "fail loudly". Assert the endpoint returned a
+    // parseable JSON body directly, using the framework's rejection assertion so
+    // the failure message points at the real cause.
+    const parseBody = async () => JSON.parse(bodyRaw);
+    await expect(
+      parseBody(),
+      "health endpoint should return a parseable JSON body",
+    ).resolves.toBeTypeOf("object");
+    const body = await parseBody();
 
     // Sanity: Redis was genuinely seen as not healthy in this scenario.
     expect(body?.checks?.redis).not.toBe("ok");
