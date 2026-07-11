@@ -91,13 +91,15 @@ describe("BUG-2: /api/health/ must fail hard when Redis is down", () => {
     console.log("Health probe output:\n" + probeOut);
 
     const httpCode = (probeOut.match(/HTTP_CODE=(\d+)/) || [])[1];
-    const bodyRaw = (probeOut.match(/BODY=(\{.*\})/) || [])[1] || "{}";
-    let body = {};
-    try {
-      body = JSON.parse(bodyRaw);
-    } catch {
-      /* leave body empty; assertions below will fail loudly */
-    }
+    const bodyRaw = (probeOut.match(/BODY=(\{.*\})/) || [])[1] || "";
+
+    // TST-2: assert the response body parses as JSON using the framework's own
+    // rejection assertion instead of a manual try/catch + `blocked`/empty-body
+    // flag that silently swallows the failure. If the endpoint returned garbage
+    // (or nothing), this fails loudly and clearly at the parse step itself.
+    const parseBody = async () => JSON.parse(bodyRaw);
+    await expect(parseBody()).resolves.toBeTypeOf("object");
+    const body = await parseBody();
 
     // Sanity: Redis was genuinely seen as not healthy in this scenario.
     expect(body?.checks?.redis).not.toBe("ok");
