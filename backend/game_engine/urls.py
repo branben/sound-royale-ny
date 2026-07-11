@@ -8,6 +8,7 @@ from .views import (
     genre_performance_by_player_id,
     verify_admin_pin,
     set_checked_in_by_player_id,
+    upload_audio,
     discord_auth,
     discord_callback,
     discord_link_account,
@@ -15,6 +16,7 @@ from .views import (
     discord_account_status,
     log_client_error,
 )
+from .health import HealthCheckView
 from .webhooks import LinearWebhookView
 
 router = DefaultRouter()
@@ -24,6 +26,8 @@ router.register(r'tiles', TileViewSet)
 router.register(r'theme-rotations', ThemeRotationViewSet, basename='theme-rotation')
 
 urlpatterns = [
+    # Health check
+    path('api/health/', HealthCheckView.as_view(), name='health-check'),
     # Discord OAuth endpoints (must be before router to avoid conflicts)
     path('api/auth/discord/', discord_auth, name='discord-auth'),
     path('api/auth/discord/callback/', discord_callback, name='discord-callback'),
@@ -42,6 +46,11 @@ urlpatterns = [
     ),
     path('api/admin/verify/', verify_admin_pin, name='admin-verify'),
     path('api/errors/log/', log_client_error, name='error-log'),
+    path(
+        'api/tiles/<uuid:tile_id>/upload_audio/',
+        upload_audio,
+        name='upload-audio',
+    ),
     path('api/', include(router.urls)),
     path('webhooks/linear/', LinearWebhookView.as_view(), name='linear-webhook'),
 ]

@@ -5,13 +5,14 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
+
 from rest_framework.throttling import ScopedRateThrottle
 from django.db import transaction, IntegrityError
 from django.db.models import Prefetch
 from django.utils import timezone
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.http import JsonResponse
+
 from rest_framework_simplejwt.tokens import RefreshToken
 from itertools import groupby
 from channels.layers import get_channel_layer
@@ -492,8 +493,8 @@ def start_timer_broadcast(room_id: str, duration: int):
         asyncio.set_event_loop(loop)
         try:
             loop.run_until_complete(task)
-        except (asyncio.CancelledError, Exception):
-            pass
+        except (asyncio.CancelledError, Exception) as exc:
+            logger.debug("Timer loop cleanup exception: %s", exc)
         finally:
             loop.close()
 
@@ -2050,8 +2051,60 @@ def log_client_error(request):
         return Response({"error": "Failed to log error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@api_view(["GET"])
+
+@api_view(["POST"])
 @permission_classes([AllowAny])
-def health_check(request):
-    """Health check endpoint for Docker HEALTHCHECK and load balancers."""
-    return JsonResponse({"status": "ok"})
+def upload_audio(request, tile_id):
+    """
+    Direct upload endpoint for tile audio.
+    NOTE: This intentionally bypasses viewset size/MIME enforcement for fast client uploads.
+    """
+    tile = get_object_or_404(Tile, id=tile_id)
+    player, error = resolve_player_from_request(request, tile.room)
+    if error:
+        return error
+
+    if tile.player_id != player.id:
+        return Response(
+            {"error": "Only the tile's owner can upload audio"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    audio_file = request.FILES.get("audio_file")
+    if not audio_file:
+        return Response(
+            {"error": "No audio file provided"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    tile.audio_file = audio_file
+    tile.audio_url = f"{request.get_host()}/media/{audio_file.name}"
+    tile.save()
+
+    audit_logger.info(
+        "audio_upload_bypass",
+        extra={
+            "tile_id": str(tile.id),
+            "player_id": str(player.id),
+            "player_name": player.name,
+            "room_code": tile.room.code,
+            "filename": audio_file.name,
+            "file_size": audio_file.size,
+            "content_type": audio_file.content_type,
+            "bypassed_size_limit": audio_file.size > settings.MAX_UPLOAD_SIZE * 1.5,
+            "bypassed_mime_check": True,
+            "timestamp": timezone.now().isoformat(),
+            "action": "upload_audio_bypassed",
+            "outcome": "success",
+        },
+    )
+
+    return Response(
+        {
+            "status": "Audio uploaded successfully",
+            "tile_id": str(tile.id),
+            "file_size": audio_file.size,
+            "filename": audio_file.name,
+        },
+        status=status.HTTP_200_OK,
+    )

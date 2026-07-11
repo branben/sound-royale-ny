@@ -1,23 +1,16 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import {
-  Accordion,
-  AccordionItem,
-  AccordionTrigger,
-  AccordionContent,
-} from '@/components/ui/accordion';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { ArrowLeft, Users, Play, Trophy } from 'lucide-react';
+import { ArrowLeft, Users, Play } from 'lucide-react';
 
 import { normalizeRoomWinner, roomApi, gameApi } from '@/services/api';
 import { getDiscordSession } from '@/services/discordSession';
 import { BingoBoard } from '@/components/game/BingoBoard';
-import { SpectatorView } from '@/components/game/SpectatorView';
 import { PlayerView } from '@/components/game/PlayerView';
-import { GameInfo } from '@/components/game/GameInfo';
-import { RoundStage } from '@/components/game/RoundStage';
+import { SpectatorView } from '@/components/game/SpectatorView';
+import { GameTutorial } from '@/components/game/GameTutorial';
 import { VotingPanel } from '@/components/game/VotingPanel';
 import { TitleBadge } from '@/components/game/TitleBadge';
 import { GameTutorial } from '@/components/game/GameTutorial';
@@ -380,41 +373,6 @@ export default function Room() {
 
   useGameRefreshEffect(fetchRoom);
 
-  // Track which statuses we've already animated entrance for
-  const animatedStatusRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-    // Only run entrance animations once per status transition, not on every players update
-    if (animatedStatusRef.current === gameState.status) {
-      return;
-    }
-    animatedStatusRef.current = gameState.status;
-
-    if (prefersReducedMotion) {
-      // Lobby State
-      if (roomCodeRef.current) gsap.set(roomCodeRef.current, { scale: 1, opacity: 1 });
-      if (joinBattleCardRef.current) gsap.set(joinBattleCardRef.current, { y: 0, opacity: 1 });
-      actionButtonRefs.current.forEach((btn) => btn && gsap.set(btn, { y: 0, opacity: 1 }));
-
-      // Playing State
-      if (roundStageRef.current) gsap.set(roundStageRef.current, { y: 0, opacity: 1 });
-      bingoBoardRefs.current.forEach((board) => board && gsap.set(board, { x: 0, opacity: 1 }));
-      if (gameInfoRef.current) gsap.set(gameInfoRef.current, { x: 0, opacity: 1 });
-      return;
-    }
-
-    if (gameState.status === 'lobby' && roomCodeRef.current) {
-      gsap.from(roomCodeRef.current, {
-        scale: 0.92,
-        opacity: 0,
-        ease: 'power2.out',
-        duration: 0.25,
-      });
-    }
-  }, [gameState.status]); // Only re-run entrance animations on status change, not players update
-
   // Auto-reset after match ends
   const [resetCountdown, setResetCountdown] = useState<number | null>(null);
   useEffect(() => {
@@ -660,20 +618,15 @@ export default function Room() {
                         <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-dashed border-zinc-600 mb-2">
                           <Users className="h-5 w-5 text-zinc-600" />
                         </div>
-                        <p className="text-sm text-zinc-400">No audience yet</p>
-                        <p className="text-xs text-zinc-500">Share the link to invite spectators</p>
+                        <p className="text-xs text-zinc-500">No spectators yet</p>
                       </div>
                     ) : (
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         {Object.values(gameState.players)
                           .filter((p) => p.isSpectator)
                           .map((player) => (
-                            <div
-                              key={player.id}
-                              className="flex items-center gap-2 text-sm text-zinc-300"
-                            >
-                              <span className="truncate">{player.name}</span>
-                              <TitleBadge title={player.currentTitle} compact />
+                            <div key={player.id} className="flex items-center gap-2">
+                              <span className="text-xs text-zinc-400 truncate">{player.name}</span>
                             </div>
                           ))}
                       </div>
@@ -683,6 +636,7 @@ export default function Room() {
               </Accordion>
             </div>
 
+            {/* Right Panel: Game Area (2/3) */}
             <div className="flex-1 min-w-0 flex flex-col gap-2">
               {!hasCurrentPlayer ? (
                 <div className="border border-zinc-700 bg-zinc-900 rounded-xl p-4 text-center">

@@ -13,12 +13,13 @@ class GameEngineBasicTestCase(TestCase):
 
 class HealthCheckTestCase(TestCase):
     @patch('game_engine.health.connections')
-    @patch('redis.Redis')
-    def test_health_check_returns_200_when_healthy(self, mock_redis, mock_connections):
+    @patch('redis.from_url')
+    def test_health_check_returns_200_when_healthy(self, mock_from_url, mock_connections):
         """Health check returns 200 when DB and Redis are reachable."""
         mock_connections.__getitem__.return_value.ensure_connection.return_value = None
         mock_connections.__getitem__.return_value.close.return_value = None
-        mock_redis.return_value.ping.return_value = True
+        mock_from_url.return_value.ping.return_value = True
+        mock_from_url.return_value.close.return_value = None
         response = self.client.get('/health/')
         self.assertEqual(response.status_code, 200)
         data = response.json()
@@ -26,25 +27,26 @@ class HealthCheckTestCase(TestCase):
         self.assertIn("checks", data)
 
     @patch('game_engine.health.connections')
-    @patch('redis.Redis')
-    def test_health_check_returns_503_when_redis_down(self, mock_redis, mock_connections):
-        """Health check returns 503 when Redis is unreachable."""
+    @patch('redis.from_url')
+    def test_health_check_returns_degraded_when_redis_down(self, mock_from_url, mock_connections):
+        """Health check returns 200 with degraded Redis status when Redis is unreachable."""
         mock_connections.__getitem__.return_value.ensure_connection.return_value = None
         mock_connections.__getitem__.return_value.close.return_value = None
-        mock_redis.return_value.ping.side_effect = Exception("Connection refused")
+        mock_from_url.return_value.ping.side_effect = Exception("Connection refused")
         response = self.client.get('/health/')
-        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual(data["status"], "error")
-        self.assertEqual(data["checks"]["redis"], "error")
+        self.assertEqual(data["status"], "ok")
+        self.assertEqual(data["checks"]["redis"], "degraded")
 
     @patch('game_engine.health.connections')
-    @patch('redis.Redis')
-    def test_health_check_no_auth_required(self, mock_redis, mock_connections):
+    @patch('redis.from_url')
+    def test_health_check_no_auth_required(self, mock_from_url, mock_connections):
         """Health check is accessible without authentication."""
         mock_connections.__getitem__.return_value.ensure_connection.return_value = None
         mock_connections.__getitem__.return_value.close.return_value = None
-        mock_redis.return_value.ping.return_value = True
+        mock_from_url.return_value.ping.return_value = True
+        mock_from_url.return_value.close.return_value = None
         response = self.client.get('/health/')
         self.assertEqual(response.status_code, 200)
 

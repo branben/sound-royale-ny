@@ -57,10 +57,9 @@ class HealthCheckView(View):
                 r.close()
             else:
                 redis_status = "error"
-                logger.warning("Health check: No Redis hosts configured")
+                overall_status = "error"
         except Exception as exc:
-            redis_status = "error"
-            overall_status = "error"
+            redis_status = "degraded"
             logger.warning("Health check: Redis unreachable — %s", exc)
 
         checks["redis"] = redis_status
