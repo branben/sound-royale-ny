@@ -72,8 +72,19 @@ describe("BUG-2: /api/health/ must fail hard when Redis is down", () => {
       120000,
     );
     const bootOut = String(boot?.stdout ?? boot ?? "");
-    const resolved = (bootOut.match(/RESOLVED_URL=(\S+)/) || [])[1] || "/api/health/";
-    // TST-1 guard: the path must have come from Django's reverse(), not a literal.
+
+    // TST-1: the endpoint path MUST come from Django's reverse("health-check")
+    // in the harness — never a literal in the test client. There is no
+    // hardcoded fallback: if the reverse()-resolved path wasn't captured we
+    // fail loudly right here rather than silently probing a guessed URL.
+    const resolved = (bootOut.match(/RESOLVED_URL=(\S+)/) || [])[1];
+    expect(
+      resolved,
+      "harness did not publish a reverse()-resolved health URL (RESOLVED_URL=...); " +
+        "refusing to fall back to a hardcoded path. Boot output:\n" +
+        bootOut,
+    ).toBeTruthy();
+    // Sanity: the reverse()-resolved path is the health route, not something else.
     expect(resolved).toMatch(/health/);
 
     // 4) Hit the endpoint and capture HTTP status + body.
