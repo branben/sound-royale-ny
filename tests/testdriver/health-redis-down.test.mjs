@@ -93,11 +93,14 @@ describe("BUG-2: /api/health/ must fail hard when Redis is down", () => {
     const httpCode = (probeOut.match(/HTTP_CODE=(\d+)/) || [])[1];
     const bodyRaw = (probeOut.match(/BODY=(\{.*\})/) || [])[1] || "{}";
 
-    // TST-2: assert on the parse via the framework rather than swallowing the
-    // error in a manual try/catch. A non-JSON body throws loudly *here*, at the
-    // point of failure, with a clear message — not as a confusing downstream
-    // assertion failure.
-    expect(() => JSON.parse(bodyRaw)).not.toThrow();
+    // TST-2: assert the parse via the framework instead of a manual try/catch
+    // that swallows the error. `expect(...).not.toThrow()` surfaces a clear
+    // assertion failure (with the offending payload) if the endpoint ever
+    // returns a non-JSON body, rather than silently leaving `body` empty.
+    expect(
+      () => JSON.parse(bodyRaw),
+      `health endpoint returned non-JSON body: ${bodyRaw}`,
+    ).not.toThrow();
     const body = JSON.parse(bodyRaw);
 
     // Sanity: Redis was genuinely seen as not healthy in this scenario.
