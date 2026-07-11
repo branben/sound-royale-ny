@@ -23,6 +23,9 @@ urlpatterns = [
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('admin/', admin.site.urls),
-    path('health/', HealthCheckView.as_view(), name='health-check'),
+    # Root-level health probe used by Docker HEALTHCHECK / load balancers.
+    # Distinct name from the DRF `api/health/` route (name='health-check')
+    # so reverse() is unambiguous despite both pointing at HealthCheckView.
+    path('health/', HealthCheckView.as_view(), name='health-check-root'),
     path('', include('game_engine.urls')),
 ]
