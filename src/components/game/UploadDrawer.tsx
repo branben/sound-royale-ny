@@ -14,6 +14,7 @@ import { Upload, Music, X } from 'lucide-react';
 import { Tile } from '@/types/game';
 import { useToast } from '@/hooks/use-toast';
 import { gameApi } from '@/services/api';
+import { useUser } from '@/context/UserContext';
 
 interface UploadDrawerProps {
   isOpen: boolean;
