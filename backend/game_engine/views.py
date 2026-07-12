@@ -1701,6 +1701,15 @@ class TileViewSet(viewsets.ModelViewSet):
     # and file validation. See security finding tile_crud_open.
     http_method_names = ["get", "post", "head", "options"]
 
+    def list(self, request, *args, **kwargs):
+        # Security: do not expose a global listing of every uploaded tile /
+        # audio file across all rooms. Tiles are read via room/game_state.
+        # See security finding global_list_exposure.
+        return Response(
+            {"error": "Listing all tiles is not permitted."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
     def get_throttles(self):
         throttles = super().get_throttles()
         if self.action == "play_tile":
