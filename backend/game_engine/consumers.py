@@ -270,17 +270,25 @@ class GameConsumer(AsyncWebsocketConsumer):
         try:
             with transaction.atomic():
                 # Lock all candidate players so the promotion is race-free.
+                # Also lock any current host(s) so we can demote them atomically
+                # — this prevents a dual-host state when a stale host lingers
+                # after disconnect.
                 candidates = list(
                     Player.objects.select_for_update().filter(
                         room_id=self.game_id,
                         is_connected=True,
                         is_spectator=False,
-                        is_host=False,
                     )
                 )
-                if not candidates:
+                # Eligible = not already host
+                eligible = [p for p in candidates if not p.is_host]
+                if not eligible:
                     return None
-                new_host = candidates[0]
+                new_host = eligible[0]
+                # Demote every current host, then promote exactly one.
+                Player.objects.filter(
+                    room_id=self.game_id, is_host=True
+                ).update(is_host=False)
                 new_host.is_host = True
                 new_host.save(update_fields=["is_host"])
                 return new_host
