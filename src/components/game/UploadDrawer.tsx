@@ -75,13 +75,13 @@ export function UploadDrawer({ isOpen, onClose, tile, onUpload }: UploadDrawerPr
 
     try {
       setIsUploading(true);
-      const response = await gameApi.uploadAudio(tile?.id ?? '', selectedFile);
+      await gameApi.submitTile(tile?.id ?? '', selectedFile, userSession.playerId ?? '');
       toast({
         variant: 'default',
         title: 'Upload initiated',
         description: `Uploading "${selectedFile.name}"`,
       });
-      onUpload(response.data?.audio_url ?? URL.createObjectURL(selectedFile), selectedFile);
+      onUpload(URL.createObjectURL(selectedFile), selectedFile);
       setSelectedFile(null);
       onClose();
     } catch (error) {
