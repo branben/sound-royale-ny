@@ -2005,24 +2005,55 @@ def discord_unlink_account(request):
         )
 
 
-@api_view(["GET"])
+@api_view(["POST"])
 @permission_classes([AllowAny])
 def discord_account_status(request):
     """
     Get Discord account linking status for a player.
+
+    Security: credentials are read from the POST body (or X-Player-Id /
+    X-Player-Secret headers) so they never appear in URL query strings,
+    server access logs, or browser history. See finding secret_in_query_string.
     """
-    player_id = request.GET.get("player_id")
-    player_secret = request.GET.get("player_secret")
-    discord_user_id = request.GET.get("discord_user_id")
-    discord_session_secret = request.GET.get("discord_session_secret")
+    data = request.data if isinstance(request.data, dict) else {}
+    player_id = (
+        request.headers.get("X-Player-Id")
+        or data.get("player_id")
+    )
+    player_secret = (
+        request.headers.get("X-Player-Secret")
+        or data.get("player_secret")
+    )
+    discord_user_id = data.get("discord_user_id")
+    discord_session_secret = data.get("discord_session_secret")
 
     discord_account = None
     if discord_user_id or discord_session_secret:
-        discord_account, error_response = get_discord_account_from_session(request.GET)
+        discord_account, error_response = get_discord_account_from_session(
+            {
+                "discord_user_id": discord_user_id,
+                "discord_session_secret": discord_session_secret,
+            }
+        )
         if error_response is not None:
             return error_response
     else:
         if not player_id or not player_secret:
+            return Response(
+                {"error": "player_id and player_secret are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            player = Player.objects.get(id=player_id, player_secret=player_secret)
+        except Player.DoesNotExist:
+            return Response(
+                {"is_linked": False},
+                status=status.HTTP_200_OK,
+            )
+
+        discord_service = DiscordOAuthService()
+        discord_account = discord_service.get_discord_account(player)
             return Response(
                 {"error": "player_id and player_secret are required"},
                 status=status.HTTP_400_BAD_REQUEST,
