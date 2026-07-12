@@ -86,6 +86,7 @@ function ProducerContent() {
         isOpen={!!selectedTile}
         onClose={() => setSelectedTile(null)}
         tile={selectedTile}
+        playerId={currentPlayerId}
         onUpload={handleUploadComplete}
       />
     </div>

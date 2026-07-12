@@ -39,9 +39,14 @@ class AudioUploadTest(TestCase):
         response = self._post_audio(mp3)
         self.assertEqual(response.status_code, 200)
 
-    def test_valid_wav_upload(self):
-        wav = SimpleUploadedFile('test.wav', b'\x00' * 1024, content_type='audio/wav')
-        response = self._post_audio(wav)
+    def test_valid_ogg_upload(self):
+        ogg = SimpleUploadedFile('test.ogg', b'\x00' * 1024, content_type='audio/ogg')
+        response = self._post_audio(ogg)
+        self.assertEqual(response.status_code, 200)
+
+    def test_valid_webm_ogg_upload(self):
+        ogg = SimpleUploadedFile('test.ogg', b'\x00' * 1024, content_type='audio/webm')
+        response = self._post_audio(ogg)
         self.assertEqual(response.status_code, 200)
 
     def test_invalid_mime_upload(self):

@@ -13,10 +13,7 @@ import {
 
 type TestPlayer = ReturnType<typeof createMockProducer>;
 
-function findPlayerByName(
-  players: Record<string, TestPlayer>,
-  name: string
-): TestPlayer {
+function findPlayerByName(players: Record<string, TestPlayer>, name: string): TestPlayer {
   const player = Object.values(players).find((entry) => entry.name === name);
 
   if (!player) {
@@ -166,7 +163,9 @@ test.describe('Producer Flow', () => {
     await expect(page.getByTestId('game-board')).toBeVisible();
   });
 
-  test('routes spectators to the spectator dashboard instead of the producer board', async ({ page }) => {
+  test('routes spectators to the spectator dashboard instead of the producer board', async ({
+    page,
+  }) => {
     const producer = createMockProducer('Producer');
     const spectator = createMockSpectator('Spectator');
     const gameState = createMockPlayingStateWithoutGenre({
@@ -221,7 +220,9 @@ test.describe('Producer Flow', () => {
     await expect(page.getByRole('button', { name: 'Start Battle' })).toBeVisible();
   });
 
-  test('hides start battle controls from joined non-host players in the lobby', async ({ page }) => {
+  test('hides start battle controls from joined non-host players in the lobby', async ({
+    page,
+  }) => {
     const lobbyState = createMockLobbyState('HostPlayer', ['Player2'], []);
     const player = findPlayerByName(lobbyState.players, 'Player2');
 
@@ -242,7 +243,9 @@ test.describe('Producer Flow', () => {
     await page.goto(`/room/${lobbyState.id}`);
 
     await expect(page.getByTestId('lobby')).toBeVisible();
-    await expect(page.getByText(/Waiting for more players to join and host to start game/i)).toBeVisible();
+    await expect(
+      page.getByText(/Waiting for more players to join and host to start game/i),
+    ).toBeVisible();
     await expect(page.getByRole('button', { name: 'Start Battle' })).not.toBeVisible();
   });
 
@@ -258,7 +261,7 @@ test.describe('Producer Flow', () => {
         [winner.id]: winner,
         [challenger.id]: challenger,
       },
-      winner.id
+      winner.id,
     );
 
     const roomResponse = toRoomResponse(gameState);
@@ -282,9 +285,97 @@ test.describe('Producer Flow', () => {
 
     await expect(page.getByTestId('winner-announcement')).toBeVisible();
     await expect(
-      page.getByTestId('winner-announcement').getByText(new RegExp(`^${winner.name}$`))
+      page.getByTestId('winner-announcement').getByText(new RegExp(`^${winner.name}$`)),
     ).toBeVisible();
     await expect(page.getByTestId('score-display').first()).toBeVisible();
     await expect(page.getByText('No score yet')).not.toBeVisible();
+  });
+
+  test('shows upload progress then an audio player after a valid upload', async ({ page }) => {
+    const producer = createMockProducer('ProgressProducer');
+    const gameState = createMockPlayingStateWithoutGenre({ [producer.id]: producer });
+
+    await mockApiRoutes(page, {
+      roomResponse: toRoomResponse(gameState),
+      rejoin: {
+        player: producer,
+        playerSecret: 'progress-secret',
+      },
+      submitTile: async (route) => {
+        // Simulate a slow upload so the progress bar is observable.
+        await new Promise((r) => setTimeout(r, 250));
+        await route.fulfill({
+          status: 200,
+          json: { status: 'ok' },
+        });
+      },
+    });
+
+    await setupPlayerSession(page, {
+      playerName: producer.name,
+      playerId: producer.id,
+      playerSecret: 'progress-secret',
+    });
+
+    await page.goto(`/room/${gameState.id}`);
+    await expect(page.getByTestId('game-board')).toBeVisible();
+
+    await page.getByTestId('bingo-tile').first().click();
+    await expect(page.getByText(/Upload Audio for/i)).toBeVisible();
+
+    await page.locator('input[type="file"]').setInputFiles({
+      name: 'producer-track.mp3',
+      mimeType: 'audio/mpeg',
+      buffer: Buffer.from('fake-audio-bytes'),
+    });
+
+    // Progress bar appears while the upload is in flight.
+    await expect(page.getByTestId('upload-progress')).toBeVisible();
+
+    // After the upload completes the drawer closes and the tile shows a player.
+    await expect(page.getByTestId('upload-progress')).toBeHidden({ timeout: 5000 });
+    await expect(page.getByTestId('audio-play').first()).toBeVisible();
+  });
+
+  test('rejects an oversized file client-side without any network call', async ({ page }) => {
+    const producer = createMockProducer('OversizeProducer');
+    const gameState = createMockPlayingStateWithoutGenre({ [producer.id]: producer });
+    let uploadCalls = 0;
+
+    await mockApiRoutes(page, {
+      roomResponse: toRoomResponse(gameState),
+      rejoin: {
+        player: producer,
+        playerSecret: 'oversize-secret',
+      },
+      submitTile: async (route) => {
+        uploadCalls++;
+        await route.fulfill({ status: 200, json: { status: 'ok' } });
+      },
+    });
+
+    await setupPlayerSession(page, {
+      playerName: producer.name,
+      playerId: producer.id,
+      playerSecret: 'oversize-secret',
+    });
+
+    await page.goto(`/room/${gameState.id}`);
+    await expect(page.getByTestId('game-board')).toBeVisible();
+
+    await page.getByTestId('bingo-tile').first().click();
+    await expect(page.getByText(/Upload Audio for/i)).toBeVisible();
+
+    // 11MB file (>10MB limit). A real mp3 suffix + mime so only size trips it.
+    await page.locator('input[type="file"]').setInputFiles({
+      name: 'too-big.mp3',
+      mimeType: 'audio/mpeg',
+      buffer: Buffer.alloc(11 * 1024 * 1024, 1),
+    });
+
+    await expect(page.getByText('File too large')).toBeVisible();
+    // The upload was rejected before any network call.
+    await expect(page.getByTestId('upload-progress')).toHaveCount(0);
+    expect(uploadCalls).toBe(0);
   });
 });

@@ -9,7 +9,6 @@ import { TitleBadge } from '@/components/game/TitleBadge';
 import { toast } from 'sonner';
 import { Tile } from '@/types/game';
 import { useGame } from '@/context/useGame';
-import { gameApi } from '@/services/api';
 import { usePlayerColors } from '@/hooks/usePlayerColors';
 import { Wifi, WifiOff, Music } from 'lucide-react';
 import {
@@ -75,44 +74,39 @@ export const PlayerView = memo(
       setIsDrawerOpen(true);
     };
 
+    // The UploadDrawer performs the real upload (roomApi.uploadAudio) and
+    // calls back with an immediately-playable object URL. We only reflect
+    // that in local optimistic state here.
     const handleUpload = async (audioUrl: string, audioFile: File) => {
       if (!selectedTile || !playerData) return;
 
-      try {
-        const updatedTiles = playerData.tiles.map((t) =>
-          t.id === selectedTile.tile.id
-            ? { ...t, status: 'pending' as const, audioUrl: audioUrl }
-            : t,
-        );
+      const updatedTiles = playerData.tiles.map((t) =>
+        t.id === selectedTile.tile.id
+          ? { ...t, status: 'pending' as const, audioUrl: audioUrl }
+          : t,
+      );
 
-        setGameState((prev) => {
-          const existingPlayer = prev.players[playerData.id];
-          if (!existingPlayer) return prev;
+      setGameState((prev) => {
+        const existingPlayer = prev.players[playerData.id];
+        if (!existingPlayer) return prev;
 
-          return {
-            ...prev,
-            players: {
-              ...prev.players,
-              [playerData.id]: {
-                ...existingPlayer,
-                board: {
-                  ...existingPlayer.board,
-                  tiles: updatedTiles,
-                },
+        return {
+          ...prev,
+          players: {
+            ...prev.players,
+            [playerData.id]: {
+              ...existingPlayer,
+              board: {
+                ...existingPlayer.board,
+                tiles: updatedTiles,
               },
             },
-          };
-        });
+          },
+        };
+      });
 
-        await gameApi.submitTile(selectedTile.tile.id, audioFile, playerData.id);
-
-        toast.success('Audio uploaded successfully!');
-        setSelectedTile(null);
-        setIsDrawerOpen(false);
-      } catch (error) {
-        toast.error('Failed to upload audio. Please try again.');
-        console.error('Tile upload error:', error);
-      }
+      setSelectedTile(null);
+      setIsDrawerOpen(false);
     };
 
     const currentPlayerColorIndex = playerData ? playerColors.get(playerData.id) : undefined;
@@ -268,6 +262,7 @@ export const PlayerView = memo(
           isOpen={isDrawerOpen}
           onClose={() => setIsDrawerOpen(false)}
           tile={selectedTile?.tile || null}
+          playerId={playerData?.id}
           onUpload={handleUpload}
         />
 

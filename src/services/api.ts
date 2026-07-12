@@ -226,6 +226,37 @@ export const roomApi = {
     return response.data;
   },
 
+  /**
+   * Upload an audio file for a tile. Reports transfer progress (0-100) via
+   * onProgress and supports aborting the in-flight request via the returned
+   * AbortController. Rejects on network failure or a 4xx/5xx response.
+   */
+  uploadAudio: async (
+    tileId: string,
+    file: File,
+    playerId: string,
+    onProgress?: (percent: number) => void,
+    signal?: AbortSignal,
+  ): Promise<{ status: string }> => {
+    const formData = new FormData();
+    formData.append('audio_file', file);
+    formData.append('player_id', playerId);
+
+    const response = await api.post(`/tiles/${tileId}/play_tile/`, formData, {
+      // Do NOT set Content-Type: axios must add the multipart boundary
+      // automatically. Aborting mid-flight is supported via `signal`.
+      signal,
+      onUploadProgress: (event: { loaded: number; total?: number }) => {
+        if (!onProgress) return;
+        const total = event.total ?? file.size;
+        if (total > 0) {
+          onProgress(Math.min(100, Math.round((event.loaded / total) * 100)));
+        }
+      },
+    });
+    return response.data;
+  },
+
   // PR ERROR 3: Missing error handler - no try/catch on async call
   getRoomStats: async (roomId: string): Promise<Record<string, unknown>> => {
     try {

@@ -383,9 +383,76 @@ describe('roomApi', () => {
   });
 });
 
-// ============================================================================
+// ===========================================================================
+// roomApi.uploadAudio
+// ===========================================================================
+describe('uploadAudio', () => {
+  const makeFile = (name: string, type: string, size = 2048): File =>
+    new File([new Uint8Array(size)], name, { type });
+
+  it('POSTs to the tile play_tile endpoint and resolves on success', async () => {
+    let url = '';
+    server.use(
+      http.post(`${API_BASE}/tiles/TILE1/play_tile/`, ({ request }) => {
+        url = request.url;
+        return HttpResponse.json({ status: 'ok' });
+      }),
+    );
+
+    const file = makeFile('track.mp3', 'audio/mpeg');
+    const result = await roomApi.uploadAudio('TILE1', file, 'player-1');
+
+    expect(url).toContain('/tiles/TILE1/play_tile/');
+    expect(result).toEqual({ status: 'ok' });
+  });
+
+  it('rejects (throws) on 400 invalid file type', async () => {
+    server.use(
+      http.post(
+        `${API_BASE}/tiles/TILE1/play_tile/`,
+        () =>
+          new HttpResponse(JSON.stringify({ error: 'Invalid file type provided.' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+      ),
+    );
+
+    const file = makeFile('track.mp3', 'audio/mpeg');
+    await expect(roomApi.uploadAudio('TILE1', file, 'player-1')).rejects.toThrow();
+  });
+
+  it('rejects (throws) on 400 file too large', async () => {
+    server.use(
+      http.post(
+        `${API_BASE}/tiles/TILE1/play_tile/`,
+        () =>
+          new HttpResponse(JSON.stringify({ error: 'File too large. Maximum size is 10MB.' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+      ),
+    );
+
+    const file = makeFile('track.mp3', 'audio/mpeg');
+    await expect(roomApi.uploadAudio('TILE1', file, 'player-1')).rejects.toThrow();
+  });
+
+  it('rejects (throws) on network error', async () => {
+    server.use(
+      http.post(`${API_BASE}/tiles/TILE1/play_tile/`, () => {
+        throw new Error('Network failure');
+      }),
+    );
+
+    const file = makeFile('track.mp3', 'audio/mpeg');
+    await expect(roomApi.uploadAudio('TILE1', file, 'player-1')).rejects.toThrow();
+  });
+});
+
+// ===========================================================================
 // gameApi
-// ============================================================================
+// ===========================================================================
 describe('gameApi', () => {
   // -----------------------------------------------------------------------
   // getGameState

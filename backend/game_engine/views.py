@@ -1723,6 +1723,7 @@ class TileViewSet(viewsets.ModelViewSet):
             "audio/wav",
             "audio/x-wav",
             "audio/ogg",
+            "audio/webm",
             "audio/flac",
             "audio/mp4",
             "audio/x-m4a",
