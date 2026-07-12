@@ -28,16 +28,24 @@ class HealthCheckTestCase(TestCase):
 
     @patch('game_engine.health.connections')
     @patch('redis.from_url')
-    def test_health_check_returns_degraded_when_redis_down(self, mock_from_url, mock_connections):
-        """Health check returns 200 with degraded Redis status when Redis is unreachable."""
+    def test_health_check_reports_error_when_redis_down(self, mock_from_url, mock_connections):
+        """BUG-2: Redis unreachable ⇒ overall status 'error' and HTTP 503.
+
+        An unreachable Redis is a critical failure, so the health endpoint must
+        NOT report an overall-healthy ("ok"/200) response. This pins the
+        corrected contract; it is RED against the current health.py (which
+        leaves overall_status="ok" in the Redis failure branch) and turns GREEN
+        once overall_status is set to "error" there.
+        """
         mock_connections.__getitem__.return_value.ensure_connection.return_value = None
         mock_connections.__getitem__.return_value.close.return_value = None
         mock_from_url.return_value.ping.side_effect = Exception("Connection refused")
         response = self.client.get(reverse('health-check'))
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 503)
         data = response.json()
-        self.assertEqual(data["status"], "ok")
-        self.assertEqual(data["checks"]["redis"], "degraded")
+        self.assertEqual(data["status"], "error")
+        self.assertIn("checks", data)
+        self.assertNotEqual(data["checks"].get("redis"), "ok")
 
     @patch('game_engine.health.connections')
     @patch('redis.from_url')
