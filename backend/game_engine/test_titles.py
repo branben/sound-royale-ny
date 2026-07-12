@@ -66,11 +66,21 @@ class ProducerTitleAPITestCase(TestCase):
         for spectator in voters:
             Vote.objects.create(round=round_obj, voter=spectator, voted_for=player)
 
+    def _vote_json(self, voter, voted_for):
+        return {
+            "player_id": str(voter.id),
+            "player_secret": str(voter.player_secret),
+            "voted_for_player_id": str(voted_for.id),
+        }
+
     def _advance_round(self, round_obj):
         with patch("game_engine.views.start_timer_broadcast"):
             return self.client.post(
                 f"/api/rooms/{self.room.code}/next_turn/",
-                {"player_secret": str(self.winner.player_secret)},
+                {
+                    "player_id": str(self.winner.id),
+                    "player_secret": str(self.winner.player_secret),
+                },
                 format="json",
             )
 
@@ -183,12 +193,7 @@ class ProducerTitleAPITestCase(TestCase):
             for index, spectator in enumerate(self.spectators):
                 response = self.client.post(
                     f"/api/rooms/{self.room.code}/vote/",
-                    {
-                        "player_secret": str(spectator.player_secret),
-                        "voted_for_player_id": str(
-                            self.winner.id if index < 2 else self.loser.id
-                        ),
-                    },
+                    self._vote_json(spectator, self.winner if index < 2 else self.loser),
                     format="json",
                 )
 

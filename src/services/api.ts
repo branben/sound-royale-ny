@@ -360,6 +360,18 @@ export const gameApi = {
     return response.data;
   },
 
+  rotateSecret: async (
+    roomId: string,
+    playerId: string,
+    playerSecret: string,
+  ): Promise<{ player_id: string; player_secret: string; rotated_at: string }> => {
+    const response = await api.post(`/rooms/${roomId}/rotate_secret/`, {
+      player_id: playerId,
+      player_secret: playerSecret,
+    });
+    return response.data;
+  },
+
   getGenrePerformance: async (playerId: string): Promise<GenrePerformance[]> => {
     const response = await api.get(`/players/by-id/${playerId}/genre_performance/`);
     return response.data;

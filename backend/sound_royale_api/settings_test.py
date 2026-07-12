@@ -51,6 +51,12 @@ REST_FRAMEWORK = {
     },
 }
 
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
+    "django.contrib.auth.hashers.Argon2PasswordHasher",
+    "django.contrib.auth.hashers.BCryptSHA256PasswordHasher",
+]
+
 # Override LOGGING to remove file handler — CI has no logs/ directory
 LOGGING = {
     "version": 1,

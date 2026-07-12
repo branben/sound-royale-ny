@@ -33,6 +33,8 @@ else:
         ManyToManyField,
     )
 
+from .player_secret import hash_player_secret
+
 
 class Room(models.Model):
     class Status(models.TextChoices):
@@ -128,7 +130,10 @@ class Player(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     player_secret = models.UUIDField(
         default=uuid.uuid4, editable=False
-    )  # Secret for reconnection
+    )  # Raw secret returned to client (used as auth token)
+    player_secret_hash = models.CharField(
+        max_length=255, blank=True, null=True
+    )  # Argon2/SHA hash of player_secret for verification
     name = models.CharField(max_length=50)
     avatar = models.URLField(blank=True, null=True)
     room = models.ForeignKey(
@@ -170,6 +175,11 @@ class Player(models.Model):
         if self.room:
             return f"{self.name} in {self.room.id}"
         return f"{self.name} (no room)"
+
+    def save(self, *args, **kwargs):
+        if self.player_secret and not self.player_secret_hash:
+            self.player_secret_hash = hash_player_secret(str(self.player_secret))
+        super().save(*args, **kwargs)
 
     @property
     def current_title(self):

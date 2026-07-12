@@ -63,6 +63,7 @@ class VotingAPITestCase(TestCase):
         response = self.client.post(
             url,
             {
+                "player_id": str(self.producer1.id),
                 "player_secret": str(self.producer1.player_secret),
                 "voted_for_player_id": str(self.producer2.id),
             },
@@ -77,6 +78,7 @@ class VotingAPITestCase(TestCase):
         response = self.client.post(
             url,
             {
+                "player_id": str(self.spectator1.id),
                 "player_secret": str(self.spectator1.player_secret),
                 "voted_for_player_id": str(self.producer1.id),
             },
@@ -98,6 +100,7 @@ class VotingAPITestCase(TestCase):
         response = self.client.post(
             url,
             {
+                "player_id": str(self.spectator1.id),
                 "player_secret": str(self.spectator1.player_secret),
                 "voted_for_player_id": str(self.producer1.id),
             },
@@ -105,6 +108,7 @@ class VotingAPITestCase(TestCase):
         )
 
         self.assertEqual(response.status_code, 201)
+        self.assertEqual(Vote.objects.count(), 1)
 
     def test_vote_cannot_vote_for_spectator(self):
         self.round.voting_open = True
@@ -114,6 +118,7 @@ class VotingAPITestCase(TestCase):
         response = self.client.post(
             url,
             {
+                "player_id": str(self.spectator1.id),
                 "player_secret": str(self.spectator1.player_secret),
                 "voted_for_player_id": str(self.spectator2.id),
             },
@@ -132,6 +137,7 @@ class VotingAPITestCase(TestCase):
         response1 = self.client.post(
             url,
             {
+                "player_id": str(self.spectator1.id),
                 "player_secret": str(self.spectator1.player_secret),
                 "voted_for_player_id": str(self.producer1.id),
             },
@@ -142,6 +148,7 @@ class VotingAPITestCase(TestCase):
         response2 = self.client.post(
             url,
             {
+                "player_id": str(self.spectator1.id),
                 "player_secret": str(self.spectator1.player_secret),
                 "voted_for_player_id": str(self.producer2.id),
             },
@@ -154,7 +161,7 @@ class VotingAPITestCase(TestCase):
         url = f"/api/rooms/{self.room.code}/open_voting/"
 
         response = self.client.post(
-            url, {"player_secret": str(self.spectator1.player_secret)}, format="json"
+            url, {"player_id": str(self.spectator1.id), "player_secret": str(self.spectator1.player_secret)}, format="json"
         )
 
         self.assertEqual(response.status_code, 403)
@@ -164,7 +171,7 @@ class VotingAPITestCase(TestCase):
         url = f"/api/rooms/{self.room.code}/open_voting/"
 
         response = self.client.post(
-            url, {"player_secret": str(self.producer1.player_secret)}, format="json"
+            url, {"player_id": str(self.producer1.id), "player_secret": str(self.producer1.player_secret)}, format="json"
         )
 
         self.assertEqual(response.status_code, 200)
@@ -178,7 +185,7 @@ class VotingAPITestCase(TestCase):
         url = f"/api/rooms/{self.room.code}/open_voting/"
 
         response = self.client.post(
-            url, {"player_secret": str(self.producer1.player_secret)}, format="json"
+            url, {"player_id": str(self.producer1.id), "player_secret": str(self.producer1.player_secret)}, format="json"
         )
 
         self.assertEqual(response.status_code, 400)
@@ -468,7 +475,7 @@ class RejoinGameTestCase(TestCase):
         """Rejoining as host must return is_host: true."""
         response = self.client.post(
             f"/api/rooms/{self.room.code}/rejoin_game/",
-            {"player_secret": str(self.host_player.player_secret)},
+            {"player_id": str(self.host_player.id), "player_secret": str(self.host_player.player_secret)},
             format="json",
         )
 
@@ -481,7 +488,7 @@ class RejoinGameTestCase(TestCase):
         """Rejoining as non-host must return is_host: false."""
         response = self.client.post(
             f"/api/rooms/{self.room.code}/rejoin_game/",
-            {"player_secret": str(self.non_host_player.player_secret)},
+            {"player_id": str(self.non_host_player.id), "player_secret": str(self.non_host_player.player_secret)},
             format="json",
         )
 
@@ -494,7 +501,10 @@ class RejoinGameTestCase(TestCase):
         """Rejoining with invalid player_secret must return 404."""
         response = self.client.post(
             f"/api/rooms/{self.room.code}/rejoin_game/",
-            {"player_secret": "00000000-0000-0000-0000-000000000000"},
+            {
+                "player_id": str(self.host_player.id),
+                "player_secret": "00000000-0000-0000-0000-000000000000"
+            },
             format="json",
         )
 
@@ -504,7 +514,7 @@ class RejoinGameTestCase(TestCase):
         """Rejoin response must include id, name, isSpectator, is_host, is_checked_in."""
         response = self.client.post(
             f"/api/rooms/{self.room.code}/rejoin_game/",
-            {"player_secret": str(self.host_player.player_secret)},
+            {"player_id": str(self.host_player.id), "player_secret": str(self.host_player.player_secret)},
             format="json",
         )
 
@@ -623,7 +633,7 @@ class RejoinGameTestCase(TestCase):
         """Rejoining as host must return is_host: true."""
         response = self.client.post(
             f"/api/rooms/{self.room.code}/rejoin_game/",
-            {"player_secret": str(self.host_player.player_secret)},
+            {"player_id": str(self.host_player.id), "player_secret": str(self.host_player.player_secret)},
             format="json",
         )
 
@@ -636,7 +646,7 @@ class RejoinGameTestCase(TestCase):
         """Rejoining as non-host must return is_host: false."""
         response = self.client.post(
             f"/api/rooms/{self.room.code}/rejoin_game/",
-            {"player_secret": str(self.non_host_player.player_secret)},
+            {"player_id": str(self.non_host_player.id), "player_secret": str(self.non_host_player.player_secret)},
             format="json",
         )
 
@@ -649,7 +659,10 @@ class RejoinGameTestCase(TestCase):
         """Rejoining with invalid player_secret must return 404."""
         response = self.client.post(
             f"/api/rooms/{self.room.code}/rejoin_game/",
-            {"player_secret": "00000000-0000-0000-0000-000000000000"},
+            {
+                "player_id": str(self.host_player.id),
+                "player_secret": "00000000-0000-0000-0000-000000000000"
+            },
             format="json",
         )
 
@@ -659,7 +672,7 @@ class RejoinGameTestCase(TestCase):
         """Rejoin response must include id, name, isSpectator, is_host, is_checked_in."""
         response = self.client.post(
             f"/api/rooms/{self.room.code}/rejoin_game/",
-            {"player_secret": str(self.host_player.player_secret)},
+            {"player_id": str(self.host_player.id), "player_secret": str(self.host_player.player_secret)},
             format="json",
         )
 

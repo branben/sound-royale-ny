@@ -161,6 +161,45 @@ class PlayerViewSetTestCase(APITestCase):
         self.assertNotIn('pk', update_score_url)
         self.assertNotIn('pk', toggle_connection_url)
 
+    def test_player_secret_hash_populated_on_create(self):
+        """Issue #105: player_secret_hash must be derived from player_secret on save."""
+        self.assertIsNotNone(self.player.player_secret_hash)
+        # A freshly created player's raw secret must verify against its stored hash.
+        from .player_secret import verify_player_secret
+
+        self.assertTrue(
+            verify_player_secret(str(self.player.player_secret), self.player.player_secret_hash)
+        )
+
+    def test_rotate_secret_issues_new_secret_and_invalidates_old(self):
+        """Issue #105: rotation returns a new secret, old secret no longer verifies."""
+        from .player_secret import verify_player_secret
+
+        old_secret = str(self.player.player_secret)
+        url = reverse('player-rotate-secret', kwargs={'player_secret': old_secret})
+        response = self.client.post(url, {'player_secret': old_secret}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        new_secret = response.data['player_secret']
+        self.assertNotEqual(new_secret, old_secret)
+
+        self.player.refresh_from_db()
+        # Old secret must NOT verify against the new hash.
+        self.assertFalse(
+            verify_player_secret(old_secret, self.player.player_secret_hash)
+        )
+        # New secret MUST verify.
+        self.assertTrue(
+            verify_player_secret(new_secret, self.player.player_secret_hash)
+        )
+
+    def test_rotate_secret_rejects_wrong_current_secret(self):
+        """Issue #105: rotation with an incorrect current secret is forbidden."""
+        url = reverse('player-rotate-secret', kwargs={'player_secret': str(self.player.player_secret)})
+        response = self.client.post(url, {'player_secret': str(uuid.uuid4())}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
 
 class PlayerViewSetRoutingTestCase(TestCase):
     """Test ViewSet routing parameter handling"""

@@ -18,6 +18,7 @@ from decouple import config
 
 from .models import Room, Player, Tile, Round
 from .serializers import RoomSerializer, PlayerSerializer, TileSerializer
+from game_engine.auth import verify_player_secret
 
 logger = logging.getLogger(__name__)
 
@@ -132,42 +133,50 @@ class GameSessionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
-    @action(detail=False, methods=['get'], url_path='by-player/(?P<player_secret>[^/.]+)')
-    def by_player(self, request, player_secret=None):
+    @action(detail=False, methods=['get'], url_path='by-player/(?P<player_id>[^/.]+)')
+    def by_player(self, request, player_id=None):
         """
-        List route to get session by player secret
-        URL: /api/game-sessions/by-player/{player_secret}/
+        List route to get session by player id
+        URL: /api/game-sessions/by-player/{player_id}/
         """
+        player_secret = request.query_params.get('player_secret')
+        if not player_secret:
+            return Response(
+                {"error": "player_secret is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         try:
-            player = get_object_or_404(Player, player_secret=player_secret)
-            if not player.room:
-                return Response(
-                    {"error": "Player has not joined a room"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-            room = player.room
-            serializer = self.get_serializer(room)
-            return Response({
-                'room': serializer.data,
-                'player_info': {
-                    'id': str(player.id),
-                    'name': player.name,
-                    'is_host': player.is_host,
-                    'is_spectator': player.is_spectator,
-                    'is_connected': player.is_connected
-                }
-            })
-        except ValueError as e:
+            target_player = Player.objects.get(id=player_id)
+        except (ValueError, Player.DoesNotExist):
             return Response(
-                {"error": str(e)},
-                status=status.HTTP_400_BAD_REQUEST
+                {"error": "Player not found"},
+                status=status.HTTP_404_NOT_FOUND,
             )
-        except Exception as e:
-            logger.error(f"Error retrieving session by player secret [REDACTED]: {str(e)}")
+
+        if not verify_player_secret(str(player_secret), str(target_player.player_secret)):
             return Response(
-                {"error": "Failed to retrieve session"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Invalid player_secret"},
+                status=status.HTTP_403_FORBIDDEN,
             )
+
+        if not target_player.room:
+            return Response(
+                {"error": "Player has not joined a room"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        room = target_player.room
+        serializer = self.get_serializer(room)
+        return Response({
+            'room': serializer.data,
+            'player_info': {
+                'id': str(target_player.id),
+                'name': target_player.name,
+                'is_host': target_player.is_host,
+                'is_spectator': target_player.is_spectator,
+                'is_connected': target_player.is_connected,
+            }
+        })
     
     @action(detail=True, methods=['get'])
     def players(self, request, **kwargs):

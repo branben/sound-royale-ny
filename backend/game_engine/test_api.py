@@ -9,6 +9,7 @@ from django.db import transaction
 from django.utils import timezone
 from .models import Room, Player, Tile, Round, Vote, ThemeRotation, DiscordAccount
 from .views import RoomViewSet
+from game_engine.player_secret import hash_player_secret
 from game_engine.test_auth_helper import get_jwt_header, get_player_secret_header, create_user_for_player
 
 
@@ -490,7 +491,7 @@ class RoomAPITestCase(TestCase):
         self.room.save()
         
         url = reverse('room-start-game', kwargs={'code': '1234'})
-        response = self.client.post(url, {'player_secret': str(self.host.player_secret)}, format='json')
+        response = self.client.post(url, {}, format='json', **get_player_secret_header(self.host))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('Game started', response.data['status'])
@@ -510,7 +511,7 @@ class RoomAPITestCase(TestCase):
         self.room.save()
 
         url = reverse('room-start-game', kwargs={'code': '1234'})
-        response = self.client.post(url, {'player_secret': str(self.host.player_secret)}, format='json')
+        response = self.client.post(url, {}, format='json', **get_player_secret_header(self.host))
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('Need at least 2 players', response.data['error'])
@@ -531,10 +532,10 @@ class RoomAPITestCase(TestCase):
 
         # First start the game successfully
         url = reverse('room-start-game', kwargs={'code': '1234'})
-        self.client.post(url, {'player_secret': str(self.host.player_secret)}, format='json')
+        self.client.post(url, {}, format='json', **get_player_secret_header(self.host))
 
         # Now try to start again
-        response = self.client.post(url, {'player_secret': str(self.host.player_secret)}, format='json')
+        response = self.client.post(url, {}, format='json', **get_player_secret_header(self.host))
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('Game has already started', response.data['error'])
@@ -542,6 +543,7 @@ class RoomAPITestCase(TestCase):
     def test_rejoin_game_success(self):
         """Test rejoining a game successfully"""
         data = {
+            'player_id': str(self.host.id),
             'player_secret': str(self.host.player_secret)
         }
         url = reverse('room-rejoin-game', kwargs={'code': '1234'})
@@ -553,18 +555,28 @@ class RoomAPITestCase(TestCase):
         self.assertEqual(response.data['isSpectator'], False)
         self.assertEqual(response.data['is_host'], True)
 
+    def test_rejoin_game_missing_player_id(self):
+        """Test rejoining without player_id now requires both IDs."""
+        data = {'player_secret': str(self.host.player_secret)}
+        url = reverse('room-rejoin-game', kwargs={'code': '1234'})
+        response = self.client.post(url, data, format='json')
+        
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('player_id and player_secret are required', response.data['error'])
+
     def test_rejoin_game_missing_secret(self):
         """Test rejoining a game without providing player_secret"""
         url = reverse('room-rejoin-game', kwargs={'code': '1234'})
         response = self.client.post(url, {}, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('player_secret is required', response.data['error'])
+        self.assertIn('player_id and player_secret are required', response.data['error'])
 
     def test_rejoin_game_invalid_secret(self):
         """Test rejoining a game with invalid player_secret"""
         data = {
-            'player_secret': str(uuid.uuid4())  # Random UUID that doesn't exist
+            'player_id': str(self.host.id),
+            'player_secret': str(uuid.uuid4())  # Random UUID format but invalid secret
         }
         url = reverse('room-rejoin-game', kwargs={'code': '1234'})
         response = self.client.post(url, data, format='json')
@@ -588,6 +600,7 @@ class RoomAPITestCase(TestCase):
         )
         
         data = {
+            'player_id': str(self.host.id),
             'player_secret': str(self.host.player_secret)
         }
         url = reverse('room-reset-game', kwargs={'code': '1234'})
@@ -604,6 +617,7 @@ class RoomAPITestCase(TestCase):
     def test_reset_game_not_host(self):
         """Test resetting a game as non-host"""
         data = {
+            'player_id': str(self.spectator.id),
             'player_secret': str(self.spectator.player_secret)
         }
         url = reverse('room-reset-game', kwargs={'code': '1234'})
@@ -735,6 +749,7 @@ class VotingAPITestCase(TestCase):
     def test_vote_success(self):
         """Test voting successfully"""
         data = {
+            'player_id': str(self.spectator1.id),
             'player_secret': str(self.spectator1.player_secret),
             'voted_for_player_id': str(self.producer1.id)
         }
@@ -752,6 +767,7 @@ class VotingAPITestCase(TestCase):
     def test_vote_as_producer_forbidden(self):
         """Test that producers cannot vote"""
         data = {
+            'player_id': str(self.producer1.id),
             'player_secret': str(self.producer1.player_secret),
             'voted_for_player_id': str(self.producer2.id)
         }
@@ -767,6 +783,7 @@ class VotingAPITestCase(TestCase):
         self.round.save()
         
         data = {
+            'player_id': str(self.spectator1.id),
             'player_secret': str(self.spectator1.player_secret),
             'voted_for_player_id': str(self.producer1.id)
         }
@@ -779,6 +796,7 @@ class VotingAPITestCase(TestCase):
     def test_vote_for_spectator_forbidden(self):
         """Test that voting for spectators is forbidden"""
         data = {
+            'player_id': str(self.spectator1.id),
             'player_secret': str(self.spectator1.player_secret),
             'voted_for_player_id': str(self.spectator2.id)
         }
@@ -798,6 +816,7 @@ class VotingAPITestCase(TestCase):
         )
         
         data = {
+            'player_id': str(self.spectator1.id),
             'player_secret': str(self.spectator1.player_secret),
             'voted_for_player_id': str(self.producer2.id)
         }
@@ -813,6 +832,7 @@ class VotingAPITestCase(TestCase):
         self.round.save()
         
         data = {
+            'player_id': str(self.host.id),
             'player_secret': str(self.host.player_secret)
         }
         url = reverse('room-open-voting', kwargs={'code': '1234'})
@@ -826,6 +846,7 @@ class VotingAPITestCase(TestCase):
     def test_open_voting_not_host(self):
         """Test opening voting as non-host"""
         data = {
+            'player_id': str(self.spectator1.id),
             'player_secret': str(self.spectator1.player_secret)
         }
         url = reverse('room-open-voting', kwargs={'code': '1234'})
@@ -844,6 +865,7 @@ class VotingAPITestCase(TestCase):
         self.round.save()
         
         data = {
+            'player_id': str(self.host.id),
             'player_secret': str(self.host.player_secret)
         }
         url = reverse('room-open-voting', kwargs={'code': '1234'})

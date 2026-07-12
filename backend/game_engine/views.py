@@ -18,12 +18,14 @@ import asyncio
 import json
 import logging
 import os
+import uuid
 
 logger = logging.getLogger(__name__)
 audit_logger = logging.getLogger("game_audit")
 
 from .models import Room, Player, Tile, Round, Vote, ThemeRotation, DiscordAccount
 from .discord_service import DiscordOAuthService
+from .player_secret import generate_player_secret, hash_player_secret, verify_player_secret
 from .serializers import (
     RoomSerializer,
     RoomDetailSerializer,
@@ -222,38 +224,36 @@ def resolve_player_from_request(request, room):
         if player and player.room_id == room.id:
             return player, None
 
-    # Fallback to player_secret in request body or headers
-    player_id = request.data.get('player_id') or request.META.get('HTTP_X_PLAYER_ID')
-    player_secret = request.data.get('player_secret') or request.META.get('HTTP_X_PLAYER_SECRET')
+    # Use headers when provided; fall back to body fields for compatibility.
+    player_id = (
+            request.headers.get('X-Player-ID')
+            or request.data.get('player_id')
+            or request.META.get('HTTP_X_PLAYER_ID')
+    )
+    player_secret = (
+            request.headers.get('X-Player-Secret')
+            or request.data.get('player_secret')
+            or request.META.get('HTTP_X_PLAYER_SECRET')
+    )
 
     if player_id and player_secret:
         try:
             player = Player.objects.get(id=player_id, room=room)
-            if str(player.player_secret) != str(player_secret):
-                return None, Response(
-                    {"error": "Invalid player_secret"},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
-            return player, None
         except Player.DoesNotExist:
             return None, Response(
                 {"error": "Player not found"},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-    # Legacy fallback: player_secret only (no player_id)
-    if player_secret:
-        try:
-            player = Player.objects.get(room=room, player_secret=player_secret)
-            return player, None
-        except Player.DoesNotExist:
+        if not verify_player_secret(str(player_secret), player.player_secret_hash):
             return None, Response(
-                {"error": "Invalid player credentials"},
+                {"error": "Invalid player_secret"},
                 status=status.HTTP_403_FORBIDDEN,
             )
+        return player, None
 
     return None, Response(
-        {"error": "Authentication required"},
+        {'error': 'Authentication required'},
         status=status.HTTP_403_FORBIDDEN,
     )
 
@@ -849,36 +849,44 @@ class RoomViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def rejoin_game(self, request, pk=None, code=None):
         """
-        Rejoin a game room using player_secret.
-        Returns player data if secret matches, 404 if not found.
+        Rejoin a game room using player_id and player_secret.
+        Returns player data when both identifiers match, 404 if not found.
         """
         room = self.get_object()
+        player_id = request.data.get("player_id")
         player_secret = request.data.get("player_secret")
 
-        if not player_secret:
+        if not player_id or not player_secret:
             return Response(
-                {"error": "player_secret is required"},
+                {"error": "player_id and player_secret are required"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
-            player = Player.objects.get(room=room, player_secret=player_secret)
-            return Response(
-                {
-                    "id": str(player.id),
-                    "name": player.name,
-                    "isSpectator": player.is_spectator,
-                    "is_host": player.is_host,
-                    "is_checked_in": player.is_checked_in,
-                    "current_title": player.current_title,
-                },
-                status=status.HTTP_200_OK,
-            )
+            player = Player.objects.get(id=player_id, room=room)
         except Player.DoesNotExist:
+            return Response(
+                {"error": "Player not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if not verify_player_secret(str(player_secret), player.player_secret_hash):
             return Response(
                 {"error": "Player not found with this secret"},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+        return Response(
+            {
+                "id": str(player.id),
+                "name": player.name,
+                "isSpectator": player.is_spectator,
+                "is_host": player.is_host,
+                "is_checked_in": player.is_checked_in,
+                "current_title": player.current_title,
+            },
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=True, methods=["post"])
     def reset_game(self, request, pk=None, code=None):
@@ -1519,7 +1527,6 @@ class PlayerViewSet(viewsets.ModelViewSet):
             except Player.DoesNotExist:
                 pass
         return super().get_object()
-
     @action(detail=True, methods=["post"])
     def toggle_ready(self, request, pk=None, player_secret=None):
         """
@@ -1529,7 +1536,9 @@ class PlayerViewSet(viewsets.ModelViewSet):
 
         # Verify player_secret matches
         provided_secret = request.data.get("player_secret")
-        if not provided_secret or str(player.player_secret) != str(provided_secret):
+        if not provided_secret or not verify_player_secret(
+            str(provided_secret), player.player_secret_hash
+        ):
             return Response(
                 {"error": "Invalid player_secret"},
                 status=status.HTTP_403_FORBIDDEN
@@ -1596,6 +1605,39 @@ class PlayerViewSet(viewsets.ModelViewSet):
                 "is_connected": player.is_connected
             },
             status=status.HTTP_200_OK
+        )
+
+    @action(detail=True, methods=["post"])
+    def rotate_secret(self, request, pk=None, player_secret=None):
+        """
+        Rotate a player's secret. Requires the current player_secret for
+        verification, then issues a new secret (returned exactly once).
+        """
+        player = self.get_object()
+
+        current_secret = request.data.get("player_secret")
+        if not current_secret or not verify_player_secret(
+            str(current_secret), player.player_secret_hash
+        ):
+            return Response(
+                {"error": "Invalid player_secret"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Issue a new raw secret and recompute its hash explicitly. The save()
+        # override only hashes on first creation (when player_secret_hash is
+        # empty), so rotation must set the hash directly or the old secret would
+        # still verify against the stale hash.
+        player.player_secret = uuid.uuid4()
+        player.player_secret_hash = hash_player_secret(str(player.player_secret))
+        player.save()
+
+        return Response(
+            {
+                "player_id": str(player.id),
+                "player_secret": str(player.player_secret),
+            },
+            status=status.HTTP_200_OK,
         )
 
     def perform_create(self, serializer):
@@ -1858,20 +1900,19 @@ def discord_link_account(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # Find existing player or create one on-the-fly for Discord linking
-    player = Player.objects.filter(id=player_id, player_secret=player_secret).first()
-    if not player:
-        try:
-            player = Player.objects.create(
-                id=player_id,
-                player_secret=player_secret,
-                name=discord_username or "Discord User",
-                room=None,
-            )
-        except IntegrityError:
+    try:
+        player = Player.objects.get(id=player_id)
+    except Player.DoesNotExist:
+        player = Player.objects.create(
+            id=player_id,
+            name=discord_username or "Discord User",
+            room=None,
+        )
+    else:
+        if not verify_player_secret(str(player_secret), player.player_secret_hash):
             return Response(
-                {"error": "Player ID exists with different credentials"},
-                status=status.HTTP_409_CONFLICT,
+                {"error": "Invalid player credentials"},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
     try:
@@ -1927,12 +1968,17 @@ def discord_unlink_account(request):
         )
 
     try:
-        # Verify player credentials
-        player = Player.objects.get(id=player_id, player_secret=player_secret)
+        player = Player.objects.get(id=player_id)
     except Player.DoesNotExist:
         return Response(
+            {"error": "Player not found"},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    if not verify_player_secret(str(player_secret), str(player.player_secret)):
+        return Response(
             {"error": "Invalid player credentials"},
-            status=status.HTTP_401_UNAUTHORIZED,
+            status=status.HTTP_403_FORBIDDEN,
         )
 
     try:
@@ -1981,11 +2027,17 @@ def discord_account_status(request):
             )
 
         try:
-            player = Player.objects.get(id=player_id, player_secret=player_secret)
+            player = Player.objects.get(id=player_id)
         except Player.DoesNotExist:
             return Response(
                 {"is_linked": False},
                 status=status.HTTP_200_OK,
+            )
+
+        if not verify_player_secret(str(player_secret), player.player_secret_hash):
+            return Response(
+                {"is_linked": False},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         discord_service = DiscordOAuthService()

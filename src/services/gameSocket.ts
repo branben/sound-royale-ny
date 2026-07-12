@@ -84,12 +84,12 @@ class GameSocketService {
     // Prefer JWT token for auth
     if (this.options!.accessToken) {
       url.searchParams.set('token', this.options!.accessToken);
-    } else if (this.options!.playerSecret) {
-      // Fallback to player_secret for backward compat
-      url.searchParams.set('secret', this.options!.playerSecret);
-      if (this.options!.playerId) {
-        url.searchParams.set('player_id', this.options!.playerId);
-      }
+    } else if (this.options!.playerId) {
+      // player_id is sent as a query param (not a secret). The player_secret is
+      // NEVER placed in the URL; it is negotiated via the Sec-WebSocket-Protocol
+      // subprotocol at connect time (see doConnect) so it doesn't leak into logs
+      // or proxy access records (guardrail #105).
+      url.searchParams.set('player_id', this.options!.playerId);
     }
 
     return url.toString();
@@ -127,6 +127,30 @@ class GameSocketService {
     this.doConnect();
   }
 
+  /**
+   * Replace the current player secret with a newly rotated value,
+   * then reconnect using the new credential set.
+   */
+  rotateSecret(options: GameSocketOptions): void {
+    const nextConnectionKey = this.getConnectionKey(options);
+
+    if (
+      this.currentConnectionKey === nextConnectionKey &&
+      this.ws &&
+      this.ws.readyState === WebSocket.OPEN
+    ) {
+      return;
+    }
+
+    this.options = options;
+    this.maxReconnectAttempts = options.reconnectAttempts ?? 5;
+    this.isIntentionallyClosed = false;
+    this.reconnectAttempts = 0;
+    this.currentConnectionKey = nextConnectionKey;
+
+    this.doConnect();
+  }
+
   private getConnectionKey(options: GameSocketOptions): string {
     return [options.gameId, options.playerId ?? '', options.playerSecret ?? ''].join(':');
   }
@@ -145,7 +169,13 @@ class GameSocketService {
     const wsUrl = this.getWsUrl();
 
     try {
-      this.ws = new WebSocket(wsUrl);
+      // When authenticating with a player_secret (no JWT), pass it as the
+      // Sec-WebSocket-Protocol subprotocol rather than a URL query param.
+      const secret = this.options!.playerSecret;
+      this.ws =
+        secret && !this.options!.accessToken
+          ? new WebSocket(wsUrl, secret)
+          : new WebSocket(wsUrl);
 
       this.connectTimeout = setTimeout(() => {
         if (this.isConnecting && this.ws) {

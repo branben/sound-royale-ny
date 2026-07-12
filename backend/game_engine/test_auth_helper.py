@@ -11,7 +11,6 @@ def create_user_for_player(player: Player) -> User:
     If a User already exists for the player, it is returned.
     """
     username = f"player_{player.id.hex[:12]}"
-    # Use get_or_create in case the user already exists
     user, _ = User.objects.get_or_create(
         username=username,
         defaults={"password": User.objects.make_random_password()},

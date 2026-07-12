@@ -78,7 +78,10 @@ class GameConsumer(AsyncWebsocketConsumer):
         # Join room group
         await self.channel_layer.group_add(self.game_group_name, self.channel_name)
 
-        await self.accept()
+        # Echo a negotiated subprotocol if the client authenticated via the
+        # Sec-WebSocket-Protocol header (player_secret), otherwise accept plain.
+        # Browsers reject the handshake unless an offered subprotocol is echoed.
+        await self.accept(subprotocol=self.scope.get("_ws_auth_subprotocol"))
 
         audit_logger.info(
             "websocket_connected",

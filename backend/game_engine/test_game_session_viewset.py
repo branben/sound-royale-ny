@@ -7,13 +7,18 @@ from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
-from django.db import transaction, IntegrityError
-from unittest.mock import patch, MagicMock
 import uuid
+from django.test import TestCase
+from unittest.mock import patch, MagicMock
 
 from .models import Room, Player, Tile, Round
 from .game_session_views import GameSessionViewSet
-from .serializers import RoomSerializer, PlayerSerializer, TileSerializer
+from django.db import IntegrityError
+from game_engine.game_session_views import (
+    RoomSerializer,
+    PlayerSerializer,
+    TileSerializer,
+)
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.routing]
@@ -29,19 +34,19 @@ class GameSessionViewSetTestCase(APITestCase):
             room=self.room,
             name="HostPlayer",
             is_host=True,
-            player_secret=uuid.uuid4()
+            player_secret=uuid.uuid4(),
         )
         self.player = Player.objects.create(
             room=self.room,
             name="TestPlayer",
             is_host=False,
-            player_secret=uuid.uuid4()
+            player_secret=uuid.uuid4(),
         )
         self.spectator = Player.objects.create(
             room=self.room,
             name="SpectatorPlayer",
             is_spectator=True,
-            player_secret=uuid.uuid4()
+            player_secret=uuid.uuid4(),
         )
         
         # Create some test tiles
@@ -400,24 +405,22 @@ class GameSessionViewSetTestCase(APITestCase):
         
         request = MagicMock()
         viewset.request = request
+        request.query_params = {'player_secret': str(self.player.player_secret)}
         
-        # Mock get_object to return room
-        with patch.object(viewset, 'get_object', return_value=self.room):
-            # Mock Player.objects.get to return player
-            with patch('game_engine.game_session_views.get_object_or_404') as mock_get:
-                mock_get.return_value = self.player
-                
-                response = viewset.by_player(request, player_secret=str(self.player.player_secret))
-                
-                self.assertEqual(response.status_code, status.HTTP_200_OK)
-                self.assertIn('room', response.data)
-                self.assertIn('player_info', response.data)
-                
-                # Verify player info structure
-                player_info = response.data['player_info']
-                self.assertEqual(player_info['name'], self.player.name)
-                self.assertEqual(player_info['is_host'], self.player.is_host)
-                self.assertEqual(player_info['is_spectator'], self.player.is_spectator)
+        response = viewset.by_player(
+            request,
+            player_id=str(self.player.id),
+        )
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('room', response.data)
+        self.assertIn('player_info', response.data)
+        
+        # Verify player info structure
+        player_info = response.data['player_info']
+        self.assertEqual(player_info['name'], self.player.name)
+        self.assertEqual(player_info['is_host'], self.player.is_host)
+        self.assertEqual(player_info['is_spectator'], self.player.is_spectator)
     
     def test_error_handling_in_all_lookup_methods(self):
         """Test comprehensive error handling across all lookup methods"""
@@ -456,13 +459,13 @@ class GameSessionViewSetIntegrationTestCase(APITestCase):
             room=self.room,
             name="IntegrationHost",
             is_host=True,
-            player_secret=uuid.uuid4()
+            player_secret=uuid.uuid4(),
         )
         self.player = Player.objects.create(
             room=self.room,
             name="IntegrationPlayer",
             is_host=False,
-            player_secret=uuid.uuid4()
+            player_secret=uuid.uuid4(),
         )
     
     def test_url_patterns_work_with_different_lookups(self):
