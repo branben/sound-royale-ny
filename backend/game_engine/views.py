@@ -543,6 +543,10 @@ class RoomViewSet(viewsets.ModelViewSet):
     permission_classes = [AllowAny]
     lookup_field = "code"  # Allow lookup by 4-digit room code
     throttle_scope = "room_creation"
+    # Security: disable generic write/delete routes. All room mutations must
+    # go through the custom actions (start_game, reset_game, next_turn, etc.)
+    # which verify player_secret + is_host. See security finding room_crud_open.
+    http_method_names = ["get", "post", "head", "options"]
 
     def get_throttles(self):
         throttles = super().get_throttles()
