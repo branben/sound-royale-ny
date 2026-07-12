@@ -2098,7 +2098,7 @@ def log_client_error(request):
 def upload_audio(request, tile_id):
     """
     Direct upload endpoint for tile audio.
-    NOTE: This intentionally bypasses viewset size/MIME enforcement for fast client uploads.
+    Enforces the same MIME allow-list and size cap as play_tile.
     """
     tile = get_object_or_404(Tile, id=tile_id)
     player, error = resolve_player_from_request(request, tile.room)
@@ -2118,12 +2118,34 @@ def upload_audio(request, tile_id):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
+    # Security: enforce size + MIME allow-list. See finding upload_audio_bypass.
+    ALLOWED_AUDIO_MIME_TYPES = {
+        "audio/mpeg",
+        "audio/wav",
+        "audio/x-wav",
+        "audio/ogg",
+        "audio/flac",
+        "audio/mp4",
+        "audio/x-m4a",
+        "audio/aac",
+    }
+    if audio_file.size > settings.MAX_UPLOAD_SIZE:
+        return Response(
+            {"error": f"File too large. Maximum size is {settings.MAX_UPLOAD_SIZE // (1024 * 1024)}MB."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if audio_file.content_type not in ALLOWED_AUDIO_MIME_TYPES:
+        return Response(
+            {"error": f"Invalid file type '{audio_file.content_type}'. Allowed types: mp3, wav, ogg, flac, m4a, aac."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     tile.audio_file = audio_file
     tile.audio_url = f"{request.get_host()}/media/{audio_file.name}"
     tile.save()
 
     audit_logger.info(
-        "audio_upload_bypass",
+        "audio_upload",
         extra={
             "tile_id": str(tile.id),
             "player_id": str(player.id),
@@ -2132,10 +2154,8 @@ def upload_audio(request, tile_id):
             "filename": audio_file.name,
             "file_size": audio_file.size,
             "content_type": audio_file.content_type,
-            "bypassed_size_limit": audio_file.size > settings.MAX_UPLOAD_SIZE * 1.5,
-            "bypassed_mime_check": True,
             "timestamp": timezone.now().isoformat(),
-            "action": "upload_audio_bypassed",
+            "action": "upload_audio",
             "outcome": "success",
         },
     )
