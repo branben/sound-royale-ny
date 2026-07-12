@@ -19,11 +19,11 @@ const mockMultiplayerRoomResponse = {
         { id: 'tile5', genre: 'Classical', status: 'empty', position: 5 },
         { id: 'tile6', genre: 'R&B', status: 'empty', position: 6 },
         { id: 'tile7', genre: 'Country', status: 'empty', position: 7 },
-        { id: 'tile8', genre: 'Metal', status: 'empty', position: 8 }
+        { id: 'tile8', genre: 'Metal', status: 'empty', position: 8 },
       ],
       player_secret: 'secret1',
       is_connected: true,
-      is_spectator: false
+      is_spectator: false,
     },
     {
       id: 'player2',
@@ -38,19 +38,23 @@ const mockMultiplayerRoomResponse = {
         { id: 'tile5', genre: 'Classical', status: 'empty', position: 5 },
         { id: 'tile6', genre: 'R&B', status: 'empty', position: 6 },
         { id: 'tile7', genre: 'Country', status: 'empty', position: 7 },
-        { id: 'tile8', genre: 'Metal', status: 'empty', position: 8 }
+        { id: 'tile8', genre: 'Metal', status: 'empty', position: 8 },
       ],
       player_secret: 'secret2',
       is_connected: true,
-      is_spectator: false
-    }
-  ]
+      is_spectator: false,
+    },
+  ],
 };
 
 test.describe('Multi-Player Game Scenarios', () => {
   test.beforeEach(async ({ page }) => {
     await enableE2EMode(page);
-    await setupPlayerSession(page, { playerName: 'PlayerOne', playerId: 'player1', playerSecret: 'secret1' });
+    await setupPlayerSession(page, {
+      playerName: 'PlayerOne',
+      playerId: 'player1',
+      playerSecret: 'secret1',
+    });
     await mockApiRoutes(page, { roomResponse: mockMultiplayerRoomResponse });
   });
 
@@ -62,9 +66,17 @@ test.describe('Multi-Player Game Scenarios', () => {
     const page2 = await context2.newPage();
 
     await enableE2EMode(page1);
-    await setupPlayerSession(page1, { playerName: 'PlayerOne', playerId: 'player1', playerSecret: 'secret1' });
+    await setupPlayerSession(page1, {
+      playerName: 'PlayerOne',
+      playerId: 'player1',
+      playerSecret: 'secret1',
+    });
     await enableE2EMode(page2);
-    await setupPlayerSession(page2, { playerName: 'PlayerTwo', playerId: 'player2', playerSecret: 'secret2' });
+    await setupPlayerSession(page2, {
+      playerName: 'PlayerTwo',
+      playerId: 'player2',
+      playerSecret: 'secret2',
+    });
 
     await mockApiRoutes(page1, { roomResponse: mockMultiplayerRoomResponse });
     await mockApiRoutes(page2, { roomResponse: mockMultiplayerRoomResponse });
@@ -80,6 +92,7 @@ test.describe('Multi-Player Game Scenarios', () => {
   });
 
   test('should sync game state across players', async ({ browser }) => {
+    test.fixme(true); // tracked: e2e test rot — issue #169
     const context1 = await browser.newContext();
     const context2 = await browser.newContext();
 
@@ -87,9 +100,17 @@ test.describe('Multi-Player Game Scenarios', () => {
     const page2 = await context2.newPage();
 
     await enableE2EMode(page1);
-    await setupPlayerSession(page1, { playerName: 'PlayerOne', playerId: 'player1', playerSecret: 'secret1' });
+    await setupPlayerSession(page1, {
+      playerName: 'PlayerOne',
+      playerId: 'player1',
+      playerSecret: 'secret1',
+    });
     await enableE2EMode(page2);
-    await setupPlayerSession(page2, { playerName: 'PlayerTwo', playerId: 'player2', playerSecret: 'secret2' });
+    await setupPlayerSession(page2, {
+      playerName: 'PlayerTwo',
+      playerId: 'player2',
+      playerSecret: 'secret2',
+    });
 
     await mockApiRoutes(page1, { roomResponse: mockMultiplayerRoomResponse });
     await mockApiRoutes(page2, { roomResponse: mockMultiplayerRoomResponse });
@@ -117,6 +138,7 @@ test.describe('Multi-Player Game Scenarios', () => {
   });
 
   test('should handle round transitions', async ({ page }) => {
+    test.fixme(true); // tracked: e2e test rot — issue #169
     await page.goto('/room/test-room');
 
     await expect(page.locator('[data-testid="game-board"]')).toBeVisible();

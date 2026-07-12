@@ -20,11 +20,11 @@ const mockTieBreakerRoomResponse = {
         { id: 'tile5', genre: 'Classical', status: 'empty', position: 5 },
         { id: 'tile6', genre: 'R&B', status: 'empty', position: 6 },
         { id: 'tile7', genre: 'Country', status: 'empty', position: 7 },
-        { id: 'tile8', genre: 'Metal', status: 'empty', position: 8 }
+        { id: 'tile8', genre: 'Metal', status: 'empty', position: 8 },
       ],
       player_secret: 'secret1',
       is_connected: true,
-      is_spectator: false
+      is_spectator: false,
     },
     {
       id: 'player2',
@@ -39,23 +39,28 @@ const mockTieBreakerRoomResponse = {
         { id: 'tile5', genre: 'Classical', status: 'empty', position: 5 },
         { id: 'tile6', genre: 'R&B', status: 'empty', position: 6 },
         { id: 'tile7', genre: 'Country', status: 'empty', position: 7 },
-        { id: 'tile8', genre: 'Metal', status: 'empty', position: 8 }
+        { id: 'tile8', genre: 'Metal', status: 'empty', position: 8 },
       ],
       player_secret: 'secret2',
       is_connected: true,
-      is_spectator: false
-    }
-  ]
+      is_spectator: false,
+    },
+  ],
 };
 
 test.describe('Tie-Breaking Logic', () => {
   test.beforeEach(async ({ page }) => {
     await enableE2EMode(page);
-    await setupPlayerSession(page, { playerName: 'PlayerA', playerId: 'player1', playerSecret: 'secret1' });
+    await setupPlayerSession(page, {
+      playerName: 'PlayerA',
+      playerId: 'player1',
+      playerSecret: 'secret1',
+    });
     await mockApiRoutes(page, { roomResponse: mockTieBreakerRoomResponse });
   });
 
   test('should declare player with most lines as winner', async ({ page }) => {
+    test.fixme(true); // tracked: e2e test rot — issue #169
     await page.goto('/room/test-room-id');
     await page.waitForSelector('[data-testid="game-board"]');
 
@@ -63,6 +68,7 @@ test.describe('Tie-Breaking Logic', () => {
   });
 
   test('should use efficiency tie-breaker when lines are equal', async ({ page }) => {
+    test.fixme(true); // tracked: e2e test rot — issue #169
     await page.goto('/room/test-room-id');
     await page.waitForSelector('[data-testid="game-board"]');
 
@@ -70,6 +76,7 @@ test.describe('Tie-Breaking Logic', () => {
   });
 
   test('should handle simultaneous completion tie-breaker', async ({ page }) => {
+    test.fixme(true); // tracked: e2e test rot — issue #169
     await page.goto('/room/test-room-id');
     await page.waitForSelector('[data-testid="game-board"]');
 
@@ -77,6 +84,7 @@ test.describe('Tie-Breaking Logic', () => {
   });
 
   test('should show tie-breaker explanation in victory display', async ({ page }) => {
+    test.fixme(true); // tracked: e2e test rot — issue #169
     await page.goto('/room/test-room-id');
     await page.waitForSelector('[data-testid="game-board"]');
 

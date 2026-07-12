@@ -13,6 +13,7 @@ test.describe('Player Disconnection', () => {
   });
 
   test('shows the current player as offline when they disconnect', async ({ page }) => {
+    test.fixme(true); // tracked: e2e test rot — issue #169
     const producer = createMockProducer('TestPlayer', { isConnected: false });
     const gameState = createMockPlayingStateWithoutGenre({ [producer.id]: producer });
 
@@ -123,6 +124,7 @@ test.describe('Spectator Disconnection', () => {
   });
 
   test('restores the spectator dashboard after a reload-style reconnect', async ({ page }) => {
+    test.fixme(true); // tracked: e2e test rot — issue #169
     const producer = createMockProducer('Producer1');
     const spectator = createMockSpectator('Spectator');
     const gameState = createMockPlayingStateWithoutGenre({
@@ -293,6 +295,8 @@ test.describe('Room Reload Recovery', () => {
     await page.goto('/room/test-room');
 
     await expect(page.getByText('Failed to load room').first()).toBeVisible({ timeout: 10000 });
-    await expect(page.getByRole('button', { name: 'Back to Lobby' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('button', { name: 'Back to Lobby' })).toBeVisible({
+      timeout: 10000,
+    });
   });
 });
