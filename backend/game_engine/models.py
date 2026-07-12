@@ -289,10 +289,33 @@ class Vote(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ["round", "voter"]  # One vote per round per spectator
+        unique_together = [["round", "voter"]]  # One vote per round per spectator
 
     def __str__(self):
         return f"{self.voter.name} voted for {self.voted_for.name} in Round {self.round.round_number}"
+
+
+class BingoClaim(models.Model):
+    """Records a bingo claim for a player/room.
+
+    Used to make bingo claims idempotent: a player can only claim a bingo
+    once per room. A second identical claim is rejected via unique_together,
+    and record_bingo_claim is called inside the play_tile atomic block so
+    duplicate achievement broadcasts from rapid retries cannot double-count.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name="bingo_claims")
+    player = models.ForeignKey(
+        Player, on_delete=models.CASCADE, related_name="bingo_claims"
+    )
+    claimed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [["room", "player"]]  # One bingo claim per player per room
+
+    def __str__(self):
+        return f"{self.player.name} claimed bingo in {self.room.code}"
 
 
 class DiscordAccount(models.Model):

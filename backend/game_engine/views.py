@@ -29,7 +29,16 @@ import os
 logger = logging.getLogger(__name__)
 audit_logger = logging.getLogger("game_audit")
 
-from .models import Room, Player, Tile, Round, Vote, ThemeRotation, DiscordAccount
+from .models import (
+    Room,
+    Player,
+    Tile,
+    Round,
+    Vote,
+    BingoClaim,
+    ThemeRotation,
+    DiscordAccount,
+)
 from .discord_service import DiscordOAuthService
 from .serializers import (
     RoomSerializer,
@@ -428,6 +437,18 @@ def _resolve_bingo_and_winner(room, player):
                     room.save()
 
 
+def record_bingo_claim(room, player):
+    """Idempotently record a bingo claim for (room, player).
+
+    Returns the BingoClaim if freshly created, or the existing one if the
+    player already claimed bingo in this room. The unique_together on
+    BingoClaim guarantees only one claim per (room, player) survives a race
+    between concurrent claims.
+    """
+    claim, _created = BingoClaim.objects.get_or_create(room=room, player=player)
+    return claim
+
+
 def broadcast_game_update(room):
     """
     Helper to broadcast game state updates to the room's channel group.
@@ -593,38 +614,46 @@ class RoomViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # Create the room
-        room = serializer.save()
-
-        # Generate unique 4-digit room code
-        while True:
-            code = "".join(random.choices("0123456789", k=4))
-            if not Room.objects.filter(code=code).exists():
-                room.code = code
-                room.save()
-                break
-
         player_name = serializer.validated_data.get("player_name", "Host")
-        player = Player.objects.create(
-            room=room, name=player_name, is_spectator=False, is_host=True
-        )
-        # Generate JWT tokens for the host player
-        token_data = get_authenticated_player(player)
+
+        # Create the Room + host Player + initial tiles in a single atomic
+        # transaction so a failure at any step rolls back everything (no
+        # orphaned room with no host, no half-built board).
+        with transaction.atomic():
+            # Create the room
+            room = serializer.save()
+
+            # Generate unique 4-digit room code
+            while True:
+                code = "".join(random.choices("0123456789", k=4))
+                if not Room.objects.filter(code=code).exists():
+                    room.code = code
+                    room.save()
+                    break
+
+            player = Player.objects.create(
+                room=room, name=player_name, is_spectator=False, is_host=True
+            )
+            # Generate JWT tokens for the host player
+            token_data = get_authenticated_player(player)
+
+            # Use theme-based genre selection
+            theme_genres = get_theme_genres(room)
+            random.shuffle(theme_genres)
+            genres = theme_genres[:9]
+
+            for position in range(9):
+                Tile.objects.create(
+                    player=player, room=room, position=position, genre=genres.pop()
+                )
+
+        # Discord identity is attached OUTSIDE the atomic block: a failure here
+        # leaves a fully valid room+host, which the caller can re-link later.
         discord_error = attach_discord_identity_from_session(player, request.data)
         if discord_error is not None:
             player.delete()
             room.delete()
             return discord_error
-
-        # Use theme-based genre selection
-        theme_genres = get_theme_genres(room)
-        random.shuffle(theme_genres)
-        genres = theme_genres[:9]
-
-        for position in range(9):
-            Tile.objects.create(
-                player=player, room=room, position=position, genre=genres.pop()
-            )
 
         response_data = {
                 "room_code": room.code,
@@ -1118,15 +1147,24 @@ class RoomViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        existing_vote = Vote.objects.filter(round=current_round, voter=voter).first()
-        if existing_vote:
-            return Response(
-                {"error": "You have already voted in this round"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         try:
             with transaction.atomic():
+                # Lock the round row so concurrent votes are serialized and
+                # votes_recorded is incremented atomically. select_for_update
+                # also re-reads the round inside the lock, so a duplicate vote
+                # is detected here (in addition to the unique_together on Vote).
+                current_round = Round.objects.select_for_update().get(
+                    pk=current_round.pk
+                )
+                existing_vote = Vote.objects.filter(
+                    round=current_round, voter=voter
+                ).first()
+                if existing_vote:
+                    return Response(
+                        {"error": "You have already voted in this round"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
                 vote = Vote.objects.create(
                     round=current_round,
                     voter=voter,
@@ -1687,6 +1725,66 @@ class PlayerViewSet(viewsets.ModelViewSet):
         return Response({"status": "Left game"}, status=status.HTTP_200_OK)
 
 
+    @action(detail=True, methods=["post"])
+    def claim_bingo(self, request, pk=None, player_secret=None):
+        """Idempotent bingo claim for a player in their room.
+
+        A player may only claim bingo once per room. Duplicate claims from the
+        same player are rejected (HTTP 409) rather than double-counted. The
+        row-level uniqueness is enforced by BingoClaim.unique_together, so a
+        concurrent double-submit race can never create two claims.
+        """
+        player = self.get_object()
+        room = player.room
+        if not room:
+            return Response(
+                {"error": "Player is not in a room"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Detail lookup is by `player_secret`, so self.get_object() has already
+        # authenticated the caller against the requested player. No further
+        # credential check is needed (mirrors toggle_ready/leave_game actions).
+
+        try:
+            with transaction.atomic():
+                # Lock the existing claim row (if any) so two concurrent claims
+                # are serialized; the second sees the committed row and is 409'd.
+                existing = BingoClaim.objects.select_for_update().filter(
+                    room=room, player=player
+                ).first()
+                if existing:
+                    return Response(
+                        {
+                            "error": "Bingo already claimed for this room",
+                            "already_claimed": True,
+                        },
+                        status=status.HTTP_409_CONFLICT,
+                    )
+                claim = BingoClaim.objects.create(room=room, player=player)
+        except IntegrityError:
+            # Another concurrent transaction won the race and inserted first.
+            return Response(
+                {
+                    "error": "Bingo already claimed for this room",
+                    "already_claimed": True,
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        transaction.on_commit(lambda: broadcast_game_update(room))
+
+        return Response(
+            {
+                "status": "Bingo claimed",
+                "room_code": room.code,
+                "player_id": str(player.id),
+                "claimed_at": claim.claimed_at.isoformat(),
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
 class TileViewSet(viewsets.ModelViewSet):
     """
     API endpoint for managing game tiles.
@@ -1789,10 +1887,24 @@ class TileViewSet(viewsets.ModelViewSet):
                 )
 
         with transaction.atomic():
+            # Lock the tile row so two concurrent claims on the same tile are
+            # serialized: the second transaction waits for the lock, then sees
+            # the COMMITTED status and is rejected instead of overwriting.
+            tile = Tile.objects.select_for_update().get(pk=tile.pk)
+            if tile.status != Tile.Status.EMPTY:
+                return Response(
+                    {"error": "Tile has already been played"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             tile.status = Tile.Status.COMPLETE
             if audio_file:
                 tile.audio_file = audio_file
             tile.save()
+
+            # Record a bingo claim at the moment of completion so duplicate
+            # achievement broadcasts / claims are idempotent.
+            record_bingo_claim(room, player)
 
             # Check for bingo lines and resolve winner (ranked matches only)
             if room.match_type == Room.MatchType.RANKED:
