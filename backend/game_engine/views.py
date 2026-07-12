@@ -367,65 +367,75 @@ def normalize_genre(value):
 
 
 def _resolve_bingo_and_winner(room, player):
-    if room.status == Room.Status.FINISHED:
-        return
+    with transaction.atomic():
+        # Lock the room row to serialize concurrent bingo claims
+        room = Room.objects.select_for_update().get(pk=room.pk)
 
-    all_players_with_tiles = room.players.filter(
-        is_spectator=False
-    ).prefetch_related(
-        Prefetch(
-            "tiles",
-            queryset=Tile.objects.filter(status=Tile.Status.COMPLETE),
-            to_attr="completed_tiles",
+        # Idempotent: if room is already finished for this round, return early
+        if room.status == Room.Status.FINISHED:
+            return
+
+        # Lock this player's tiles for this room to prevent concurrent mutations
+        list(Tile.objects.select_for_update().filter(
+            player=player, room=room
+        ))
+
+        all_players_with_tiles = room.players.filter(
+            is_spectator=False
+        ).prefetch_related(
+            Prefetch(
+                "tiles",
+                queryset=Tile.objects.filter(status=Tile.Status.COMPLETE),
+                to_attr="completed_tiles",
+            )
         )
-    )
 
-    current_player_tiles = next(
-        (
-            p.completed_tiles
-            for p in all_players_with_tiles
-            if p.id == player.id
-        ),
-        [],
-    )
+        current_player_tiles = next(
+            (
+                p.completed_tiles
+                for p in all_players_with_tiles
+                if p.id == player.id
+            ),
+            [],
+        )
 
-    if len(current_player_tiles) >= 5:
-        player_tiles = list(current_player_tiles)
-        completed_lines = check_bingo_lines(player_tiles)
+        if len(current_player_tiles) >= 5:
+            player_tiles = list(current_player_tiles)
+            completed_lines = check_bingo_lines(player_tiles)
 
-        if completed_lines:
-            score_info = calculate_bingo_score(player, completed_lines)
+            if completed_lines:
+                score_info = calculate_bingo_score(player, completed_lines)
 
-            player_scores = []
+                player_scores = []
 
-            for other_player in all_players_with_tiles:
-                if other_player.id == player.id:
-                    continue
+                for other_player in all_players_with_tiles:
+                    if other_player.id == player.id:
+                        continue
 
-                other_completed_tiles = other_player.completed_tiles
+                    other_completed_tiles = other_player.completed_tiles
 
-                if other_completed_tiles:
-                    other_tiles_list = list(other_completed_tiles)
-                    other_completed_lines = check_bingo_lines(other_tiles_list)
+                    if other_completed_tiles:
+                        other_tiles_list = list(other_completed_tiles)
+                        other_completed_lines = check_bingo_lines(other_tiles_list)
 
-                    if other_completed_lines:
-                        other_score_info = calculate_bingo_score(
-                            other_player, other_completed_lines
-                        )
-                        player_scores.append((other_player, other_score_info))
+                        if other_completed_lines:
+                            other_score_info = calculate_bingo_score(
+                                other_player, other_completed_lines
+                            )
+                            player_scores.append((other_player, other_score_info))
 
-            if len(player_scores) == 0:
-                room.status = Room.Status.FINISHED
-                room.winner = player
-                room.save()
-            else:
-                player_scores.append((player, score_info))
-                winner = check_tie_breaker(player_scores)
-
-                if winner:
+                if len(player_scores) == 0:
                     room.status = Room.Status.FINISHED
-                    room.winner = winner
+                    room.winner = player
                     room.save()
+                else:
+                    player_scores.append((player, score_info))
+                    winner = check_tie_breaker(player_scores)
+
+                    if winner:
+                        room.status = Room.Status.FINISHED
+                        room.winner = winner
+                        room.save()
 
 
 def broadcast_game_update(room):
@@ -584,21 +594,33 @@ class RoomViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # Create the room
-        room = serializer.save()
+        with transaction.atomic():
+            # Create the room
+            room = serializer.save()
 
-        # Generate unique 4-digit room code
-        while True:
-            code = "".join(random.choices("0123456789", k=4))
-            if not Room.objects.filter(code=code).exists():
-                room.code = code
-                room.save()
-                break
+            # Generate unique 4-digit room code
+            while True:
+                code = "".join(random.choices("0123456789", k=4))
+                if not Room.objects.filter(code=code).exists():
+                    room.code = code
+                    room.save()
+                    break
 
-        player_name = serializer.validated_data.get("player_name", "Host")
-        player = Player.objects.create(
-            room=room, name=player_name, is_spectator=False, is_host=True
-        )
+            player_name = serializer.validated_data.get("player_name", "Host")
+            player = Player.objects.create(
+                room=room, name=player_name, is_spectator=False, is_host=True
+            )
+
+            # Use theme-based genre selection
+            theme_genres = get_theme_genres(room)
+            random.shuffle(theme_genres)
+            genres = theme_genres[:9]
+
+            for position in range(9):
+                Tile.objects.create(
+                    player=player, room=room, position=position, genre=genres.pop()
+                )
+
         # Generate JWT tokens for the host player
         token_data = get_authenticated_player(player)
         discord_error = attach_discord_identity_from_session(player, request.data)
@@ -606,16 +628,6 @@ class RoomViewSet(viewsets.ModelViewSet):
             player.delete()
             room.delete()
             return discord_error
-
-        # Use theme-based genre selection
-        theme_genres = get_theme_genres(room)
-        random.shuffle(theme_genres)
-        genres = theme_genres[:9]
-
-        for position in range(9):
-            Tile.objects.create(
-                player=player, room=room, position=position, genre=genres.pop()
-            )
 
         response_data = {
                 "room_code": room.code,
@@ -1109,15 +1121,22 @@ class RoomViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        existing_vote = Vote.objects.filter(round=current_round, voter=voter).first()
-        if existing_vote:
-            return Response(
-                {"error": "You have already voted in this round"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         try:
             with transaction.atomic():
+                # Lock the round row to serialize concurrent vote creation
+                current_round = Round.objects.select_for_update().get(
+                    pk=current_round.pk
+                )
+
+                existing_vote = Vote.objects.filter(
+                    round=current_round, voter=voter
+                ).first()
+                if existing_vote:
+                    return Response(
+                        {"error": "You have already voted in this round"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
                 vote = Vote.objects.create(
                     round=current_round,
                     voter=voter,
