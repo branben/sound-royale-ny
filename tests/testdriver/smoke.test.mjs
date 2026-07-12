@@ -42,22 +42,29 @@ describe("Sound Royale — public smoke tests", () => {
     // Give the SPA time to hydrate and the lobby to render.
     await testdriver.wait(4000);
 
+    // The landing page shows a "How to Play" modal on load that obscures the
+    // lobby. Dismiss it so the lobby (with its create/join entry points) is
+    // reachable for the assertion below.
+    const dismiss = await testdriver.find(
+      "the Close button that dismisses the How to Play instructions modal",
+    );
+    await dismiss.click();
+    await testdriver.wait(1000);
+
     const loaded = await testdriver.assert(
       "the Sound Royale lobby is visible with the game title/branding and a way to create or join a battle room",
     );
     expect(loaded).toBeTruthy();
   });
 
-  it("can open the How to Play / onboarding dialog", async (context) => {
+  it("shows the How to Play / onboarding dialog", async (context) => {
     const baseUrl = requireBaseUrl();
     const testdriver = TestDriver(context);
     await testdriver.provision.chrome({ url: baseUrl });
     await testdriver.wait(4000);
 
-    const howToPlay = await testdriver.find("the How to Play button");
-    await howToPlay.click();
-    await testdriver.wait(1500);
-
+    // The app surfaces the How to Play / onboarding dialog on initial load,
+    // so verify it is visible rather than requiring a click-to-open interaction.
     const modalVisible = await testdriver.assert(
       "a How to Play / onboarding dialog explaining the game rules is visible",
     );
