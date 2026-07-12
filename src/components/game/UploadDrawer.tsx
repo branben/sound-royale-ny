@@ -28,6 +28,7 @@ export function UploadDrawer({ isOpen, onClose, tile, onUpload }: UploadDrawerPr
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
+  const { userSession } = useUser();
   const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
   const handleDragOver = (e: React.DragEvent) => {
