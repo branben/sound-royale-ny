@@ -55,7 +55,7 @@ export function PrivacySettings({ isOpen, onClose }: PrivacySettingsProps) {
         userSession.playerSecret,
       );
       if (status.privacy_settings) {
-        setPrivacySettings(status.privacy_settings as PrivacyConfig);
+        setPrivacySettings(status.privacy_settings as unknown as PrivacyConfig);
       }
     } catch (error) {
       console.error('Failed to load privacy settings:', error);
