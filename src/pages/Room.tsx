@@ -36,7 +36,7 @@ export default function Room() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
-  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [isRejoining, setIsRejoining] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [hostMigration, setHostMigration] = useState<{ newHostName: string } | null>(null);
   const [joinName, setJoinName] = useState('');
@@ -54,7 +54,7 @@ export default function Room() {
     storeTokens,
   } = useUser();
   const { setForceRefresh } = useGameRefresh();
-  const { gameState, setGameState, timeRemaining } = useGame();
+  const { gameState, setGameState, timeRemaining, isReconnecting } = useGame();
   const autoSpectatorJoinAttempted = useRef(false);
   const roomCodeRef = useRef(null);
   const joinBattleCardRef = useRef(null);
@@ -214,7 +214,7 @@ export default function Room() {
       autoSpectatorJoinAttempted.current ||
       searchParams.get('spectator') !== '1' ||
       loading ||
-      isReconnecting ||
+      isRejoining ||
       hasCurrentPlayer
     ) {
       return;
@@ -222,7 +222,7 @@ export default function Room() {
 
     autoSpectatorJoinAttempted.current = true;
     handleJoinAsSpectator().catch((err) => console.error('Join spectator error:', err));
-  }, [searchParams, loading, isReconnecting, hasCurrentPlayer]);
+  }, [searchParams, loading, isRejoining, hasCurrentPlayer]);
 
   const handleStartGame = async () => {
     if (!roomId || !userSession.playerSecret) {
@@ -245,7 +245,7 @@ export default function Room() {
   const attemptRejoin = useCallback(async () => {
     if (!roomId || !userSession.playerSecret) return false;
 
-    setIsReconnecting(true);
+    setIsRejoining(true);
     try {
       const playerData = await gameApi.rejoinRoom(roomId, userSession.playerSecret!);
       if (playerData) {
@@ -263,14 +263,14 @@ export default function Room() {
         localStorage.setItem('lastRoomCode', roomId);
 
         toast.success(`Rejoined as ${playerData.name}!`);
-        setIsReconnecting(false);
+        setIsRejoining(false);
         return true;
       }
-      setIsReconnecting(false);
+      setIsRejoining(false);
       return false;
     } catch (err) {
       console.error('Rejoin failed:', err);
-      setIsReconnecting(false);
+      setIsRejoining(false);
       return false;
     }
   }, [
@@ -460,7 +460,7 @@ export default function Room() {
       });
   }, [resetCountdown, roomId, userSession.playerSecret, setForceRefresh]);
 
-  if (loading || isReconnecting) {
+  if (loading || isReconnecting || isRejoining) {
     return (
       <div className="h-dvh flex flex-col bg-background">
         <header className="shrink-0 border-b border-border bg-background px-3 py-1.5">
@@ -480,7 +480,7 @@ export default function Room() {
         <main className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <p className="text-sm text-muted-foreground">
-              {isReconnecting ? 'Reconnecting…' : 'Loading room…'}
+              {isReconnecting || isRejoining ? 'Reconnecting…' : 'Loading room…'}
             </p>
           </div>
 

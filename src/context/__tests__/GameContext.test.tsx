@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, act } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 import {
   GameProvider,
   GameContext,
@@ -9,6 +9,8 @@ import {
   GameActionsContext,
 } from '../GameContext';
 import { useUser } from '../UserContext';
+import { roomApi } from '@/services/api';
+import gameSocket from '@/services/gameSocket';
 
 // Mock the UserContext
 vi.mock('../UserContext', () => ({
@@ -20,6 +22,7 @@ vi.mock('@/services/api', () => ({
   roomApi: {
     getRoom: vi.fn(),
   },
+  getStoredAccessToken: vi.fn(() => null),
   gameApi: {},
   normalizeRoomWinner: vi.fn((w: unknown) => {
     if (!w) return undefined;
@@ -557,6 +560,70 @@ describe('GameContext', () => {
 
       // The fetch effect sets isLoading to true, but error starts as null
       expect(screen.getByTestId('error').textContent).toBe('none');
+    });
+  });
+
+  describe('websocket reconnect (guardrail #101)', () => {
+    function ReconnectFlagReader() {
+      const ctx = React.useContext(GameContext);
+      if (!ctx) return null;
+      return <span data-testid="reconnecting">{String(ctx.isReconnecting)}</span>;
+    }
+
+    it('re-fetches and replaces game state on reconnect, and shows reconnecting banner on disconnect', async () => {
+      const roomResponse = {
+        code: 'ABCD',
+        status: 'playing',
+        current_round: 2,
+        players: [
+          {
+            id: 'p1',
+            name: 'A',
+            is_host: true,
+            is_ready: true,
+            is_spectator: false,
+            score: 0,
+            avatar: null,
+          },
+        ],
+        winner: undefined,
+        elo_deltas: [],
+      };
+      (roomApi.getRoom as unknown as Mock).mockResolvedValue(roomResponse);
+
+      const connectMock = vi.mocked(gameSocket).connect;
+      render(
+        <GameProvider roomCode="ABCD">
+          <ReconnectFlagReader />
+        </GameProvider>,
+      );
+
+      await screen.findByTestId('reconnecting');
+      expect(roomApi.getRoom).toHaveBeenCalledTimes(1);
+
+      const captured = (connectMock as unknown as Mock).mock.calls[0][0] as {
+        onConnect: () => Promise<void> | void;
+        onDisconnect: (reason?: string) => void;
+      };
+
+      // first onConnect (initial connection) must NOT re-fetch (hasConnected is false)
+      await act(async () => {
+        await captured.onConnect();
+      });
+      expect(roomApi.getRoom).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId('reconnecting').textContent).toBe('false');
+
+      act(() => {
+        captured.onDisconnect('connection lost');
+      });
+      expect(screen.getByTestId('reconnecting').textContent).toBe('true');
+
+      // reconnect (hasConnected now true) => re-fetch + replace + banner hidden
+      await act(async () => {
+        await captured.onConnect();
+      });
+      expect(roomApi.getRoom).toHaveBeenCalledTimes(2);
+      expect(screen.getByTestId('reconnecting').textContent).toBe('false');
     });
   });
 });
