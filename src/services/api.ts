@@ -99,17 +99,15 @@ api.interceptors.response.use(
 
     // Auto-log 4xx/5xx API errors to the backend error log
     if (!config.__skipErrorLog) {
-      try {
-        await api
-          .post('/errors/log/', {
-            path: config.url || '',
-            method: (config.method || '').toUpperCase(),
-            status: error.response?.status || 0,
-            message: error.response?.data?.error || error.message || 'Unknown error',
-            stack: error.stack || '',
-          })
-          .catch((err) => console.error('Failed to log error:', err));
-      } catch {}
+      await api
+        .post('/errors/log/', {
+          path: config.url || '',
+          method: (config.method || '').toUpperCase(),
+          status: error.response?.status || 0,
+          message: error.response?.data?.error || error.message || 'Unknown error',
+          stack: error.stack || '',
+        })
+        .catch((err) => console.error('Failed to log error:', err));
     }
 
     // Handle 401: attempt token refresh

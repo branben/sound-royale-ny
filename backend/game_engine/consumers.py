@@ -8,6 +8,8 @@ from .serializers import GameStateSerializer
 
 # Audit logger for security-relevant events
 audit_logger = logging.getLogger("game_audit")
+# General logger for operational errors (connection status, host promotion, etc.)
+logger = logging.getLogger(__name__)
 
 
 class GameConsumer(AsyncWebsocketConsumer):
@@ -237,7 +239,7 @@ class GameConsumer(AsyncWebsocketConsumer):
         try:
             Player.objects.filter(id=player_id).update(is_connected=is_connected)
         except Exception:
-            pass
+            logger.exception("Failed to update connection status for player %s", player_id)
 
     @database_sync_to_async
     def get_game_state(self):
@@ -273,6 +275,7 @@ class GameConsumer(AsyncWebsocketConsumer):
                 new_host.save(update_fields=['is_host'])
             return new_host
         except Exception:
+            logger.exception("Failed to promote new host in room %s", self.game_id)
             return None
 
     @database_sync_to_async

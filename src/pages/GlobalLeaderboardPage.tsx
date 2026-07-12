@@ -8,12 +8,16 @@ import { LeaderboardUser, leaderboardApi } from '@/services/api';
 export default function GlobalLeaderboardPage() {
   const [leaders, setLeaders] = useState<LeaderboardUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     leaderboardApi
       .global()
       .then((response) => setLeaders(response.leaderboard))
-      .catch((err) => console.error('Leaderboard fetch error:', err))
+      .catch((err) => {
+        console.error('Leaderboard fetch error:', err);
+        setError('Failed to load leaderboard. Please try again.');
+      })
       .finally(() => setIsLoading(false));
   }, []);
 
@@ -43,8 +47,11 @@ export default function GlobalLeaderboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {isLoading && <p className="text-sm text-muted-foreground">Loading leaderboard...</p>}
-            {!isLoading && leaders.length === 0 && (
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            {isLoading && !error && (
+              <p className="text-sm text-muted-foreground">Loading leaderboard...</p>
+            )}
+            {!isLoading && !error && leaders.length === 0 && (
               <p className="text-sm text-muted-foreground">No verified ranked results yet.</p>
             )}
             {leaders.map((leader, index) => (
