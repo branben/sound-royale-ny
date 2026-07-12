@@ -543,6 +543,10 @@ class RoomViewSet(viewsets.ModelViewSet):
     permission_classes = [AllowAny]
     lookup_field = "code"  # Allow lookup by 4-digit room code
     throttle_scope = "room_creation"
+    # Security: disable generic write/delete routes. All room mutations must
+    # go through the custom actions (start_game, reset_game, next_turn, etc.)
+    # which verify player_secret + is_host. See security finding room_crud_open.
+    http_method_names = ["get", "post", "head", "options"]
 
     def get_throttles(self):
         throttles = super().get_throttles()
@@ -1510,6 +1514,11 @@ class PlayerViewSet(viewsets.ModelViewSet):
     serializer_class = PlayerSerializer
     permission_classes = [AllowAny]
     lookup_field = "player_secret"  # Allow lookup by player secret
+    # Security: disable generic write/delete routes so players cannot
+    # self-promote via PATCH (e.g. is_host, is_checked_in, room). Privileged
+    # state changes go through dedicated secret-verified actions.
+    # See security finding player_field_escalation.
+    http_method_names = ["get", "post", "head", "options"]
 
     def get_serializer_class(self):
         if self.action == "create":
@@ -1668,6 +1677,10 @@ class TileViewSet(viewsets.ModelViewSet):
     serializer_class = TileSerializer
     permission_classes = [AllowAny]
     throttle_scope = "audio_upload"
+    # Security: disable generic write/delete routes. Tile state changes must
+    # go through the play_tile action which enforces ownership, round genre,
+    # and file validation. See security finding tile_crud_open.
+    http_method_names = ["get", "post", "head", "options"]
 
     def get_throttles(self):
         throttles = super().get_throttles()
