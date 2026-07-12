@@ -8,11 +8,18 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
+   test:
     runs-on: ubuntu-latest
     permissions:
       id-token: write   # required to mint the OIDC token for auth
       contents: read
+    # Expose the deployment target to the TestDriver smoke suite. GitHub Actions
+    # does NOT auto-inject repo `vars.*` as env vars — they must be mapped
+    # explicitly. smoke.test.mjs reads process.env.SOUND_ROYALE_URL and fails
+    # fast if it is missing, so without this mapping the `test` job stays red
+    # even after the variable is set in repo settings.
+    env:
+      SOUND_ROYALE_URL: ${{ vars.SOUND_ROYALE_URL }}
 
     steps:
     - uses: actions/checkout@v4
