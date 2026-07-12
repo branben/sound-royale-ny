@@ -77,6 +77,11 @@ jobs:
           source venv/bin/activate
           pip install -r requirements.txt
 
+      # Django LOGGING writes to backend/logs/django.log; the dir is gitignored
+      # and absent in a fresh checkout, so settings load crashes before migrate.
+      - name: Create backend logs directory
+        run: mkdir -p backend/logs
+
       - name: E2E preflight (structural guard)
         run: npm run test:e2e:preflight
 
