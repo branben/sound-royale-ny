@@ -65,7 +65,10 @@ jobs:
           python-version: "3.11"
 
       - name: Install frontend dependencies
-        run: npm ci
+        # npm ci reproduces the macOS-generated lockfile and omits the Linux
+        # native binaries for rollup/esbuild (npm/cli#4828), so Vite fails to
+        # start in CI. `npm install` re-resolves optional deps for the runner.
+        run: npm install
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
