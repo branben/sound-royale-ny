@@ -1677,6 +1677,10 @@ class TileViewSet(viewsets.ModelViewSet):
     serializer_class = TileSerializer
     permission_classes = [AllowAny]
     throttle_scope = "audio_upload"
+    # Security: disable generic write/delete routes. Tile state changes must
+    # go through the play_tile action which enforces ownership, round genre,
+    # and file validation. See security finding tile_crud_open.
+    http_method_names = ["get", "post", "head", "options"]
 
     def get_throttles(self):
         throttles = super().get_throttles()
