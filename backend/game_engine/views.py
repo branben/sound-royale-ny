@@ -1514,6 +1514,11 @@ class PlayerViewSet(viewsets.ModelViewSet):
     serializer_class = PlayerSerializer
     permission_classes = [AllowAny]
     lookup_field = "player_secret"  # Allow lookup by player secret
+    # Security: disable generic write/delete routes so players cannot
+    # self-promote via PATCH (e.g. is_host, is_checked_in, room). Privileged
+    # state changes go through dedicated secret-verified actions.
+    # See security finding player_field_escalation.
+    http_method_names = ["get", "post", "head", "options"]
 
     def get_serializer_class(self):
         if self.action == "create":
