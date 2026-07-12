@@ -28,7 +28,6 @@ vi.mock('@/services/api', () => ({
     if (typeof w === 'object' && w !== null && 'id' in w) return (w as { id: string }).id;
     return undefined;
   }),
-  getStoredAccessToken: vi.fn(() => null),
 }));
 
 // Mock the gameSocket module
