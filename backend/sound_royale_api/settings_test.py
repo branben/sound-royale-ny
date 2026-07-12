@@ -30,6 +30,10 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": ":memory:",
+        # busy_timeout lets concurrent writers (and select_for_update-serialized
+        # transactions in our concurrency tests) wait for the lock instead of
+        # raising "database table is locked" immediately.
+        "OPTIONS": {"timeout": 30},
     }
 }
 
