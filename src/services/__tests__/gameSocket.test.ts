@@ -12,6 +12,7 @@ class MockWebSocket {
   static instances: MockWebSocket[] = [];
 
   readonly url: string;
+  readonly protocol: string | string[] | null;
   readyState = MockWebSocket.CONNECTING;
   onopen: MockSocketEventHandler = null;
   onmessage: MockSocketMessageHandler = null;
@@ -22,8 +23,9 @@ class MockWebSocket {
   });
   send = vi.fn();
 
-  constructor(url: string | URL) {
+  constructor(url: string | URL, protocol?: string | string[]) {
     this.url = String(url);
+    this.protocol = protocol ?? null;
     MockWebSocket.instances.push(this);
   }
 
@@ -65,8 +67,11 @@ describe('GameSocketService credential lifecycle', () => {
 
     expect(MockWebSocket.instances).toHaveLength(2);
     expect(MockWebSocket.instances[0].close).toHaveBeenCalledTimes(1);
+    // The player secret MUST NOT appear in the URL (guardrail #105); it is
+    // negotiated via the Sec-WebSocket-Protocol subprotocol instead.
     expect(MockWebSocket.instances[1].url).toBe(
-      'ws://localhost:8000/ws/game/1234/?secret=secret-1&player_id=player-1',
+      'ws://localhost:8000/ws/game/1234/?player_id=player-1',
     );
+    expect(MockWebSocket.instances[1].protocol).toBe('secret-1');
   });
 });
