@@ -1523,11 +1523,21 @@ class PlayerViewSet(viewsets.ModelViewSet):
     serializer_class = PlayerSerializer
     permission_classes = [AllowAny]
     lookup_field = "player_secret"  # Allow lookup by player secret
-    # Security: disable generic write/delete routes so players cannot
-    # self-promote via PATCH (e.g. is_host, is_checked_in, room). Privileged
-    # state changes go through dedicated secret-verified actions.
-    # See security finding player_field_escalation.
-    http_method_names = ["get", "post", "head", "options"]
+    # Security: disable generic create/write/delete routes. Players may only
+    # be created through room create_room/join_game actions which enforce
+    # lobby status and spectator-count limits. Privileged state changes go
+    # through dedicated secret-verified actions.
+    # See security findings player_field_escalation and player_create_bypass.
+    http_method_names = ["get", "head", "options"]
+
+    def list(self, request, *args, **kwargs):
+        # Security: do not expose a global listing of every player and their
+        # stats/Discord linkage. Clients must query players by id.
+        # See security finding global_list_exposure.
+        return Response(
+            {"error": "Listing all players is not permitted."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
 
     def get_serializer_class(self):
         if self.action == "create":
