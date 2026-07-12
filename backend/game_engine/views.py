@@ -548,6 +548,15 @@ class RoomViewSet(viewsets.ModelViewSet):
     # which verify player_secret + is_host. See security finding room_crud_open.
     http_method_names = ["get", "post", "head", "options"]
 
+    def list(self, request, *args, **kwargs):
+        # Security: do not expose a global listing of every room on the platform.
+        # Clients must look up rooms by code via the detail endpoint.
+        # See security finding global_list_exposure.
+        return Response(
+            {"error": "Listing all rooms is not permitted. Look up a room by code."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
     def get_throttles(self):
         throttles = super().get_throttles()
         if self.action == "create":
