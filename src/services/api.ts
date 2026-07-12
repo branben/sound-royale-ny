@@ -460,9 +460,10 @@ export const discordApi = {
     last_sync_at?: string;
     privacy_settings?: Record<string, unknown>;
   }> => {
-    const response = await api.get(
-      `/auth/discord/status/?player_id=${playerId}&player_secret=${playerSecret}`,
-    );
+    const response = await api.post('/auth/discord/status/', {
+      player_id: playerId,
+      player_secret: playerSecret,
+    });
     return response.data;
   },
 
