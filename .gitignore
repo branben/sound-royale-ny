@@ -73,6 +73,7 @@ scripts/*
 # Exceptions: guardrail scripts and CI review scripts are tracked in repo
 !scripts/check-anti-patterns.sh
 !scripts/semantic-scan.sh
+!scripts/e2e-guard.sh
 !scripts/ci/
 backend/gaia/
 backend/media/
