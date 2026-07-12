@@ -2054,21 +2054,6 @@ def discord_account_status(request):
 
         discord_service = DiscordOAuthService()
         discord_account = discord_service.get_discord_account(player)
-            return Response(
-                {"error": "player_id and player_secret are required"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        try:
-            player = Player.objects.get(id=player_id, player_secret=player_secret)
-        except Player.DoesNotExist:
-            return Response(
-                {"is_linked": False},
-                status=status.HTTP_200_OK,
-            )
-
-        discord_service = DiscordOAuthService()
-        discord_account = discord_service.get_discord_account(player)
 
     try:
         if discord_account:
