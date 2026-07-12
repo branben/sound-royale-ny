@@ -112,10 +112,15 @@ def enqueue_gaia_task(task_text: str, priority: int = 3) -> str:
 
 
 def verify_linear_signature(payload_body: bytes, signature: str, secret: str) -> bool:
-    """Verify Linear webhook signature using HMAC-SHA256."""
+    """Verify Linear webhook signature using HMAC-SHA256.
+
+    Security: fails closed. If LINEAR_WEBHOOK_SECRET is not configured we reject
+    the request rather than accepting unauthenticated payloads that would be
+    queued as automated tasks. See finding linear_webhook_failopen.
+    """
     if not secret:
-        logger.warning("No LINEAR_WEBHOOK_SECRET configured, accepting webhook without verification")
-        return True
+        logger.error("LINEAR_WEBHOOK_SECRET not configured; rejecting webhook")
+        return False
 
     if not signature:
         return False

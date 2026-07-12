@@ -548,6 +548,15 @@ class RoomViewSet(viewsets.ModelViewSet):
     # which verify player_secret + is_host. See security finding room_crud_open.
     http_method_names = ["get", "post", "head", "options"]
 
+    def list(self, request, *args, **kwargs):
+        # Security: do not expose a global listing of every room on the platform.
+        # Clients must look up rooms by code via the detail endpoint.
+        # See security finding global_list_exposure.
+        return Response(
+            {"error": "Listing all rooms is not permitted. Look up a room by code."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
     def get_throttles(self):
         throttles = super().get_throttles()
         if self.action == "create":
@@ -1514,11 +1523,21 @@ class PlayerViewSet(viewsets.ModelViewSet):
     serializer_class = PlayerSerializer
     permission_classes = [AllowAny]
     lookup_field = "player_secret"  # Allow lookup by player secret
-    # Security: disable generic write/delete routes so players cannot
-    # self-promote via PATCH (e.g. is_host, is_checked_in, room). Privileged
-    # state changes go through dedicated secret-verified actions.
-    # See security finding player_field_escalation.
-    http_method_names = ["get", "post", "head", "options"]
+    # Security: disable generic create/write/delete routes. Players may only
+    # be created through room create_room/join_game actions which enforce
+    # lobby status and spectator-count limits. Privileged state changes go
+    # through dedicated secret-verified actions.
+    # See security findings player_field_escalation and player_create_bypass.
+    http_method_names = ["get", "head", "options"]
+
+    def list(self, request, *args, **kwargs):
+        # Security: do not expose a global listing of every player and their
+        # stats/Discord linkage. Clients must query players by id.
+        # See security finding global_list_exposure.
+        return Response(
+            {"error": "Listing all players is not permitted."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
 
     def get_serializer_class(self):
         if self.action == "create":
@@ -1681,6 +1700,15 @@ class TileViewSet(viewsets.ModelViewSet):
     # go through the play_tile action which enforces ownership, round genre,
     # and file validation. See security finding tile_crud_open.
     http_method_names = ["get", "post", "head", "options"]
+
+    def list(self, request, *args, **kwargs):
+        # Security: do not expose a global listing of every uploaded tile /
+        # audio file across all rooms. Tiles are read via room/game_state.
+        # See security finding global_list_exposure.
+        return Response(
+            {"error": "Listing all tiles is not permitted."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
 
     def get_throttles(self):
         throttles = super().get_throttles()
@@ -1977,20 +2005,36 @@ def discord_unlink_account(request):
         )
 
 
-@api_view(["GET"])
+@api_view(["POST"])
 @permission_classes([AllowAny])
 def discord_account_status(request):
     """
     Get Discord account linking status for a player.
+
+    Security: credentials are read from the POST body (or X-Player-Id /
+    X-Player-Secret headers) so they never appear in URL query strings,
+    server access logs, or browser history. See finding secret_in_query_string.
     """
-    player_id = request.GET.get("player_id")
-    player_secret = request.GET.get("player_secret")
-    discord_user_id = request.GET.get("discord_user_id")
-    discord_session_secret = request.GET.get("discord_session_secret")
+    data = request.data if isinstance(request.data, dict) else {}
+    player_id = (
+        request.headers.get("X-Player-Id")
+        or data.get("player_id")
+    )
+    player_secret = (
+        request.headers.get("X-Player-Secret")
+        or data.get("player_secret")
+    )
+    discord_user_id = data.get("discord_user_id")
+    discord_session_secret = data.get("discord_session_secret")
 
     discord_account = None
     if discord_user_id or discord_session_secret:
-        discord_account, error_response = get_discord_account_from_session(request.GET)
+        discord_account, error_response = get_discord_account_from_session(
+            {
+                "discord_user_id": discord_user_id,
+                "discord_session_secret": discord_session_secret,
+            }
+        )
         if error_response is not None:
             return error_response
     else:
@@ -2070,7 +2114,7 @@ def log_client_error(request):
 def upload_audio(request, tile_id):
     """
     Direct upload endpoint for tile audio.
-    NOTE: This intentionally bypasses viewset size/MIME enforcement for fast client uploads.
+    Enforces the same MIME allow-list and size cap as play_tile.
     """
     tile = get_object_or_404(Tile, id=tile_id)
     player, error = resolve_player_from_request(request, tile.room)
@@ -2090,12 +2134,34 @@ def upload_audio(request, tile_id):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
+    # Security: enforce size + MIME allow-list. See finding upload_audio_bypass.
+    ALLOWED_AUDIO_MIME_TYPES = {
+        "audio/mpeg",
+        "audio/wav",
+        "audio/x-wav",
+        "audio/ogg",
+        "audio/flac",
+        "audio/mp4",
+        "audio/x-m4a",
+        "audio/aac",
+    }
+    if audio_file.size > settings.MAX_UPLOAD_SIZE:
+        return Response(
+            {"error": f"File too large. Maximum size is {settings.MAX_UPLOAD_SIZE // (1024 * 1024)}MB."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if audio_file.content_type not in ALLOWED_AUDIO_MIME_TYPES:
+        return Response(
+            {"error": f"Invalid file type '{audio_file.content_type}'. Allowed types: mp3, wav, ogg, flac, m4a, aac."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     tile.audio_file = audio_file
     tile.audio_url = f"{request.get_host()}/media/{audio_file.name}"
     tile.save()
 
     audit_logger.info(
-        "audio_upload_bypass",
+        "audio_upload",
         extra={
             "tile_id": str(tile.id),
             "player_id": str(player.id),
@@ -2104,10 +2170,8 @@ def upload_audio(request, tile_id):
             "filename": audio_file.name,
             "file_size": audio_file.size,
             "content_type": audio_file.content_type,
-            "bypassed_size_limit": audio_file.size > settings.MAX_UPLOAD_SIZE * 1.5,
-            "bypassed_mime_check": True,
             "timestamp": timezone.now().isoformat(),
-            "action": "upload_audio_bypassed",
+            "action": "upload_audio",
             "outcome": "success",
         },
     )
