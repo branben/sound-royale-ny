@@ -480,9 +480,10 @@ export const discordApi = {
     last_sync_at?: string;
     privacy_settings?: Record<string, unknown>;
   }> => {
-    const response = await api.get(
-      `/auth/discord/status/?discord_user_id=${discordUserId}&discord_session_secret=${sessionSecret}`,
-    );
+    const response = await api.post('/auth/discord/status/', {
+      discord_user_id: discordUserId,
+      discord_session_secret: sessionSecret,
+    });
     return response.data;
   },
 };
