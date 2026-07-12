@@ -243,7 +243,7 @@ export const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
         <div key={index} className="flex items-center gap-2">
           <div className="w-2 h-2" style={{ backgroundColor: entry.color }} />
           <span className="text-gray-300">
-            {entry.name}: {entry.value.toFixed(1)}%
+            {entry.name}: {(entry.value ?? 0).toFixed(1)}%
           </span>
         </div>
       ))}
