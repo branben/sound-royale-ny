@@ -36,7 +36,7 @@ vi.mock('recharts', () => ({
       { value: 'Wins', color: '#3b82f6' },
       { value: 'Losses', color: '#ef4444' },
     ];
-    return content({ payload });
+    return (content as (props: { payload: unknown[] }) => React.ReactNode)({ payload });
   },
 }));
 

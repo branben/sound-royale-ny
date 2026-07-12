@@ -14,6 +14,7 @@ import { Upload, Music, X } from 'lucide-react';
 import { Tile } from '@/types/game';
 import { useToast } from '@/hooks/use-toast';
 import { gameApi } from '@/services/api';
+import { useUser } from '@/context/UserContext';
 
 interface UploadDrawerProps {
   isOpen: boolean;
@@ -27,6 +28,7 @@ export function UploadDrawer({ isOpen, onClose, tile, onUpload }: UploadDrawerPr
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
+  const { userSession } = useUser();
   const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -73,13 +75,13 @@ export function UploadDrawer({ isOpen, onClose, tile, onUpload }: UploadDrawerPr
 
     try {
       setIsUploading(true);
-      const response = await gameApi.uploadAudio(tile?.id ?? '', selectedFile);
+      await gameApi.submitTile(tile?.id ?? '', selectedFile, userSession.playerId ?? '');
       toast({
         variant: 'default',
         title: 'Upload initiated',
         description: `Uploading "${selectedFile.name}"`,
       });
-      onUpload(response.data?.audio_url ?? URL.createObjectURL(selectedFile), selectedFile);
+      onUpload(URL.createObjectURL(selectedFile), selectedFile);
       setSelectedFile(null);
       onClose();
     } catch (error) {

@@ -3,7 +3,13 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { ArrowLeft, Users, Play } from 'lucide-react';
+import { ArrowLeft, Users, Play, Trophy } from 'lucide-react';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
 
 import { normalizeRoomWinner, roomApi, gameApi } from '@/services/api';
 import { getDiscordSession } from '@/services/discordSession';
@@ -13,7 +19,8 @@ import { SpectatorView } from '@/components/game/SpectatorView';
 import { GameTutorial } from '@/components/game/GameTutorial';
 import { VotingPanel } from '@/components/game/VotingPanel';
 import { TitleBadge } from '@/components/game/TitleBadge';
-import { GameTutorial } from '@/components/game/GameTutorial';
+import { GameInfo } from '@/components/game/GameInfo';
+import { RoundStage } from '@/components/game/RoundStage';
 import { DiscordVerifiedIcon } from '@/components/game/DiscordVerifiedIcon';
 import { HostMigrationIndicator } from '@/components/game/HostMigrationIndicator';
 import { useGame, useGameRefresh, useGameRefreshEffect } from '@/context/useGame';
