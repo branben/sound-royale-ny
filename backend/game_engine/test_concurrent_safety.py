@@ -194,3 +194,47 @@ class BingoClaimIdempotencyTestCase(TestCase):
         self.assertEqual(
             BingoClaim.objects.filter(room=self.room, player=self.player).count(), 1
         )
+
+
+class PromoteHostAtomicTestCase(TestCase):
+    """promote_new_host() must not leave a dual-host state."""
+
+    def setUp(self):
+        self.room = Room.objects.create(name="Host Room", code="4444")
+        self.old_host = Player.objects.create(
+            room=self.room, name="OldHost", is_host=True, is_spectator=False
+        )
+        self.p1 = Player.objects.create(
+            room=self.room, name="P1", is_host=False, is_spectator=False,
+            is_connected=True,
+        )
+        self.p2 = Player.objects.create(
+            room=self.room, name="P2", is_host=False, is_spectator=False,
+            is_connected=True,
+        )
+
+    def test_promote_demotes_stale_host(self):
+        """Promoting a new host demotes the previous one — never two hosts."""
+        from game_engine.consumers import GameConsumer
+
+        class FC(GameConsumer):
+            def __init__(self, rid):
+                self.game_id = str(rid)
+
+        fc = FC(str(self.room.id))
+        # Call the underlying SYNC implementation directly (bypass the
+        # database_sync_to_async worker thread, which would not share this
+        # test's DB transaction).
+        promote = GameConsumer.promote_new_host.__wrapped__
+        promoted = promote(fc)
+
+        self.assertIsNotNone(promoted)
+        # Exactly one host remains
+        self.assertEqual(
+            Player.objects.filter(room=self.room, is_host=True).count(), 1
+        )
+        # The promoted player is the connected candidate
+        self.assertTrue(promoted.is_host)
+        # The old host is no longer host
+        self.old_host.refresh_from_db()
+        self.assertFalse(self.old_host.is_host)
