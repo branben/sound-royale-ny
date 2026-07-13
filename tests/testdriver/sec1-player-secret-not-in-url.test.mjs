@@ -59,8 +59,9 @@ const LOCAL_URL = `http://localhost:${APP_PORT}`;
 // The fake secret/id we seed. UUID-shaped, matching what a real player_secret
 // looks like, but unmistakable so we can grep for it in captured request URLs.
 const FAKE_PLAYER_ID = "11111111-1111-4111-8111-111111111111";
-const FAKE_PLAYER_SECRET = "deadbeef-dead-4bee-8dead-secret0f5ec1"
-  .replace(/[^0-9a-f-]/g, "0"); // keep it hex/uuid-safe
+// A clean, valid 8-4-4-4-12 UUID so the UUID-shape detector below is exercised
+// against it too (not just the exact-string match), yet unmistakable in a log.
+const FAKE_PLAYER_SECRET = "deadbeef-dead-4bee-8bad-c0ffee5ec1de";
 
 // Generic UUID shape — a bare 8-4-4-4-12 token in a query value is treated as a
 // leaked secret even if the param name changes.
