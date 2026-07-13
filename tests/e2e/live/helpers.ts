@@ -13,7 +13,7 @@ async function withRetry<T>(fn: () => Promise<T>, label: string, maxRetries = 5)
   for (let i = 0; i < maxRetries; i++) {
     try {
       return await fn();
-    } catch (error: any) {
+    } catch (error: unknown) {
       const status = error.response?.status;
       if (i === maxRetries - 1) throw error;
       if (status === 429) {
@@ -109,7 +109,7 @@ export async function toggleReady(roomCode: string, playerSecret: string, player
   );
 }
 
-export async function pollGameState(roomCode: string, condition: (state: any) => boolean, timeout = 30000) {
+export async function pollGameState(roomCode: string, condition: (state: unknown) => boolean, timeout = 30000) {
   const startTime = Date.now();
   while (Date.now() - startTime < timeout) {
     const state = await getGameState(roomCode);

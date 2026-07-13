@@ -243,10 +243,9 @@ describe('GameContext', () => {
     it('updateTileStatus updates a tile status for a player', () => {
       function TestComponent() {
         const ctx = React.useContext(GameContext);
-        if (!ctx) return null;
-
-        // Set up initial state with a player that has tiles
         React.useEffect(() => {
+          if (!ctx) return;
+          // Set up initial state with a player that has tiles
           ctx.setGameState((prev) => ({
             ...prev,
             players: {
@@ -263,6 +262,7 @@ describe('GameContext', () => {
             },
           }));
         }, [ctx.setGameState]);
+        if (!ctx) return null;
 
         return (
           <div>
@@ -301,22 +301,22 @@ describe('GameContext', () => {
     it('setTileAudio updates audioUrl and sets status to complete', () => {
       function TestComponent() {
         const ctx = React.useContext(GameContext);
-        if (!ctx) return null;
-
         React.useEffect(() => {
-          ctx.setGameState((prev) => ({
-            ...prev,
-            players: {
-              'player-1': {
-                id: 'player-1',
-                name: 'Test',
-                board: {
-                  tiles: [{ id: 'tile-1', genre: 'House', status: 'pending' }],
+          if (!ctx) return;
+            ctx.setGameState((prev) => ({
+              ...prev,
+              players: {
+                'player-1': {
+                  id: 'player-1',
+                  name: 'Test',
+                  board: {
+                    tiles: [{ id: 'tile-1', genre: 'House', status: 'pending' }],
+                  },
                 },
               },
-            },
-          }));
+            }));
         }, [ctx.setGameState]);
+        if (!ctx) return null;
 
         return (
           <div>
@@ -356,21 +356,21 @@ describe('GameContext', () => {
     it('toggleReady toggles isReady for a player', () => {
       function TestComponent() {
         const ctx = React.useContext(GameContext);
-        if (!ctx) return null;
-
         React.useEffect(() => {
-          ctx.setGameState((prev) => ({
-            ...prev,
-            players: {
-              'player-1': {
-                id: 'player-1',
-                name: 'Test',
-                isReady: false,
-                board: { tiles: [] },
+          if (!ctx) return;
+            ctx.setGameState((prev) => ({
+              ...prev,
+              players: {
+                'player-1': {
+                  id: 'player-1',
+                  name: 'Test',
+                  isReady: false,
+                  board: { tiles: [] },
+                },
               },
-            },
-          }));
+            }));
         }, [ctx.setGameState]);
+        if (!ctx) return null;
 
         return (
           <div>
@@ -406,21 +406,21 @@ describe('GameContext', () => {
     it('incrementScore adds points to player score', () => {
       function TestComponent() {
         const ctx = React.useContext(GameContext);
-        if (!ctx) return null;
-
         React.useEffect(() => {
-          ctx.setGameState((prev) => ({
-            ...prev,
-            players: {
-              'player-1': {
-                id: 'player-1',
-                name: 'Test',
-                score: 10,
-                board: { tiles: [] },
+          if (!ctx) return;
+            ctx.setGameState((prev) => ({
+              ...prev,
+              players: {
+                'player-1': {
+                  id: 'player-1',
+                  name: 'Test',
+                  score: 10,
+                  board: { tiles: [] },
+                },
               },
-            },
-          }));
+            }));
         }, [ctx.setGameState]);
+        if (!ctx) return null;
 
         return (
           <div>
@@ -456,20 +456,20 @@ describe('GameContext', () => {
     it('incrementScore starts from 0 when player has no score', () => {
       function TestComponent() {
         const ctx = React.useContext(GameContext);
-        if (!ctx) return null;
-
         React.useEffect(() => {
-          ctx.setGameState((prev) => ({
-            ...prev,
-            players: {
-              'player-1': {
-                id: 'player-1',
-                name: 'Test',
-                board: { tiles: [] },
+          if (!ctx) return;
+            ctx.setGameState((prev) => ({
+              ...prev,
+              players: {
+                'player-1': {
+                  id: 'player-1',
+                  name: 'Test',
+                  board: { tiles: [] },
+                },
               },
-            },
-          }));
+            }));
         }, [ctx.setGameState]);
+        if (!ctx) return null;
 
         return (
           <div>

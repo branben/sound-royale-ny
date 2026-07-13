@@ -109,7 +109,9 @@ api.interceptors.response.use(
             stack: error.stack || '',
           })
           .catch((err) => console.error('Failed to log error:', err));
-      } catch {}
+      } catch {
+        // Swallow: error logging is best-effort and must never break the request path
+      }
     }
 
     // Handle 401: attempt token refresh
@@ -468,7 +470,7 @@ export const discordApi = {
     discord_session_secret?: string;
     linked_at?: string;
     last_sync_at?: string;
-    privacy_settings?: Record<string, any>;
+    privacy_settings?: Record<string, unknown>;
   }> => {
     const response = await api.get(
       `/auth/discord/status/?player_id=${playerId}&player_secret=${playerSecret}`,
@@ -487,7 +489,7 @@ export const discordApi = {
     discord_session_secret?: string;
     linked_at?: string;
     last_sync_at?: string;
-    privacy_settings?: Record<string, any>;
+    privacy_settings?: Record<string, unknown>;
   }> => {
     const response = await api.get(
       `/auth/discord/status/?discord_user_id=${discordUserId}&discord_session_secret=${sessionSecret}`,

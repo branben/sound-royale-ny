@@ -5,21 +5,21 @@ import type { Player, GenrePerformance } from '@/types/game';
 
 // Mock recharts to avoid SVG rendering issues in jsdom
 vi.mock('recharts', () => ({
-  ResponsiveContainer: ({ children }: any) => <div className="recharts-wrapper">{children}</div>,
-  RadarChart: ({ children, data }: any) => (
+  ResponsiveContainer: ({ children }: { children?: React.ReactNode }) => (
+    <div className="recharts-wrapper">{children}</div>
+  ),
+  RadarChart: ({ children, data }: { children?: React.ReactNode; data?: unknown }) => (
     <div data-testid="radar-chart" data-chart-json={JSON.stringify(data || [])}>
       {children}
     </div>
   ),
   Radar: () => <div data-testid="radar" />,
   PolarGrid: () => <div data-testid="polar-grid" />,
-  PolarAngleAxis: ({ dataKey, tick }: any) => (
-    <div data-testid="polar-angle-axis">
-      {/* Simulate axis labels with text content matching recharts output */}
-    </div>
+  PolarAngleAxis: ({ dataKey, tick }: { dataKey?: string; tick?: unknown }) => (
+    <div data-testid="polar-angle-axis" />
   ),
   PolarRadiusAxis: () => <div data-testid="polar-radius-axis" />,
-  Legend: ({ content }: any) => {
+  Legend: ({ content }: { content?: (props: { payload?: Array<{ value: string; color: string }> }) => React.ReactNode }) => {
     if (!content) return null;
     const payload = [
       { value: 'Wins', color: '#3b82f6' },
@@ -31,7 +31,7 @@ vi.mock('recharts', () => ({
 
 // Mock ChartTooltip to avoid SVG
 vi.mock('@/components/ui/chart', () => ({
-  ChartContainer: ({ children }: any) => <div>{children}</div>,
+  ChartContainer: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
   ChartTooltip: () => null,
   ChartTooltipContent: () => null,
   ChartLegend: () => null,
@@ -314,10 +314,10 @@ describe('PlayerStatsRadar', () => {
   });
 
   describe('chart data validation', () => {
-    function getChartData(container: HTMLElement): any[] {
+    function getChartData(container: HTMLElement): GenrePerformance[] {
       const chartEl = container.querySelector('[data-testid="radar-chart"]');
       const json = chartEl?.getAttribute('data-chart-json');
-      return json ? JSON.parse(json) : [];
+      return json ? (JSON.parse(json) as GenrePerformance[]) : [];
     }
 
     describe('historical view percentages', () => {
@@ -394,7 +394,7 @@ describe('PlayerStatsRadar', () => {
           <PlayerStatsRadar player={basePlayer} genrePerformance={[...historicalGenres]} />,
         );
         const chartData = getChartData(container);
-        const legacyEntries = chartData.filter((d: any) => d.isLegacy);
+        const legacyEntries = chartData.filter((d: GenrePerformance) => d.isLegacy);
         expect(legacyEntries[0].axis).toBe('Jazz (legacy)');
         expect(legacyEntries[1].axis).toBe('Rock (legacy)');
         expect(legacyEntries[2].axis).toBe('Blues (legacy)');
@@ -408,7 +408,7 @@ describe('PlayerStatsRadar', () => {
         );
         const chartData = getChartData(container);
         expect(chartData).toHaveLength(9);
-        expect(chartData.every((d: any) => !d.isLegacy)).toBe(true);
+        expect(chartData.every((d: GenrePerformance) => !d.isLegacy)).toBe(true);
       });
 
       it('fills remaining slots with historical genres when core < 9', () => {
@@ -422,7 +422,7 @@ describe('PlayerStatsRadar', () => {
         const chartData = getChartData(container);
         expect(chartData).toHaveLength(9);
         expect(chartData[0].isLegacy).toBe(false);
-        const rest = chartData.filter((d: any) => d.isLegacy);
+        const rest = chartData.filter((d: GenrePerformance) => d.isLegacy);
         expect(rest.length).toBeGreaterThan(0);
         expect(rest.length).toBeLessThanOrEqual(8);
       });

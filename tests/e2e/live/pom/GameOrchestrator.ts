@@ -79,7 +79,7 @@ export class GameOrchestrator {
     for (const producer of producers) {
       try {
         await producer.playTile(this.audioFilePath);
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (error.message?.includes('No incomplete tiles')) {
           console.log(`${producer.name} has no incomplete tiles, skipping`);
         } else {
@@ -103,7 +103,7 @@ export class GameOrchestrator {
       }
       try {
         await host.advanceTurn();
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Game may have finished during tile submissions
         console.log(`advanceTurn returned error (game likely finished): ${error.message || error}`);
       }
@@ -152,7 +152,7 @@ export class GameOrchestrator {
     if (host) {
       try {
         await host.advanceTurn();
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.log(`advanceTurn after voting: ${error.message || error}`);
       }
     }

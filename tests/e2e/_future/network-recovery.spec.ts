@@ -159,11 +159,11 @@ test.describe('Network Recovery', () => {
           const initialState = ws.readyState;
           
           // Simulate disconnect
-          (ws as any).simulateDisconnect();
+          (ws as unknown).simulateDisconnect();
           const disconnectedState = ws.readyState;
           
           // Simulate reconnect
-          (ws as any).simulateReconnect();
+          (ws as unknown).simulateReconnect();
           
           // Wait for reconnection
           setTimeout(() => {
@@ -208,7 +208,7 @@ test.describe('Network Recovery', () => {
         // Wait for connection, then test queuing
         setTimeout(() => {
           // Disconnect first
-          (ws as any).simulateDisconnect();
+          (ws as unknown).simulateDisconnect();
           
           // Set up message listener
           ws.addEventListener('message', (event) => {
@@ -216,13 +216,13 @@ test.describe('Network Recovery', () => {
           });
           
           // Inject message while disconnected (should be queued)
-          (ws as any).injectMessage({
+          (ws as unknown).injectMessage({
             type: 'game_state_update',
             data: { status: 'test', timestamp: Date.now() }
           });
           
           // Reconnect immediately
-          (ws as any).simulateReconnect();
+          (ws as unknown).simulateReconnect();
           
           // Wait for message delivery
           setTimeout(() => {
@@ -268,9 +268,9 @@ test.describe('Network Recovery', () => {
         setTimeout(() => {
           for (let i = 0; i < 3; i++) {
             setTimeout(() => {
-              (ws as any).simulateDisconnect();
+              (ws as unknown).simulateDisconnect();
               setTimeout(() => {
-                (ws as any).simulateReconnect();
+                (ws as unknown).simulateReconnect();
                 reconnectCount++;
                 
                 if (reconnectCount === 3) {

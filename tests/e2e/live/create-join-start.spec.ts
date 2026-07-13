@@ -156,17 +156,17 @@ test.describe('Create → Join → Start Integration Flow', () => {
       expect(backendState.status).toBe('lobby');
 
       // Both players should be in the backend state
-      const playerValues = Object.values(backendState.players as Record<string, any>);
+      const playerValues = Object.values(backendState.players as Record<string, unknown>);
       expect(playerValues.length).toBe(2);
 
       // Verify player names match
-      const playerNames = playerValues.map((p: any) => p.name);
+      const playerNames = playerValues.map((p: unknown) => p.name);
       expect(playerNames).toContain(`Host${runId}`);
       expect(playerNames).toContain(`Player${runId}`);
 
       // Verify one is host, one is not
-      const hostPlayer = playerValues.find((p: any) => p.isHost === true);
-      const nonHostPlayer = playerValues.find((p: any) => p.isHost !== true);
+      const hostPlayer = playerValues.find((p: unknown) => p.isHost === true);
+      const nonHostPlayer = playerValues.find((p: unknown) => p.isHost !== true);
       expect(hostPlayer).toBeTruthy();
       expect(nonHostPlayer).toBeTruthy();
 
@@ -209,7 +209,7 @@ test.describe('Create → Join → Start Integration Flow', () => {
       expect(backendState.status).toBe('playing');
 
       // Verify both players have boards with tiles
-      const playerValues = Object.values(backendState.players as Record<string, any>);
+      const playerValues = Object.values(backendState.players as Record<string, unknown>);
       for (const player of playerValues) {
         if (player.is_spectator) continue;
         const tiles = player.board?.tiles || player.tiles || [];
