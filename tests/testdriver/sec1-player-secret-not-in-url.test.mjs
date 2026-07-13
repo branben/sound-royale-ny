@@ -188,13 +188,8 @@ describe("SEC-1 — player secret is never exposed in a request URL", () => {
     // Seed a fake player session so the Lobby's mount effect calls
     // getAccountStatus(playerId, playerSecret) — the vulnerable request. This
     // needs no backend: we only care that the request URL is *emitted*.
-    await testdriver.provision.chrome({
-      url:
-        baseUrl +
-        `#seed`,
-    });
-    await testdriver.wait(1000);
-    // Set the legacy session keys the app reads on startup, then reload.
+    // The lobby is already loaded (above), so set the legacy session keys the
+    // app reads on startup directly on the open page via CDP, then reload.
     await sh(
       testdriver,
       // Drive Chrome via CDP Runtime.evaluate to set localStorage on the page.
