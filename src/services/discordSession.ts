@@ -1,3 +1,5 @@
+import { toast } from '@/hooks/use-toast';
+
 export interface DiscordSession {
   discordUserId: string;
   sessionSecret: string;
@@ -39,13 +41,25 @@ export function getDiscordSession(): DiscordSession | null {
 
     const parsed: unknown = JSON.parse(raw);
     return isDiscordSession(parsed) ? parsed : null;
-  } catch {
+  } catch (error) {
+    // Corrupt/absent storage is a safe fallback to "not linked" — but we no
+    // longer swallow it silently.
+    console.error('Failed to read Discord session:', error);
     return null;
   }
 }
 
 export function saveDiscordSession(session: DiscordSession): void {
-  localStorage.setItem(DISCORD_SESSION_KEY, JSON.stringify(session));
+  try {
+    localStorage.setItem(DISCORD_SESSION_KEY, JSON.stringify(session));
+  } catch (error) {
+    console.error('Failed to save Discord session:', error);
+    toast({
+      variant: 'destructive',
+      title: 'Could not save Discord link',
+      description: 'Your Discord connection may not persist after refresh.',
+    });
+  }
 }
 
 export function clearDiscordSession(): void {
@@ -98,8 +112,9 @@ export function saveDiscordOAuthState(state: string, playerId: string, playerSec
     sessionStorage.setItem('discord_oauth_state', state);
     sessionStorage.setItem('discord_player_id', playerId);
     sessionStorage.setItem('discord_player_secret', playerSecret);
-  } catch {
+  } catch (error) {
     // sessionStorage may be unavailable in some contexts
+    console.warn('Could not write Discord OAuth state to sessionStorage:', error);
   }
 }
 
@@ -135,7 +150,8 @@ export function getDiscordOAuthState(): DiscordOAuthState | null {
 
       // sessionStorage: stateRaw is the plain state string
       return { state: stateRaw, playerId, playerSecret };
-    } catch {
+    } catch (error) {
+      console.warn('Failed to read Discord OAuth state:', error);
       return null;
     }
   };
@@ -151,7 +167,8 @@ export function clearDiscordOAuthState(): void {
     sessionStorage.removeItem('discord_oauth_state');
     sessionStorage.removeItem('discord_player_id');
     sessionStorage.removeItem('discord_player_secret');
-  } catch {
-    // ignore
+  } catch (error) {
+    // ignore — best-effort cleanup
+    console.warn('Could not clear Discord OAuth state from sessionStorage:', error);
   }
 }

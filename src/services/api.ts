@@ -10,8 +10,20 @@ import {
   GameState,
 } from '@/types/game';
 import { DiscordLinkResponse, DiscordSession } from '@/services/discordSession';
+import { toast } from '@/hooks/use-toast';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+
+// ── User-facing error surfacing ────────────────────────────────────────
+// Central place so every failed API call raises a visible toast instead of
+// failing silently. The shadcn <Toaster /> is mounted once in App.tsx.
+function notifyApiError(title: string, description?: string): void {
+  toast({
+    variant: 'destructive',
+    title,
+    description,
+  });
+}
 
 // ── Token storage helpers ──────────────────────────────────────────────
 const ACCESS_TOKEN_KEY = 'soundRoyaleAccessToken';
@@ -20,7 +32,10 @@ const REFRESH_TOKEN_KEY = 'soundRoyaleRefreshToken';
 export function getStoredAccessToken(): string | null {
   try {
     return localStorage.getItem(ACCESS_TOKEN_KEY);
-  } catch {
+  } catch (error) {
+    // Storage can throw in private-mode / disabled-storage contexts. This runs
+    // on every request, so we log only (toasting here would storm the UI).
+    console.error('Failed to read access token from storage:', error);
     return null;
   }
 }
@@ -28,7 +43,8 @@ export function getStoredAccessToken(): string | null {
 export function getStoredRefreshToken(): string | null {
   try {
     return localStorage.getItem(REFRESH_TOKEN_KEY);
-  } catch {
+  } catch (error) {
+    console.error('Failed to read refresh token from storage:', error);
     return null;
   }
 }
@@ -114,8 +130,27 @@ api.interceptors.response.use(
       }
     }
 
-    // Handle 401: attempt token refresh
+    // Global user-facing surfacing of unexpected failures. We toast on 5xx and
+    // network/timeout errors (infrastructure problems the user can't fix
+    // themselves). 4xx are "expected" client errors and are surfaced by the
+    // specific call site with a contextual message, so we don't double-toast.
+    // 401 is handled by the refresh flow below and is skipped.
     const status = error.response?.status;
+    const isNetworkError = !error.response;
+    if (
+      !config.__skipErrorLog &&
+      config.url !== '/errors/log/' &&
+      status !== 401 &&
+      (isNetworkError || (typeof status === 'number' && status >= 500))
+    ) {
+      const message =
+        (error.response?.data && (error.response.data.error as string)) ||
+        error.message ||
+        'Unexpected server error';
+      notifyApiError('Something went wrong', message);
+    }
+
+    // Handle 401: attempt token refresh
     if (status === 401 && !config.__isRetry && !config.__skipErrorLog) {
       const refreshToken = getStoredRefreshToken();
       if (!refreshToken) {
@@ -226,15 +261,16 @@ export const roomApi = {
     return response.data;
   },
 
-  // PR ERROR 3: Missing error handler - no try/catch on async call
+  // PR ERROR 3: was missing any error handler — a failed stats fetch silently
+  // returned undefined and swallowed the failure. Now it logs and re-throws;
+  // the global response interceptor surfaces a toast for 5xx/network failures.
   getRoomStats: async (roomId: string): Promise<Record<string, unknown>> => {
     try {
       const response = await api.get(`/rooms/${roomId}/stats/`);
       return response.data;
     } catch (error) {
-      console.error(
-        `Failed to fetch stats for room ${roomId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      );
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`Failed to fetch stats for room ${roomId}:`, message);
       throw error;
     }
   },
@@ -273,7 +309,11 @@ export const gameApi = {
         ...transformPlayer(response.data),
         playerSecret,
       };
-    } catch {
+    } catch (error) {
+      // Rejoin failure is user-visible: it means the player can't get back in.
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`Failed to rejoin room ${roomId}:`, message);
+      notifyApiError('Could not rejoin room', message);
       return null;
     }
   },
