@@ -54,10 +54,12 @@ vi.mock('@/services/api', () => ({
 const connectOptions: {
   onConnect?: () => void | Promise<void>;
   onDisconnect?: (r: string) => void;
+  onMessage?: (message: { type: string; payload?: unknown }) => void;
 } = {};
 const connectMock = vi.fn((options: typeof connectOptions) => {
   connectOptions.onConnect = options.onConnect;
   connectOptions.onDisconnect = options.onDisconnect;
+  connectOptions.onMessage = options.onMessage;
 });
 
 vi.mock('@/services/gameSocket', () => ({
@@ -141,6 +143,7 @@ describe('GameContext reconnect', () => {
     vi.clearAllMocks();
     connectOptions.onConnect = undefined;
     connectOptions.onDisconnect = undefined;
+    connectOptions.onMessage = undefined;
     getRoomMock.mockResolvedValue(mockRoomResponse);
     mockUseUser.mockReturnValue(createDefaultUserSession());
   });
@@ -298,5 +301,98 @@ describe('GameContext reconnect', () => {
     expect(screen.getByTestId('player-count').textContent).toBe('1');
     expect(screen.getByTestId('current-round').textContent).toBe('9');
     expect(screen.getByTestId('status').textContent).toBe('voting');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BUG-1 regression: the WebSocket callbacks must not call setState after the
+// GameProvider unmounts.
+//
+// The socket `onConnect`/`onMessage` handlers fire asynchronously (a real
+// socket can deliver a reconnect or a message *after* the component that
+// registered them has unmounted). Without an `isMounted.current` guard, those
+// callbacks call setState (or trigger a re-fetch that then calls setState) on
+// an unmounted component — a memory-leak / "setState on unmounted component"
+// bug. React 18 no longer surfaces this as a console warning, so these tests
+// assert the OBSERVABLE effects of the bug instead:
+//   1. A reconnect after unmount must NOT trigger a fresh getRoom re-fetch
+//      (the re-fetch exists only to setState the recovered snapshot; if the
+//      component is gone, there is nothing to update, so it must short-circuit).
+//   2. Socket messages delivered after unmount must be safely ignored — they
+//      must not throw and must not drive any post-unmount state update.
+//
+// With the bug present (no isMounted guard in the socket callbacks) test #1
+// fails because getRoom fires again after unmount. Adding
+// `if (!isMounted.current) return;` to the reconnect callback makes it pass.
+// ---------------------------------------------------------------------------
+describe('GameContext socket-callback unmount safety (BUG-1 regression)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    connectOptions.onConnect = undefined;
+    connectOptions.onDisconnect = undefined;
+    connectOptions.onMessage = undefined;
+    getRoomMock.mockResolvedValue(mockRoomResponse);
+    mockUseUser.mockReturnValue(createDefaultUserSession());
+  });
+
+  it('does NOT re-fetch room state when the socket reconnects after the provider unmounts', async () => {
+    const { unmount } = render(
+      <GameProvider roomCode="ABCD">
+        <StateReader />
+      </GameProvider>,
+    );
+
+    // Mount fetch + socket connect registration complete.
+    await waitFor(() => expect(connectOptions.onConnect).toBeTypeOf('function'));
+    await waitFor(() => expect(getRoomMock).toHaveBeenCalled());
+
+    // Unmount the provider — from here on any socket callback is firing on a
+    // component that no longer exists.
+    unmount();
+    const callsAfterUnmount = getRoomMock.mock.calls.length;
+
+    // A late reconnect arrives AFTER unmount. The onConnect handler must
+    // short-circuit on !isMounted.current and must NOT kick off another
+    // getRoom re-fetch (there is no live state left to update).
+    await act(async () => {
+      await connectOptions.onConnect!();
+    });
+
+    expect(getRoomMock.mock.calls.length).toBe(callsAfterUnmount);
+  });
+
+  it('safely ignores socket messages delivered after the provider unmounts', async () => {
+    const { unmount } = render(
+      <GameProvider roomCode="ABCD">
+        <StateReader />
+      </GameProvider>,
+    );
+
+    await waitFor(() => expect(connectOptions.onMessage).toBeTypeOf('function'));
+    await waitFor(() => expect(screen.getByTestId('player-count').textContent).toBe('2'));
+
+    unmount();
+    const callsAfterUnmount = getRoomMock.mock.calls.length;
+
+    // Deliver a representative spread of state-mutating messages after unmount.
+    // None of these may throw, and none may trigger a re-fetch — they must be
+    // ignored because the component that owned the state is gone.
+    expect(() => {
+      act(() => {
+        connectOptions.onMessage!({
+          type: 'game_state_update',
+          payload: { players: {}, status: 'playing', currentRound: 5 },
+        });
+      });
+      act(() => {
+        connectOptions.onMessage!({ type: 'timer_tick', payload: { timeRemaining: 12 } });
+      });
+      act(() => {
+        connectOptions.onMessage!({ type: 'host_migrated', payload: { newHostId: 'player-2' } });
+      });
+    }).not.toThrow();
+
+    // A post-unmount message must never trigger a re-fetch of room state.
+    expect(getRoomMock.mock.calls.length).toBe(callsAfterUnmount);
   });
 });
