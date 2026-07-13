@@ -1528,7 +1528,10 @@ class PlayerViewSet(viewsets.ModelViewSet):
     # lobby status and spectator-count limits. Privileged state changes go
     # through dedicated secret-verified actions.
     # See security findings player_field_escalation and player_create_bypass.
-    http_method_names = ["get", "head", "options"]
+    # POST is allowed at the viewset level so the secret-verified actions
+    # (toggle_ready, toggle_connection, leave_game, update_score) are reachable;
+    # generic write routes below are explicitly 405'd to preserve the intent.
+    http_method_names = ["get", "post", "head", "options"]
 
     def list(self, request, *args, **kwargs):
         # Security: do not expose a global listing of every player and their
@@ -1554,6 +1557,31 @@ class PlayerViewSet(viewsets.ModelViewSet):
             except Player.DoesNotExist:
                 pass
         return super().get_object()
+
+    # Security: block generic write routes. Players may only be created via
+    # room create_room/join_game actions, and mutated via the secret-verified
+    # actions (toggle_ready, toggle_connection, leave_game, update_score).
+    # See security findings player_field_escalation and player_create_bypass.
+    def create(self, request, *args, **kwargs):
+        return Response(
+            {"error": "Direct player creation is not permitted. Join a room instead."},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
+
+    def update(self, request, *args, **kwargs):
+        return Response(
+            {"error": "Direct player updates are not permitted."},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
+
+    def partial_update(self, request, *args, **kwargs):
+        return self.update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        return Response(
+            {"error": "Direct player deletion is not permitted."},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
 
     @action(detail=True, methods=["post"])
     def toggle_ready(self, request, pk=None, player_secret=None):

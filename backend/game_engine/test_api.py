@@ -34,22 +34,11 @@ class RoomAPITestCase(TestCase):
         self.host_auth = get_jwt_header(self.host)
         self.spectator_auth = get_jwt_header(self.spectator)
 
-    def test_room_list_empty(self):
-        """Test listing rooms when no rooms exist"""
-        Room.objects.all().delete()
+    def test_room_list_forbidden(self):
+        """Global room listing is intentionally forbidden (security finding global_list_exposure)."""
         url = reverse('room-list')
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, [])
-
-    def test_room_list_with_rooms(self):
-        """Test listing rooms when rooms exist"""
-        url = reverse('room-list')
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['code'], '1234')
-        self.assertEqual(response.data[0]['name'], 'Test Room')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_room_retrieve_by_code(self):
         """Test retrieving a room by its code"""
@@ -276,7 +265,11 @@ class RoomAPITestCase(TestCase):
         self.assertEqual(response.data['discord_session_secret'], str(account.session_secret))
 
     def test_discord_status_accepts_stable_session_without_player_credentials(self):
-        """Discord status can be checked after leaving a room player session."""
+        """Discord status can be checked after leaving a room player session.
+
+        The discord-status endpoint is POST-only by design (secrets are read
+        from the request body, never the URL — see finding secret_in_query_string).
+        """
         account = DiscordAccount.objects.create(
             player=self.host,
             discord_user_id='discord-456',
@@ -286,10 +279,14 @@ class RoomAPITestCase(TestCase):
             refresh_token='encrypted-refresh',
         )
 
-        response = self.client.get(reverse('discord-status'), {
-            'discord_user_id': account.discord_user_id,
-            'discord_session_secret': str(getattr(account, 'session_secret', uuid.uuid4())),
-        })
+        response = self.client.post(
+            reverse('discord-status'),
+            {
+                'discord_user_id': account.discord_user_id,
+                'discord_session_secret': str(getattr(account, 'session_secret', uuid.uuid4())),
+            },
+            format='json',
+        )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data['is_linked'])
