@@ -50,14 +50,19 @@ vi.mock('@/services/api', () => ({
   }),
 }));
 
-// Capture the socket callbacks so the test can drive connect/disconnect.
+// Capture the socket callbacks so the test can drive connect/disconnect/message.
+type CapturedMessage = { type: string; payload: unknown };
 const connectOptions: {
   onConnect?: () => void | Promise<void>;
   onDisconnect?: (r: string) => void;
+  onMessage?: (message: CapturedMessage) => void;
+  onError?: (error: unknown) => void;
 } = {};
 const connectMock = vi.fn((options: typeof connectOptions) => {
   connectOptions.onConnect = options.onConnect;
   connectOptions.onDisconnect = options.onDisconnect;
+  connectOptions.onMessage = options.onMessage;
+  connectOptions.onError = options.onError;
 });
 
 vi.mock('@/services/gameSocket', () => ({
@@ -141,6 +146,8 @@ describe('GameContext reconnect', () => {
     vi.clearAllMocks();
     connectOptions.onConnect = undefined;
     connectOptions.onDisconnect = undefined;
+    connectOptions.onMessage = undefined;
+    connectOptions.onError = undefined;
     getRoomMock.mockResolvedValue(mockRoomResponse);
     mockUseUser.mockReturnValue(createDefaultUserSession());
   });
@@ -298,5 +305,148 @@ describe('GameContext reconnect', () => {
     expect(screen.getByTestId('player-count').textContent).toBe('1');
     expect(screen.getByTestId('current-round').textContent).toBe('9');
     expect(screen.getByTestId('status').textContent).toBe('voting');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BUG-1 regression: socket message handler must not setState after unmount.
+//
+// The socket message handler (game_state_update / timer_tick / host_migrated)
+// calls setGameState / setTimeRemaining WITHOUT an `if (!isMounted.current)`
+// guard. If a queued/in-flight WS message is delivered AFTER the provider has
+// unmounted, the handler performs a state update on an unmounted component.
+//
+// Note on detection: React 18 dropped the old "Can't perform a React state
+// update on an unmounted component" console warning, so a console.error spy is
+// NOT a reliable signal. Instead we spy on the actual state dispatch: we wrap
+// React.useState during render so every state setter the provider creates is
+// recorded, then after unmount we clear the recorder and fire a socket message.
+// If the handler is guarded, NO setter runs after unmount; if it is unguarded,
+// setGameState / setTimeRemaining fire, which the recorder catches.
+//
+// This suite FAILS against the current (unguarded) handler and PASSES once an
+// `if (!isMounted.current) return;` early return is added at the top of the
+// socket message handler in GameContext.tsx.
+// ---------------------------------------------------------------------------
+describe('GameContext socket message handler after unmount (BUG-1)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    connectOptions.onConnect = undefined;
+    connectOptions.onDisconnect = undefined;
+    connectOptions.onMessage = undefined;
+    connectOptions.onError = undefined;
+    getRoomMock.mockResolvedValue(mockRoomResponse);
+    mockUseUser.mockReturnValue(createDefaultUserSession());
+  });
+
+  // Wrap React.useState so every setter produced during a render is tracked.
+  // `dispatchCalls` records each post-arm setter invocation with the value the
+  // caller passed, so the assertion can prove a state update was attempted.
+  function armUseStateSpy() {
+    const dispatchCalls: unknown[] = [];
+    let armed = false;
+    const realUseState = React.useState;
+    const spy = vi
+      .spyOn(React, 'useState')
+      .mockImplementation(((initial: unknown) => {
+        const [value, setter] = (realUseState as typeof React.useState)(
+          initial as never,
+        );
+        const wrapped = ((next: unknown) => {
+          if (armed) dispatchCalls.push(next);
+          return (setter as (v: unknown) => void)(next);
+        }) as typeof setter;
+        return [value, wrapped] as ReturnType<typeof React.useState>;
+      }) as typeof React.useState);
+    return {
+      dispatchCalls,
+      arm: () => {
+        armed = true;
+      },
+      restore: () => spy.mockRestore(),
+    };
+  }
+
+  it('does not dispatch any state update when a game_state_update arrives after unmount', async () => {
+    const stateSpy = armUseStateSpy();
+
+    const { unmount } = render(
+      <GameProvider roomCode="ABCD">
+        <StateReader />
+      </GameProvider>,
+    );
+
+    // Wait for the socket to connect and register its message handler.
+    await waitFor(() => expect(connectOptions.onMessage).toBeTypeOf('function'));
+    await waitFor(() => expect(screen.getByTestId('player-count').textContent).toBe('2'));
+
+    const handleMessage = connectOptions.onMessage!;
+
+    // Provider unmounts (e.g. user navigates away) — isMounted.current becomes false.
+    unmount();
+
+    // Only count dispatches that happen from here on (after unmount).
+    stateSpy.arm();
+
+    // A late/in-flight WS message is delivered AFTER unmount. With the guard,
+    // this is a no-op; without it, setGameState fires on an unmounted component.
+    act(() => {
+      handleMessage({
+        type: 'game_state_update',
+        payload: {
+          gameId: 'ABCD',
+          roomCode: 'ABCD',
+          status: 'playing',
+          currentRound: 3,
+          players: {
+            'player-1': { name: 'TestPlayer', board: { tiles: [] } },
+          },
+        },
+      });
+    });
+
+    const dispatched = [...stateSpy.dispatchCalls];
+    stateSpy.restore();
+
+    expect(
+      dispatched,
+      'A game_state_update delivered after unmount dispatched a state update on an unmounted component. ' +
+        'Add `if (!isMounted.current) return;` at the top of the socket message handler.',
+    ).toHaveLength(0);
+  });
+
+  it('does not dispatch any state update when a timer_tick arrives after unmount', async () => {
+    const stateSpy = armUseStateSpy();
+
+    const { unmount } = render(
+      <GameProvider roomCode="ABCD">
+        <StateReader />
+      </GameProvider>,
+    );
+
+    await waitFor(() => expect(connectOptions.onMessage).toBeTypeOf('function'));
+    await waitFor(() => expect(screen.getByTestId('player-count').textContent).toBe('2'));
+
+    const handleMessage = connectOptions.onMessage!;
+
+    unmount();
+    stateSpy.arm();
+
+    // A timer_tick after unmount would call setTimeRemaining on an unmounted component.
+    act(() => {
+      handleMessage({
+        type: 'timer_tick',
+        payload: { timeRemaining: 42 },
+      });
+    });
+
+    const dispatched = [...stateSpy.dispatchCalls];
+    stateSpy.restore();
+
+    expect(
+      dispatched,
+      'A timer_tick delivered after unmount dispatched a state update on an unmounted component. ' +
+        'Add `if (!isMounted.current) return;` at the top of the socket message handler.',
+    ).toHaveLength(0);
   });
 });
