@@ -115,7 +115,18 @@ describe("SEC-1 — player secret is never exposed in a URL", () => {
     await networkTab.click();
     await testdriver.wait(1500);
 
-    // Filter the network list for anything named/containing "secret".
+    // IMPORTANT: Chrome's Network panel only records requests made *while*
+    // DevTools is open. Room creation (and its credentialed WS/XHR requests)
+    // happened before F12, so the panel is currently empty. Reload the room
+    // route with DevTools open so the panel re-captures the authenticated
+    // WebSocket handshake + API calls — otherwise the "no secret" assertion
+    // below would pass vacuously against an empty request list. React Router
+    // hydrates back into the same /room/<id> state and re-establishes the
+    // credentialed connection on reload.
+    await testdriver.pressKeys(["ctrl", "r"]);
+    await testdriver.wait(6000);
+
+    // Filter the (now-populated) network list for anything containing "secret".
     const networkFilter = await testdriver.find(
       "the Filter text input in the DevTools Network toolbar",
     );
@@ -123,8 +134,15 @@ describe("SEC-1 — player secret is never exposed in a URL", () => {
     await testdriver.type("secret");
     await testdriver.wait(1500);
 
+    // Assert the panel actually captured traffic (guards against a vacuous
+    // pass): there ARE requests recorded, and NONE of them carry the secret.
+    const networkCaptured = await testdriver.assert(
+      "the DevTools Network panel has captured network activity this session (the request list / waterfall is populated with WebSocket and/or XHR/fetch entries from the reload — it is not an empty 'Recording network activity...' placeholder)",
+    );
+    expect(networkCaptured).toBeTruthy();
+
     const noSecretInNetwork = await testdriver.assert(
-      "the DevTools Network request list shows NO requests whose URL contains 'secret' — filtering by 'secret' yields an empty result (no WebSocket or XHR request leaks the player secret in its URL/query string)",
+      "with the Network list filtered by 'secret', NO requests match — no WebSocket (ws/wss) or XHR/fetch request URL contains a 'secret=' or 'player_secret=' query parameter or a raw UUID credential",
     );
     expect(noSecretInNetwork).toBeTruthy();
 
