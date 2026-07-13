@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { GameProvider, GameStateContext } from '../GameContext';
+import { GameProvider, GameStateContext, GameTimerContext } from '../GameContext';
 import { useUser } from '../UserContext';
 
 // ---------------------------------------------------------------------------
@@ -79,15 +79,20 @@ vi.mock('@/services/api', () => ({
   }),
 }));
 
-// Capture the socket callbacks so the test can drive (re)connect — the OTHER
-// place GameContext does an async setState after an await.
+// Capture the socket callbacks so the test can drive (re)connect and incoming
+// messages — the OTHER places GameContext does a setState in response to socket
+// activity. onConnect setState happens after an await; onMessage setState fires
+// synchronously from the socket, which can arrive after the provider unmounts.
+type SocketMessage = { type: string; payload?: Record<string, unknown> };
 const connectOptions: {
   onConnect?: () => void | Promise<void>;
   onDisconnect?: (r: string) => void;
+  onMessage?: (message: SocketMessage) => void;
 } = {};
 const connectMock = vi.fn((options: typeof connectOptions) => {
   connectOptions.onConnect = options.onConnect;
   connectOptions.onDisconnect = options.onDisconnect;
+  connectOptions.onMessage = options.onMessage;
 });
 
 vi.mock('@/services/gameSocket', () => {
@@ -145,7 +150,7 @@ function createDefaultUserSession() {
   };
 }
 
-// A consumer that re-renders whenever GameContext state changes. We count its
+// A consumer that re-renders whenever GameStateContext changes. We count its
 // renders so we can prove no state update re-rendered the subtree AFTER unmount.
 let renderCount = 0;
 function StateReader() {
@@ -153,6 +158,18 @@ function StateReader() {
   renderCount += 1;
   if (!ctx) return null;
   return <div data-testid="player-count">{Object.keys(ctx.gameState.players).length}</div>;
+}
+
+// timeRemaining lives in GameTimerContext (a SEPARATE provider), so a
+// timer_tick only re-renders a timer consumer — not the StateReader above.
+// This dedicated reader (with its own counter) makes the timer_tick render-count
+// assertion meaningful rather than vacuous.
+let timerRenderCount = 0;
+function TimerReader() {
+  const ctx = React.useContext(GameTimerContext);
+  timerRenderCount += 1;
+  if (!ctx) return null;
+  return <div data-testid="time-remaining">{String(ctx.timeRemaining)}</div>;
 }
 
 // Matches React's unmounted-update / not-wrapped-in-act warnings across
@@ -167,7 +184,9 @@ describe('GameContext — no setState after unmount (BUG-1 regression)', () => {
     vi.clearAllMocks();
     connectOptions.onConnect = undefined;
     connectOptions.onDisconnect = undefined;
+    connectOptions.onMessage = undefined;
     renderCount = 0;
+    timerRenderCount = 0;
     mockUseUser.mockReturnValue(createDefaultUserSession());
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
   });
@@ -306,6 +325,84 @@ describe('GameContext — no setState after unmount (BUG-1 regression)', () => {
     });
 
     expect(renderCount).toBe(rendersAtUnmount);
+    assertNoPostUnmountWarning();
+  });
+
+  // -------------------------------------------------------------------------
+  // Socket onMessage path (the other place GameContext setState-s in response
+  // to socket activity). Unlike onConnect, the message handler's
+  // game_state_update / timer_tick / host_migrated cases setState WITHOUT
+  // awaiting — so a message delivered by the socket AFTER the provider has
+  // unmounted is a distinct route to a post-unmount update. These reproduce
+  // that: register the socket, unmount, THEN deliver the message.
+  // -------------------------------------------------------------------------
+
+  it('does not re-render / setState when a game_state_update message arrives AFTER unmount', async () => {
+    // Let the mount fetch settle so the socket effect registers onMessage.
+    getRoomMock.mockResolvedValue(mockRoomResponse);
+
+    const { unmount } = render(
+      <GameProvider roomCode="ABCD">
+        <StateReader />
+      </GameProvider>,
+    );
+
+    await waitFor(() => expect(connectOptions.onMessage).toBeTypeOf('function'));
+    await waitFor(() => expect(getRoomMock).toHaveBeenCalledWith('ABCD'));
+
+    // Unmount BEFORE the socket delivers its next update.
+    unmount();
+    const rendersAtUnmount = renderCount;
+
+    // A game_state_update lands on the dead tree — this drives setGameState in
+    // the onMessage handler.
+    act(() => {
+      connectOptions.onMessage!({
+        type: 'game_state_update',
+        payload: {
+          gameId: 'ABCD',
+          roomCode: 'ABCD',
+          status: 'playing',
+          players: {
+            'player-2': { id: 'player-2', name: 'Late', board: { tiles: [] } },
+          },
+          currentRound: 3,
+        },
+      });
+    });
+
+    // The unmounted subtree must not re-render from a post-unmount socket
+    // message.
+    expect(renderCount).toBe(rendersAtUnmount);
+    assertNoPostUnmountWarning();
+  });
+
+  it('does not re-render / setState when a timer_tick message arrives AFTER unmount', async () => {
+    getRoomMock.mockResolvedValue(mockRoomResponse);
+
+    // Mount the TimerReader — timeRemaining lives in GameTimerContext, so it's
+    // the consumer that would re-render if setTimeRemaining leaked past unmount.
+    const { unmount } = render(
+      <GameProvider roomCode="ABCD">
+        <TimerReader />
+      </GameProvider>,
+    );
+
+    await waitFor(() => expect(connectOptions.onMessage).toBeTypeOf('function'));
+    await waitFor(() => expect(getRoomMock).toHaveBeenCalledWith('ABCD'));
+
+    unmount();
+    const timerRendersAtUnmount = timerRenderCount;
+
+    // timer_tick drives setTimeRemaining in the onMessage handler.
+    act(() => {
+      connectOptions.onMessage!({
+        type: 'timer_tick',
+        payload: { timeRemaining: 42 },
+      });
+    });
+
+    expect(timerRenderCount).toBe(timerRendersAtUnmount);
     assertNoPostUnmountWarning();
   });
 });
