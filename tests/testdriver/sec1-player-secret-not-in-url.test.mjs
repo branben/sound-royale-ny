@@ -1,6 +1,6 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import { TestDriver } from "testdriverai/vitest/hooks";
 
@@ -38,13 +38,15 @@ import { TestDriver } from "testdriverai/vitest/hooks";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, "..", "..");
+const srcRoot = join(repoRoot, "src");
 
-// The real client source under review.
+// The real client source under review (kept as explicit, human-readable gates
+// so a failure names the exact file the reviewer already knows leaks).
 const GAME_SOCKET_TS = readFileSync(
-  join(repoRoot, "src", "services", "gameSocket.ts"),
+  join(srcRoot, "services", "gameSocket.ts"),
   "utf8",
 );
-const API_TS = readFileSync(join(repoRoot, "src", "services", "api.ts"), "utf8");
+const API_TS = readFileSync(join(srcRoot, "services", "api.ts"), "utf8");
 
 // A sentinel we treat as "a player secret". Case-insensitive so we catch both
 // the frontend camelCase (`playerSecret`) and the wire snake_case
@@ -67,10 +69,17 @@ const SEARCHPARAMS_SET_PATTERNS = [
   /searchParams\.(?:set|append)\(\s*['"`]discord_session_secret['"`]/i,
 ];
 
+const ALL_LEAK_PATTERNS = [...SECRET_PARAM_PATTERNS, ...SEARCHPARAMS_SET_PATTERNS];
+
 /**
  * Strip line (`//`) and block comments so the doc comments in the source
  * (which legitimately mention `?secret=` while explaining the fix) don't
  * trigger false positives. We only want to gate on executable code.
+ *
+ * The line-comment pass only treats `//` as a comment when it is NOT the `//`
+ * of a URL scheme (`http://`, `ws://`, …). We approximate that by refusing to
+ * start a comment when the two chars before `//` are `:/` — i.e. the `//` is
+ * part of `://` — which keeps any real query string on that line intact.
  */
 function stripComments(src) {
   return src
@@ -81,11 +90,31 @@ function stripComments(src) {
 function findLeaks(label, source) {
   const code = stripComments(source);
   const leaks = [];
-  for (const re of [...SECRET_PARAM_PATTERNS, ...SEARCHPARAMS_SET_PATTERNS]) {
+  for (const re of ALL_LEAK_PATTERNS) {
     const m = code.match(re);
     if (m) leaks.push(`${label}: matched ${re} near "${m[0]}"`);
   }
   return leaks;
+}
+
+/** Recursively collect client source files under src/ (skip test/spec files). */
+function collectClientSources(dir) {
+  const out = [];
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    const st = statSync(full);
+    if (st.isDirectory()) {
+      if (entry === "__tests__" || entry === "node_modules") continue;
+      out.push(...collectClientSources(full));
+    } else if (
+      /\.(?:ts|tsx|js|jsx|mjs|cjs)$/.test(entry) &&
+      !/\.(?:test|spec)\.[a-z]+$/.test(entry) &&
+      !/\.d\.ts$/.test(entry)
+    ) {
+      out.push(full);
+    }
+  }
+  return out;
 }
 
 describe("SEC-1: player secret must never travel in a URL query string (#105)", () => {
@@ -124,6 +153,25 @@ describe("SEC-1: player secret must never travel in a URL query string (#105)", 
         "(e.g. `?player_secret=${playerSecret}`). Move the credential out of " +
         "the URL (Authorization header / POST body / first WS message).",
     ).toBe(false);
+  });
+
+  it("no client source ANYWHERE under src/ leaks the secret in a URL", () => {
+    // Repo-wide sweep so the gate can't be silently bypassed by moving the
+    // leaky code into a different file. Scans every non-test client source,
+    // not just the two files we already know about.
+    const leaks = [];
+    for (const file of collectClientSources(srcRoot)) {
+      const rel = relative(repoRoot, file);
+      const src = readFileSync(file, "utf8");
+      leaks.push(...findLeaks(rel, src));
+    }
+    expect(
+      leaks,
+      "A client source builds a URL that carries the player/Discord secret as " +
+        "a query param. Every occurrence below must move the credential to an " +
+        "Authorization header, a POST body, or the first WebSocket message.\n" +
+        leaks.join("\n"),
+    ).toEqual([]);
   });
 
   // -------------------------------------------------------------------------
