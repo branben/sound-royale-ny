@@ -43,7 +43,7 @@ export class PlayerPage {
           player_name: this.name
         });
         break;
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (i === MAX_RETRIES - 1) throw error;
         if (error.response?.status === 429) {
           const backoff = Math.min(Math.pow(2, i) * 1000, MAX_BACKOFF_MS);
@@ -157,7 +157,7 @@ export class PlayerPage {
 
     try {
       await submitTile(matchingTile.id, audioFilePath, this.playerSecret, this.playerId);
-    } catch (error: any) {
+    } catch (error: unknown) {
       const msg = error.response?.data?.error || error.message || '';
       if (msg.includes('Game is not in progress')) {
         console.log(`Game already finished before ${this.name} could play tile`);
@@ -235,7 +235,7 @@ export class PlayerPage {
         `playerData keys: [${Object.keys(playerData).join(', ')}]`
       );
     }
-    this.boardTiles = tiles.map((t: any) => ({
+    this.boardTiles = tiles.map((t: unknown) => ({
       id: t.id,
       genre: t.genre,
       position: t.position,

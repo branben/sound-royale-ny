@@ -33,7 +33,7 @@ test.describe('Host Migration', () => {
 
     // Simulate host disconnect via mock WebSocket
     await page.evaluate(() => {
-      const instances = (window as any).__WS_INSTANCES;
+      const instances = (window as unknown).__WS_INSTANCES;
       if (instances && instances.length > 0) {
         instances[0].simulateDisconnect();
       }
@@ -41,7 +41,7 @@ test.describe('Host Migration', () => {
 
     // Inject host_migrated message
     await page.evaluate(() => {
-      const instances = (window as any).__WS_INSTANCES;
+      const instances = (window as unknown).__WS_INSTANCES;
       if (instances && instances.length > 0) {
         instances[0].injectMessage({
           type: 'host_migrated',

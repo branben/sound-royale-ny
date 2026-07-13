@@ -466,7 +466,7 @@ export const discordApi = {
     discord_session_secret?: string;
     linked_at?: string;
     last_sync_at?: string;
-    privacy_settings?: Record<string, any>;
+    privacy_settings?: Record<string, unknown>;
   }> => {
     const response = await api.get(
       `/auth/discord/status/?player_id=${playerId}&player_secret=${playerSecret}`,
@@ -485,7 +485,7 @@ export const discordApi = {
     discord_session_secret?: string;
     linked_at?: string;
     last_sync_at?: string;
-    privacy_settings?: Record<string, any>;
+    privacy_settings?: Record<string, unknown>;
   }> => {
     const response = await api.get(
       `/auth/discord/status/?discord_user_id=${discordUserId}&discord_session_secret=${sessionSecret}`,

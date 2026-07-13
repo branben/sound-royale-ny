@@ -1,7 +1,12 @@
 import { test as base, Page } from '@playwright/test';
 import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
+import { setupServer, type SetupServer } from 'msw/node';
 import { randomUUID } from 'crypto';
+
+// Playwright fixtures use a `use` callback parameter (e.g. `await use(ctx)`).
+// The react-hooks/rules-of-hooks rule naively flags `use(` as a React hook call.
+// This file is not a React component — the `use` here is Playwright's fixture API.
+/* eslint-disable react-hooks/rules-of-hooks */
 
 const API_BASE_URL = process.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
@@ -469,7 +474,7 @@ export function createMockFinishedState(
 // GameStateManager fixture for managing mock game state
 class GameStateManager {
   private gameState: GameStateData;
-  private server: any;
+  private server: SetupServer;
 
   constructor() {
     this.gameState = createMockPlayingState({});
@@ -591,7 +596,7 @@ type TestFixtures = {
 };
 
 export const test = base.extend<TestFixtures>({
-  gameManager: async ({}, use) => {
+  gameManager: async (_, use) => {
     const manager = new GameStateManager();
     await manager.setup();
     await use(manager);

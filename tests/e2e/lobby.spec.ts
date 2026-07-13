@@ -69,7 +69,7 @@ test.describe('Lobby', () => {
   });
 
   test('joining a room navigates to the room page', async ({ page }) => {
-    let joinRequestBody: any = null;
+    let joinRequestBody: unknown = null;
 
     // Mock the room lookup (handleJoin calls getRoom first)
     await page.route('**/api/rooms/1234/', async (route) => {

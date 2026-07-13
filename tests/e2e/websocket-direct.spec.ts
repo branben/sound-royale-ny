@@ -16,9 +16,9 @@ test.describe('WebSocket Direct Infrastructure Test', () => {
       const ws = new WebSocket('ws://localhost:8000/ws/game/');
       
       return {
-        hasMockMethods: typeof (ws as any).injectMessage === 'function',
-        hasSimulateMethods: typeof (ws as any).simulateDisconnect === 'function' && 
-                           typeof (ws as any).simulateReconnect === 'function',
+        hasMockMethods: typeof (ws as unknown).injectMessage === 'function',
+        hasSimulateMethods: typeof (ws as unknown).simulateDisconnect === 'function' && 
+                           typeof (ws as unknown).simulateReconnect === 'function',
         hasCorrectStates: ws.CONNECTING === 0 && ws.OPEN === 1 && ws.CLOSING === 2 && ws.CLOSED === 3,
         initiallyConnecting: ws.readyState === 0
       };
@@ -42,11 +42,11 @@ test.describe('WebSocket Direct Infrastructure Test', () => {
           const initialState = ws.readyState;
           
           // Simulate disconnect
-          (ws as any).simulateDisconnect();
+          (ws as unknown).simulateDisconnect();
           const disconnectedState = ws.readyState;
           
           // Simulate reconnect
-          (ws as any).simulateReconnect();
+          (ws as unknown).simulateReconnect();
           
           // Wait for reconnection
           setTimeout(() => {
@@ -83,7 +83,7 @@ test.describe('WebSocket Direct Infrastructure Test', () => {
           });
           
           // Inject a test message
-          (ws as any).injectMessage({
+          (ws as unknown).injectMessage({
             type: 'test_message',
             data: { hello: 'world', timestamp: Date.now() }
           });
@@ -118,10 +118,10 @@ test.describe('WebSocket Direct Infrastructure Test', () => {
         const ws2 = new WebSocket('ws://localhost:8000/ws/game/');
         
         setTimeout(() => {
-          const instances = (window as any).__WS_INSTANCES || [];
+          const instances = (window as unknown).__WS_INSTANCES || [];
           resolve({
             instanceCount: instances.length,
-            allConnected: instances.every((ws: any) => ws.readyState === 1),
+            allConnected: instances.every((ws: unknown) => ws.readyState === 1),
             hasTracking: Array.isArray(instances)
           });
         }, 100);
@@ -139,9 +139,9 @@ test.describe('WebSocket Direct Infrastructure Test', () => {
     const preservationTest = await page.evaluate(() => {
       return new Promise((resolve) => {
         setTimeout(() => {
-          const hasOriginal = typeof (window as any).OriginalWebSocket === 'function';
-          const hasMock = typeof (window as any).MockWebSocket === 'function';
-          const currentIsMock = window.WebSocket !== (window as any).OriginalWebSocket;
+          const hasOriginal = typeof (window as unknown).OriginalWebSocket === 'function';
+          const hasMock = typeof (window as unknown).MockWebSocket === 'function';
+          const currentIsMock = window.WebSocket !== (window as unknown).OriginalWebSocket;
           
           resolve({
             hasOriginal,

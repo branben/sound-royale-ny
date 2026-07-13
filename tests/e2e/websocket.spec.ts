@@ -67,7 +67,7 @@ test.describe('Mocked WebSocket Real-time Updates', () => {
           resolve({
             connected: ws.readyState === 1, // WebSocket.OPEN
             url: ws.url,
-            instanceCount: (window as any).__WS_INSTANCES?.length || 0
+            instanceCount: (window as unknown).__WS_INSTANCES?.length || 0
           });
         }, 50);
       });
@@ -95,7 +95,7 @@ test.describe('Mocked WebSocket Real-time Updates', () => {
           });
           
           // Inject a test message
-          (ws as any).injectMessage({
+          (ws as unknown).injectMessage({
             type: 'game_state_update',
             data: { hello: 'world', timestamp: Date.now() }
           });
@@ -103,7 +103,7 @@ test.describe('Mocked WebSocket Real-time Updates', () => {
           resolve({
             connected: ws.readyState === 1,
             messageReceived,
-            hasInjectMethod: typeof (ws as any).injectMessage === 'function'
+            hasInjectMethod: typeof (ws as unknown).injectMessage === 'function'
           });
         }, 50);
       });
@@ -131,7 +131,7 @@ test.describe('Mocked WebSocket Real-time Updates', () => {
           });
           
           // Inject a player joined message
-          (ws as any).injectMessage({
+          (ws as unknown).injectMessage({
             type: 'player_joined',
             data: { playerName: 'TestPlayer', id: 'player123' }
           });
@@ -139,7 +139,7 @@ test.describe('Mocked WebSocket Real-time Updates', () => {
           resolve({
             connected: ws.readyState === 1,
             messageReceived,
-            hasInjectMethod: typeof (ws as any).injectMessage === 'function'
+            hasInjectMethod: typeof (ws as unknown).injectMessage === 'function'
           });
         }, 50);
       });
@@ -163,12 +163,12 @@ test.describe('Mocked WebSocket Real-time Updates', () => {
           const initialState = ws.readyState;
           
           // Simulate disconnect
-          (ws as any).simulateDisconnect();
+          (ws as unknown).simulateDisconnect();
           const disconnectedState = ws.readyState;
           
           // Test that methods exist
-          const hasDisconnectMethod = typeof (ws as any).simulateDisconnect === 'function';
-          const hasReconnectMethod = typeof (ws as any).simulateReconnect === 'function';
+          const hasDisconnectMethod = typeof (ws as unknown).simulateDisconnect === 'function';
+          const hasReconnectMethod = typeof (ws as unknown).simulateReconnect === 'function';
           
           resolve({
             initial: initialState,
