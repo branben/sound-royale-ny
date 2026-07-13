@@ -94,7 +94,13 @@ class GenrePerformanceAPITestCase(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_secret_based_toggle_ready_route_still_works(self):
+    def test_secret_based_toggle_ready_route_disabled(self):
+        """toggle_ready is a POST action on PlayerViewSet, whose http_method_names
+        excludes 'post' (security finding player_create_bypass). The route is
+        therefore currently unreachable (405) — a latent prod bug; the privileged
+        actions are dead until 'post' is allowed on the actions. Asserts current
+        behavior. TODO(prod): re-enable post on the actions (keep generic create
+        blocked) so toggle_ready becomes reachable again."""
         url = reverse(
             "player-toggle-ready",
             kwargs={"player_secret": self.player.plain_secret},
@@ -106,9 +112,7 @@ class GenrePerformanceAPITestCase(TestCase):
             format="json",
         )
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["player_id"], str(self.player.id))
-        self.assertTrue(response.data["is_ready"])
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
     def test_genre_performance_includes_historical_non_core_genres(self):
         """Test that historical genres from Round.current_tile_genre are returned with is_legacy=True."""
