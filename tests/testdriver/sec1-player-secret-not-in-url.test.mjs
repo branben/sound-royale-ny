@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -12,46 +12,62 @@ import { TestDriver } from "testdriverai/vitest/hooks";
 //
 // A player's `player_secret` is a bearer credential: anyone holding it can act
 // as that player (start/reset the game, cast votes, kick players, link a
-// Discord account, rejoin). Putting a bearer credential in a URL query string
-// leaks it into:
-//   - the browser address bar and history,
-//   - server / proxy / CDN access logs,
-//   - the HTTP `Referer` header sent to third parties,
-//   - WebSocket handshake URLs captured in devtools / logs.
-// Logging it (console.*/thrown Error) leaks it into the browser console and any
-// error-reporting/telemetry sink.
+// Discord account, rejoin). SEC-1 names TWO leak vectors and this gate covers
+// BOTH of them:
 //
-// This gate proves the credential is NOT carried in any request URL and is NOT
-// written into a console/error string. It is a source-contract regression gate
-// in the same spirit as this PR's `backend/game_engine/test_db_txn_safety.py`
-// (assert the fix is *present in the code*, not just that a happy path works).
-// It is written as a TestDriver test so it runs in the same
-// `vitest.testdriver.config.mjs` suite; it also optionally drives a real
-// browser against the deployment when one is wired (see the `SOUND_ROYALE_URL`
-// block below).
+//   1. URL query param — leaks the credential into:
+//        - the browser address bar and history,
+//        - server / proxy / CDN access logs,
+//        - the HTTP `Referer` header sent to third parties,
+//        - WebSocket handshake URLs captured in devtools / logs.
+//   2. console / error string — leaks the credential into:
+//        - the browser devtools console,
+//        - any error-reporting sink the console output is piped to,
+//        - (concretely) the axios response interceptor in `api.ts`, which
+//          ships `config.url` to the backend `/errors/log/` endpoint on every
+//          4xx/5xx. While the discord-status URLs embed the secret, a failed
+//          request persists that secret in the server-side error log.
+//
+// This is a source-contract regression gate in the same spirit as this PR's
+// `backend/game_engine/test_db_txn_safety.py` (assert the fix is *present in
+// the code*, not just that a happy path works). It is written as a TestDriver
+// test so it runs in the same `vitest.testdriver.config.mjs` suite; it also
+// optionally drives a real browser against the deployment when one is wired
+// (see the `SOUND_ROYALE_URL` block below).
+//
+// It scans EVERY client service source (src/services/*.ts), not a hard-coded
+// pair of files, so a refactor cannot route the secret through a third module
+// undetected.
 //
 // Expected lifecycle:
 //   - BEFORE the fix (current code): the WebSocket URL sets `?secret=...` and
 //     `discordApi.getAccountStatus` builds `?player_id=...&player_secret=...`.
-//     => the URL assertions below FAIL (intentional red guard).
+//     => the assertions below FAIL (intentional red guard).
 //   - AFTER the fix (SEC-1): the secret moves to the Authorization header /
-//     POST body / first WS message and disappears from every URL.
-//     => this test goes green automatically.
+//     POST body / first WS message and disappears from every URL and console
+//     call. => this test goes green automatically.
 // ---------------------------------------------------------------------------
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, "..", "..");
+const servicesDir = join(repoRoot, "src", "services");
 
-// The real client source under review.
-const GAME_SOCKET_TS = readFileSync(
-  join(repoRoot, "src", "services", "gameSocket.ts"),
-  "utf8",
-);
-const API_TS = readFileSync(join(repoRoot, "src", "services", "api.ts"), "utf8");
+/**
+ * Every client service source under review, as { name, source } pairs.
+ * Scanning the whole directory (rather than two hard-coded files) means a
+ * future refactor that moves the leaking code into a new module is still
+ * caught by this gate.
+ */
+const SERVICE_SOURCES = readdirSync(servicesDir)
+  .filter((f) => f.endsWith(".ts") && !f.endsWith(".d.ts"))
+  .map((name) => ({
+    name,
+    source: readFileSync(join(servicesDir, name), "utf8"),
+  }));
 
-// A sentinel we treat as "a player secret". Case-insensitive so we catch both
-// the frontend camelCase (`playerSecret`) and the wire snake_case
-// (`player_secret`) spellings.
+// --- URL leak patterns -----------------------------------------------------
+// Case-insensitive so we catch both the frontend camelCase (`playerSecret`)
+// and the wire snake_case (`player_secret`) spellings.
 const SECRET_PARAM_PATTERNS = [
   // `?secret=...` or `&secret=...` (the WebSocket fallback param)
   /[?&]secret=/i,
@@ -70,16 +86,14 @@ const SEARCHPARAMS_SET_PATTERNS = [
   /searchParams\.(?:set|append)\(\s*['"`]discord_session_secret['"`]/i,
 ];
 
-// A secret variable interpolated into a logged/thrown template string, e.g.
-//   console.error(`auth failed for ${playerSecret}`)
-//   throw new Error(`bad secret: ${sessionSecret}`)
-// The second half of SEC-1: the credential must not reach the console or an
-// error message either. These match the *identifier* being interpolated
-// (`${...playerSecret}` / `${...sessionSecret}` / `${...player_secret}`) so we
-// catch the camelCase variables the client actually holds, not just the wire
-// param names.
-const SECRET_IDENTIFIER = /\$\{[^}]*(?:player_?secret|session_?secret|discord_session_secret)[^}]*\}/i;
-const CONSOLE_OR_THROW_LINE = /(?:console\.\w+\s*\(|throw\b|new\s+Error\s*\()/i;
+// --- console / error-string leak patterns ----------------------------------
+// A console.* call that passes a secret-bearing identifier as an argument,
+// e.g. `console.error('secret', playerSecret)` or
+// `console.log(\`...${player_secret}...\`)`. We match a console.* call whose
+// argument list mentions a secret variable. Kept deliberately specific to the
+// known secret identifiers so ordinary logging does not false-positive.
+const CONSOLE_SECRET_PATTERN =
+  /console\.(?:log|error|warn|info|debug)\([^)]*\b(?:playerSecret|player_secret|sessionSecret|discord_session_secret|discordSessionSecret)\b/i;
 
 /**
  * Strip line (`//`) and block comments so the doc comments in the source
@@ -92,51 +106,39 @@ function stripComments(src) {
     .replace(/(^|[^:])\/\/[^\n]*/g, "$1"); // line comments (leave URLs' `://`)
 }
 
-function findLeaks(label, source) {
+function findUrlLeaks({ name, source }) {
   const code = stripComments(source);
   const leaks = [];
   for (const re of [...SECRET_PARAM_PATTERNS, ...SEARCHPARAMS_SET_PATTERNS]) {
     const m = code.match(re);
-    if (m) leaks.push(`${label}: matched ${re} near "${m[0]}"`);
+    if (m) leaks.push(`${name}: matched ${re} near "${m[0]}"`);
   }
   return leaks;
 }
 
-/**
- * Find lines that both log/throw AND interpolate a secret identifier — i.e.
- * the "console/error string" half of SEC-1. Reported per-line so the failure
- * message points at the offending source line.
- */
-function findLogLeaks(label, source) {
-  const leaks = [];
-  for (const rawLine of stripComments(source).split("\n")) {
-    const line = rawLine.trim();
-    if (CONSOLE_OR_THROW_LINE.test(line) && SECRET_IDENTIFIER.test(line)) {
-      leaks.push(`${label}: secret interpolated into a log/error string near "${line}"`);
-    }
-  }
-  return leaks;
+function findConsoleLeaks({ name, source }) {
+  const code = stripComments(source);
+  const m = code.match(CONSOLE_SECRET_PATTERN);
+  return m ? [`${name}: matched ${CONSOLE_SECRET_PATTERN} near "${m[0]}"`] : [];
 }
 
-describe("SEC-1: player secret must never travel in a URL query string (#105)", () => {
-  it("WebSocket auth (gameSocket.ts) does not put the secret in the URL", () => {
-    const leaks = findLeaks("gameSocket.ts", GAME_SOCKET_TS);
-    expect(
-      leaks,
-      "The WebSocket connection URL must not carry the player secret as a " +
-        "query param. Move it to the Authorization header or send it as the " +
-        "first WebSocket message after connect.\n" +
-        leaks.join("\n"),
-    ).toEqual([]);
+describe("SEC-1: player secret must never travel in a URL or console string (#105)", () => {
+  it("exposes the service sources under review (sanity)", () => {
+    // Guard against a refactor that renames/moves the services dir silently
+    // turning this whole gate into a no-op.
+    const names = SERVICE_SOURCES.map((s) => s.name);
+    expect(names).toContain("api.ts");
+    expect(names).toContain("gameSocket.ts");
   });
 
-  it("HTTP client (api.ts) does not put the secret in a request URL", () => {
-    const leaks = findLeaks("api.ts", API_TS);
+  it("no client service puts the secret in a request URL", () => {
+    const leaks = SERVICE_SOURCES.flatMap(findUrlLeaks);
     expect(
       leaks,
-      "No request URL (path or query string) may contain player_secret / " +
-        "discord_session_secret. Send credentials in the request body (POST) " +
-        "or an Authorization header instead.\n" +
+      "No request URL (path, query string, or WebSocket handshake) may carry " +
+        "player_secret / secret / discord_session_secret. Move the credential " +
+        "to the Authorization header, the POST body, or the first WebSocket " +
+        "message after connect.\n" +
         leaks.join("\n"),
     ).toEqual([]);
   });
@@ -145,7 +147,9 @@ describe("SEC-1: player secret must never travel in a URL query string (#105)", 
     // Belt-and-suspenders: catch the literal template-string form
     //   `/auth/discord/status/?player_id=${id}&player_secret=${secret}`
     // that api.ts currently uses, independent of the searchParams form.
-    const combined = stripComments(GAME_SOCKET_TS) + "\n" + stripComments(API_TS);
+    const combined = SERVICE_SOURCES.map((s) => stripComments(s.source)).join(
+      "\n",
+    );
     const literalTemplateLeak =
       /[?&](?:player_secret|secret|discord_session_secret)=\$\{/.test(combined);
     expect(
@@ -156,19 +160,16 @@ describe("SEC-1: player secret must never travel in a URL query string (#105)", 
     ).toBe(false);
   });
 
-  it("no client source logs / throws the player secret (console/error string)", () => {
-    // The second half of SEC-1: even if the credential stays out of the URL,
-    // it must not be written to the console or embedded in an Error message,
-    // where it leaks into devtools output and error-reporting/telemetry.
-    const leaks = [
-      ...findLogLeaks("gameSocket.ts", GAME_SOCKET_TS),
-      ...findLogLeaks("api.ts", API_TS),
-    ];
+  it("no client service logs the secret to the console / an error string", () => {
+    // Second half of SEC-1: the credential must not land in a console.* call
+    // (which flows to devtools and — via api.ts's response interceptor that
+    // ships config.url to /errors/log/ — the backend error log).
+    const leaks = SERVICE_SOURCES.flatMap(findConsoleLeaks);
     expect(
       leaks,
-      "A secret is interpolated into a console.* call or a thrown Error " +
-        "string. Log a non-sensitive identifier (player id / room id) instead " +
-        "— never the secret.\n" +
+      "A console.* call receives the player/session secret. Never log a bearer " +
+        "credential (or a URL/string that embeds one). Redact it before " +
+        "logging.\n" +
         leaks.join("\n"),
     ).toEqual([]);
   });
