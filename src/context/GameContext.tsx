@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- multiple React contexts exported alongside providers by design */
 import React, {
   createContext,
   useState,

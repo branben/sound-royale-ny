@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- useUser/useUserSession hooks exported alongside provider by design */
 import React, {
   createContext,
   useContext,

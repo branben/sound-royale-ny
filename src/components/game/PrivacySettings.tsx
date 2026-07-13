@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps -- loadPrivacySettings intentionally omitted (recreated each render); adding it would refetch every render */
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {

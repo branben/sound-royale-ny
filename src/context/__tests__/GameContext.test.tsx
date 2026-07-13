@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps -- test effects intentionally pin only specific deps */
 import React from 'react';
 import { render, screen, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
