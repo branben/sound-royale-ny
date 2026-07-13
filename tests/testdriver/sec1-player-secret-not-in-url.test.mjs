@@ -14,6 +14,12 @@ import { TestDriver } from "testdriverai/vitest/hooks";
  *       `/auth/discord/status/?player_id=…&player_secret=…`)
  *   - WebSocket URL query param — src/services/gameSocket.ts
  *       (`url.searchParams.set('secret', playerSecret)`)
+ *   - REST URL *path segment* — backend PlayerViewSet uses
+ *       `lookup_field = "player_secret"` (backend/game_engine/views.py), so
+ *       actions like `claim_bingo` / `toggle_ready` / `update_score` /
+ *       `toggle_connection` route as `/api/players/<player_secret>/<action>/` —
+ *       the secret sits in the PATH, not the query string. (This is the surface
+ *       the SEC-1 review comment on views.py flags.)
  *
  * Secrets in URLs leak into server access logs, browser history, and `Referer`
  * headers, so this is a real credential-exposure bug. The FIX (moving the secret
@@ -23,12 +29,14 @@ import { TestDriver } from "testdriverai/vitest/hooks";
  * ── Why this test inspects NETWORK REQUESTS, not the address bar ─────────────
  * The leak is NOT in the browser address bar — the secret never appears in
  * `location.href`. It leaks into the query string of an *XHR/fetch* request
- * (`GET …/status/?player_secret=…`) and into the *WebSocket handshake URL*
- * (`ws://…/ws/game/…/?secret=…`). An address-bar / visual check would therefore
- * pass even while the bug is present. So this guard captures **every request URL
- * the page issues** via the Chrome DevTools Protocol (Network.requestWillBeSent
- * + Network.webSocketWillSendHandshakeRequest / webSocketCreated) and asserts the
- * secret appears in none of them.
+ * (`GET …/status/?player_secret=…`), into a *URL path segment* of an XHR/fetch
+ * request (`…/api/players/<secret>/claim_bingo/`), and into the *WebSocket
+ * handshake URL* (`ws://…/ws/game/…/?secret=…`). An address-bar / visual check
+ * would therefore pass even while the bug is present. So this guard captures
+ * **every request URL the page issues** via the Chrome DevTools Protocol
+ * (Network.requestWillBeSent + Network.webSocketWillSendHandshakeRequest /
+ * webSocketCreated) and asserts the secret appears in none of them — whether in
+ * a query param OR a path segment.
  *
  * ── How the leak is triggered deterministically ─────────────────────────────
  * The Lobby calls `getAccountStatus(playerId, playerSecret)` on mount whenever a
@@ -63,8 +71,10 @@ const FAKE_PLAYER_ID = "11111111-1111-4111-8111-111111111111";
 // against it too (not just the exact-string match), yet unmistakable in a log.
 const FAKE_PLAYER_SECRET = "deadbeef-dead-4bee-8bad-c0ffee5ec1de";
 
-// Generic UUID shape — a bare 8-4-4-4-12 token in a query value is treated as a
-// leaked secret even if the param name changes.
+// Generic UUID shape — a bare 8-4-4-4-12 token used as a query value OR sitting
+// in the player-secret lookup path (/players/<uuid>/) is treated as a leaked
+// secret even if the param name changes or the secret is routed via the path
+// (backend lookup_field="player_secret"). See isLeak() below for the exact rules.
 const UUID_RE = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
 // Return trimmed stdout from a sandbox command as a string.
@@ -165,8 +175,43 @@ async function readCapturedUrls(testdriver) {
   return raw ? raw.split("\n").filter(Boolean) : [];
 }
 
+// Decide whether a single captured request-URL line leaks the player secret.
+// Covers all three SEC-1 surfaces WITHOUT false-flagging legitimate resource
+// UUIDs (a Room.id is a UUIDField and legitimately rides in `/ws/game/<id>/`
+// and `/rooms/<id>/` paths — those must NOT be treated as leaks):
+//
+//   1. Query param NAME — `?player_secret=…` or `?secret=…` (any value).
+//   2. Any UUID-shaped token used as a query VALUE — `?anything=<uuid>` — since a
+//      secret in a query value is a leak regardless of the param name.
+//   3. A UUID-shaped token in a PATH segment under a KNOWN secret-carrying route,
+//      i.e. `/players/<uuid>/…` (the backend PlayerViewSet's
+//      lookup_field="player_secret" routes the secret through the path here, e.g.
+//      `/api/players/<secret>/claim_bingo/`). A bare UUID in an unrelated path (a
+//      room/game id) is intentionally NOT flagged so the guard stays green after
+//      #105 without false positives.
+//   4. The exact seeded fake secret anywhere in the URL — the deterministic
+//      trigger; this value is never a room/game id, so matching it anywhere is
+//      always a true leak.
+//
+// The line is prefixed with a capture tag (REQ/WS/WSH); strip it first.
+function isLeak(line) {
+  const url = line.replace(/^(REQ|WS|WSH)\s+/, "");
+  // (2) UUID as a query value: `?x=<uuid>` or `&x=<uuid>`.
+  const uuidQueryValue = new RegExp(`[?&][^=&]*=${UUID_RE}(?:[&#]|$)`, "i");
+  // (3) UUID in the player-secret lookup path: `/players/<uuid>/` (also matches
+  //     the trailing action, e.g. `/players/<uuid>/claim_bingo/`).
+  const uuidSecretPath = new RegExp(`/players/${UUID_RE}(?:[/?#]|$)`, "i");
+  return (
+    /[?&]player_secret=/i.test(url) || // (1)
+    /[?&]secret=/i.test(url) || // (1)
+    uuidQueryValue.test(url) || // (2)
+    uuidSecretPath.test(url) || // (3)
+    url.includes(FAKE_PLAYER_SECRET) // (4)
+  );
+}
+
 describe("SEC-1 — player secret is never exposed in a request URL", () => {
-  it("does not leak player_secret into any request URL (REST query / WS handshake)", async (context) => {
+  it("does not leak player_secret into any request URL (REST query / REST path / WS handshake)", async (context) => {
     const testdriver = TestDriver(context);
     await testdriver.provision.chrome({ url: "about:blank" });
 
@@ -223,13 +268,7 @@ describe("SEC-1 — player secret is never exposed in a request URL", () => {
     // ── Core SEC-1 assertion: inspect every captured request URL ─────────────
     const urls = await readCapturedUrls(testdriver);
 
-    const offenders = urls.filter(
-      (line) =>
-        /player_secret=/i.test(line) ||
-        /[?&]secret=/i.test(line) ||
-        new RegExp(`[?&][^=]*=${UUID_RE}`, "i").test(line) ||
-        line.includes(FAKE_PLAYER_SECRET),
-    );
+    const offenders = urls.filter(isLeak);
 
     expect(
       offenders,
