@@ -111,42 +111,36 @@ class PlayerViewSetTestCase(APITestCase):
         self.assertEqual(response2.status_code, status.HTTP_200_OK)
         self.assertFalse(response2.data['is_connected'])
     
-    def test_player_list(self):
-        """Test listing all players"""
+    def test_player_list_forbidden(self):
+        """Global player listing is intentionally forbidden (security finding global_list_exposure)."""
         url = reverse('player-list')
         response = self.client.get(url)
-        
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)  # host + player
-    
-    def test_player_create_success(self):
-        """Test creating a new player"""
-        url = reverse('player-list')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_join_game_creates_player_success(self):
+        """Players are created via room-join-game (generic PlayerViewSet.create is 405 by design)."""
+        url = reverse('room-join-game', kwargs={'code': '1234'})
         data = {
             'name': 'NewPlayer',
-            'room_id': str(self.room.id),
-            'is_spectator': False
+            'is_spectator': False,
         }
         response = self.client.post(url, data, format='json')
-        
+
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['name'], 'NewPlayer')
-        
         self.assertTrue(Player.objects.filter(name='NewPlayer').exists())
-    
-    def test_player_create_duplicate_name_in_room(self):
-        """Test creating player with duplicate name in same room"""
-        url = reverse('player-list')
+
+    def test_join_game_rejects_duplicate_name(self):
+        """Duplicate player name in a room is rejected with 409 via join_game (not a raw IntegrityError on generic create)."""
+        url = reverse('room-join-game', kwargs={'code': '1234'})
         data = {
-            'name': 'TestPlayer',
-            'room_id': str(self.room.id),
-            'is_spectator': False
+            'name': 'TestPlayer',  # already exists (self.player) in this room
+            'is_spectator': False,
         }
-        
-        with self.assertRaises(IntegrityError):
-            with transaction.atomic():
-                self.client.post(url, data, format='json')
-    
+        response = self.client.post(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.data.get('conflict_type'), 'duplicate_name')
+
     def test_action_urls_use_player_secret(self):
         """Test that action URLs use player_secret parameter"""
         # These URLs should use player_secret, not pk
