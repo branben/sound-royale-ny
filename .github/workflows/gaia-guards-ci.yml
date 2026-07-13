@@ -78,23 +78,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: 20
-          cache: 'npm'
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci --ignore-scripts --legacy-peer-deps
+        run: bun install --ignore-scripts
 
       - name: Prettier formatting check
-        run: npx prettier --check "src/**/*.{ts,tsx,css,json}"
+        run: bunx prettier --check "src/**/*.{ts,tsx,css,json}"
 
       - name: TypeScript typecheck
-        run: npx tsc --noEmit
+        run: bunx tsc --noEmit
 
       - name: Frontend build
-        run: npm run build
+        run: bun run build
 
   e2e-smoke:
     name: E2E Smoke (frontend-only)
@@ -103,21 +102,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: 20
-          cache: 'npm'
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci --ignore-scripts --legacy-peer-deps
+        run: bun install --ignore-scripts
 
       - name: Install Playwright Chromium
-        run: npx playwright install chromium --with-deps
+        run: bunx playwright install chromium --with-deps
 
       - name: Start Vite dev server
         run: |
-          npm run dev:frontend &
+          bun run dev:frontend &
           VITE_PID=$!
           echo "VITE_PID=$VITE_PID" >> $GITHUB_ENV
           # Wait for Vite to be ready (max 30s)
@@ -130,7 +128,7 @@ jobs:
           done
 
       - name: Run smoke tests
-        run: npx playwright test tests/e2e/smoke.spec.ts --reporter=line
+        run: bunx playwright test tests/e2e/smoke.spec.ts --reporter=line
 
       - name: Shut down dev server
         if: always()
@@ -144,21 +142,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: 20
-          cache: 'npm'
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci --ignore-scripts --legacy-peer-deps
+        run: bun install --ignore-scripts
 
       - name: Install Playwright Chromium
-        run: npx playwright install chromium --with-deps
+        run: bunx playwright install chromium --with-deps
 
       - name: Start Vite dev server
         run: |
-          npm run dev:frontend &
+          bun run dev:frontend &
           VITE_PID=$!
           echo "VITE_PID=$VITE_PID" >> $GITHUB_ENV
           for i in $(seq 1 30); do
@@ -170,7 +167,7 @@ jobs:
           done
 
       - name: Run full E2E suite
-        run: npx playwright test tests/e2e/ --reporter=line --workers=2
+        run: bunx playwright test tests/e2e/ --reporter=line --workers=2
         timeout-minutes: 20
 
       - name: Shut down dev server
@@ -184,17 +181,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: 24
-          cache: 'npm'
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci --ignore-scripts --legacy-peer-deps
+        run: bun install --ignore-scripts
 
       - name: Impeccable UI anti-pattern scan
-        run: npm run audit:ui
+        run: bun run audit:ui
 
   repo-hygiene:
     name: Repository Hygiene
