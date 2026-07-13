@@ -24,7 +24,7 @@ import { TestDriver } from 'testdriverai/vitest/hooks';
 //      error message.
 //
 // This gate proves the credential is NOT carried in any request URL and is NOT
-// interpolated into a console log or thrown-error string. It is a
+// surfaced through a console log or thrown-error string. It is a
 // source-contract regression gate in the same spirit as this PR's
 // `backend/game_engine/test_db_txn_safety.py` (assert the fix is *present in
 // the code*, not just that a happy path works). It is written as a TestDriver
@@ -40,13 +40,39 @@ import { TestDriver } from 'testdriverai/vitest/hooks';
 // `gameSocket.ts` and `api.ts` (the two known offenders today) are also
 // asserted explicitly by name so the failure output names them directly.
 //
+// The console/error vector, unpacked
+// --------------------------------------------------------------------------
+// SEC-1 flags "console/error string" as a distinct leak vector. On the client
+// today this vector shows up in TWO forms, and this gate catches both:
+//
+//   (a) DIRECT — a secret identifier is handed straight to `console.*` or
+//       interpolated into a thrown-error message, e.g.
+//         console.error('secret', playerSecret)
+//         throw new Error(`auth failed: ${playerSecret}`)
+//       There is no direct form in the client right now, so on its own this is
+//       a forward-looking regression guard: it stays green until someone adds
+//       such a log, then goes red.
+//
+//   (b) INDIRECT (present today) — `gameSocket.ts` builds a WebSocket URL that
+//       carries the secret (`url.searchParams.set('secret', …)`) and then logs
+//       the raw WebSocket error/creation failure via
+//       `console.error('[GameSocket] …', err)`. Browsers stringify a failed
+//       WebSocket (and the surrounding error) WITH its connection URL, so that
+//       secret-bearing URL lands in the console / error-tracking pipeline. This
+//       is a real, present leak: the gate fires when a single module BOTH
+//       constructs a secret-bearing WS/URL AND logs a WS error. It is a red WIP
+//       guard now and flips green the moment SEC-1 moves the secret out of the
+//       URL (form (b) can no longer leak because the URL no longer holds it).
+//
 // Expected lifecycle:
-//   - BEFORE the fix (current code): the WebSocket URL sets `?secret=...` and
-//     `discordApi.getAccountStatus` builds `?player_id=...&player_secret=...`.
+//   - BEFORE the fix (current code): the WebSocket URL sets `?secret=...`,
+//     `discordApi.getAccountStatus` builds `?player_id=...&player_secret=...`,
+//     and gameSocket logs a WS error whose URL still carries the secret.
 //     => the assertions below FAIL (intentional red guard).
 //   - AFTER the fix (SEC-1): the secret moves to the Authorization header /
-//     POST body / first WS message and disappears from every URL (and is never
-//     logged). => this test goes green automatically.
+//     POST body / first WS message and disappears from every URL (so the
+//     logged WS error can no longer carry it) and is never logged directly.
+//     => this test goes green automatically.
 // ---------------------------------------------------------------------------
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -115,29 +141,14 @@ const SEARCHPARAMS_SET_PATTERNS = [
   /searchParams\.(?:set|append)\(\s*['"`]discord_session_secret['"`]/i,
 ];
 
-// console / error-string leaks — the SECOND vector SEC-1 names ("... or
-// console/error string"). SEC-1 has two console sub-risks:
-//
-//   (a) DIRECT: a secret variable is passed straight into a console.* call or
-//       interpolated into a thrown-error message, e.g.
-//         console.log('secret', playerSecret)
-//         console.error(`ws failed with secret=${this.options.playerSecret}`)
-//         throw new Error(`auth failed: ${playerSecret}`)
-//       No client module does this today, so these patterns act as a
-//       forward-looking regression guard: they stay green now and turn red the
-//       moment someone logs a raw secret in the future.
-//
-//   (b) INDIRECT (the present risk): gameSocket.ts puts the secret in the WS
-//       URL (`?secret=…`, line 89) and then logs the raw WebSocket error
-//       (`console.error('[GameSocket] Error:', error)`), which can embed that
-//       secret-bearing URL in the error string. This is ALREADY gated by the
-//       URL half above (`searchParams.set('secret', …)`), and it resolves via
-//       the SAME SEC-1 fix: once the secret leaves the URL it can no longer
-//       appear in the logged error. So no separate pattern is needed for (b) —
-//       fixing the URL leak fixes the log leak.
-//
-// The patterns below are deliberately anchored to console.*/throw so we don't
-// flag the many legitimate `playerSecret` reads/passes elsewhere in the client.
+// console / error-string leaks, form (a) — DIRECT. Fire only when a secret
+// *identifier* is passed into a console.* call or interpolated into a
+// thrown-error message, e.g.
+//   console.log('secret', playerSecret)
+//   console.error(`ws failed with secret=${this.options.playerSecret}`)
+//   throw new Error(`auth failed: ${playerSecret}`)
+// These are deliberately anchored to console.*/throw so we don't flag the many
+// legitimate `playerSecret` reads/passes elsewhere in the client.
 const CONSOLE_ERROR_LEAK_PATTERNS = [
   // console.<method>( ... <secret ident> ... )  — same statement/line
   /console\.(?:log|error|warn|info|debug|trace)\([^)\n]*\b(?:player_?secret|discord_?session_?secret)\b/i,
@@ -170,6 +181,37 @@ function findLeaks(label, source) {
     if (m) leaks.push(`${label}: matched ${re} near "${m[0]}"`);
   }
   return leaks;
+}
+
+// console / error-string leaks, form (b) — INDIRECT. A module that BOTH puts a
+// secret into a WebSocket/URL AND logs a WebSocket error leaks that
+// secret-bearing URL into the console, because browsers stringify a failed
+// WebSocket / its error together with the connection URL. Reported per-module
+// so the failure output names the file to fix. This clears automatically once
+// the secret is no longer in the URL (SEC-1), even if the WS error log stays.
+const SECRET_IN_WS_URL_PATTERNS = [
+  /searchParams\.(?:set|append)\(\s*['"`]secret['"`]/i,
+  /searchParams\.(?:set|append)\(\s*['"`]player_secret['"`]/i,
+  /[?&](?:secret|player_secret|discord_session_secret)=\$\{/,
+];
+// A console.* / throw that logs a WebSocket-derived value (the ws error/close
+// event, the creation `catch (err)`), any of which carries the URL.
+const WS_ERROR_LOG_PATTERN =
+  /console\.(?:log|error|warn|info|debug|trace)\([^)\n]*(?:WebSocket|GameSocket|ws\b|wsUrl|onerror|onclose)/i;
+
+function findIndirectConsoleLeak(label, source) {
+  const code = stripComments(source);
+  const buildsSecretWsUrl = SECRET_IN_WS_URL_PATTERNS.some((re) => re.test(code));
+  const logsWsError = WS_ERROR_LOG_PATTERN.test(code);
+  if (buildsSecretWsUrl && logsWsError) {
+    return [
+      `${label}: builds a WebSocket URL carrying the player secret AND logs a ` +
+        `WebSocket error via console.* — the secret-bearing URL leaks into the ` +
+        `console / error-tracking pipeline (browsers stringify a failed ` +
+        `WebSocket together with its connection URL).`,
+    ];
+  }
+  return [];
 }
 
 describe('SEC-1: player secret must never travel in a URL or a log (#105)', () => {
@@ -215,7 +257,7 @@ describe('SEC-1: player secret must never travel in a URL or a log (#105)', () =
     // Whole-tree sweep so a future leak in ANY client module — service,
     // component, context, page, or hook — can't slip past the explicitly-named
     // gates above. Covers both SEC-1 vectors: URL query params AND
-    // console/error strings.
+    // console/error strings (direct form (a)).
     const leaks = ALL_CLIENT_SOURCES.flatMap(({ name, source }) => findLeaks(name, source));
     expect(
       leaks,
@@ -223,6 +265,25 @@ describe('SEC-1: player secret must never travel in a URL or a log (#105)', () =
         'a WebSocket URL, or a console/error string. Move the credential to ' +
         'the Authorization header / POST body / first WS message, and never ' +
         'log it.\n' +
+        leaks.join('\n'),
+    ).toEqual([]);
+  });
+
+  it('no client module logs a WebSocket error whose URL still carries the secret (console/error vector)', () => {
+    // SEC-1 console/error vector, form (b) — INDIRECT. Catches the present leak
+    // in gameSocket.ts: it both builds a `?secret=` WebSocket URL and logs the
+    // raw WS error/creation failure, so the secret-bearing URL reaches the
+    // console. Red WIP guard now; flips green once the secret leaves the URL.
+    const leaks = ALL_CLIENT_SOURCES.flatMap(({ name, source }) =>
+      findIndirectConsoleLeak(name, source),
+    );
+    expect(
+      leaks,
+      'A client module logs a WebSocket error while its WebSocket URL still ' +
+        'carries the player secret, so the secret leaks into the console / ' +
+        'error-tracking pipeline. Move the secret out of the URL (Authorization ' +
+        'header / POST body / first WS message); once it is gone the logged WS ' +
+        'error can no longer carry it.\n' +
         leaks.join('\n'),
     ).toEqual([]);
   });
