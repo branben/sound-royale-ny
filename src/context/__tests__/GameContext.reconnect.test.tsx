@@ -1,6 +1,34 @@
 import React from 'react';
 import { render, screen, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// ---------------------------------------------------------------------------
+// BUG-1 instrumentation: wrap React.useState so we can detect any state
+// dispatch that happens AFTER the provider has unmounted. React 18 silently
+// no-ops setState on an unmounted component (the old dev warning was removed),
+// so console.error is NOT a reliable signal — instead we record dispatches
+// while `unmountedFlag.v` is true. The wrapper is a transparent pass-through
+// whenever the flag is false, so it does not affect any other test.
+// ---------------------------------------------------------------------------
+const unmountedFlag = { v: false };
+const postUnmountDispatches: string[] = [];
+
+vi.mock('react', async () => {
+  const actual = await vi.importActual<typeof import('react')>('react');
+  return {
+    ...actual,
+    default: actual,
+    useState: (init: unknown) => {
+      const [state, setState] = actual.useState(init);
+      const wrapped = (arg: unknown) => {
+        if (unmountedFlag.v) postUnmountDispatches.push('setState-after-unmount');
+        return (setState as (a: unknown) => void)(arg);
+      };
+      return [state, wrapped];
+    },
+  };
+});
+
 import { GameProvider, GameStateContext, GameContext } from '../GameContext';
 import { useUser } from '../UserContext';
 
@@ -143,6 +171,8 @@ describe('GameContext reconnect', () => {
     connectOptions.onDisconnect = undefined;
     getRoomMock.mockResolvedValue(mockRoomResponse);
     mockUseUser.mockReturnValue(createDefaultUserSession());
+    unmountedFlag.v = false;
+    postUnmountDispatches.length = 0;
   });
 
   it('re-fetches full game state via getRoom on onConnect and REPLACES (not merges) state', async () => {
@@ -298,5 +328,89 @@ describe('GameContext reconnect', () => {
     expect(screen.getByTestId('player-count').textContent).toBe('1');
     expect(screen.getByTestId('current-round').textContent).toBe('9');
     expect(screen.getByTestId('status').textContent).toBe('voting');
+  });
+
+  // ---------------------------------------------------------------------------
+  // BUG-1 regression lock (issue #101 review):
+  // The WebSocket callbacks must NOT call setState after the GameProvider has
+  // unmounted. Each socket handler (onDisconnect, and onConnect → refresh
+  // re-fetch) is guarded by `isMounted.current`. If that guard is removed, a
+  // late socket event delivered after teardown calls setState on an unmounted
+  // component (a memory-leak / act-warning bug risk).
+  //
+  // Detection: we wrap React.useState (see top of file) to record any dispatch
+  // that fires while `unmountedFlag.v` is true. These tests FAIL if the guard
+  // regresses (a dispatch is recorded) and PASS while the guard is in place.
+  // ---------------------------------------------------------------------------
+  describe('BUG-1: no setState on an unmounted component from late socket callbacks', () => {
+    it('onDisconnect fired AFTER unmount does not dispatch state on the unmounted provider', async () => {
+      const { unmount } = render(
+        <GameProvider roomCode="ABCD">
+          <StateReader />
+        </GameProvider>,
+      );
+
+      // Let the initial fetch + socket registration settle so the captured
+      // onDisconnect callback is the real handler.
+      await waitFor(() => expect(connectOptions.onDisconnect).toBeTypeOf('function'));
+      await waitFor(() => expect(screen.getByTestId('player-count').textContent).toBe('2'));
+
+      const onDisconnect = connectOptions.onDisconnect!;
+
+      // Tear the provider down, THEN deliver a late socket disconnect event —
+      // exactly the race BUG-1 describes (the callback outlives the component).
+      unmount();
+      unmountedFlag.v = true;
+
+      act(() => {
+        onDisconnect('connection lost after unmount');
+      });
+
+      // The isMounted guard must have short-circuited setIsReconnecting(true).
+      expect(postUnmountDispatches).toEqual([]);
+    });
+
+    it('onConnect re-fetch resolving AFTER unmount does not dispatch state on the unmounted provider', async () => {
+      // Make getRoom hang until we release it, so the reconnect re-fetch promise
+      // resolves only after the component has unmounted — the classic
+      // async-after-unmount path where an unguarded setState would fire.
+      let releaseGetRoom!: (value: typeof mockRoomResponse) => void;
+      const pendingRoom = new Promise<typeof mockRoomResponse>((resolve) => {
+        releaseGetRoom = resolve;
+      });
+
+      const { unmount } = render(
+        <GameProvider roomCode="ABCD">
+          <StateReader />
+        </GameProvider>,
+      );
+
+      await waitFor(() => expect(connectOptions.onConnect).toBeTypeOf('function'));
+      await waitFor(() => expect(screen.getByTestId('player-count').textContent).toBe('2'));
+
+      const onConnect = connectOptions.onConnect!;
+
+      // The next getRoom call (the reconnect re-fetch) will not resolve yet.
+      getRoomMock.mockReturnValueOnce(pendingRoom as unknown as Promise<typeof mockRoomResponse>);
+
+      // Kick off the reconnect handler — it awaits the hanging getRoom.
+      let connectPromise: void | Promise<void>;
+      act(() => {
+        connectPromise = onConnect();
+      });
+
+      // Unmount while the re-fetch is still in flight, then start recording.
+      unmount();
+      unmountedFlag.v = true;
+
+      // Resolve the re-fetch: the guarded handler must NOT setState afterwards
+      // (neither the setGameState replace nor setIsReconnecting(false)).
+      await act(async () => {
+        releaseGetRoom(mockRoomResponse);
+        await connectPromise;
+      });
+
+      expect(postUnmountDispatches).toEqual([]);
+    });
   });
 });
