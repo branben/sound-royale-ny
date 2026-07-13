@@ -357,7 +357,7 @@ describe('GameContext socket-callback lifecycle (BUG-1)', () => {
     expect(getRoomMock.mock.calls.length).toBe(callsWhileMounted);
   });
 
-  it('does not throw when a game_state_update / timer_tick message arrives after unmount', async () => {
+  it('does not process a game_state_update message when it arrives after unmount', async () => {
     const { unmount } = render(
       <GameProvider roomCode="ABCD">
         <StateReader />
@@ -369,19 +369,43 @@ describe('GameContext socket-callback lifecycle (BUG-1)', () => {
 
     unmount();
 
+    // We need an OBSERVABLE signal that the message handler body actually ran,
+    // because React 18 no longer logs the "setState on an unmounted component"
+    // warning and an unguarded setState does not throw. So the payload's
+    // `players` is exposed via a getter spy: the game_state_update branch reads
+    // `newState.players` (`if (newState.players)` / `Object.entries(...)`) only
+    // if the handler is NOT short-circuited by the isMounted guard.
+    //
+    //   - unguarded (bug present): handler runs post-unmount -> getter is read
+    //     -> playersAccessed becomes true  -> this test FAILS.
+    //   - guarded  (bug fixed):   handler returns early       -> getter never
+    //     read -> playersAccessed stays false -> this test PASSES.
+    let playersAccessed = false;
+    const gameStateUpdate = {
+      type: 'game_state_update',
+      payload: {
+        status: 'voting',
+        currentRound: 5,
+        get players() {
+          playersAccessed = true;
+          return {};
+        },
+      },
+    };
+
     // Firing state-mutating socket messages after unmount must be a safe no-op
-    // (guarded by isMounted) rather than a setState on an unmounted component.
+    // (guarded by isMounted), not a setState on an unmounted component.
     expect(() => {
       act(() => {
-        connectOptions.onMessage!({
-          type: 'game_state_update',
-          payload: { status: 'voting', players: {}, currentRound: 5 },
-        });
+        connectOptions.onMessage!(gameStateUpdate);
         connectOptions.onMessage!({
           type: 'timer_tick',
           payload: { timeRemaining: 3 },
         });
       });
     }).not.toThrow();
+
+    // The guard must short-circuit BEFORE the handler touches the payload.
+    expect(playersAccessed).toBe(false);
   });
 });
