@@ -470,4 +470,73 @@ describe('GameContext — no setState after unmount (BUG-1 regression)', () => {
     expect(renderCount).toBe(rendersAtUnmount);
     assertNoPostUnmountWarning();
   });
+
+  // -------------------------------------------------------------------------
+  // LOAD-BEARING regression guard for the flagged onMessage path (BUG-1).
+  //
+  // The three smoke tests above cannot distinguish guarded from unguarded on
+  // React 18 (the dropped setState is unobservable). This test closes that gap
+  // WITHOUT needing an app-code change to pass by observing a seam that does not
+  // depend on React flushing an update: whether handleMessage *processes the
+  // frame at all* after unmount.
+  //
+  // We hand the late frame a payload whose `players` is an access-tracking
+  // getter. handleMessage's `game_state_update` branch reads `newState.players`
+  // to rebuild state. The isMounted guard the review asked for
+  // (`if (!isMounted.current) return;` at the top of handleMessage) short-circuits
+  // BEFORE that read — so once the guard exists, the getter is never touched.
+  //
+  // Marked `it.fails` because GameContext.tsx is intentionally left unchanged by
+  // the test agent: on the CURRENT (unguarded) code handleMessage DOES read the
+  // payload after unmount, so the "not accessed" expectation fails — which is
+  // exactly the BUG-1 gap the review flagged, now pinned as an executable spec.
+  // The moment a maintainer adds the early return to handleMessage, this test
+  // flips green (and `it.fails` will then error, prompting removal of `.fails`),
+  // turning it into a permanent load-bearing guard. This keeps the requested
+  // behavior encoded and enforced in the suite without the test agent editing
+  // application code.
+  // -------------------------------------------------------------------------
+  it.fails(
+    'IGNORES a late game_state_update frame after unmount (fails until handleMessage early-returns on !isMounted)',
+    async () => {
+      getRoomMock.mockResolvedValue(mockRoomResponse);
+
+      const { unmount } = render(
+        <GameProvider roomCode="ABCD">
+          <StateReader />
+        </GameProvider>,
+      );
+
+      await waitFor(() => expect(connectOptions.onMessage).toBeTypeOf('function'));
+      await waitFor(() => expect(getRoomMock).toHaveBeenCalled());
+
+      const onMessage = connectOptions.onMessage!;
+
+      unmount();
+
+      // Seam: a payload whose `players` records the moment handleMessage reads
+      // it. A guarded handler early-returns before this read; an unguarded one
+      // reads it to rebuild state.
+      let playersAccessed = false;
+      const payload = {
+        gameId: 'ABCD',
+        roomCode: 'ABCD',
+        status: 'playing',
+        currentRound: 3,
+        get players() {
+          playersAccessed = true;
+          return { 'player-9': { name: 'Late', board: { tiles: [] } } };
+        },
+      };
+
+      act(() => {
+        onMessage({ type: 'game_state_update', payload });
+      });
+
+      // Desired post-fix behavior: the late frame is ignored, so its payload is
+      // never processed. Fails on the current unguarded code (documents BUG-1).
+      expect(playersAccessed).toBe(false);
+    },
+  );
+
 });
