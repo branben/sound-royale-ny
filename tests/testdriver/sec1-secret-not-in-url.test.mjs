@@ -22,6 +22,11 @@ import { TestDriver } from "testdriverai/vitest/hooks";
 //   - any network request URL (DevTools Network tab), or
 //   - the DevTools console output.
 //
+// NOTE: this is the end-to-end (runtime) half of the SEC-1 URL guard. The
+// always-on, deployment-independent half lives in
+// tests/testdriver/sec1-player-secret-not-in-url.test.mjs, which statically
+// scans src/** for the leak and runs on every CI push with no sandbox required.
+//
 // Lobby flow (verified against src/components/lobby/*):
 //   1. The lobby always shows a "Your Name" input (PlayerNameInput,
 //      placeholder "Enter your producer name") plus landing buttons.
@@ -34,20 +39,28 @@ import { TestDriver } from "testdriverai/vitest/hooks";
 //   4. On success the app navigates to /room/<code> as the host player, which
 //      opens the credentialed game WebSocket.
 //
-// Convention (matches tests/testdriver/smoke.test.mjs): the deployment under
-// test is configurable via SOUND_ROYALE_URL so the test runs unchanged against
-// whichever environment is available (local docker stack, staging, prod). At
-// authoring time no public deployment resolves (soundroyale.com does not yet
-// resolve), so point it at a running stack reachable from the sandbox, e.g.:
+// Base URL convention — matches tests/testdriver/smoke.test.mjs: there is
+// intentionally NO hard-coded `https://soundroyale.com` fallback. That domain
+// does not yet resolve, and silently defaulting to it makes this computer-use
+// test provision a sandbox and drive a browser against a DEAD host — burning
+// TestDriver sandbox minutes and failing with a confusing error instead of a
+// clear "no target wired" signal. Instead this live test reads SOUND_ROYALE_URL
+// (wired in CI as the `vars.SOUND_ROYALE_URL` Actions repo variable) and SKIPS
+// when it is absent, only spinning up a sandbox once a reachable deployment is
+// pointed at it, e.g.:
 //
 //   SOUND_ROYALE_URL=http://localhost:8080 \
 //     npx vitest run --config vitest.testdriver.config.mjs \
 //       tests/testdriver/sec1-secret-not-in-url.test.mjs
 // ---------------------------------------------------------------------------
-const BASE_URL = process.env.SOUND_ROYALE_URL || "https://soundroyale.com";
+const BASE_URL = process.env.SOUND_ROYALE_URL;
+
+// Only drive a real browser when a reachable deployment is wired; otherwise
+// skip (the static-scan sibling test always guards the source contract).
+const liveIt = BASE_URL && BASE_URL.trim() ? it : it.skip;
 
 describe("SEC-1 — player secret is never exposed in a URL", () => {
-  it("does not leak the player secret into URLs, network, or console", async (context) => {
+  liveIt("does not leak the player secret into URLs, network, or console", async (context) => {
     const testdriver = TestDriver(context);
 
     await testdriver.provision.chrome({ url: BASE_URL });

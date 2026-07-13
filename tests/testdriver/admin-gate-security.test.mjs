@@ -23,11 +23,25 @@ import { TestDriver } from "testdriverai/vitest/hooks";
 // A regression that re-introduces a client-side/bundled PIN check (or leaves the
 // editor ungated) would make one of these assertions fail.
 //
-// Configurable base URL, matching tests/testdriver/smoke.test.mjs. Point at the
-// deployment under test via SOUND_ROYALE_URL, e.g.:
+// Base URL convention — matches tests/testdriver/smoke.test.mjs: there is
+// intentionally NO hard-coded `https://soundroyale.com` fallback. That domain
+// does not yet resolve, and silently defaulting to it makes these computer-use
+// tests provision a sandbox and drive a browser against a DEAD host — burning
+// TestDriver sandbox minutes and failing with a confusing, hard-to-diagnose
+// error instead of a clear "no target wired" signal. Instead these live tests
+// read SOUND_ROYALE_URL (wired in CI as the `vars.SOUND_ROYALE_URL` Actions repo
+// variable) and SKIP when it is absent, so they only spin up a sandbox once a
+// reachable deployment is actually pointed at them, e.g.:
 //   SOUND_ROYALE_URL=https://your-deployment.example \
 //     npx vitest run --config vitest.testdriver.config.mjs
-const BASE_URL = process.env.SOUND_ROYALE_URL || "https://soundroyale.com";
+const BASE_URL = process.env.SOUND_ROYALE_URL;
+
+// Only run the browser-driving tests when a reachable deployment is wired.
+// Without one they would provision a sandbox against a non-resolving default
+// and fail vacuously; skipping keeps the regression spec preserved (it runs the
+// moment SOUND_ROYALE_URL is set) without wasting sandbox minutes locally / in
+// CI when no environment is available.
+const liveIt = BASE_URL && BASE_URL.trim() ? it : it.skip;
 
 // An arbitrary wrong PIN. If auth were still client-side against a bundled
 // secret this could theoretically match; because it is server-verified, a
@@ -35,7 +49,7 @@ const BASE_URL = process.env.SOUND_ROYALE_URL || "https://soundroyale.com";
 const WRONG_PIN = "000000-not-the-real-pin";
 
 describe("SEC-1 — admin access is gated server-side, not by a bundled PIN", () => {
-  it("shows a locked admin gate on /admin/themes (editor not exposed)", async (context) => {
+  liveIt("shows a locked admin gate on /admin/themes (editor not exposed)", async (context) => {
     const testdriver = TestDriver(context);
     await testdriver.provision.chrome({ url: `${BASE_URL}/admin/themes` });
     // Give the SPA time to hydrate and render the gate.
@@ -47,7 +61,7 @@ describe("SEC-1 — admin access is gated server-side, not by a bundled PIN", ()
     expect(locked).toBeTruthy();
   });
 
-  it("rejects an incorrect PIN and keeps the theme editor locked", async (context) => {
+  liveIt("rejects an incorrect PIN and keeps the theme editor locked", async (context) => {
     const testdriver = TestDriver(context);
     await testdriver.provision.chrome({ url: `${BASE_URL}/admin/themes` });
     await testdriver.wait(4000);
@@ -68,7 +82,7 @@ describe("SEC-1 — admin access is gated server-side, not by a bundled PIN", ()
     expect(stillLocked).toBeTruthy();
   });
 
-  it("shows a locked admin gate on /admin/players (editor not exposed)", async (context) => {
+  liveIt("shows a locked admin gate on /admin/players (editor not exposed)", async (context) => {
     const testdriver = TestDriver(context);
     await testdriver.provision.chrome({ url: `${BASE_URL}/admin/players` });
     await testdriver.wait(4000);
