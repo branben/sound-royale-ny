@@ -239,4 +239,64 @@ describe('GameContext reconnect', () => {
 
     expect(screen.getByTestId('legacy-reconnecting').textContent).toBe('true');
   });
+
+  it('performs a full disconnect→reconnect cycle: re-fetches, REPLACES state, toggles banner, and does not double-fetch', async () => {
+    render(
+      <GameProvider roomCode="ABCD">
+        <StateReader />
+      </GameProvider>,
+    );
+
+    // Wait for initial mount fetch + connect callback to register.
+    await waitFor(() => expect(connectOptions.onDisconnect).toBeTypeOf('function'));
+    await waitFor(() => expect(screen.getByTestId('player-count').textContent).toBe('2'));
+    const callsAfterMount = getRoomMock.mock.calls.length;
+
+    // --- Disconnect: banner appears, no re-fetch yet ---
+    act(() => {
+      connectOptions.onDisconnect!('connection lost');
+    });
+    expect(screen.getByTestId('reconnecting-banner')).toBeTruthy();
+    expect(screen.getByTestId('is-reconnecting').textContent).toBe('true');
+    // Disconnect alone must NOT trigger a re-fetch (only the reconnect does).
+    expect(getRoomMock.mock.calls.length).toBe(callsAfterMount);
+
+    // Server advances state while the client was offline: a brand-new snapshot
+    // with a different round and a different tile set. A reconnect must REPLACE
+    // the local board with this authoritative snapshot (no stale tiles/score).
+    const recoveredResponse = {
+      ...mockRoomResponse,
+      current_round: 9,
+      status: 'voting' as const,
+      players: [
+        {
+          id: 'player-1',
+          name: 'TestPlayer',
+          board: {
+            tiles: [
+              { id: 'tile-1', genre: 'House', status: 'complete' as const },
+              { id: 'tile-new', genre: 'Jazz', status: 'pending' as const },
+            ],
+          },
+        },
+      ],
+    };
+    getRoomMock.mockResolvedValueOnce(recoveredResponse);
+
+    // --- Reconnect: drives the onConnect handler which re-fetches full state ---
+    await act(async () => {
+      await connectOptions.onConnect!();
+    });
+
+    // Exactly ONE re-fetch on reconnect (no duplicate updates / flicker).
+    expect(getRoomMock.mock.calls.length).toBe(callsAfterMount + 1);
+    expect(getRoomMock).toHaveBeenLastCalledWith('ABCD');
+
+    // Banner cleared, and the board reflects the RECOVERED server state.
+    await waitFor(() => expect(screen.queryByTestId('reconnecting-banner')).toBeNull());
+    expect(screen.getByTestId('is-reconnecting').textContent).toBe('false');
+    expect(screen.getByTestId('player-count').textContent).toBe('1');
+    expect(screen.getByTestId('current-round').textContent).toBe('9');
+    expect(screen.getByTestId('status').textContent).toBe('voting');
+  });
 });
