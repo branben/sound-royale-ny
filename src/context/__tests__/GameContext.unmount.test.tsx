@@ -84,10 +84,12 @@ vi.mock('@/services/api', () => ({
 const connectOptions: {
   onConnect?: () => void | Promise<void>;
   onDisconnect?: (r: string) => void;
+  onMessage?: (message: { type: string; payload?: unknown }) => void;
 } = {};
 const connectMock = vi.fn((options: typeof connectOptions) => {
   connectOptions.onConnect = options.onConnect;
   connectOptions.onDisconnect = options.onDisconnect;
+  connectOptions.onMessage = options.onMessage;
 });
 
 vi.mock('@/services/gameSocket', () => {
@@ -167,6 +169,7 @@ describe('GameContext — no setState after unmount (BUG-1 regression)', () => {
     vi.clearAllMocks();
     connectOptions.onConnect = undefined;
     connectOptions.onDisconnect = undefined;
+    connectOptions.onMessage = undefined;
     renderCount = 0;
     mockUseUser.mockReturnValue(createDefaultUserSession());
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -303,6 +306,87 @@ describe('GameContext — no setState after unmount (BUG-1 regression)', () => {
     await act(async () => {
       deferred.resolve(mockRoomResponse);
       await deferred.promise;
+    });
+
+    expect(renderCount).toBe(rendersAtUnmount);
+    assertNoPostUnmountWarning();
+  });
+
+  // -------------------------------------------------------------------------
+  // Socket-message path (handleMessage). This is the OTHER place the provider
+  // does a setState from an async/external callback: gameSocket delivers a
+  // message and the switch drives setGameState / setTimeRemaining. A message
+  // that arrives after unmount (the socket layer hasn't torn down its listener
+  // yet, or a buffered frame flushes) must not update the dead tree either.
+  // These cover the branch the review flagged: the socket callback path.
+  // -------------------------------------------------------------------------
+
+  it('does not re-render / setState when a game_state_update arrives AFTER unmount', async () => {
+    // Let the mount fetch complete so the socket effect registers onMessage.
+    getRoomMock.mockResolvedValue(mockRoomResponse);
+
+    const { unmount } = render(
+      <GameProvider roomCode="ABCD">
+        <StateReader />
+      </GameProvider>,
+    );
+
+    // The socket effect ran and handed us its onMessage callback.
+    await waitFor(() => expect(connectOptions.onMessage).toBeTypeOf('function'));
+    await waitFor(() => expect(getRoomMock).toHaveBeenCalledWith('ABCD'));
+
+    const dispatch = connectOptions.onMessage!;
+
+    unmount();
+    const rendersAtUnmount = renderCount;
+
+    // A late frame flushes against the dead tree. setGameState here must be a
+    // no-op on the unmounted subtree — no extra render, no React warning.
+    act(() => {
+      dispatch({
+        type: 'game_state_update',
+        payload: {
+          gameId: 'ABCD',
+          roomCode: 'ABCD',
+          status: 'playing',
+          players: {
+            'player-2': {
+              name: 'LatePlayer',
+              board: { tiles: [] },
+              isHost: false,
+              isReady: false,
+            },
+          },
+          currentRound: 3,
+        },
+      });
+    });
+
+    expect(renderCount).toBe(rendersAtUnmount);
+    assertNoPostUnmountWarning();
+  });
+
+  it('does not re-render / setState when a timer_tick arrives AFTER unmount', async () => {
+    getRoomMock.mockResolvedValue(mockRoomResponse);
+
+    const { unmount } = render(
+      <GameProvider roomCode="ABCD">
+        <StateReader />
+      </GameProvider>,
+    );
+
+    await waitFor(() => expect(connectOptions.onMessage).toBeTypeOf('function'));
+    await waitFor(() => expect(getRoomMock).toHaveBeenCalledWith('ABCD'));
+
+    const dispatch = connectOptions.onMessage!;
+
+    unmount();
+    const rendersAtUnmount = renderCount;
+
+    // timer_tick drives setTimeRemaining — a different piece of state, same
+    // hazard: it must not fire on the unmounted tree.
+    act(() => {
+      dispatch({ type: 'timer_tick', payload: { timeRemaining: 42 } });
     });
 
     expect(renderCount).toBe(rendersAtUnmount);
