@@ -115,14 +115,29 @@ const SEARCHPARAMS_SET_PATTERNS = [
   /searchParams\.(?:set|append)\(\s*['"`]discord_session_secret['"`]/i,
 ];
 
-// console / error-string leaks — the second vector SEC-1 names ("or
-// console/error string"). Fire only when a secret *variable* is passed into a
-// console.* call or interpolated into a thrown-error message, e.g.
-//   console.log('secret', playerSecret)
-//   console.error(`ws failed with secret=${this.options.playerSecret}`)
-//   throw new Error(`auth failed: ${playerSecret}`)
-// These are deliberately anchored to console.*/throw so we don't flag the many
-// legitimate `playerSecret` reads/passes elsewhere in the client.
+// console / error-string leaks — the SECOND vector SEC-1 names ("... or
+// console/error string"). SEC-1 has two console sub-risks:
+//
+//   (a) DIRECT: a secret variable is passed straight into a console.* call or
+//       interpolated into a thrown-error message, e.g.
+//         console.log('secret', playerSecret)
+//         console.error(`ws failed with secret=${this.options.playerSecret}`)
+//         throw new Error(`auth failed: ${playerSecret}`)
+//       No client module does this today, so these patterns act as a
+//       forward-looking regression guard: they stay green now and turn red the
+//       moment someone logs a raw secret in the future.
+//
+//   (b) INDIRECT (the present risk): gameSocket.ts puts the secret in the WS
+//       URL (`?secret=…`, line 89) and then logs the raw WebSocket error
+//       (`console.error('[GameSocket] Error:', error)`), which can embed that
+//       secret-bearing URL in the error string. This is ALREADY gated by the
+//       URL half above (`searchParams.set('secret', …)`), and it resolves via
+//       the SAME SEC-1 fix: once the secret leaves the URL it can no longer
+//       appear in the logged error. So no separate pattern is needed for (b) —
+//       fixing the URL leak fixes the log leak.
+//
+// The patterns below are deliberately anchored to console.*/throw so we don't
+// flag the many legitimate `playerSecret` reads/passes elsewhere in the client.
 const CONSOLE_ERROR_LEAK_PATTERNS = [
   // console.<method>( ... <secret ident> ... )  — same statement/line
   /console\.(?:log|error|warn|info|debug|trace)\([^)\n]*\b(?:player_?secret|discord_?session_?secret)\b/i,
