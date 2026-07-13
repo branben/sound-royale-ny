@@ -47,6 +47,30 @@ class HealthCheckTestCase(TestCase):
 
     @patch('game_engine.health.connections')
     @patch('redis.Redis')
+    def test_health_check_returns_503_when_database_down(self, mock_redis, mock_connections):
+        """BUG-2 guardrail: a database failure must also roll up to overall
+        status ``error`` + HTTP 503 (not a silent 200).
+
+        Mirrors the Redis-down contract for the database dependency so a single
+        failed check is never masked at the top level. Carried onto ``main``
+        from bot PRs #194/#167/#170 (which targeted a bot branch); the
+        database-down assertion was the one net-new guardrail not already
+        pinned on ``main``.
+        """
+        # DB connection fails, Redis is healthy.
+        mock_connections.__getitem__.return_value.ensure_connection.side_effect = Exception(
+            "could not connect to server"
+        )
+        mock_redis.return_value.ping.return_value = True
+        mock_redis.return_value.close.return_value = None
+        response = self.client.get(self.health_url)
+        self.assertEqual(response.status_code, 503)
+        data = response.json()
+        self.assertEqual(data["status"], "error")
+        self.assertEqual(data["checks"]["database"], "error")
+
+    @patch('game_engine.health.connections')
+    @patch('redis.Redis')
     def test_health_check_no_auth_required(self, mock_redis, mock_connections):
         """Health check is accessible without authentication."""
         mock_connections.__getitem__.return_value.ensure_connection.return_value = None
