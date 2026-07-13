@@ -1,6 +1,6 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { TestDriver } from 'testdriverai/vitest/hooks';
 
@@ -35,9 +35,23 @@ import { TestDriver } from 'testdriverai/vitest/hooks';
 // optionally drives a real browser against the deployment when one is wired
 // (see the `SOUND_ROYALE_URL` block below).
 //
-// It scans EVERY client service source (src/services/*.ts), not a hard-coded
-// pair of files, so a refactor cannot route the secret through a third module
-// undetected.
+// SCOPE OF THE STATIC SCAN
+// ------------------------
+// The URL/query/console scans walk the WHOLE client tree (`src/**/*.{ts,tsx}`,
+// excluding tests and `.d.ts` type decls), not a hard-coded pair of files or
+// even just `src/services/`. Today every secret-bearing URL is built in the
+// services layer (`api.ts`, `gameSocket.ts`), but a future refactor could just
+// as easily assemble one in a hook, a component, or a util — scanning the full
+// tree means such a leak is still caught. A dedicated sanity test additionally
+// pins that the services layer itself is still present, so the gate cannot be
+// silently neutered by moving/renaming that directory.
+//
+// NOTE ON FALSE-POSITIVE SHAPE: carrying a secret in a POST body / request or
+// response payload object (e.g. `player_secret: 'test-secret'` in the e2e mock
+// fixtures) is the CORRECT SEC-1 shape and is intentionally NOT flagged — the
+// patterns below match only a secret placed in a URL *query string* / WebSocket
+// handshake, or forwarded into a console/error sink. That is precisely the
+// distinction SEC-1 asks for ("move to ... POST body").
 //
 // Expected lifecycle:
 //   - BEFORE the fix (current code): the WebSocket URL sets `?secret=...` and
@@ -50,18 +64,59 @@ import { TestDriver } from 'testdriverai/vitest/hooks';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, '..', '..');
-const servicesDir = join(repoRoot, 'src', 'services');
+const srcDir = join(repoRoot, 'src');
+const servicesDir = join(srcDir, 'services');
+
+// Directory names we never scan: nested test folders and build output.
+const IGNORED_DIRS = new Set(['__tests__', '__mocks__', 'node_modules', 'dist', 'build']);
+
+/** Recursively collect client source files under `dir` as absolute paths. */
+function collectSourceFiles(dir) {
+  const out = [];
+  for (const entry of readdirSync(dir)) {
+    const abs = join(dir, entry);
+    const st = statSync(abs);
+    if (st.isDirectory()) {
+      if (IGNORED_DIRS.has(entry)) continue;
+      out.push(...collectSourceFiles(abs));
+    } else if (
+      (entry.endsWith('.ts') || entry.endsWith('.tsx')) &&
+      !entry.endsWith('.d.ts') &&
+      !entry.endsWith('.test.ts') &&
+      !entry.endsWith('.test.tsx') &&
+      !entry.endsWith('.spec.ts') &&
+      !entry.endsWith('.spec.tsx')
+    ) {
+      out.push(abs);
+    }
+  }
+  return out;
+}
+
+function toSourceRecord(abs) {
+  return {
+    // Repo-relative name so failure messages point at an exact file.
+    name: relative(srcDir, abs).split(sep).join('/'),
+    source: readFileSync(abs, 'utf8'),
+  };
+}
 
 /**
- * Every client service source under review, as { name, source } pairs.
- * Scanning the whole directory (rather than two hard-coded files) means a
- * future refactor that moves the leaking code into a new module is still
- * caught by this gate.
+ * Every client source under review, as { name, source } pairs. Scanning the
+ * whole `src/` tree (rather than two hard-coded files) means a refactor that
+ * moves the leaking code into a new module — a component, hook, or util, not
+ * just a service — is still caught by this gate.
+ */
+const CLIENT_SOURCES = collectSourceFiles(srcDir).map(toSourceRecord);
+
+/**
+ * The services-layer subset, used by the sanity check (pin the layer is
+ * present) and by the error-log correlation below.
  */
 const SERVICE_SOURCES = readdirSync(servicesDir)
   .filter((f) => f.endsWith('.ts') && !f.endsWith('.d.ts'))
   .map((name) => ({
-    name,
+    name: `services/${name}`,
     source: readFileSync(join(servicesDir, name), 'utf8'),
   }));
 
@@ -93,8 +148,8 @@ const SEARCHPARAMS_SET_PATTERNS = [
 //       `console.error('secret', playerSecret)` — matched by the pattern
 //       below, kept specific to the known secret identifiers so ordinary
 //       logging does not false-positive; and
-//   (b) a raw request URL being forwarded to an error-logging sink
-//       (`/errors/log/`) while that URL still embeds a secret — detected
+//   (b) a raw request URL / error object being forwarded to an error-logging
+//       sink (`/errors/log/`) while that URL still embeds a secret — detected
 //       structurally in findConsoleLeaks rather than by this regex.
 const CONSOLE_SECRET_PATTERN =
   /console\.(?:log|error|warn|info|debug)\([^)]*\b(?:playerSecret|player_secret|sessionSecret|discord_session_secret|discordSessionSecret)\b/i;
@@ -118,6 +173,29 @@ function findUrlLeaks({ name, source }) {
     if (m) leaks.push(`${name}: matched ${re} near "${m[0]}"`);
   }
   return leaks;
+}
+
+/**
+ * Return the object-literal argument passed to `.post('/errors/log/', { ... })`
+ * (the second argument), or null if the file does not forward anything to the
+ * error-log sink. Brace-matched so we capture the whole payload regardless of
+ * nesting or field order — a rename-proof way to inspect what gets logged.
+ */
+function extractErrorLogPayload(code) {
+  const anchor = code.search(/errors\/log\/['"`]\s*,\s*\{/);
+  if (anchor === -1) return null;
+  const braceStart = code.indexOf('{', anchor);
+  if (braceStart === -1) return null;
+  let depth = 0;
+  for (let i = braceStart; i < code.length; i++) {
+    const ch = code[i];
+    if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) return code.slice(braceStart, i + 1);
+    }
+  }
+  return code.slice(braceStart); // unbalanced; return the rest defensively
 }
 
 function findConsoleLeaks({ name, source }) {
@@ -152,7 +230,9 @@ function findConsoleLeaks({ name, source }) {
     /\bconfig\.url\b|\bconfig\b(?!\.__)|(?:error|err|e)\.(?:message|stack|config)\b/.test(
       errorLogPayload,
     );
-  const someUrlStillCarriesSecret = SERVICE_SOURCES.some((svc) => findUrlLeaks(svc).length > 0);
+  // Correlate against the WHOLE client tree, not just services, so the check
+  // still fires if the secret-bearing URL is built elsewhere.
+  const someUrlStillCarriesSecret = CLIENT_SOURCES.some((svc) => findUrlLeaks(svc).length > 0);
   if (forwardsSecretBearingValue && someUrlStillCarriesSecret) {
     leaks.push(
       `${name}: forwards a raw request URL / error object (e.g. config.url, ` +
@@ -166,40 +246,19 @@ function findConsoleLeaks({ name, source }) {
   return leaks;
 }
 
-/**
- * Return the object-literal argument passed to `.post('/errors/log/', { ... })`
- * (the second argument), or null if the file does not forward anything to the
- * error-log sink. Brace-matched so we capture the whole payload regardless of
- * nesting or field order — a rename-proof way to inspect what gets logged.
- */
-function extractErrorLogPayload(code) {
-  const anchor = code.search(/errors\/log\/['"`]\s*,\s*\{/);
-  if (anchor === -1) return null;
-  const braceStart = code.indexOf('{', anchor);
-  if (braceStart === -1) return null;
-  let depth = 0;
-  for (let i = braceStart; i < code.length; i++) {
-    const ch = code[i];
-    if (ch === '{') depth++;
-    else if (ch === '}') {
-      depth--;
-      if (depth === 0) return code.slice(braceStart, i + 1);
-    }
-  }
-  return code.slice(braceStart); // unbalanced; return the rest defensively
-}
-
 describe('SEC-1: player secret must never travel in a URL or console string (#105)', () => {
   it('exposes the service sources under review (sanity)', () => {
     // Guard against a refactor that renames/moves the services dir silently
-    // turning this whole gate into a no-op.
-    const names = SERVICE_SOURCES.map((s) => s.name);
-    expect(names).toContain('api.ts');
-    expect(names).toContain('gameSocket.ts');
+    // turning this whole gate into a no-op. Also assert the full-tree scan
+    // actually picked up files, so a broken walk can't quietly pass everything.
+    const serviceNames = SERVICE_SOURCES.map((s) => s.name);
+    expect(serviceNames).toContain('services/api.ts');
+    expect(serviceNames).toContain('services/gameSocket.ts');
+    expect(CLIENT_SOURCES.length).toBeGreaterThan(SERVICE_SOURCES.length);
   });
 
-  it('no client service puts the secret in a request URL', () => {
-    const leaks = SERVICE_SOURCES.flatMap(findUrlLeaks);
+  it('no client source puts the secret in a request URL', () => {
+    const leaks = CLIENT_SOURCES.flatMap(findUrlLeaks);
     expect(
       leaks,
       'No request URL (path, query string, or WebSocket handshake) may carry ' +
@@ -214,7 +273,7 @@ describe('SEC-1: player secret must never travel in a URL or console string (#10
     // Belt-and-suspenders: catch the literal template-string form
     //   `/auth/discord/status/?player_id=${id}&player_secret=${secret}`
     // that api.ts currently uses, independent of the searchParams form.
-    const combined = SERVICE_SOURCES.map((s) => stripComments(s.source)).join('\n');
+    const combined = CLIENT_SOURCES.map((s) => stripComments(s.source)).join('\n');
     const literalTemplateLeak = /[?&](?:player_secret|secret|discord_session_secret)=\$\{/.test(
       combined,
     );
@@ -226,12 +285,12 @@ describe('SEC-1: player secret must never travel in a URL or console string (#10
     ).toBe(false);
   });
 
-  it('no client service logs the secret to the console / an error string', () => {
+  it('no client source logs the secret to the console / an error string', () => {
     // Second half of SEC-1: the credential must not land in a console.* call
     // OR be persisted via api.ts's response interceptor, which ships config.url
     // to /errors/log/ on every 4xx/5xx — today those discord-status URLs embed
     // the secret, so a failed request writes it to the backend error log.
-    const leaks = SERVICE_SOURCES.flatMap(findConsoleLeaks);
+    const leaks = CLIENT_SOURCES.flatMap(findConsoleLeaks);
     expect(
       leaks,
       'A console.* call receives the player/session secret. Never log a bearer ' +
