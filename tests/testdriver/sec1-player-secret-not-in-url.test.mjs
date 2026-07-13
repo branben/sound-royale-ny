@@ -1,3 +1,4 @@
+// SEC-1 regression guard (issue #105). See the block comment below for details.
 import { describe, expect, it } from "vitest";
 import { TestDriver } from "testdriverai/vitest/hooks";
 
