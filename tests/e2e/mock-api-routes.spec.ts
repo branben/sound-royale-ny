@@ -56,7 +56,7 @@ test.describe('mockApiRoutes', () => {
     await page.goto('/');
 
     await page.evaluate(async () => {
-      const base = 'http://localhost:8000/api';
+      const base = 'http://127.0.0.1:8000/api';
       await fetch(`${base}/rooms/1234/join_game/`, { method: 'POST' });
       await fetch(`${base}/rooms/1234/start_game/`, { method: 'POST' });
       await fetch(`${base}/rooms/1234/kick_player/`, { method: 'POST' });

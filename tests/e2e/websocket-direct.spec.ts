@@ -13,7 +13,7 @@ test.describe('WebSocket Direct Infrastructure Test', () => {
     
     // Test that WebSocket mocking works without full frontend
     const wsTest = await page.evaluate(() => {
-      const ws = new WebSocket('ws://localhost:8000/ws/game/');
+      const ws = new WebSocket('ws://127.0.0.1:8000/ws/game/');
       
       return {
         hasMockMethods: typeof (ws as any).injectMessage === 'function',
@@ -35,7 +35,7 @@ test.describe('WebSocket Direct Infrastructure Test', () => {
     
     const lifecycleTest = await page.evaluate(() => {
       return new Promise((resolve) => {
-        const ws = new WebSocket('ws://localhost:8000/ws/game/');
+        const ws = new WebSocket('ws://127.0.0.1:8000/ws/game/');
         
         // Wait for connection, then test lifecycle
         setTimeout(() => {
@@ -70,7 +70,7 @@ test.describe('WebSocket Direct Infrastructure Test', () => {
     
     const messageTest = await page.evaluate(() => {
       return new Promise((resolve) => {
-        const ws = new WebSocket('ws://localhost:8000/ws/game/');
+        const ws = new WebSocket('ws://127.0.0.1:8000/ws/game/');
         let messageReceived = false;
         let receivedData = null;
         
@@ -114,8 +114,8 @@ test.describe('WebSocket Direct Infrastructure Test', () => {
     const instanceTest = await page.evaluate(() => {
       return new Promise((resolve) => {
         // Create multiple WebSocket instances
-        const ws1 = new WebSocket('ws://localhost:8000/ws/game/');
-        const ws2 = new WebSocket('ws://localhost:8000/ws/game/');
+        const ws1 = new WebSocket('ws://127.0.0.1:8000/ws/game/');
+        const ws2 = new WebSocket('ws://127.0.0.1:8000/ws/game/');
         
         setTimeout(() => {
           const instances = (window as any).__WS_INSTANCES || [];

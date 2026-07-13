@@ -12,7 +12,7 @@ import { setupPlayerSession } from '../../helpers';
 import axios from 'axios';
 
 function getApiBaseUrl(): string {
-  return process.env.LIVE_API_BASE_URL || 'http://localhost:8000/api';
+  return process.env.LIVE_API_BASE_URL || 'http://127.0.0.1:8000/api';
 }
 
 export type PlayerRole = 'host' | 'producer' | 'spectator';

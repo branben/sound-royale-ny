@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { enableE2EMode, mockApiRoutes, setupPlayerSession, mockWebSocketConnection, createMockGameStateUpdate, createMockPlayerJoined, createMockGameStarted, createMockGameFinished } from './helpers';
 import { createMockPlayingStateWithoutGenre, createMockProducer, toRoomResponse } from './utils/game-fixtures';
 
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = 'http://127.0.0.1:8000/api';
 
 const mockRoomResponse = {
   code: 'test-room',
@@ -60,7 +60,7 @@ test.describe('Mocked WebSocket Real-time Updates', () => {
     // Test WebSocket connection establishment with delay for auto-connect
     const wsConnected = await page.evaluate(() => {
       return new Promise((resolve) => {
-        const ws = new WebSocket('ws://localhost:8000/ws/game/');
+        const ws = new WebSocket('ws://127.0.0.1:8000/ws/game/');
         
         // Wait for auto-connection
         setTimeout(() => {
@@ -74,7 +74,7 @@ test.describe('Mocked WebSocket Real-time Updates', () => {
     }) as { connected: boolean; url: string; instanceCount: number };
 
     expect(wsConnected.connected).toBe(true);
-    expect(wsConnected.url).toBe('ws://localhost:8000/ws/game/');
+    expect(wsConnected.url).toBe('ws://127.0.0.1:8000/ws/game/');
     expect(wsConnected.instanceCount).toBeGreaterThan(0);
   });
 
@@ -84,7 +84,7 @@ test.describe('Mocked WebSocket Real-time Updates', () => {
     // Test message injection functionality with delay for auto-connect
     const messageTest = await page.evaluate(() => {
       return new Promise((resolve) => {
-        const ws = new WebSocket('ws://localhost:8000/ws/game/');
+        const ws = new WebSocket('ws://127.0.0.1:8000/ws/game/');
         
         // Wait for auto-connection, then test message injection
         setTimeout(() => {
@@ -120,7 +120,7 @@ test.describe('Mocked WebSocket Real-time Updates', () => {
     // Test player joined message injection with delay for auto-connect
     const playerTest = await page.evaluate(() => {
       return new Promise((resolve) => {
-        const ws = new WebSocket('ws://localhost:8000/ws/game/');
+        const ws = new WebSocket('ws://127.0.0.1:8000/ws/game/');
         
         // Wait for auto-connection, then test message injection
         setTimeout(() => {
@@ -156,7 +156,7 @@ test.describe('Mocked WebSocket Real-time Updates', () => {
     // Test WebSocket lifecycle with delay for auto-connect
     const lifecycleTest = await page.evaluate(() => {
       return new Promise((resolve) => {
-        const ws = new WebSocket('ws://localhost:8000/ws/game/');
+        const ws = new WebSocket('ws://127.0.0.1:8000/ws/game/');
         
         // Wait for auto-connection, then test lifecycle
         setTimeout(() => {
