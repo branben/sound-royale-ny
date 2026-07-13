@@ -1,8 +1,8 @@
-import { readFileSync, readdirSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-import { describe, expect, it } from "vitest";
-import { TestDriver } from "testdriverai/vitest/hooks";
+import { readFileSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { TestDriver } from 'testdriverai/vitest/hooks';
 
 // ---------------------------------------------------------------------------
 // SEC-1 (security) — issue #105
@@ -49,8 +49,8 @@ import { TestDriver } from "testdriverai/vitest/hooks";
 // ---------------------------------------------------------------------------
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const repoRoot = join(__dirname, "..", "..");
-const servicesDir = join(repoRoot, "src", "services");
+const repoRoot = join(__dirname, '..', '..');
+const servicesDir = join(repoRoot, 'src', 'services');
 
 /**
  * Every client service source under review, as { name, source } pairs.
@@ -59,10 +59,10 @@ const servicesDir = join(repoRoot, "src", "services");
  * caught by this gate.
  */
 const SERVICE_SOURCES = readdirSync(servicesDir)
-  .filter((f) => f.endsWith(".ts") && !f.endsWith(".d.ts"))
+  .filter((f) => f.endsWith('.ts') && !f.endsWith('.d.ts'))
   .map((name) => ({
     name,
-    source: readFileSync(join(servicesDir, name), "utf8"),
+    source: readFileSync(join(servicesDir, name), 'utf8'),
   }));
 
 // --- URL leak patterns -----------------------------------------------------
@@ -87,11 +87,15 @@ const SEARCHPARAMS_SET_PATTERNS = [
 ];
 
 // --- console / error-string leak patterns ----------------------------------
-// A console.* call that passes a secret-bearing identifier as an argument,
-// e.g. `console.error('secret', playerSecret)` or
-// `console.log(\`...${player_secret}...\`)`. We match a console.* call whose
-// argument list mentions a secret variable. Kept deliberately specific to the
-// known secret identifiers so ordinary logging does not false-positive.
+// SEC-1's second vector is the credential landing in a console/error string.
+// Two concrete forms are gated (see findConsoleLeaks):
+//   (a) a secret identifier passed straight to a console.* call, e.g.
+//       `console.error('secret', playerSecret)` \u2014 matched by the pattern
+//       below, kept specific to the known secret identifiers so ordinary
+//       logging does not false-positive; and
+//   (b) a raw request URL being forwarded to an error-logging sink
+//       (`/errors/log/`) while that URL still embeds a secret \u2014 detected
+//       structurally in findConsoleLeaks rather than by this regex.
 const CONSOLE_SECRET_PATTERN =
   /console\.(?:log|error|warn|info|debug)\([^)]*\b(?:playerSecret|player_secret|sessionSecret|discord_session_secret|discordSessionSecret)\b/i;
 
@@ -102,8 +106,8 @@ const CONSOLE_SECRET_PATTERN =
  */
 function stripComments(src) {
   return src
-    .replace(/\/\*[\s\S]*?\*\//g, "") // block comments
-    .replace(/(^|[^:])\/\/[^\n]*/g, "$1"); // line comments (leave URLs' `://`)
+    .replace(/\/\*[\s\S]*?\*\//g, '') // block comments
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1'); // line comments (leave URLs' `://`)
 }
 
 function findUrlLeaks({ name, source }) {
@@ -118,59 +122,85 @@ function findUrlLeaks({ name, source }) {
 
 function findConsoleLeaks({ name, source }) {
   const code = stripComments(source);
+  const leaks = [];
+
+  // (a) A secret identifier passed directly to a console.* call.
   const m = code.match(CONSOLE_SECRET_PATTERN);
-  return m ? [`${name}: matched ${CONSOLE_SECRET_PATTERN} near "${m[0]}"`] : [];
+  if (m) leaks.push(`${name}: matched ${CONSOLE_SECRET_PATTERN} near "${m[0]}"`);
+
+  // (b) The concrete SEC-1 error-string vector: api.ts's response interceptor
+  //     ships the raw request URL to the backend error log
+  //     (`.post('/errors/log/', { path: config.url ... })`). On the current
+  //     code the discord-status request URLs embed `player_secret=` /
+  //     `discord_session_secret=`, so a failed request PERSISTS the secret in
+  //     the server-side error log. We flag "a raw request URL is forwarded to
+  //     an error-logging sink" *only while* a secret still lives in some
+  //     request URL — once SEC-1 moves the credential out of the URL (checked
+  //     by the URL gates above) the logged path is clean and this clears too.
+  const forwardsUrlToErrorLog =
+    /errors\/log\/['"`]\s*,\s*\{[^}]*\b(?:path|url)\s*:\s*config\.url\b/s.test(code);
+  const someUrlStillCarriesSecret = SERVICE_SOURCES.some((svc) => findUrlLeaks(svc).length > 0);
+  if (forwardsUrlToErrorLog && someUrlStillCarriesSecret) {
+    leaks.push(
+      `${name}: forwards a raw request URL (config.url) to the /errors/log/ ` +
+        `sink while a request URL still carries a secret \u2014 the secret is ` +
+        `persisted in the backend error log. Redact the URL or, better, keep ` +
+        `the secret out of the URL entirely (see the URL gates above).`,
+    );
+  }
+
+  return leaks;
 }
 
-describe("SEC-1: player secret must never travel in a URL or console string (#105)", () => {
-  it("exposes the service sources under review (sanity)", () => {
+describe('SEC-1: player secret must never travel in a URL or console string (#105)', () => {
+  it('exposes the service sources under review (sanity)', () => {
     // Guard against a refactor that renames/moves the services dir silently
     // turning this whole gate into a no-op.
     const names = SERVICE_SOURCES.map((s) => s.name);
-    expect(names).toContain("api.ts");
-    expect(names).toContain("gameSocket.ts");
+    expect(names).toContain('api.ts');
+    expect(names).toContain('gameSocket.ts');
   });
 
-  it("no client service puts the secret in a request URL", () => {
+  it('no client service puts the secret in a request URL', () => {
     const leaks = SERVICE_SOURCES.flatMap(findUrlLeaks);
     expect(
       leaks,
-      "No request URL (path, query string, or WebSocket handshake) may carry " +
-        "player_secret / secret / discord_session_secret. Move the credential " +
-        "to the Authorization header, the POST body, or the first WebSocket " +
-        "message after connect.\n" +
-        leaks.join("\n"),
+      'No request URL (path, query string, or WebSocket handshake) may carry ' +
+        'player_secret / secret / discord_session_secret. Move the credential ' +
+        'to the Authorization header, the POST body, or the first WebSocket ' +
+        'message after connect.\n' +
+        leaks.join('\n'),
     ).toEqual([]);
   });
 
-  it("no client source builds a `player_secret=` / `secret=` query string", () => {
+  it('no client source builds a `player_secret=` / `secret=` query string', () => {
     // Belt-and-suspenders: catch the literal template-string form
     //   `/auth/discord/status/?player_id=${id}&player_secret=${secret}`
     // that api.ts currently uses, independent of the searchParams form.
-    const combined = SERVICE_SOURCES.map((s) => stripComments(s.source)).join(
-      "\n",
+    const combined = SERVICE_SOURCES.map((s) => stripComments(s.source)).join('\n');
+    const literalTemplateLeak = /[?&](?:player_secret|secret|discord_session_secret)=\$\{/.test(
+      combined,
     );
-    const literalTemplateLeak =
-      /[?&](?:player_secret|secret|discord_session_secret)=\$\{/.test(combined);
     expect(
       literalTemplateLeak,
-      "A URL template string interpolates a secret into a query param " +
-        "(e.g. `?player_secret=${playerSecret}`). Move the credential out of " +
-        "the URL (Authorization header / POST body / first WS message).",
+      'A URL template string interpolates a secret into a query param ' +
+        '(e.g. `?player_secret=${playerSecret}`). Move the credential out of ' +
+        'the URL (Authorization header / POST body / first WS message).',
     ).toBe(false);
   });
 
-  it("no client service logs the secret to the console / an error string", () => {
+  it('no client service logs the secret to the console / an error string', () => {
     // Second half of SEC-1: the credential must not land in a console.* call
-    // (which flows to devtools and — via api.ts's response interceptor that
-    // ships config.url to /errors/log/ — the backend error log).
+    // OR be persisted via api.ts's response interceptor, which ships config.url
+    // to /errors/log/ on every 4xx/5xx — today those discord-status URLs embed
+    // the secret, so a failed request writes it to the backend error log.
     const leaks = SERVICE_SOURCES.flatMap(findConsoleLeaks);
     expect(
       leaks,
-      "A console.* call receives the player/session secret. Never log a bearer " +
-        "credential (or a URL/string that embeds one). Redact it before " +
-        "logging.\n" +
-        leaks.join("\n"),
+      'A console.* call receives the player/session secret. Never log a bearer ' +
+        'credential (or a URL/string that embeds one). Redact it before ' +
+        'logging.\n' +
+        leaks.join('\n'),
     ).toEqual([]);
   });
 
@@ -189,7 +219,7 @@ describe("SEC-1: player secret must never travel in a URL or console string (#10
   const liveIt = BASE_URL && BASE_URL.trim() ? it : it.skip;
 
   liveIt(
-    "live: the browser URL never exposes the player secret after joining a room",
+    'live: the browser URL never exposes the player secret after joining a room',
     async (context) => {
       const testdriver = TestDriver(context);
       await testdriver.provision.chrome({ url: BASE_URL });
@@ -198,7 +228,7 @@ describe("SEC-1: player secret must never travel in a URL or console string (#10
       // smoke suite's onboarding behaviour) so the lobby is interactable.
       await testdriver.wait(4000);
       const dismiss = await testdriver.find(
-        "the Close button that dismisses the How to Play instructions modal",
+        'the Close button that dismisses the How to Play instructions modal',
       );
       if (dismiss.found()) {
         await dismiss.click();
@@ -207,21 +237,17 @@ describe("SEC-1: player secret must never travel in a URL or console string (#10
 
       // Create a room so the app authenticates and opens its WebSocket using
       // the player secret — the moment SEC-1 protects.
-      const createBtn = await testdriver.find(
-        "the button to create or host a new battle room",
-      );
+      const createBtn = await testdriver.find('the button to create or host a new battle room');
       await createBtn.click();
       await testdriver.wait(2000);
 
       // Some deployments prompt for a display name before entering the room.
-      const nameField = await testdriver.find(
-        "a text input asking for a player / display name",
-      );
+      const nameField = await testdriver.find('a text input asking for a player / display name');
       if (nameField.found()) {
         await nameField.click();
-        await testdriver.type("SEC1Tester");
+        await testdriver.type('SEC1Tester');
         const confirm = await testdriver.find(
-          "the button that confirms the name and enters the room",
+          'the button that confirms the name and enters the room',
         );
         if (confirm.found()) await confirm.click();
       }
@@ -233,7 +259,7 @@ describe("SEC-1: player secret must never travel in a URL or console string (#10
       const urlIsClean = await testdriver.assert(
         "the browser address bar / URL does NOT contain a 'secret=', " +
           "'player_secret=', or 'discord_session_secret=' query parameter " +
-          "(the room URL may contain a room code, but no credential/secret)",
+          '(the room URL may contain a room code, but no credential/secret)',
       );
       expect(urlIsClean).toBeTruthy();
     },
