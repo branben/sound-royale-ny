@@ -3,10 +3,6 @@ name: Auto Review
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-  push:
-    branches-ignore:
-      - main
-      - master
   workflow_dispatch:
 
 permissions:

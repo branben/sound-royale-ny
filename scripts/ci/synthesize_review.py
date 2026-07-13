@@ -19,6 +19,8 @@ medium = [f for f in all_findings if f.get("severity") == "medium"]
 low = [f for f in all_findings if f.get("severity") == "low"]
 info = [f for f in all_findings if f.get("severity") == "info"]
 
+sha = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+
 if critical or high:
     verdict = "\U0001f534 **REQUEST_CHANGES**"
 elif medium:
@@ -29,7 +31,7 @@ else:
     verdict = "\u2705 **APPROVE** - no issues found"
 
 lines = [verdict, ""]
-lines.append("<!-- auto-review:synthesis -->")
+lines.append(f"<!-- auto-review:synthesis sha:{sha} -->")
 lines.append(f"*Automated review at {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}*")
 lines.append("")
 
@@ -57,8 +59,21 @@ lines.append("*This review was generated automatically by OmniRoute LLM agents. 
 
 body = "\n".join(lines)
 
+# Dedup: skip if we already posted a synthesis comment for this exact SHA.
+# Prevents re-comment spam on workflow re-runs / duplicate events for the
+# same commit (the review is per-commit, not per-event).
+repo = os.environ["REPO"]
+pr = os.environ["PR_NUMBER"]
+existing = subprocess.run(
+    ["gh", "api", f"repos/{repo}/issues/{pr}/comments", "--paginate", "-q", ".[].body"],
+    capture_output=True, text=True,
+).stdout
+if f"auto-review:synthesis sha:{sha}" in existing:
+    print("skipped=true (already reviewed this SHA)")
+    raise SystemExit(0)
+
 result = subprocess.run(
-    ["gh", "pr", "comment", os.environ["PR_NUMBER"], "--repo", os.environ["REPO"], "--body", body],
+    ["gh", "pr", "comment", pr, "--repo", repo, "--body", body],
     capture_output=True, text=True
 )
 
