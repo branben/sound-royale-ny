@@ -90,11 +90,11 @@ const SEARCHPARAMS_SET_PATTERNS = [
 // SEC-1's second vector is the credential landing in a console/error string.
 // Two concrete forms are gated (see findConsoleLeaks):
 //   (a) a secret identifier passed straight to a console.* call, e.g.
-//       `console.error('secret', playerSecret)` \u2014 matched by the pattern
+//       `console.error('secret', playerSecret)` — matched by the pattern
 //       below, kept specific to the known secret identifiers so ordinary
 //       logging does not false-positive; and
 //   (b) a raw request URL being forwarded to an error-logging sink
-//       (`/errors/log/`) while that URL still embeds a secret \u2014 detected
+//       (`/errors/log/`) while that URL still embeds a secret — detected
 //       structurally in findConsoleLeaks rather than by this regex.
 const CONSOLE_SECRET_PATTERN =
   /console\.(?:log|error|warn|info|debug)\([^)]*\b(?:playerSecret|player_secret|sessionSecret|discord_session_secret|discordSessionSecret)\b/i;
@@ -133,23 +133,60 @@ function findConsoleLeaks({ name, source }) {
   //     (`.post('/errors/log/', { path: config.url ... })`). On the current
   //     code the discord-status request URLs embed `player_secret=` /
   //     `discord_session_secret=`, so a failed request PERSISTS the secret in
-  //     the server-side error log. We flag "a raw request URL is forwarded to
-  //     an error-logging sink" *only while* a secret still lives in some
-  //     request URL — once SEC-1 moves the credential out of the URL (checked
-  //     by the URL gates above) the logged path is clean and this clears too.
-  const forwardsUrlToErrorLog =
-    /errors\/log\/['"`]\s*,\s*\{[^}]*\b(?:path|url)\s*:\s*config\.url\b/s.test(code);
+  //     the server-side error log. We flag "a raw request URL / error object is
+  //     forwarded to an error-logging sink" *only while* a secret still lives
+  //     in some request URL — once SEC-1 moves the credential out of the URL
+  //     (checked by the URL gates above) the logged payload is clean and this
+  //     clears too.
+  //
+  //     The detection is intentionally broad so a refactor cannot dodge it by
+  //     renaming the field: it fires when the `/errors/log/` post payload
+  //     references any of `config.url`, the raw `config`/`error` object, or the
+  //     axios `error.message` / `error.stack` (both of which embed the failing
+  //     request URL, secret and all). We isolate the payload object literal
+  //     that follows the `/errors/log/` argument before matching so unrelated
+  //     `config.url` uses elsewhere in the file don't trip it.
+  const errorLogPayload = extractErrorLogPayload(code);
+  const forwardsSecretBearingValue =
+    errorLogPayload !== null &&
+    /\bconfig\.url\b|\bconfig\b(?!\.__)|(?:error|err|e)\.(?:message|stack|config)\b/.test(
+      errorLogPayload,
+    );
   const someUrlStillCarriesSecret = SERVICE_SOURCES.some((svc) => findUrlLeaks(svc).length > 0);
-  if (forwardsUrlToErrorLog && someUrlStillCarriesSecret) {
+  if (forwardsSecretBearingValue && someUrlStillCarriesSecret) {
     leaks.push(
-      `${name}: forwards a raw request URL (config.url) to the /errors/log/ ` +
-        `sink while a request URL still carries a secret \u2014 the secret is ` +
-        `persisted in the backend error log. Redact the URL or, better, keep ` +
-        `the secret out of the URL entirely (see the URL gates above).`,
+      `${name}: forwards a raw request URL / error object (e.g. config.url, ` +
+        `error.message, error.stack) to the /errors/log/ sink while a request ` +
+        `URL still carries a secret \u2014 the secret is persisted in the ` +
+        `backend error log. Redact the payload or, better, keep the secret out ` +
+        `of the URL entirely (see the URL gates above).`,
     );
   }
 
   return leaks;
+}
+
+/**
+ * Return the object-literal argument passed to `.post('/errors/log/', { ... })`
+ * (the second argument), or null if the file does not forward anything to the
+ * error-log sink. Brace-matched so we capture the whole payload regardless of
+ * nesting or field order — a rename-proof way to inspect what gets logged.
+ */
+function extractErrorLogPayload(code) {
+  const anchor = code.search(/errors\/log\/['"`]\s*,\s*\{/);
+  if (anchor === -1) return null;
+  const braceStart = code.indexOf('{', anchor);
+  if (braceStart === -1) return null;
+  let depth = 0;
+  for (let i = braceStart; i < code.length; i++) {
+    const ch = code[i];
+    if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) return code.slice(braceStart, i + 1);
+    }
+  }
+  return code.slice(braceStart); // unbalanced; return the rest defensively
 }
 
 describe('SEC-1: player secret must never travel in a URL or console string (#105)', () => {
