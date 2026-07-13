@@ -63,15 +63,17 @@ const mockRoomResponse = {
   current_round: 2,
 };
 
-const getRoomMock = vi.fn();
-
-vi.mock('@/services/api', () => ({
-  roomApi: {
-    getRoom: (...args: unknown[]) => getRoomMock(...(args as [string])),
-  },
-  gameApi: {},
-  getStoredAccessToken: vi.fn(() => null),
-  normalizeRoomWinner: vi.fn((w: unknown) => {
+// Hoisted so the (hoisted) vi.mock factory can close over them AND the tests can
+// assert on them. normalizeRoomWinnerMock is the load-bearing seam: it's called
+// by buildGameStateFromRoom(), which in the async paths runs *inside* the
+// `if (isMounted.current)` guard. So "was normalizeRoomWinner called after
+// unmount?" is a deterministic, React-version-independent proxy for "did the
+// guarded post-await setGameState run on the dead tree?" — unlike the
+// render-count check, which React 18 makes vacuous by silently dropping the
+// setState (see the header note).
+const { getRoomMock, normalizeRoomWinnerMock } = vi.hoisted(() => ({
+  getRoomMock: vi.fn(),
+  normalizeRoomWinnerMock: vi.fn((w: unknown) => {
     if (!w) return undefined;
     if (typeof w === 'string') return w;
     if (typeof w === 'object' && w !== null && 'id' in w) return (w as { id: string }).id;
@@ -79,15 +81,31 @@ vi.mock('@/services/api', () => ({
   }),
 }));
 
-// Capture the socket callbacks so the test can drive (re)connect — the OTHER
-// place GameContext does an async setState after an await.
+vi.mock('@/services/api', () => ({
+  roomApi: {
+    getRoom: (...args: unknown[]) => getRoomMock(...(args as [string])),
+  },
+  gameApi: {},
+  getStoredAccessToken: vi.fn(() => null),
+  normalizeRoomWinner: (winner: unknown) => normalizeRoomWinnerMock(winner),
+}));
+
+// Capture the socket callbacks so the test can drive (re)connect AND inbound
+// messages — the two places GameContext does a setState from a socket callback.
+// onMessage (handleMessage) is the SYNCHRONOUS callback the review flagged:
+// a `game_state_update` / `timer_tick` arriving after unmount would setState on
+// the dead tree unless guarded.
 const connectOptions: {
   onConnect?: () => void | Promise<void>;
   onDisconnect?: (r: string) => void;
+  onMessage?: (message: { type: string; payload?: unknown }) => void;
+  onError?: (error: unknown) => void;
 } = {};
 const connectMock = vi.fn((options: typeof connectOptions) => {
   connectOptions.onConnect = options.onConnect;
   connectOptions.onDisconnect = options.onDisconnect;
+  connectOptions.onMessage = options.onMessage;
+  connectOptions.onError = options.onError;
 });
 
 vi.mock('@/services/gameSocket', () => {
@@ -167,6 +185,8 @@ describe('GameContext — no setState after unmount (BUG-1 regression)', () => {
     vi.clearAllMocks();
     connectOptions.onConnect = undefined;
     connectOptions.onDisconnect = undefined;
+    connectOptions.onMessage = undefined;
+    connectOptions.onError = undefined;
     renderCount = 0;
     mockUseUser.mockReturnValue(createDefaultUserSession());
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -188,6 +208,21 @@ describe('GameContext — no setState after unmount (BUG-1 regression)', () => {
     ).toHaveLength(0);
   }
 
+  // Load-bearing check for the async paths: buildGameStateFromRoom() -> which
+  // calls normalizeRoomWinner() -> sits INSIDE `if (isMounted.current)` before
+  // the post-await setGameState. So if the guard held, normalizeRoomWinner must
+  // NOT have been invoked by the post-unmount settle. This detects a BUG-1
+  // regression even on React 18, where the render-count assertion is vacuous
+  // (React silently drops setState on an unmounted component). Verified by
+  // neutralizing the guard: this goes from 0 -> 1 call and the test fails.
+  function assertGuardedFetchDidNotApply(callsBeforeSettle: number) {
+    expect(
+      normalizeRoomWinnerMock.mock.calls.length,
+      'buildGameStateFromRoom/normalizeRoomWinner ran after unmount — the ' +
+        'isMounted guard around the post-await setGameState leaked (BUG-1).',
+    ).toBe(callsBeforeSettle);
+  }
+
   it('does not re-render / setState when the mount getRoom() resolves AFTER unmount', async () => {
     // getRoom stays pending until we resolve it by hand.
     const deferred = defer<typeof mockRoomResponse>();
@@ -205,15 +240,19 @@ describe('GameContext — no setState after unmount (BUG-1 regression)', () => {
     // Unmount BEFORE the fetch resolves — this trips the guard.
     unmount();
     const rendersAtUnmount = renderCount;
+    const normalizeCallsAtUnmount = normalizeRoomWinnerMock.mock.calls.length;
 
     // Now the in-flight request resolves against a dead component tree. If the
-    // guard were removed, the guarded setGameState would run here.
+    // guard were removed, the guarded setGameState (via buildGameStateFromRoom
+    // -> normalizeRoomWinner) would run here.
     await act(async () => {
       deferred.resolve(mockRoomResponse);
       await deferred.promise;
     });
 
-    // The isMounted guard suppressed the post-await setState: no extra render.
+    // Primary (load-bearing on React 18): the guarded work did not run.
+    assertGuardedFetchDidNotApply(normalizeCallsAtUnmount);
+    // Secondary: no extra render, no React warning.
     expect(renderCount).toBe(rendersAtUnmount);
     assertNoPostUnmountWarning();
   });
@@ -268,12 +307,16 @@ describe('GameContext — no setState after unmount (BUG-1 regression)', () => {
 
     unmount();
     const rendersAtUnmount = renderCount;
+    const normalizeCallsAtUnmount = normalizeRoomWinnerMock.mock.calls.length;
 
     await act(async () => {
       deferred.resolve(mockRoomResponse);
       await Promise.resolve(onConnectDone);
     });
 
+    // refreshRoomState's guarded setGameState (buildGameStateFromRoom ->
+    // normalizeRoomWinner) must not have applied against the dead tree.
+    assertGuardedFetchDidNotApply(normalizeCallsAtUnmount);
     // onConnect's post-await setIsReconnecting / setConnectionError / setGameState
     // are all guarded — none should have re-rendered the unmounted tree.
     expect(renderCount).toBe(rendersAtUnmount);
@@ -303,6 +346,125 @@ describe('GameContext — no setState after unmount (BUG-1 regression)', () => {
     await act(async () => {
       deferred.resolve(mockRoomResponse);
       await deferred.promise;
+    });
+
+    expect(renderCount).toBe(rendersAtUnmount);
+    assertNoPostUnmountWarning();
+  });
+
+  // -------------------------------------------------------------------------
+  // Socket onMessage path (the SYNCHRONOUS callback the review flagged).
+  //
+  // handleMessage runs synchronously when the socket delivers a frame. The
+  // socket lives outside React's lifecycle, so a frame can arrive AFTER the
+  // provider unmounts (a late `game_state_update` / `timer_tick` / `host_migrated`
+  // flushed during teardown). Those branches call setState WITHOUT an isMounted
+  // guard (setGameState at GameContext L309/L342, setTimeRemaining at L329).
+  //
+  // HONEST SCOPE OF THESE THREE TESTS: unlike the async tests above, there is no
+  // external seam (no buildGameStateFromRoom/normalizeRoomWinner) to observe in
+  // these branches — they build state inline. And on React 18.3.1 the setState
+  // is silently dropped, so the render-count / warning checks CANNOT distinguish
+  // guarded from unguarded here (removing the guard does not make them fail).
+  // These are therefore ROBUSTNESS / smoke tests: they document the flagged
+  // path and assert the app tolerates a late frame without throwing. They are
+  // NOT load-bearing BUG-1 regression guards on React 18 — the async tests above
+  // are. If the app moves to a React that surfaces the update (or the branches
+  // gain an early `if (!isMounted.current) return;` with observable work before
+  // it), tighten these to a load-bearing assertion like the async ones.
+  // -------------------------------------------------------------------------
+
+  it('does not re-render / setState when a game_state_update frame arrives AFTER unmount', async () => {
+    getRoomMock.mockResolvedValue(mockRoomResponse);
+
+    const { unmount } = render(
+      <GameProvider roomCode="ABCD">
+        <StateReader />
+      </GameProvider>,
+    );
+
+    // Socket effect registered its onMessage handler.
+    await waitFor(() => expect(connectOptions.onMessage).toBeTypeOf('function'));
+    // Let the mount fetch settle so later renders come only from the frame.
+    await waitFor(() => expect(getRoomMock).toHaveBeenCalled());
+
+    const onMessage = connectOptions.onMessage!;
+
+    unmount();
+    const rendersAtUnmount = renderCount;
+
+    // A late frame is delivered to the (now unmounted) provider. handleMessage's
+    // `game_state_update` branch does setGameState((prev) => ...); without an
+    // isMounted guard that re-renders the dead subtree.
+    act(() => {
+      onMessage({
+        type: 'game_state_update',
+        payload: {
+          gameId: 'ABCD',
+          roomCode: 'ABCD',
+          status: 'playing',
+          players: {
+            'player-9': {
+              name: 'Late',
+              board: { tiles: [] },
+            },
+          },
+          currentRound: 3,
+        },
+      });
+    });
+
+    expect(renderCount).toBe(rendersAtUnmount);
+    assertNoPostUnmountWarning();
+  });
+
+  it('does not re-render / setState when a timer_tick frame arrives AFTER unmount', async () => {
+    getRoomMock.mockResolvedValue(mockRoomResponse);
+
+    const { unmount } = render(
+      <GameProvider roomCode="ABCD">
+        <StateReader />
+      </GameProvider>,
+    );
+
+    await waitFor(() => expect(connectOptions.onMessage).toBeTypeOf('function'));
+    await waitFor(() => expect(getRoomMock).toHaveBeenCalled());
+
+    const onMessage = connectOptions.onMessage!;
+
+    unmount();
+    const rendersAtUnmount = renderCount;
+
+    // `timer_tick` -> setTimeRemaining(...) is another unguarded setState in the
+    // same socket callback.
+    act(() => {
+      onMessage({ type: 'timer_tick', payload: { timeRemaining: 42 } });
+    });
+
+    expect(renderCount).toBe(rendersAtUnmount);
+    assertNoPostUnmountWarning();
+  });
+
+  it('does not re-render / setState when a host_migrated frame arrives AFTER unmount', async () => {
+    getRoomMock.mockResolvedValue(mockRoomResponse);
+
+    const { unmount } = render(
+      <GameProvider roomCode="ABCD">
+        <StateReader />
+      </GameProvider>,
+    );
+
+    await waitFor(() => expect(connectOptions.onMessage).toBeTypeOf('function'));
+    await waitFor(() => expect(getRoomMock).toHaveBeenCalled());
+
+    const onMessage = connectOptions.onMessage!;
+
+    unmount();
+    const rendersAtUnmount = renderCount;
+
+    // `host_migrated` -> setGameState((prev) => ...) — a third unguarded path.
+    act(() => {
+      onMessage({ type: 'host_migrated', payload: { newHostId: 'player-1' } });
     });
 
     expect(renderCount).toBe(rendersAtUnmount);
