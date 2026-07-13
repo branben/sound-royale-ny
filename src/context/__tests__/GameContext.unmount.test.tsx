@@ -7,23 +7,31 @@ import { useUser } from '../UserContext';
 // ---------------------------------------------------------------------------
 // BUG-1 regression: setState-on-an-unmounted-component
 //
-// GameContext kicks off async work on mount (roomApi.getRoom(...)) and again on
-// every socket (re)connect (refreshRoomState -> getRoom). If the component
-// unmounts while one of those promises is still in flight, resolving it must
-// NOT drive a state update on the dead tree. The fix is the `isMounted` ref
-// guard around every post-await setState.
+// GameContext kicks off async work on mount (roomApi.getRoom(...)), on every
+// socket (re)connect (refreshRoomState -> getRoom), and on every inbound socket
+// frame (the SYNCHRONOUS onMessage/handleMessage callback the review flagged).
+// If the component unmounts while a promise is in flight OR a late frame is
+// delivered, that work must NOT drive a state update on the dead tree.
 //
-// These tests reproduce the race deterministically: they hold getRoom pending,
-// unmount the provider, and only THEN settle the promise. They then assert the
-// guard held — nothing re-rendered the unmounted subtree, nothing threw, and no
-// React "unmounted component" / not-wrapped-in-act warning was emitted.
+// This file has TWO kinds of tests:
+//
+//   1. ASYNC paths (mount getRoom, reconnect refresh) — GUARDED in app code by
+//      the `isMounted` ref around the post-await setState. These are
+//      load-bearing via the normalizeRoomWinner seam (see below) and PASS
+//      against the real code; mutation-verified (neutralize the guard -> fail).
+//
+//   2. SYNC onMessage path (game_state_update / timer_tick / host_migrated) —
+//      currently UNGUARDED in app code (BUG-1, exactly what the review flagged).
+//      These are written with `it.fails()` because they REPRODUCE the bug: they
+//      prove handleMessage still reads/applies a late frame after unmount. They
+//      turn green — and `it.fails` then ERRORS — the moment a maintainer adds
+//      `if (!isMounted.current) return;` to handleMessage. See the detailed
+//      block above those three tests for the load-bearing payload-getter seam.
 //
 // Note on React 18: React 18 silently drops setState on an unmounted component
-// (the old dev warning was removed). So the render-count assertion below is the
-// primary behavioral check — it fails the moment a post-unmount update slips
-// through and re-renders the subtree — while the console.error assertion keeps
-// the guard honest under StrictMode double-invocation and any React version
-// (past or future) that DOES surface such an update as a warning.
+// (the old dev warning was removed), so render-count / console.error checks are
+// vacuous on their own. The real guards use observable seams: normalizeRoomWinner
+// for the async paths, and payload-getter spies for the onMessage path.
 // ---------------------------------------------------------------------------
 
 vi.mock('../UserContext', () => ({
@@ -353,121 +361,163 @@ describe('GameContext — no setState after unmount (BUG-1 regression)', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Socket onMessage path (the SYNCHRONOUS callback the review flagged).
+  // Socket onMessage path (the SYNCHRONOUS callback the review flagged — BUG-1).
   //
   // handleMessage runs synchronously when the socket delivers a frame. The
   // socket lives outside React's lifecycle, so a frame can arrive AFTER the
   // provider unmounts (a late `game_state_update` / `timer_tick` / `host_migrated`
   // flushed during teardown). Those branches call setState WITHOUT an isMounted
-  // guard (setGameState at GameContext L309/L342, setTimeRemaining at L329).
+  // guard (setGameState at GameContext L309/L342, setTimeRemaining at L329) —
+  // this IS the setState-on-unmounted-component the reviewer flagged.
   //
-  // HONEST SCOPE OF THESE THREE TESTS: unlike the async tests above, there is no
-  // external seam (no buildGameStateFromRoom/normalizeRoomWinner) to observe in
-  // these branches — they build state inline. And on React 18.3.1 the setState
-  // is silently dropped, so the render-count / warning checks CANNOT distinguish
-  // guarded from unguarded here (removing the guard does not make them fail).
-  // These are therefore ROBUSTNESS / smoke tests: they document the flagged
-  // path and assert the app tolerates a late frame without throwing. They are
-  // NOT load-bearing BUG-1 regression guards on React 18 — the async tests above
-  // are. If the app moves to a React that surfaces the update (or the branches
-  // gain an early `if (!isMounted.current) return;` with observable work before
-  // it), tighten these to a load-bearing assertion like the async ones.
+  // WHY render-count / warning checks are NOT enough here: unlike the async
+  // paths there is no buildGameStateFromRoom/normalizeRoomWinner seam, and on
+  // React 18.3.1 setState-after-unmount is silently dropped (no re-render, no
+  // dev warning). So those assertions stay green whether the guard exists or
+  // not — they cannot detect the regression.
+  //
+  // THE LOAD-BEARING SEAM: React 18 still invokes the reducer / reads the
+  // dispatch argument the FIRST time setState is called after unmount (it only
+  // bails on the next dispatch). And more usefully, handleMessage READS the
+  // frame payload (message.payload.players / .timeRemaining / .newHostId) as
+  // part of doing its work. The reviewer's requested fix is an early
+  // `if (!isMounted.current) return;` at the TOP of handleMessage — which
+  // returns BEFORE any payload read. So we hand handleMessage a payload whose
+  // fields are GETTER SPIES and assert the getters are NOT touched after
+  // unmount. Guarded (early return) -> payload never read -> 0 getter calls.
+  // Unguarded (current code) -> payload read -> getter fires. This distinguishes
+  // guarded from unguarded on React 18, verified by mutation both directions
+  // (add the guard -> getter calls 1->0).
+  //
+  // STATUS: these three are written with `it.fails()` because BUG-1 is NOT yet
+  // fixed in GameContext.tsx (the guard is app code, outside the test agent's
+  // remit). They therefore REPRODUCE the bug: under the current unguarded code
+  // the payload IS read after unmount, so the "expect 0 reads" assertion fails —
+  // which is the documented, expected state. The moment a maintainer adds
+  // `if (!isMounted.current) return;` to handleMessage, these assertions start
+  // passing, `it.fails()` then ERRORS ("expected to fail but passed"), and the
+  // suite goes red to say: bug fixed — flip `it.fails` back to `it`.
   // -------------------------------------------------------------------------
 
-  it('does not re-render / setState when a game_state_update frame arrives AFTER unmount', async () => {
-    getRoomMock.mockResolvedValue(mockRoomResponse);
+  // Build a payload object whose top-level fields are getter spies, so we can
+  // observe whether handleMessage read the frame at all after unmount.
+  function instrumentedPayload<T extends Record<string, unknown>>(
+    values: T,
+  ): { payload: T; reads: () => number } {
+    const spies = Object.keys(values).map((k) => {
+      const spy = vi.fn(() => values[k]);
+      return [k, spy] as const;
+    });
+    const payload = {} as T;
+    for (const [k, spy] of spies) {
+      Object.defineProperty(payload, k, { get: spy, enumerable: true });
+    }
+    return {
+      payload,
+      reads: () => spies.reduce((n, [, spy]) => n + spy.mock.calls.length, 0),
+    };
+  }
 
-    const { unmount } = render(
-      <GameProvider roomCode="ABCD">
-        <StateReader />
-      </GameProvider>,
-    );
+  it.fails(
+    'BUG-1: game_state_update frame read/applied after unmount (unguarded handleMessage)',
+    async () => {
+      getRoomMock.mockResolvedValue(mockRoomResponse);
 
-    // Socket effect registered its onMessage handler.
-    await waitFor(() => expect(connectOptions.onMessage).toBeTypeOf('function'));
-    // Let the mount fetch settle so later renders come only from the frame.
-    await waitFor(() => expect(getRoomMock).toHaveBeenCalled());
+      const { unmount } = render(
+        <GameProvider roomCode="ABCD">
+          <StateReader />
+        </GameProvider>,
+      );
 
-    const onMessage = connectOptions.onMessage!;
+      await waitFor(() => expect(connectOptions.onMessage).toBeTypeOf('function'));
+      await waitFor(() => expect(getRoomMock).toHaveBeenCalled());
 
-    unmount();
-    const rendersAtUnmount = renderCount;
+      const onMessage = connectOptions.onMessage!;
 
-    // A late frame is delivered to the (now unmounted) provider. handleMessage's
-    // `game_state_update` branch does setGameState((prev) => ...); without an
-    // isMounted guard that re-renders the dead subtree.
-    act(() => {
-      onMessage({
-        type: 'game_state_update',
-        payload: {
-          gameId: 'ABCD',
-          roomCode: 'ABCD',
-          status: 'playing',
-          players: {
-            'player-9': {
-              name: 'Late',
-              board: { tiles: [] },
-            },
-          },
-          currentRound: 3,
-        },
+      unmount();
+
+      // A late frame is delivered to the (now unmounted) provider. If
+      // handleMessage early-returned on !isMounted, it would never read the
+      // payload; the current unguarded code reads it and calls setGameState.
+      const { payload, reads } = instrumentedPayload({
+        gameId: 'ABCD',
+        roomCode: 'ABCD',
+        status: 'playing',
+        players: { 'player-9': { name: 'Late', board: { tiles: [] } } },
+        currentRound: 3,
       });
-    });
 
-    expect(renderCount).toBe(rendersAtUnmount);
-    assertNoPostUnmountWarning();
-  });
+      act(() => {
+        onMessage({ type: 'game_state_update', payload });
+      });
 
-  it('does not re-render / setState when a timer_tick frame arrives AFTER unmount', async () => {
-    getRoomMock.mockResolvedValue(mockRoomResponse);
+      // Load-bearing: with an isMounted guard at the top of handleMessage this
+      // is 0. Fails today because the callback is unguarded (BUG-1).
+      expect(reads()).toBe(0);
+      assertNoPostUnmountWarning();
+    },
+  );
 
-    const { unmount } = render(
-      <GameProvider roomCode="ABCD">
-        <StateReader />
-      </GameProvider>,
-    );
+  it.fails(
+    'BUG-1: timer_tick frame read/applied after unmount (unguarded handleMessage)',
+    async () => {
+      getRoomMock.mockResolvedValue(mockRoomResponse);
 
-    await waitFor(() => expect(connectOptions.onMessage).toBeTypeOf('function'));
-    await waitFor(() => expect(getRoomMock).toHaveBeenCalled());
+      const { unmount } = render(
+        <GameProvider roomCode="ABCD">
+          <StateReader />
+        </GameProvider>,
+      );
 
-    const onMessage = connectOptions.onMessage!;
+      await waitFor(() => expect(connectOptions.onMessage).toBeTypeOf('function'));
+      await waitFor(() => expect(getRoomMock).toHaveBeenCalled());
 
-    unmount();
-    const rendersAtUnmount = renderCount;
+      const onMessage = connectOptions.onMessage!;
 
-    // `timer_tick` -> setTimeRemaining(...) is another unguarded setState in the
-    // same socket callback.
-    act(() => {
-      onMessage({ type: 'timer_tick', payload: { timeRemaining: 42 } });
-    });
+      unmount();
 
-    expect(renderCount).toBe(rendersAtUnmount);
-    assertNoPostUnmountWarning();
-  });
+      // `timer_tick` -> setTimeRemaining(message.payload.timeRemaining): the
+      // read of `.timeRemaining` only happens if handleMessage did not early-return.
+      const { payload, reads } = instrumentedPayload({ timeRemaining: 42 });
 
-  it('does not re-render / setState when a host_migrated frame arrives AFTER unmount', async () => {
-    getRoomMock.mockResolvedValue(mockRoomResponse);
+      act(() => {
+        onMessage({ type: 'timer_tick', payload });
+      });
 
-    const { unmount } = render(
-      <GameProvider roomCode="ABCD">
-        <StateReader />
-      </GameProvider>,
-    );
+      expect(reads()).toBe(0);
+      assertNoPostUnmountWarning();
+    },
+  );
 
-    await waitFor(() => expect(connectOptions.onMessage).toBeTypeOf('function'));
-    await waitFor(() => expect(getRoomMock).toHaveBeenCalled());
+  it.fails(
+    'BUG-1: host_migrated frame read/applied after unmount (unguarded handleMessage)',
+    async () => {
+      getRoomMock.mockResolvedValue(mockRoomResponse);
 
-    const onMessage = connectOptions.onMessage!;
+      const { unmount } = render(
+        <GameProvider roomCode="ABCD">
+          <StateReader />
+        </GameProvider>,
+      );
 
-    unmount();
-    const rendersAtUnmount = renderCount;
+      await waitFor(() => expect(connectOptions.onMessage).toBeTypeOf('function'));
+      await waitFor(() => expect(getRoomMock).toHaveBeenCalled());
 
-    // `host_migrated` -> setGameState((prev) => ...) — a third unguarded path.
-    act(() => {
-      onMessage({ type: 'host_migrated', payload: { newHostId: 'player-1' } });
-    });
+      const onMessage = connectOptions.onMessage!;
 
-    expect(renderCount).toBe(rendersAtUnmount);
-    assertNoPostUnmountWarning();
-  });
+      unmount();
+
+      // `host_migrated` destructures `{ newHostId } = message.payload` then
+      // setGameState((prev) => ...). The `.newHostId` read is gated by the
+      // top-of-handler early return the reviewer asked for.
+      const { payload, reads } = instrumentedPayload({ newHostId: 'player-1' });
+
+      act(() => {
+        onMessage({ type: 'host_migrated', payload });
+      });
+
+      expect(reads()).toBe(0);
+      assertNoPostUnmountWarning();
+    },
+  );
 });
