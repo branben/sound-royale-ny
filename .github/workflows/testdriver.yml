@@ -20,14 +20,13 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
       with:
-        node-version: '20'
-        cache: 'npm'
+        bun-version: latest
 
     - name: Install dependencies
-      run: npm ci
+      run: bun install --ignore-scripts
 
     # Authenticate to TestDriver via GitHub OIDC (no stored secret needed once the
     # TestDriver GitHub App is authorized for your org). Falls back to a TD_API_KEY
@@ -41,7 +40,7 @@ jobs:
     # Run ONLY the TestDriver computer-use suite via its dedicated config so it
     # never collides with the frontend unit tests (vitest.config.ts, src/**).
     - name: Run TestDriver.ai tests
-      run: npx vitest run --config vitest.testdriver.config.mjs
+      run: bunx vitest run --config vitest.testdriver.config.mjs
 
     - name: Upload test results
       if: always()
