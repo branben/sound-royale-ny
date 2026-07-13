@@ -3,6 +3,7 @@ import { render, screen, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GameProvider, GameStateContext, GameContext } from '../GameContext';
 import { useUser } from '../UserContext';
+import type { GameSocketMessage } from '@/services/gameSocket';
 
 // Mock the UserContext
 vi.mock('../UserContext', () => ({
@@ -50,14 +51,16 @@ vi.mock('@/services/api', () => ({
   }),
 }));
 
-// Capture the socket callbacks so the test can drive connect/disconnect.
+// Capture the socket callbacks so the test can drive connect/disconnect/message.
 const connectOptions: {
   onConnect?: () => void | Promise<void>;
   onDisconnect?: (r: string) => void;
+  onMessage?: (message: GameSocketMessage) => void;
 } = {};
 const connectMock = vi.fn((options: typeof connectOptions) => {
   connectOptions.onConnect = options.onConnect;
   connectOptions.onDisconnect = options.onDisconnect;
+  connectOptions.onMessage = options.onMessage;
 });
 
 vi.mock('@/services/gameSocket', () => ({
@@ -141,6 +144,7 @@ describe('GameContext reconnect', () => {
     vi.clearAllMocks();
     connectOptions.onConnect = undefined;
     connectOptions.onDisconnect = undefined;
+    connectOptions.onMessage = undefined;
     getRoomMock.mockResolvedValue(mockRoomResponse);
     mockUseUser.mockReturnValue(createDefaultUserSession());
   });
@@ -298,5 +302,126 @@ describe('GameContext reconnect', () => {
     expect(screen.getByTestId('player-count').textContent).toBe('1');
     expect(screen.getByTestId('current-round').textContent).toBe('9');
     expect(screen.getByTestId('status').textContent).toBe('voting');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BUG-1 regression: socket callbacks must not setState after unmount.
+//
+// The socket onMessage handler calls setState (setGameState / setTimeRemaining)
+// for game_state_update, timer_tick and host_migrated messages. If a message
+// arrives AFTER the provider has unmounted — a real scenario when a player
+// navigates away while the WS is still draining buffered frames — the handler
+// would run and call setState on an unmounted component (a memory-leak /
+// bug_risk; React 18 no longer prints the classic warning, so we detect it
+// behaviorally instead of via console output).
+//
+// The fix is an early `if (!isMounted.current) return;` guard so the handler
+// body never runs after unmount. These tests prove the guard by handing the
+// handler a payload whose read-fields are TRACKING GETTERS: if the handler
+// runs post-unmount it reads them (probe fires) and the test FAILS; with the
+// guard in place the handler early-returns, never touches the payload, and the
+// test PASSES. This locks the BUG-1 regression.
+// ---------------------------------------------------------------------------
+describe('GameContext socket callbacks after unmount (BUG-1)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    connectOptions.onConnect = undefined;
+    connectOptions.onDisconnect = undefined;
+    connectOptions.onMessage = undefined;
+    getRoomMock.mockResolvedValue(mockRoomResponse);
+    mockUseUser.mockReturnValue(createDefaultUserSession());
+  });
+
+  // Build a payload where reading `field` records the access. If the socket
+  // handler runs (i.e. no isMounted guard) it will read the field and flip the
+  // tracker; if the handler early-returns, the field is never touched.
+  function trackedPayload<T extends Record<string, unknown>>(base: T, field: keyof T) {
+    const tracker = { read: false };
+    const value = base[field];
+    const payload = { ...base };
+    Object.defineProperty(payload, field, {
+      configurable: true,
+      enumerable: true,
+      get() {
+        tracker.read = true;
+        return value;
+      },
+    });
+    return { payload, tracker };
+  }
+
+  async function mountAndReady() {
+    const view = render(
+      <GameProvider roomCode="ABCD">
+        <StateReader />
+      </GameProvider>,
+    );
+    await waitFor(() => expect(connectOptions.onMessage).toBeTypeOf('function'));
+    await waitFor(() => expect(screen.getByTestId('player-count').textContent).toBe('2'));
+    return view;
+  }
+
+  it('does not process a game_state_update message after unmount', async () => {
+    const { unmount } = await mountAndReady();
+    const onMessage = connectOptions.onMessage!;
+
+    // A buffered WS frame arrives AFTER unmount. `players` is a tracking getter;
+    // the handler reads `message.payload.players` early, so an unguarded handler
+    // would flip `tracker.read` and call setGameState on an unmounted component.
+    const { payload, tracker } = trackedPayload(
+      {
+        gameId: 'ABCD',
+        roomCode: 'ABCD',
+        status: 'playing',
+        currentRound: 3,
+        players: {
+          'player-1': { id: 'player-1', name: 'TestPlayer', board: { tiles: [] } },
+        },
+      },
+      'players',
+    );
+
+    unmount();
+
+    act(() => {
+      onMessage({ type: 'game_state_update', payload } as unknown as GameSocketMessage);
+    });
+
+    expect(tracker.read).toBe(false);
+  });
+
+  it('does not process a timer_tick message after unmount', async () => {
+    const { unmount } = await mountAndReady();
+    const onMessage = connectOptions.onMessage!;
+
+    // The handler reads `message.payload.timeRemaining` and calls
+    // setTimeRemaining — an unguarded handler flips the tracker after unmount.
+    const { payload, tracker } = trackedPayload({ timeRemaining: 42 }, 'timeRemaining');
+
+    unmount();
+
+    act(() => {
+      onMessage({ type: 'timer_tick', payload } as unknown as GameSocketMessage);
+    });
+
+    expect(tracker.read).toBe(false);
+  });
+
+  it('does not process a host_migrated message after unmount', async () => {
+    const { unmount } = await mountAndReady();
+    const onMessage = connectOptions.onMessage!;
+
+    // The handler destructures `newHostId` from the payload and calls
+    // setGameState — an unguarded handler flips the tracker after unmount.
+    const { payload, tracker } = trackedPayload({ newHostId: 'player-2' }, 'newHostId');
+
+    unmount();
+
+    act(() => {
+      onMessage({ type: 'host_migrated', payload } as unknown as GameSocketMessage);
+    });
+
+    expect(tracker.read).toBe(false);
   });
 });
