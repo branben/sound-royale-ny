@@ -5,14 +5,14 @@ import { getGameState } from './helpers';
 /**
  * Integration tests for the critical create → join → start flow.
  *
- * These tests run against a real backend (localhost:8000) and verify
+ * These tests run against a real backend (127.0.0.1:8000) and verify
  * the full end-to-end user journey without mocking API responses.
  *
  * Requires:
- *   - Backend running at localhost:8000
+ *   - Backend running at 127.0.0.1:8000
  *   - Frontend running at localhost:8080
  *
- * Run with: LIVE_API_BASE_URL=http://localhost:8000/api npx playwright test tests/e2e/live/create-join-start.spec.ts
+ * Run with: LIVE_API_BASE_URL=http://127.0.0.1:8000/api npx playwright test tests/e2e/live/create-join-start.spec.ts
  */
 
 // ---------------------------------------------------------------------------

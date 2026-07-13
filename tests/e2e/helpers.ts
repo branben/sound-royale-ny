@@ -198,7 +198,7 @@ export async function mockWebSocketConnection(
       deliverMessage(message) {
         const messageEvent = new MessageEvent('message', {
           data: JSON.stringify(message.data),
-          origin: 'ws://localhost:8000',
+          origin: 'ws://127.0.0.1:8000',
           lastEventId: '',
           ports: [],
           source: null

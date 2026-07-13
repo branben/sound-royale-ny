@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { enableE2EMode } from './helpers';
 
-const BACKEND_URL = 'http://localhost:8000';
+const BACKEND_URL = 'http://127.0.0.1:8000';
 
 test.describe('Webhook', () => {
   test.beforeEach(async ({ page }) => {
