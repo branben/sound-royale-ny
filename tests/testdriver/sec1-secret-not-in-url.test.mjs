@@ -7,10 +7,11 @@ import { TestDriver } from "testdriverai/vitest/hooks";
 // Issue #105 (SEC-1): the player secret was leaking into client-visible URLs
 // and console/error output. Specifically:
 //   - src/services/gameSocket.ts set `secret=<player_secret>` as a WebSocket
-//     query param (visible in the address-bar-adjacent WS URL, DevTools
-//     Network tab, and any logged connection string).
+//     query param (visible in the WS connection URL, the DevTools Network tab,
+//     and any logged connection string).
 //   - src/services/api.ts sent `player_secret=<secret>` as a GET query param
-//     for the Discord account-status endpoint.
+//     for the Discord account-status endpoint
+//     (`/auth/discord/status/?player_id=...&player_secret=...`).
 // The fix moves the secret to an Authorization header / POST body / the first
 // WebSocket message, so it never appears in a URL or gets logged.
 //
@@ -21,10 +22,23 @@ import { TestDriver } from "testdriverai/vitest/hooks";
 //   - any network request URL (DevTools Network tab), or
 //   - the DevTools console output.
 //
+// Lobby flow (verified against src/components/lobby/*):
+//   1. The lobby always shows a "Your Name" input (PlayerNameInput,
+//      placeholder "Enter your producer name") plus landing buttons.
+//   2. Fill "Your Name", then click the "Create" button (create-room-button)
+//      to switch into create mode.
+//   3. Create mode reveals a "Room Name" input (placeholder
+//      "e.g. Friday Night Beats") and a "Create Room" submit button
+//      (create-room-submit-button). Both a player name AND a room name are
+//      required by handleCreateRoom() before submission is enabled.
+//   4. On success the app navigates to /room/<code> as the host player, which
+//      opens the credentialed game WebSocket.
+//
 // Convention (matches tests/testdriver/smoke.test.mjs): the deployment under
 // test is configurable via SOUND_ROYALE_URL so the test runs unchanged against
 // whichever environment is available (local docker stack, staging, prod). At
-// authoring time no public deployment resolves, so point it at a running stack:
+// authoring time no public deployment resolves (soundroyale.com does not yet
+// resolve), so point it at a running stack reachable from the sandbox, e.g.:
 //
 //   SOUND_ROYALE_URL=http://localhost:8080 \
 //     npx vitest run --config vitest.testdriver.config.mjs \
@@ -40,32 +54,41 @@ describe("SEC-1 — player secret is never exposed in a URL", () => {
     // Give the SPA time to hydrate and the lobby to render.
     await testdriver.wait(4000);
 
-    // --- Create a room so we become an authenticated player and the game
-    // --- WebSocket connects with credentials (the code path that used to
-    // --- append `secret=` to the WS URL). ---------------------------------
-    const createButton = await testdriver.find(
-      "the Create Room / Create Battle button on the lobby",
-    );
-    await createButton.click();
-    await testdriver.wait(1500);
-
+    // --- Step 1: enter the player name (always visible on the lobby). -------
     const nameInput = await testdriver.find(
-      "the player name / display name input field",
+      "the 'Your Name' text input on the lobby (placeholder 'Enter your producer name')",
     );
     await nameInput.click();
     await testdriver.type("SecTester");
     await testdriver.wait(500);
 
-    // Confirm room creation (submit button inside the create form).
-    const confirmCreate = await testdriver.find(
-      "the button that confirms creating the room (Create / Start / Continue)",
+    // --- Step 2: switch into create-room mode. ------------------------------
+    const createModeButton = await testdriver.find(
+      "the 'Create' button on the lobby landing that opens the create-room form",
     );
-    await confirmCreate.click();
+    await createModeButton.click();
+    await testdriver.wait(1500);
+
+    // --- Step 3: enter the room name. ---------------------------------------
+    const roomNameInput = await testdriver.find(
+      "the 'Room Name' text input (placeholder 'e.g. Friday Night Beats')",
+    );
+    await roomNameInput.click();
+    await testdriver.type("SecRoom");
+    await testdriver.wait(500);
+
+    // --- Step 4: submit to create the room and enter it as the host. --------
+    // This establishes the credentialed WebSocket connection (the code path
+    // that used to append `secret=` to the WS URL).
+    const submitCreate = await testdriver.find(
+      "the 'Create Room' submit button at the bottom of the create-room form",
+    );
+    await submitCreate.click();
 
     // Wait for navigation into the room and the WebSocket to connect.
     await testdriver.wait(6000);
 
-    // Sanity: we're actually in a game room (route is /room/:id).
+    // Sanity: we're actually in a game room (route is /room/<code>).
     const inRoom = await testdriver.assert(
       "the game room / battle board is visible, indicating we successfully created and entered a room as the host player",
     );
@@ -76,7 +99,7 @@ describe("SEC-1 — player secret is never exposed in a URL", () => {
     // After the fix it is transmitted via header / body / first WS message,
     // so it must never be visible in any URL the browser exposes.
     const secretNotInAddressBar = await testdriver.assert(
-      "the browser address bar URL does NOT contain any 'secret=' or 'player_secret=' query parameter, and does not contain a long UUID-looking credential — the URL is a clean /room/<id> route",
+      "the browser address bar URL does NOT contain any 'secret=' or 'player_secret=' query parameter, and does not contain a long UUID-looking credential — the URL is a clean /room/<code> route",
     );
     expect(secretNotInAddressBar).toBeTruthy();
 
