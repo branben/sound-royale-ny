@@ -28,16 +28,41 @@ class HealthCheckTestCase(TestCase):
 
     @patch('game_engine.health.connections')
     @patch('redis.from_url')
-    def test_health_check_returns_degraded_when_redis_down(self, mock_from_url, mock_connections):
-        """Health check returns 200 with degraded Redis status when Redis is unreachable."""
+    def test_health_check_reports_unhealthy_when_redis_down(self, mock_from_url, mock_connections):
+        """Regression test for BUG-2: when Redis is unreachable the health endpoint
+        must NOT report the service as overall "ok".
+
+        With the DB up but Redis's ping() raising, the overall status must reflect
+        the failure (i.e. not "ok") and the endpoint must return a non-2xx code
+        (503) so Docker HEALTHCHECK and load balancers correctly mark the service
+        unhealthy. This currently fails because health.py's Redis failure branch
+        sets the redis sub-check to "degraded" but never updates overall_status,
+        leaving the endpoint at HTTP 200 / {"status": "ok"}. The application fix is
+        to set overall_status to a non-ok value in that branch.
+        """
         mock_connections.__getitem__.return_value.ensure_connection.return_value = None
         mock_connections.__getitem__.return_value.close.return_value = None
         mock_from_url.return_value.ping.side_effect = Exception("Connection refused")
+
         response = self.client.get(reverse('health-check'))
-        self.assertEqual(response.status_code, 200)
+
         data = response.json()
-        self.assertEqual(data["status"], "ok")
-        self.assertEqual(data["checks"]["redis"], "degraded")
+        # The individual Redis sub-check should surface the failure...
+        self.assertNotEqual(
+            data["checks"]["redis"], "ok",
+            "Redis sub-check should not report 'ok' when Redis is unreachable",
+        )
+        # ...and, critically, the OVERALL status must not remain "ok" (BUG-2).
+        self.assertNotEqual(
+            data["status"], "ok",
+            "Overall health status must not be 'ok' when Redis is down (BUG-2)",
+        )
+        # A monitoring/orchestration client relies on the HTTP status code to
+        # detect unhealthiness, so it must be 503 rather than 200.
+        self.assertEqual(
+            response.status_code, 503,
+            "Health endpoint must return 503 when a dependency (Redis) is down",
+        )
 
     @patch('game_engine.health.connections')
     @patch('redis.from_url')
