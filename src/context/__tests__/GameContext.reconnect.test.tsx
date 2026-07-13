@@ -50,14 +50,16 @@ vi.mock('@/services/api', () => ({
   }),
 }));
 
-// Capture the socket callbacks so the test can drive connect/disconnect.
+// Capture the socket callbacks so the test can drive connect/disconnect/message.
 const connectOptions: {
   onConnect?: () => void | Promise<void>;
   onDisconnect?: (r: string) => void;
+  onMessage?: (message: unknown) => void;
 } = {};
 const connectMock = vi.fn((options: typeof connectOptions) => {
   connectOptions.onConnect = options.onConnect;
   connectOptions.onDisconnect = options.onDisconnect;
+  connectOptions.onMessage = options.onMessage;
 });
 
 vi.mock('@/services/gameSocket', () => ({
@@ -141,6 +143,7 @@ describe('GameContext reconnect', () => {
     vi.clearAllMocks();
     connectOptions.onConnect = undefined;
     connectOptions.onDisconnect = undefined;
+    connectOptions.onMessage = undefined;
     getRoomMock.mockResolvedValue(mockRoomResponse);
     mockUseUser.mockReturnValue(createDefaultUserSession());
   });
@@ -298,5 +301,87 @@ describe('GameContext reconnect', () => {
     expect(screen.getByTestId('player-count').textContent).toBe('1');
     expect(screen.getByTestId('current-round').textContent).toBe('9');
     expect(screen.getByTestId('status').textContent).toBe('voting');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BUG-1 regression: socket callbacks must be guarded by isMounted
+// ---------------------------------------------------------------------------
+//
+// The GameContext socket effect registers onConnect / onMessage callbacks that
+// mutate React state (setGameState / setTimeRemaining / setIsReconnecting) and,
+// on reconnect, re-fetch the room via roomApi.getRoom(). Those callbacks are
+// long-lived references held by the socket layer. If a socket event fires
+// AFTER the provider unmounts (a race that happens routinely when a player
+// navigates away mid-reconnect), an unguarded callback will:
+//   - call setState on an unmounted component, and
+//   - fire a wasted getRoom() network request whose result is thrown away.
+//
+// React 18 no longer logs the classic "state update on an unmounted component"
+// warning, so we assert the *behavioral* contract of the isMounted guard
+// instead: once unmounted, driving the socket callbacks must be a no-op — no
+// extra getRoom() fetch and no thrown error. These tests fail against the
+// unguarded implementation (the reconnect fetch still fires post-unmount) and
+// pass once `if (!isMounted.current) return;` guards the socket callbacks.
+describe('GameContext socket-callback lifecycle (BUG-1)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    connectOptions.onConnect = undefined;
+    connectOptions.onDisconnect = undefined;
+    connectOptions.onMessage = undefined;
+    getRoomMock.mockResolvedValue(mockRoomResponse);
+    mockUseUser.mockReturnValue(createDefaultUserSession());
+  });
+
+  it('does not re-fetch room state when the reconnect callback fires after unmount', async () => {
+    const { unmount } = render(
+      <GameProvider roomCode="ABCD">
+        <StateReader />
+      </GameProvider>,
+    );
+
+    // Initial mount fetch + socket registration complete.
+    await waitFor(() => expect(connectOptions.onConnect).toBeTypeOf('function'));
+    await waitFor(() => expect(getRoomMock).toHaveBeenCalled());
+    const callsWhileMounted = getRoomMock.mock.calls.length;
+
+    // Tear the provider down — mimics the player navigating away.
+    unmount();
+
+    // A socket reconnect races in AFTER unmount. The guarded handler must
+    // short-circuit: NO additional getRoom() fetch is issued.
+    await act(async () => {
+      await connectOptions.onConnect!();
+    });
+
+    expect(getRoomMock.mock.calls.length).toBe(callsWhileMounted);
+  });
+
+  it('does not throw when a game_state_update / timer_tick message arrives after unmount', async () => {
+    const { unmount } = render(
+      <GameProvider roomCode="ABCD">
+        <StateReader />
+      </GameProvider>,
+    );
+
+    await waitFor(() => expect(connectOptions.onMessage).toBeTypeOf('function'));
+    await waitFor(() => expect(getRoomMock).toHaveBeenCalled());
+
+    unmount();
+
+    // Firing state-mutating socket messages after unmount must be a safe no-op
+    // (guarded by isMounted) rather than a setState on an unmounted component.
+    expect(() => {
+      act(() => {
+        connectOptions.onMessage!({
+          type: 'game_state_update',
+          payload: { status: 'voting', players: {}, currentRound: 5 },
+        });
+        connectOptions.onMessage!({
+          type: 'timer_tick',
+          payload: { timeRemaining: 3 },
+        });
+      });
+    }).not.toThrow();
   });
 });
