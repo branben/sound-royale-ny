@@ -87,13 +87,36 @@ const SEARCHPARAMS_SET_PATTERNS = [
 ];
 
 // --- console / error-string leak patterns ----------------------------------
-// A console.* call that passes a secret-bearing identifier as an argument,
-// e.g. `console.error('secret', playerSecret)` or
-// `console.log(\`...${player_secret}...\`)`. We match a console.* call whose
-// argument list mentions a secret variable. Kept deliberately specific to the
-// known secret identifiers so ordinary logging does not false-positive.
-const CONSOLE_SECRET_PATTERN =
-  /console\.(?:log|error|warn|info|debug)\([^)]*\b(?:playerSecret|player_secret|sessionSecret|discord_session_secret|discordSessionSecret)\b/i;
+// SEC-1 names TWO console/error vectors, not just console.*:
+//   (a) a `console.*` call that receives a secret, e.g.
+//         console.error('secret', playerSecret)
+//         console.log(`...${player_secret}...`)
+//   (b) a secret embedded in an *error string* — a thrown error or an
+//       `Error`/`AxiosError`/etc. constructed with the secret interpolated,
+//       e.g. throw new Error(`bad secret ${playerSecret}`). Error messages
+//       routinely flow to the console, to error-reporting sinks, and — via
+//       api.ts's response interceptor that ships request context to
+//       `/errors/log/` — to the backend error log. That is exactly the
+//       "console / error string" leak the issue calls out.
+//
+// The secret-identifier alternation is factored out and shared so both the
+// log form and the error form stay in lock-step and remain deliberately
+// specific to the known credential identifiers (ordinary logging / ordinary
+// Error messages do not false-positive).
+const SECRET_IDENT =
+  "(?:playerSecret|player_secret|sessionSecret|discord_session_secret|discordSessionSecret)";
+
+const LOG_LEAK_PATTERNS = [
+  // console.log/error/warn/info/debug( ... <secret> ... )
+  new RegExp(`console\\.(?:log|error|warn|info|debug)\\([^)]*\\b${SECRET_IDENT}\\b`, "i"),
+  // throw <anything with a secret> — throw new Error(`...${playerSecret}...`),
+  // throw `...${player_secret}...`, throw someErr(playerSecret), etc.
+  new RegExp(`throw\\b[^;\\n]*\\b${SECRET_IDENT}\\b`, "i"),
+  // new Error(...) / new <Something>Error(...) constructed with a secret.
+  // The word prefix before "Error" is optional so plain `new Error(...)` (the
+  // common case) is caught as well as `new AxiosError(...)`, `new TypeError(...)`, etc.
+  new RegExp(`new\\s+\\w*Error\\s*\\([^)]*\\b${SECRET_IDENT}\\b`, "i"),
+];
 
 /**
  * Strip line (`//`) and block comments so the doc comments in the source
@@ -116,10 +139,14 @@ function findUrlLeaks({ name, source }) {
   return leaks;
 }
 
-function findConsoleLeaks({ name, source }) {
+function findLogLeaks({ name, source }) {
   const code = stripComments(source);
-  const m = code.match(CONSOLE_SECRET_PATTERN);
-  return m ? [`${name}: matched ${CONSOLE_SECRET_PATTERN} near "${m[0]}"`] : [];
+  const leaks = [];
+  for (const re of LOG_LEAK_PATTERNS) {
+    const m = code.match(re);
+    if (m) leaks.push(`${name}: matched ${re} near "${m[0]}"`);
+  }
+  return leaks;
 }
 
 describe("SEC-1: player secret must never travel in a URL or console string (#105)", () => {
@@ -160,16 +187,18 @@ describe("SEC-1: player secret must never travel in a URL or console string (#10
     ).toBe(false);
   });
 
-  it("no client service logs the secret to the console / an error string", () => {
+  it("no client service logs or throws the secret (console / error string)", () => {
     // Second half of SEC-1: the credential must not land in a console.* call
-    // (which flows to devtools and — via api.ts's response interceptor that
-    // ships config.url to /errors/log/ — the backend error log).
-    const leaks = SERVICE_SOURCES.flatMap(findConsoleLeaks);
+    // OR in a thrown/constructed error string. Both flow to devtools and — via
+    // api.ts's response interceptor that ships request context to /errors/log/
+    // — the backend error log, so a secret embedded in either is a real leak.
+    const leaks = SERVICE_SOURCES.flatMap(findLogLeaks);
     expect(
       leaks,
-      "A console.* call receives the player/session secret. Never log a bearer " +
-        "credential (or a URL/string that embeds one). Redact it before " +
-        "logging.\n" +
+      "A console.* call, a `throw`, or a `new Error(...)` embeds the " +
+        "player/session secret. Never log or put a bearer credential into an " +
+        "error message (or a URL/string that embeds one). Redact it before " +
+        "logging or throwing.\n" +
         leaks.join("\n"),
     ).toEqual([]);
   });
