@@ -1,4 +1,5 @@
 // SEC-1 regression guard (issue #105). See the block comment below for details.
+// NOTE: this suite runs via vitest.testdriver.config.mjs (not the root vitest.config.ts).
 import { describe, expect, it } from "vitest";
 import { TestDriver } from "testdriverai/vitest/hooks";
 
