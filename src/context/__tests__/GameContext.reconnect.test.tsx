@@ -1,8 +1,11 @@
 import React from 'react';
 import { render, screen, act, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { GameProvider, GameStateContext, GameContext } from '../GameContext';
 import { useUser } from '../UserContext';
+// Imported from the MOCKED @/services/api above — used as a deterministic probe
+// for whether the post-await state-update path runs (see BUG-1 block below).
+import { normalizeRoomWinner } from '@/services/api';
 
 // Mock the UserContext
 vi.mock('../UserContext', () => ({
@@ -54,10 +57,12 @@ vi.mock('@/services/api', () => ({
 const connectOptions: {
   onConnect?: () => void | Promise<void>;
   onDisconnect?: (r: string) => void;
+  onMessage?: (m: { type: string; payload: unknown }) => void;
 } = {};
 const connectMock = vi.fn((options: typeof connectOptions) => {
   connectOptions.onConnect = options.onConnect;
   connectOptions.onDisconnect = options.onDisconnect;
+  connectOptions.onMessage = options.onMessage;
 });
 
 vi.mock('@/services/gameSocket', () => ({
@@ -141,6 +146,7 @@ describe('GameContext reconnect', () => {
     vi.clearAllMocks();
     connectOptions.onConnect = undefined;
     connectOptions.onDisconnect = undefined;
+    connectOptions.onMessage = undefined;
     getRoomMock.mockResolvedValue(mockRoomResponse);
     mockUseUser.mockReturnValue(createDefaultUserSession());
   });
@@ -298,5 +304,139 @@ describe('GameContext reconnect', () => {
     expect(screen.getByTestId('player-count').textContent).toBe('1');
     expect(screen.getByTestId('current-round').textContent).toBe('9');
     expect(screen.getByTestId('status').textContent).toBe('voting');
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// BUG-1 regression: the socket onMessage handler must not process a message
+// (and thus setState) after the component has unmounted.
+//
+// GameProvider registers gameSocket.connect({ onMessage: handleMessage, ... }).
+// handleMessage() reacts to server pushes — 'game_state_update' calls
+// setGameState(...), 'timer_tick' calls setTimeRemaining(...), 'host_migrated'
+// calls setGameState(...). None of those are guarded by isMounted, so a socket
+// frame that arrives AFTER the provider unmounts triggers a state update on an
+// unmounted component (stale write + wasted work). (The 'error' branch and the
+// onConnect reconnect refetch are already isMounted-guarded — this gap is the
+// onMessage handler.)
+//
+// The fix is an early `if (!isMounted.current) return;` guard at the top of
+// handleMessage (or around each setState in it).
+//
+// DETECTION (warning-independent): React 18 removed the old "state update on an
+// unmounted component" console warning (verified empirically — it emits
+// nothing), so we cannot assert on console output. Instead we drive a message
+// whose payload is read THROUGH A SPY: handleMessage's 'game_state_update'
+// branch reads `message.payload.players` while building the next state. We fire
+// that message AFTER unmount using a payload whose `players` is a getter we
+// observe:
+//   • guard MISSING → handler runs post-unmount → reads payload.players → spy
+//     fires → test FAILS.
+//   • guard PRESENT → handler returns early → payload.players never read → spy
+//     does not fire → test PASSES.
+//
+// A pre-unmount control message proves the spy DOES fire on the happy path, so
+// the post-unmount assertion is meaningful (not vacuously true).
+// ---------------------------------------------------------------------------
+describe('GameContext reconnect — unmount safety (BUG-1)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    connectOptions.onConnect = undefined;
+    connectOptions.onDisconnect = undefined;
+    connectOptions.onMessage = undefined;
+    getRoomMock.mockResolvedValue(mockRoomResponse);
+    mockUseUser.mockReturnValue(createDefaultUserSession());
+  });
+
+  // Build a 'game_state_update' message whose `payload.players` is read through
+  // a spy, so we can tell whether handleMessage actually processed it.
+  function makeGameStateUpdate(playersReadSpy: () => void) {
+    const players = {
+      'player-1': { name: 'TestPlayer', board: { tiles: [] } },
+    };
+    const payload = {
+      gameId: 'ABCD',
+      roomCode: 'ABCD',
+      status: 'playing',
+      currentRound: 3,
+    } as Record<string, unknown>;
+    // `players` is read via a getter so we can detect handler execution.
+    Object.defineProperty(payload, 'players', {
+      enumerable: true,
+      get() {
+        playersReadSpy();
+        return players;
+      },
+    });
+    return { type: 'game_state_update', payload };
+  }
+
+  it('does not process a socket game_state_update (no setState) after unmount', async () => {
+    const { unmount } = render(
+      <GameProvider roomCode="ABCD">
+        <StateReader />
+      </GameProvider>,
+    );
+
+    // Let the initial mount fetch settle and the socket onMessage register.
+    await waitFor(() => expect(connectOptions.onMessage).toBeTypeOf('function'));
+    await waitFor(() => expect(screen.getByTestId('player-count').textContent).toBe('2'));
+
+    // --- Control: while STILL MOUNTED, a game_state_update IS processed. ---
+    const mountedRead = vi.fn();
+    act(() => {
+      connectOptions.onMessage!(makeGameStateUpdate(mountedRead));
+    });
+    // Proves the spy fires on the happy path — the post-unmount check below is
+    // therefore a real signal, not vacuously green.
+    expect(mountedRead).toHaveBeenCalled();
+    // And the update was actually applied to state (1 player from the message).
+    await waitFor(() => expect(screen.getByTestId('player-count').textContent).toBe('1'));
+
+    // --- Unmount the provider (isMounted.current -> false). ---
+    unmount();
+
+    // --- A socket frame arrives AFTER unmount. It must be ignored. ---
+    const afterUnmountRead = vi.fn();
+    act(() => {
+      connectOptions.onMessage!(makeGameStateUpdate(afterUnmountRead));
+    });
+
+    // With the isMounted guard, handleMessage returns before touching the
+    // payload, so the getter is never read and no setState is attempted.
+    // Without the guard, the handler runs and reads payload.players post-unmount.
+    expect(afterUnmountRead).not.toHaveBeenCalled();
+  });
+
+  it('does not process a socket timer_tick (no setTimeRemaining) after unmount', async () => {
+    const { unmount } = render(
+      <GameProvider roomCode="ABCD">
+        <StateReader />
+      </GameProvider>,
+    );
+
+    await waitFor(() => expect(connectOptions.onMessage).toBeTypeOf('function'));
+    await waitFor(() => expect(screen.getByTestId('player-count').textContent).toBe('2'));
+
+    unmount();
+
+    // timer_tick reads message.payload.timeRemaining and calls setTimeRemaining.
+    // Fire it post-unmount through a getter spy; the guard must stop the read.
+    const timeRead = vi.fn();
+    const payload = {} as Record<string, unknown>;
+    Object.defineProperty(payload, 'timeRemaining', {
+      enumerable: true,
+      get() {
+        timeRead();
+        return 30;
+      },
+    });
+
+    act(() => {
+      connectOptions.onMessage!({ type: 'timer_tick', payload });
+    });
+
+    expect(timeRead).not.toHaveBeenCalled();
   });
 });
