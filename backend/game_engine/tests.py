@@ -28,16 +28,45 @@ class HealthCheckTestCase(TestCase):
 
     @patch('game_engine.health.connections')
     @patch('redis.from_url')
-    def test_health_check_returns_degraded_when_redis_down(self, mock_from_url, mock_connections):
-        """Health check returns 200 with degraded Redis status when Redis is unreachable."""
+    def test_health_check_reports_failure_when_redis_down(self, mock_from_url, mock_connections):
+        """Regression test for BUG-2.
+
+        When Redis is unreachable the health endpoint must NOT report the
+        service as healthy. It must surface the failure so orchestrators
+        (Docker HEALTHCHECK, load balancers) can route traffic away:
+
+          - overall ``status`` must not be ``"ok"``
+          - HTTP status must be 503 (not 200)
+          - the ``redis`` sub-check must reflect the failure
+
+        This test FAILS against the current ``HealthCheckView`` because the
+        Redis failure branch in ``health.py`` sets ``redis_status`` but never
+        sets ``overall_status = "error"``, so the endpoint still returns
+        200 / ``{"status": "ok"}``. It will pass once ``health.py`` sets the
+        overall status in the Redis failure branch.
+        """
         mock_connections.__getitem__.return_value.ensure_connection.return_value = None
         mock_connections.__getitem__.return_value.close.return_value = None
         mock_from_url.return_value.ping.side_effect = Exception("Connection refused")
+
         response = self.client.get(reverse('health-check'))
-        self.assertEqual(response.status_code, 200)
+
         data = response.json()
-        self.assertEqual(data["status"], "ok")
-        self.assertEqual(data["checks"]["redis"], "degraded")
+        # The Redis sub-check must reflect that Redis is not healthy.
+        self.assertNotEqual(data["checks"]["redis"], "ok")
+        # BUG-2: overall status must not claim the service is fully healthy.
+        self.assertNotEqual(
+            data["status"],
+            "ok",
+            "Health endpoint reported overall status 'ok' while Redis is down (BUG-2)",
+        )
+        # A dependency failure must surface as a non-2xx response so
+        # orchestrators treat the instance as unhealthy.
+        self.assertEqual(
+            response.status_code,
+            503,
+            "Health endpoint returned 200 while Redis is down (BUG-2)",
+        )
 
     @patch('game_engine.health.connections')
     @patch('redis.from_url')
