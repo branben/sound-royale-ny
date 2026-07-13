@@ -95,13 +95,8 @@ test.describe('Live E2E — Ranked Mode (2 Producers + 3 Spectators)', () => {
       await below.startGame();
       await below.playCasualRound(true); // play tiles, do not advance
 
-      let blocked = false;
-      try {
-        await below.getPlayer('HostPlayer').openVoting();
-      } catch {
-        blocked = true; // backend rejects open_voting with <3 spectators
-      }
-      expect(blocked).toBe(true);
+      // backend rejects open_voting with <3 spectators
+      await expect(below.getPlayer('HostPlayer').openVoting()).rejects.toThrow();
 
       const belowState = await getGameState(below.roomCode);
       expect(belowState.roundState?.votingOpen).toBe(false);
