@@ -1,0 +1,21 @@
+# Labeler configuration for actions/labeler@v5
+# Docs: https://github.com/actions/labeler
+
+# Size labels applied by the workflow (kept here for reference / manual runs)
+size/S:
+  - changed-files:
+      - max: 50-additions
+
+size/M:
+  - changed-files:
+      - min: 51-additions
+      - max: 200-additions
+
+size/L:
+  - changed-files:
+      - min: 201-additions
+      - max: 500-additions
+
+size/XL:
+  - changed-files:
+      - min: 501-additions
