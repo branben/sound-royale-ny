@@ -1,4 +1,5 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -66,6 +67,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, '..', '..');
 const srcDir = join(repoRoot, 'src');
 const servicesDir = join(srcDir, 'services');
+const harnessPath = join(__dirname, 'fixtures', 'sec1_url_harness.cjs');
 
 // Directory names we never scan: nested test folders and build output.
 const IGNORED_DIRS = new Set(['__tests__', '__mocks__', 'node_modules', 'dist', 'build']);
@@ -323,6 +325,75 @@ describe('SEC-1: player secret must never travel in a URL or console string (#10
           'logging.\n' +
           leaks.join('\n'),
       ).toEqual([]);
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // DYNAMIC counterpart to the static URL gate above.
+  //
+  // The three assertions above are static: they regex the source text. This one
+  // is dynamic â it runs `fixtures/sec1_url_harness.cjs`, which extracts the
+  // REAL URL-building logic out of `gameSocket.ts` (getWsUrl) and `api.ts`
+  // (discordApi.getAccountStatus) and EVALUATES it with a unique high-entropy
+  // canary secret, then inspects the resulting URL's query string. This proves
+  // the property SEC-1 actually cares about â "the secret does not end up in a
+  // URL when the code runs" â rather than merely "a pattern is/ isn't present in
+  // the text". It also keeps the harness from being dead code: if the harness
+  // can no longer locate the code under test (exit 2), the test errors loudly
+  // instead of silently passing, so a refactor can't neuter the gate.
+  //
+  // Same lifecycle as the static gates: `it.fails` today (the harness finds the
+  // canary in `?secret=` / `?player_secret=`), flipping to a hard failure the
+  // moment SEC-1 moves the credential out of the URL â the signal to drop the
+  // `.fails` marker.
+  // -------------------------------------------------------------------------
+  it.fails(
+    'KNOWN-RED until SEC-1 lands: the real URL-building code emits no secret in any query string (dynamic harness)',
+    () => {
+      let stdout;
+      try {
+        stdout = execFileSync('node', [harnessPath], {
+          encoding: 'utf8',
+          env: {
+            ...process.env,
+            SEC1_GAMESOCKET_TS: join(servicesDir, 'gameSocket.ts'),
+            SEC1_API_TS: join(servicesDir, 'api.ts'),
+          },
+        });
+      } catch (err) {
+        // Exit 1 (leak) and exit 2 (harness could not locate the code) both
+        // land here because execFileSync throws on non-zero exit. Distinguish
+        // them from the SEC1_RESULT payload the harness always prints.
+        stdout = (err.stdout || '').toString();
+        if (err.status === 2 && !stdout.includes('SEC1_RESULT=')) {
+          throw new Error(
+            'SEC-1 dynamic harness could not run against the real sources ' +
+              '(it could not locate getWsUrl()/getAccountStatus() â the app was ' +
+              'likely refactored). Update fixtures/sec1_url_harness.cjs so the ' +
+              'gate stays honest.\n' +
+              (err.stderr || err.message),
+          );
+        }
+      }
+
+      const line = (stdout.split('\n').find((l) => l.startsWith('SEC1_RESULT=')) || '').trim();
+      expect(line, 'harness did not emit a SEC1_RESULT line:\n' + stdout).not.toBe('');
+      const result = JSON.parse(line.slice('SEC1_RESULT='.length));
+
+      // A harness that could not locate the code (ok:false + error, no canary)
+      // is a broken gate, not a clean pass â surface it as an error.
+      if (result.error) {
+        throw new Error('SEC-1 dynamic harness error: ' + result.error);
+      }
+
+      expect(
+        result.leaks,
+        'The real URL-building code placed the canary secret in a URL query ' +
+          'string when executed. Move the credential to the Authorization ' +
+          'header, the POST body, or the first WebSocket message.\n' +
+          JSON.stringify(result.leaks, null, 2),
+      ).toEqual([]);
+      expect(result.ok).toBe(true);
     },
   );
 
