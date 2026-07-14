@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 audit_logger = logging.getLogger("game_audit")
 
 from .models import Room, Player, Tile, Round, Vote, ThemeRotation, DiscordAccount
+from .security import hash_secret, new_player_secret
 from .discord_service import DiscordOAuthService
 from .serializers import (
     RoomSerializer,
@@ -236,7 +237,7 @@ def resolve_player_from_request(request, room):
     if player_id and player_secret:
         try:
             player = Player.objects.get(id=player_id, room=room)
-            if str(player.player_secret) != str(player_secret):
+            if player.player_secret != hash_secret(player_secret):
                 return None, Response(
                     {"error": "Invalid player_secret"},
                     status=status.HTTP_403_FORBIDDEN,
@@ -251,7 +252,7 @@ def resolve_player_from_request(request, room):
     # Legacy fallback: player_secret only (no player_id)
     if player_secret:
         try:
-            player = Player.objects.get(room=room, player_secret=player_secret)
+            player = Player.objects.get(room=room, player_secret=hash_secret(player_secret))
             return player, None
         except Player.DoesNotExist:
             return None, Response(
@@ -605,8 +606,10 @@ class RoomViewSet(viewsets.ModelViewSet):
                 break
 
         player_name = serializer.validated_data.get("player_name", "Host")
+        plain_secret = new_player_secret()
         player = Player.objects.create(
-            room=room, name=player_name, is_spectator=False, is_host=True
+            room=room, name=player_name, is_spectator=False, is_host=True,
+            player_secret=plain_secret,
         )
         # Generate JWT tokens for the host player
         token_data = get_authenticated_player(player)
@@ -629,7 +632,7 @@ class RoomViewSet(viewsets.ModelViewSet):
         response_data = {
                 "room_code": room.code,
                 "player_id": str(player.id),
-                "player_secret": str(player.player_secret),
+                "player_secret": plain_secret,
                 "access_token": token_data["access_token"],
                 "refresh_token": token_data["refresh_token"],
             }
@@ -882,7 +885,7 @@ class RoomViewSet(viewsets.ModelViewSet):
             )
 
         try:
-            player = Player.objects.get(room=room, player_secret=player_secret)
+            player = Player.objects.get(room=room, player_secret=hash_secret(player_secret))
             return Response(
                 {
                     "id": str(player.id),
@@ -1549,11 +1552,14 @@ class PlayerViewSet(viewsets.ModelViewSet):
 
     def get_object(self):
         """
-        Override get_object to handle player_secret lookup
+        Override get_object to handle player_secret lookup. The secret in the
+        URL is the plaintext; the stored value is hashed (guardrail #105).
         """
         if self.kwargs.get(self.lookup_field):
             try:
-                return Player.objects.get(player_secret=self.kwargs[self.lookup_field])
+                return Player.objects.get(
+                    player_secret=hash_secret(self.kwargs[self.lookup_field])
+                )
             except Player.DoesNotExist:
                 pass
         return super().get_object()
@@ -1592,7 +1598,7 @@ class PlayerViewSet(viewsets.ModelViewSet):
 
         # Verify player_secret matches
         provided_secret = request.data.get("player_secret")
-        if not provided_secret or str(player.player_secret) != str(provided_secret):
+        if not provided_secret or player.player_secret != hash_secret(provided_secret):
             return Response(
                 {"error": "Invalid player_secret"},
                 status=status.HTTP_403_FORBIDDEN
@@ -1612,6 +1618,31 @@ class PlayerViewSet(viewsets.ModelViewSet):
                 "is_ready": player.is_ready
             },
             status=status.HTTP_200_OK
+        )
+
+    @action(detail=True, methods=["post"])
+    def rotate_secret(self, request, pk=None, player_secret=None):
+        """Rotate the player's secret. Requires the current secret (guardrail #105).
+
+        Returns a fresh plaintext secret exactly once; the previous secret is
+        invalidated immediately (the model stores only the hash).
+        """
+        player = self.get_object()
+
+        provided_secret = request.data.get("player_secret")
+        if not provided_secret or player.player_secret != hash_secret(provided_secret):
+            return Response(
+                {"error": "Invalid player_secret"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        plain_secret = new_player_secret()
+        player.player_secret = plain_secret
+        player.save()  # model hashes before persisting
+
+        return Response(
+            {"player_id": str(player.id), "player_secret": plain_secret},
+            status=status.HTTP_200_OK,
         )
 
     @action(detail=True, methods=["post"])
@@ -1935,7 +1966,7 @@ def discord_link_account(request):
         )
 
     # Find existing player or create one on-the-fly for Discord linking
-    player = Player.objects.filter(id=player_id, player_secret=player_secret).first()
+    player = Player.objects.filter(id=player_id, player_secret=hash_secret(player_secret)).first()
     if not player:
         try:
             player = Player.objects.create(
@@ -2004,7 +2035,7 @@ def discord_unlink_account(request):
 
     try:
         # Verify player credentials
-        player = Player.objects.get(id=player_id, player_secret=player_secret)
+        player = Player.objects.get(id=player_id, player_secret=hash_secret(player_secret))
     except Player.DoesNotExist:
         return Response(
             {"error": "Invalid player credentials"},
@@ -2073,7 +2104,7 @@ def discord_account_status(request):
             )
 
         try:
-            player = Player.objects.get(id=player_id, player_secret=player_secret)
+            player = Player.objects.get(id=player_id, player_secret=hash_secret(player_secret))
         except Player.DoesNotExist:
             return Response(
                 {"is_linked": False},

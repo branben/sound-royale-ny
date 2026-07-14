@@ -6,13 +6,14 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from .models import Player, Room, Round, Tile
+from game_engine.test_auth_helper import make_player
 
 
 class GenrePerformanceAPITestCase(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.room = Room.objects.create(code="5555", name="Genre Room")
-        self.player = Player.objects.create(
+        self.player = make_player(
             room=self.room,
             name="Producer",
             is_host=True,
@@ -96,12 +97,12 @@ class GenrePerformanceAPITestCase(TestCase):
     def test_secret_based_toggle_ready_route_still_works(self):
         url = reverse(
             "player-toggle-ready",
-            kwargs={"player_secret": str(self.player.player_secret)},
+            kwargs={"player_secret": self.player.plain_secret},
         )
 
         response = self.client.post(
             url,
-            {"player_secret": str(self.player.player_secret)},
+            {"player_secret": self.player.plain_secret},
             format="json",
         )
 

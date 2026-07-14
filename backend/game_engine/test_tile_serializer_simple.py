@@ -2,6 +2,7 @@ from django.test import TestCase
 from .models import Room, Player, Tile
 from .serializers import TileCreateSerializer
 import uuid
+from game_engine.test_auth_helper import make_player
 
 
 class TileCreateSerializerSimpleTestCase(TestCase):
@@ -10,7 +11,7 @@ class TileCreateSerializerSimpleTestCase(TestCase):
     def setUp(self):
         """Set up test data"""
         self.room = Room.objects.create(code="1234", name="Test Room")
-        self.player = Player.objects.create(
+        self.player = make_player(
             room=self.room,
             name="TestPlayer",
             is_host=False,

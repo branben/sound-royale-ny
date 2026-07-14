@@ -8,7 +8,7 @@ from .views import RoomViewSet
 import uuid
 import random
 from unittest.mock import patch, MagicMock
-from game_engine.test_auth_helper import get_jwt_header, create_user_for_player
+from game_engine.test_auth_helper import get_jwt_header, create_user_for_player, make_player
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.transaction]
@@ -20,13 +20,13 @@ class TransactionSafetyTestCase(TestCase):
     def setUp(self):
         """Set up test data"""
         self.room = Room.objects.create(code="1234", name="Test Room")
-        self.host = Player.objects.create(
+        self.host = make_player(
             room=self.room,
             name="HostPlayer",
             is_host=True,
             player_secret=uuid.uuid4()
         )
-        self.player = Player.objects.create(
+        self.player = make_player(
             room=self.room,
             name="TestPlayer",
             is_host=False,
@@ -95,7 +95,7 @@ class TransactionSafetyTestCase(TestCase):
         viewset.format_kwarg = None
         
         request_data = {
-            'player_secret': str(self.host.player_secret)
+            'player_secret': self.host.plain_secret
         }
         
         request = MagicMock()
@@ -152,7 +152,7 @@ class TransactionSafetyTestCase(TestCase):
         viewset.format_kwarg = None
         
         request_data = {
-            'player_secret': str(self.host.player_secret)
+            'player_secret': self.host.plain_secret
         }
         
         request = MagicMock()
@@ -187,7 +187,7 @@ class TransactionSafetyTestCase(TestCase):
         # Create a spectator-only room (no host/producer)
         Player.objects.filter(room=self.room, is_spectator=False).delete()
         # Create a spectator to auth with
-        spectator = Player.objects.create(
+        spectator = make_player(
             room=self.room, name="OnlySpectator", is_spectator=True
         )
         create_user_for_player(spectator)
@@ -216,7 +216,7 @@ class TransactionSafetyTestCase(TestCase):
         viewset.format_kwarg = None
         
         request_data = {
-            'player_secret': str(self.host.player_secret)
+            'player_secret': self.host.plain_secret
         }
         
         request = MagicMock()
@@ -286,7 +286,7 @@ class TransactionSafetyTestCase(TestCase):
         viewset.format_kwarg = None
         
         request_data = {
-            'player_secret': str(self.host.player_secret)
+            'player_secret': self.host.plain_secret
         }
         
         request = MagicMock()
@@ -322,7 +322,7 @@ class TransactionSafetyTestCase(TestCase):
         viewset.format_kwarg = None
         
         request_data = {
-            'player_secret': str(self.host.player_secret)
+            'player_secret': self.host.plain_secret
         }
         
         request = MagicMock()
@@ -355,7 +355,7 @@ class TransactionEdgeCasesTestCase(TestCase):
     def setUp(self):
         """Set up test data"""
         self.room = Room.objects.create(code="5678", name="Edge Case Room")
-        self.host = Player.objects.create(
+        self.host = make_player(
             room=self.room,
             name="EdgeHost",
             is_host=True,
@@ -363,7 +363,7 @@ class TransactionEdgeCasesTestCase(TestCase):
         )
         # Create many players for stress testing
         for i in range(5):
-            Player.objects.create(
+            make_player(
                 room=self.room,
                 name=f"Player{i}",
                 is_host=False,
@@ -389,7 +389,7 @@ class TransactionEdgeCasesTestCase(TestCase):
         viewset.format_kwarg = None
         
         request_data = {
-            'player_secret': str(self.host.player_secret)
+            'player_secret': self.host.plain_secret
         }
         
         request = MagicMock()
@@ -416,7 +416,7 @@ class TransactionEdgeCasesTestCase(TestCase):
         viewset.format_kwarg = None
         
         request_data = {
-            'player_secret': str(self.host.player_secret)
+            'player_secret': self.host.plain_secret
         }
         
         request = MagicMock()
@@ -454,7 +454,7 @@ class TransactionEdgeCasesTestCase(TestCase):
         viewset.format_kwarg = None
         
         request_data = {
-            'player_secret': str(self.host.player_secret)
+            'player_secret': self.host.plain_secret
         }
         
         request = MagicMock()

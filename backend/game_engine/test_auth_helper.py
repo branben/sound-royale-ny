@@ -3,6 +3,28 @@
 from django.contrib.auth.models import User
 from rest_framework_simplejwt.tokens import RefreshToken
 from game_engine.models import Player
+from game_engine.security import new_player_secret
+
+
+def make_player(room, **kwargs) -> Player:
+    """Create a Player, capturing the issued plaintext secret on the instance.
+
+    The model stores the secret hashed; tests need the plaintext to act as a
+    client. We generate it here and stash it as `player.plain_secret` so
+    get_player_secret_header() can return the correct value. An explicit
+    `player_secret` kwarg is treated as the plaintext (for callers that reuse
+    a known value).
+    """
+    plain_secret = kwargs.pop("player_secret", None)
+    if plain_secret is None:
+        plain_secret = new_player_secret()
+    else:
+        # Coerce UUID/non-str secrets to str so the plaintext is a string
+        # (used in URLs and as the client credential).
+        plain_secret = str(plain_secret)
+    player = Player.objects.create(room=room, player_secret=plain_secret, **kwargs)
+    player.plain_secret = plain_secret
+    return player
 
 
 def create_user_for_player(player: Player) -> User:
@@ -34,8 +56,13 @@ def get_jwt_header(player: Player) -> dict:
 
 
 def get_player_secret_header(player: Player) -> dict:
-    """Get player_secret fallback header dict for backward-compat tests."""
+    """Get player_secret fallback header dict for backward-compat tests.
+
+    Uses the captured plaintext (`player.plain_secret`) when available;
+    otherwise falls back to the stored (hashed) value for legacy callers.
+    """
+    secret = getattr(player, "plain_secret", None) or str(player.player_secret)
     return {
         "HTTP_X_PLAYER_ID": str(player.id),
-        "HTTP_X_PLAYER_SECRET": str(player.player_secret),
+        "HTTP_X_PLAYER_SECRET": secret,
     }

@@ -5,13 +5,15 @@ from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import AuthenticationFailed
 
 from game_engine.models import Player
+from game_engine.security import hash_secret
 
 
 class PlayerSecretAuthentication(BaseAuthentication):
     """Authenticate HTTP requests using X-Player-Id and X-Player-Secret headers.
 
     Clients receive player_id and player_secret on room creation/join.
-    They must include both in subsequent requests as header values.
+    They must include both in subsequent requests as header values. The
+    secret is stored hashed; the presented value is hashed before lookup.
     """
 
     keyword = "PlayerSecret"
@@ -24,7 +26,9 @@ class PlayerSecretAuthentication(BaseAuthentication):
             return None
 
         try:
-            player = Player.objects.get(id=player_id, player_secret=player_secret)
+            player = Player.objects.get(
+                id=player_id, player_secret=hash_secret(player_secret)
+            )
         except Player.DoesNotExist:
             raise AuthenticationFailed("Invalid player credentials")
 
@@ -35,7 +39,9 @@ class PlayerSecretAuthentication(BaseAuthentication):
 def _resolve_player(player_id, player_secret):
     """Resolve a player by id + secret, or return None."""
     try:
-        return Player.objects.get(id=player_id, player_secret=player_secret)
+        return Player.objects.get(
+            id=player_id, player_secret=hash_secret(player_secret)
+        )
     except Player.DoesNotExist:
         return None
 

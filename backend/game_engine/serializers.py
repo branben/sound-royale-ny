@@ -381,9 +381,14 @@ class ThemeRotationSerializer(serializers.ModelSerializer):
 
 
 class PlayerCreateSerializer(serializers.ModelSerializer):
-    """Serializer for players joining a room - returns player_secret on creation"""
+    """Serializer for players joining a room - returns player_secret on creation.
 
-    player_secret = serializers.UUIDField(read_only=True)
+    The plaintext secret is issued here and returned exactly once. It is
+    stored hashed by the model (guardrail #105), so the representation must
+    surface the plaintext we just generated, not the persisted hash.
+    """
+
+    player_secret = serializers.CharField(read_only=True)
     access_token = serializers.CharField(read_only=True)
     refresh_token = serializers.CharField(read_only=True)
     name = serializers.CharField()
@@ -394,12 +399,27 @@ class PlayerCreateSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "player_secret", "is_host", "access_token", "refresh_token"]
 
     def create(self, validated_data):
-        """Create a new player"""
+        """Create a new player, issuing a fresh plaintext secret."""
+        from game_engine.security import new_player_secret
+
         room = self.context.get("room")
         if not room:
             raise serializers.ValidationError("Room context is required")
-        player = Player.objects.create(room=room, **validated_data)
+        plain_secret = new_player_secret()
+        player = Player.objects.create(
+            room=room, player_secret=plain_secret, **validated_data
+        )
+        # Stash the plaintext so to_representation can return it (the model
+        # stores only the hash).
+        player._issued_plain_secret = plain_secret
         return player
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        issued = getattr(instance, "_issued_plain_secret", None)
+        if issued is not None:
+            data["player_secret"] = issued
+        return data
 
 
 class GenrePerformanceSerializer(serializers.Serializer):

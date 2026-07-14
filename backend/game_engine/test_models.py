@@ -3,6 +3,7 @@ from django.test import TestCase
 from django.core.exceptions import ValidationError
 from django.db.utils import IntegrityError
 from .models import Room, Player, Tile, Round, Vote
+from game_engine.test_auth_helper import make_player
 
 
 class RoomModelTestCase(TestCase):
@@ -49,7 +50,7 @@ class RoomModelTestCase(TestCase):
         self.assertIsNone(room.host)
         
         # Add host player
-        host = Player.objects.create(
+        host = make_player(
             room=room,
             name="HostPlayer",
             is_host=True,
@@ -57,7 +58,7 @@ class RoomModelTestCase(TestCase):
         )
         
         # Add spectator
-        spectator = Player.objects.create(
+        spectator = make_player(
             room=room,
             name="Spectator",
             is_host=False,
@@ -80,7 +81,7 @@ class PlayerModelTestCase(TestCase):
 
     def test_player_creation(self):
         """Test basic player creation"""
-        player = Player.objects.create(
+        player = make_player(
             room=self.room,
             name="TestPlayer",
             is_spectator=False,
@@ -101,7 +102,7 @@ class PlayerModelTestCase(TestCase):
 
     def test_player_unique_name_per_room(self):
         """Test that player names must be unique within a room"""
-        Player.objects.create(
+        make_player(
             room=self.room,
             name="DuplicateName",
             is_spectator=False
@@ -109,7 +110,7 @@ class PlayerModelTestCase(TestCase):
         
         # Creating another player with same name in same room should fail
         with self.assertRaises(IntegrityError):
-            Player.objects.create(
+            make_player(
                 room=self.room,
                 name="DuplicateName",
                 is_spectator=False
@@ -119,13 +120,13 @@ class PlayerModelTestCase(TestCase):
         """Test that same name can be used in different rooms"""
         room2 = Room.objects.create(name="Test Room 2", code="3333")
         
-        player1 = Player.objects.create(
+        player1 = make_player(
             room=self.room,
             name="SameName",
             is_spectator=False
         )
         
-        player2 = Player.objects.create(
+        player2 = make_player(
             room=room2,
             name="SameName",
             is_spectator=False
@@ -136,7 +137,7 @@ class PlayerModelTestCase(TestCase):
 
     def test_player_elo_fields(self):
         """Test ELO rating fields"""
-        player = Player.objects.create(
+        player = make_player(
             room=self.room,
             name="TestPlayer",
             elo_rating=1500,
@@ -152,7 +153,7 @@ class PlayerModelTestCase(TestCase):
 
     def test_player_str_representation(self):
         """Test player string representation"""
-        player = Player.objects.create(
+        player = make_player(
             room=self.room,
             name="TestPlayer"
         )
@@ -163,7 +164,7 @@ class PlayerModelTestCase(TestCase):
 class TileModelTestCase(TestCase):
     def setUp(self):
         self.room = Room.objects.create(name="Test Room", code="4444")
-        self.player = Player.objects.create(
+        self.player = make_player(
             room=self.room,
             name="TestPlayer",
             is_spectator=False
@@ -256,7 +257,7 @@ class TileModelTestCase(TestCase):
 
     def test_tile_different_players_same_position(self):
         """Test that different players can have tiles in same position"""
-        player2 = Player.objects.create(
+        player2 = make_player(
             room=self.room,
             name="Player2",
             is_spectator=False
@@ -415,12 +416,12 @@ class VoteModelTestCase(TestCase):
             round_number=1,
             current_tile_genre=Tile.Genre.PHONK
         )
-        self.voter = Player.objects.create(
+        self.voter = make_player(
             room=self.room,
             name="Voter",
             is_spectator=True
         )
-        self.producer = Player.objects.create(
+        self.producer = make_player(
             room=self.room,
             name="Producer",
             is_spectator=False
@@ -495,13 +496,13 @@ class ModelRelationshipsTestCase(TestCase):
 
     def setUp(self):
         self.room = Room.objects.create(name="Test Room", code="8888")
-        self.host = Player.objects.create(
+        self.host = make_player(
             room=self.room,
             name="Host",
             is_host=True,
             is_spectator=False
         )
-        self.spectator = Player.objects.create(
+        self.spectator = make_player(
             room=self.room,
             name="Spectator",
             is_host=False,

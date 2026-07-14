@@ -4,6 +4,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from .models import Room, Player, Tile
 from django.conf import settings
+from game_engine.test_auth_helper import make_player
 
 class AudioUploadTest(TestCase):
     def setUp(self):
@@ -11,7 +12,7 @@ class AudioUploadTest(TestCase):
         # Create a room
         self.room = Room.objects.create(name='Test Room', status=Room.Status.PLAYING)
         # Create a player
-        self.player = Player.objects.create(name='Test Player', room=self.room)
+        self.player = make_player(name='Test Player', room=self.room)
         # Endpoint for play_tile action
         # Create a tile for this player
         self.tile = Tile.objects.create(
