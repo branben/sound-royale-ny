@@ -37,6 +37,15 @@ import { TestDriver } from "testdriverai/vitest/hooks";
 //     params (`secret=` / `player_secret=`), then paints a big, unmistakable
 //     PASS/FAIL banner into the DOM so AI vision can read a deterministic verdict.
 //
+// IMPORTANT — the WebSocket wrapper must not break the app:
+//   src/services/gameSocket.ts relies on the WebSocket *static* constants
+//   (WebSocket.OPEN etc.) for its readyState checks. A naive wrapper that only
+//   copies `.prototype` drops those statics, turning WebSocket.OPEN into
+//   `undefined` and breaking the very socket flow we want to exercise — which
+//   would make the test fail for the WRONG reason (broken probe, not a real
+//   leak). The probe below therefore copies every own static property (and the
+//   OPEN/CONNECTING/CLOSING/CLOSED constants explicitly) onto the wrapper.
+//
 // We then drive the REAL create-room flow (which performs the create-room API
 // call, navigates to /room/<code>, and opens the game WebSocket — i.e. it
 // exercises both exposure points) and assert the banner says the secret never
@@ -70,14 +79,22 @@ const ROOM_NAME = "SecProbe Room";
 // keys off of.
 const PROBE_SNIPPET =
   "(function(){if(window.__secretProbe)return 'already-installed';var urls=[],logs=[];" +
-  "var OW=window.WebSocket;window.WebSocket=function(u,p){try{urls.push(String(u));}catch(e){}return new OW(u,p);};" +
-  "window.WebSocket.prototype=OW.prototype;" +
+  // --- WebSocket wrapper (preserves statics so WebSocket.OPEN etc. still work) ---
+  "var OW=window.WebSocket;function TDW(u,p){try{urls.push(String(u));}catch(e){}return new OW(u,p);}" +
+  "TDW.prototype=OW.prototype;" +
+  "try{Object.getOwnPropertyNames(OW).forEach(function(k){if(['length','name','prototype','arguments','caller'].indexOf(k)===-1){try{TDW[k]=OW[k];}catch(e){}}});}catch(e){}" +
+  "TDW.CONNECTING=OW.CONNECTING;TDW.OPEN=OW.OPEN;TDW.CLOSING=OW.CLOSING;TDW.CLOSED=OW.CLOSED;" +
+  "window.WebSocket=TDW;" +
+  // --- fetch wrapper (captures string URLs and Request.url) ---
   "var OF=window.fetch;window.fetch=function(){try{var a=arguments[0];urls.push(String(a&&a.url?a.url:a));}catch(e){}return OF.apply(this,arguments);};" +
+  // --- XHR wrapper ---
   "var OX=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){try{urls.push(String(u));}catch(e){}return OX.apply(this,arguments);};" +
+  // --- console wrapper ---
   "['log','info','warn','error','debug'].forEach(function(k){var o=console[k];console[k]=function(){try{logs.push(Array.prototype.map.call(arguments,String).join(' '));}catch(e){}return o.apply(console,arguments);};});" +
+  // --- verdict + banner painter ---
   "window.__secretProbe={urls:urls,logs:logs,check:function(secret){" +
   "var hay=urls.concat(logs);" +
-  "var leaked=hay.some(function(s){return (secret&&s.indexOf(secret)!==-1)||/[?&](secret|player_secret)=/.test(s);});" +
+  "var leaked=hay.some(function(s){return (secret&&s.indexOf(secret)!==-1)||/[?&](secret|player_secret|discord_session_secret)=/.test(s);});" +
   "var d=document.getElementById('__secretProbeBanner')||document.createElement('div');" +
   "d.id='__secretProbeBanner';d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;padding:24px;font:700 28px/1.3 monospace;text-align:center;color:#fff;background:'+(leaked?'#b00020':'#0a7d2c');" +
   "d.textContent='SECRET LEAK PROBE: '+(leaked?'FAIL':'PASS')+' — urls='+urls.length+' logs='+logs.length;" +
@@ -162,8 +179,9 @@ describe("SEC-1 — player secret must never appear in any URL or console (issue
     );
     await consoleReadyAgain.click();
     // We don't know the freshly-minted secret value client-side here, so we let
-    // the probe scan for the structural query params (secret=/player_secret=)
-    // across all captured URLs and console lines and paint the banner.
+    // the probe scan for the structural query params (secret=/player_secret=/
+    // discord_session_secret=) across all captured URLs and console lines and
+    // paint the banner.
     await testdriver.type("window.__secretProbe.check()");
     await testdriver.pressKeys(["enter"]);
     await testdriver.wait(1500);
