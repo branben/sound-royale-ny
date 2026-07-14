@@ -26,3 +26,11 @@ DATABASES = {
         "PORT": os.environ.get("POSTGRES_PORT", "5432"),
     }
 }
+
+# Allow the Vite dev server (port 8081 in CI) to call the API on :8000.
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:8081",
+    "http://127.0.0.1:8081",
+    "http://localhost:8080",
+    "http://localhost:5173",
+]
