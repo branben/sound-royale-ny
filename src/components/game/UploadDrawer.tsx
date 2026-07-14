@@ -110,7 +110,11 @@ export function UploadDrawer({ isOpen, onClose, tile, onUpload }: UploadDrawerPr
       });
       const audioUrl = findAudioUrl(state);
       onUpload(audioUrl);
-      toast({ variant: 'default', title: 'Upload complete', description: `Uploaded "${selectedFile.name}"` });
+      toast({
+        variant: 'default',
+        title: 'Upload complete',
+        description: `Uploaded "${selectedFile.name}"`,
+      });
       reset();
       onClose();
     } catch (err) {
@@ -207,7 +211,9 @@ export function UploadDrawer({ isOpen, onClose, tile, onUpload }: UploadDrawerPr
                   <div className="text-center">
                     <p className="font-medium text-foreground">Drop your audio file here</p>
                     <p className="text-sm text-muted-foreground">or click to browse</p>
-                    <p className="mt-1 text-xs text-muted-foreground">MP3, WAV, or OGG · max 10MB</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      MP3, WAV, or OGG · max 10MB
+                    </p>
                   </div>
                 </div>
               )}
