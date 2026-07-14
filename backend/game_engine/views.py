@@ -615,13 +615,6 @@ class RoomViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
 
         player_name = serializer.validated_data.get("player_name", "Host")
-        plain_secret = new_player_secret()
-        player = Player.objects.create(
-            room=room, name=player_name, is_spectator=False, is_host=True,
-            player_secret=plain_secret,
-        )
-        # Generate JWT tokens for the host player
-        token_data = get_authenticated_player(player)
 
         # Create the Room + host Player + initial tiles in a single atomic
         # transaction so a failure at any step rolls back everything (no
@@ -659,6 +652,17 @@ class RoomViewSet(viewsets.ModelViewSet):
         discord_error = attach_discord_identity_from_session(player, request.data)
         if discord_error is not None:
             player.delete()
+            room.delete()
+            return discord_error
+
+        response_data = {
+            "room_code": room.code,
+            "player_id": str(player.id),
+            "player_secret": str(player.player_secret),
+            "access_token": token_data["access_token"],
+            "refresh_token": token_data["refresh_token"],
+        }
+        return Response(response_data, status=status.HTTP_201_CREATED)
             room.delete()
             return discord_error
 
