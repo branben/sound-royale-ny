@@ -198,6 +198,41 @@ function extractErrorLogPayload(code) {
   return code.slice(braceStart); // unbalanced; return the rest defensively
 }
 
+/**
+ * Return the body of the WebSocket `onopen` handler assignment
+ * (`this.ws.onopen = () => { ... }` / `ws.onopen = function () { ... }`), or
+ * null if none is found. Brace-matched from the first `{` after the `onopen`
+ * assignment so nested blocks (if/try) are captured intact.
+ *
+ * Why this exists: the "sends the secret as the first post-handshake message"
+ * contract is only satisfied if the auth-sending step is actually INVOKED when
+ * the socket opens. A regex that merely finds `sendAuthMessage(` anywhere in
+ * the file also matches the method *definition* — so it would keep passing even
+ * if the `onopen` call were deleted, i.e. the regression SEC-1 explicitly warns
+ * about ("stop sending it post-handshake, silently breaking auth"). Isolating
+ * the onopen body lets us assert the call lives there, not just that the method
+ * exists somewhere.
+ */
+function extractOnOpenHandlerBody(code) {
+  // Match `onopen` on the left of an assignment, e.g. `this.ws.onopen = () =>`
+  // or `ws.onopen = function ...`. We anchor on the assignment so a stray
+  // `onopen` reference elsewhere doesn't fool us.
+  const anchor = code.search(/\bonopen\s*=/);
+  if (anchor === -1) return null;
+  const braceStart = code.indexOf('{', anchor);
+  if (braceStart === -1) return null;
+  let depth = 0;
+  for (let i = braceStart; i < code.length; i++) {
+    const ch = code[i];
+    if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) return code.slice(braceStart, i + 1);
+    }
+  }
+  return code.slice(braceStart); // unbalanced; return the rest defensively
+}
+
 function findConsoleLeaks({ name, source }) {
   const code = stripComments(source);
   const leaks = [];
@@ -431,12 +466,32 @@ describe('SEC-1: the WebSocket auth credential moves to the first message, not t
       "the 'auth' frame must carry the credential (player_secret or token) in its body",
     ).toBe(true);
 
-    // The credential is sent from the socket's onopen path (post-handshake),
-    // not before connect. We pin that a dedicated auth-sending step exists and
-    // is invoked when the socket opens.
+    // A dedicated auth-sending step must exist (the method that emits the
+    // credential frame).
     expect(
       /sendAuthMessage\s*\(/.test(code),
-      'expected a sendAuthMessage() step that emits the credential after onopen',
+      'expected a sendAuthMessage() step that emits the credential',
+    ).toBe(true);
+
+    // ...and — crucially — it must actually be INVOKED from the socket's
+    // `onopen` handler, i.e. AFTER the handshake completes. Merely defining the
+    // method is not enough: the whole point of SEC-1 is that the credential is
+    // still transmitted, on the first post-handshake message. A regression that
+    // deletes the onopen call (silently breaking auth, exactly the failure mode
+    // this PR claims to guard against) would slip past a "does the method exist
+    // anywhere" check. So we isolate the onopen handler body and require the
+    // call to live inside it. The auth send must also come AFTER onConnect /
+    // any queue drain so it's genuinely a post-handshake message.
+    const onOpenBody = extractOnOpenHandlerBody(code);
+    expect(
+      onOpenBody,
+      'expected an assignable WebSocket `onopen = () => { ... }` handler on the socket',
+    ).toBeTruthy();
+    expect(
+      /sendAuthMessage\s*\(/.test(onOpenBody ?? ''),
+      "sendAuthMessage() must be CALLED from the socket's `onopen` handler so the " +
+        'credential is sent as the first post-handshake message (not merely defined). ' +
+        'A regression that drops this call would silently stop authenticating.',
     ).toBe(true);
   });
 });
