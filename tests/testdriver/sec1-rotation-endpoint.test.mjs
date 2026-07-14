@@ -35,6 +35,20 @@ import { TestDriver } from "testdriverai/vitest/hooks";
 // comparison. The `rotate()` helper below THROWS on any non-2xx response (with
 // the status code in the message), so the happy path uses `.resolves` and the
 // rejection paths assert on the exact status via `.rejects.toThrow(/404/)`.
+//
+// SEC-1 (#105) guard: this feature keys the rotation route off the current
+// secret in the URL PATH, but the endpoint MUST NOT treat mere possession of
+// that URL as authorization — SEC-1 requires the credential to be verified
+// from the request body (Authorization header / POST body), never the URL
+// alone. Step F below asserts exactly that: a request carrying a VALID url
+// secret but NO body secret is rejected (403), proving the body — not the URL —
+// is the credential that authorizes the rotation.
+//
+// NOTE (scope): moving the current secret OUT of the URL path entirely is an
+// application-code change to the endpoint's routing/lookup (views.py) and is
+// out of scope for this test-only PR. The URL-transport leak vector for the
+// rest of the client is covered separately by
+// tests/testdriver/sec1-player-secret-not-in-url.test.mjs.
 // ---------------------------------------------------------------------------
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -215,6 +229,16 @@ describe("SEC-1 (#105) — player_secret hashing at rest + rotation endpoint", (
     // rejected with 403. TST-2: framework rejection assertion.
     await expect(
       rotate({ urlSecret: newSecret, bodySecret: "totally-wrong-secret" }),
+    ).rejects.toThrow(/HTTP 403/);
+
+    // --- Step F: SEC-1 (#105) — the URL secret ALONE must not authorize a ----
+    // rotation. A request that carries a VALID url secret but supplies NO
+    // body secret is rejected (403): authorization is driven by the credential
+    // in the request BODY, not by mere possession of the URL. This is the
+    // property SEC-1 protects for this endpoint (see the header note). TST-2:
+    // framework rejection assertion.
+    await expect(
+      rotate({ urlSecret: newSecret, bodySecret: "" }),
     ).rejects.toThrow(/HTTP 403/);
   });
 });
