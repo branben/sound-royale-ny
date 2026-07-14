@@ -1,6 +1,15 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { http, HttpResponse, delay } from 'msw';
 import { setupServer } from 'msw/node';
+
+// Mock the toast so we can assert a failed API call surfaces a user-visible
+// toast instead of failing silently.
+const toastMock = vi.fn();
+vi.mock('@/hooks/use-toast', () => ({
+  toast: (...args: unknown[]) => toastMock(...args),
+  useToast: () => ({ toast: toastMock, toasts: [], dismiss: vi.fn() }),
+}));
+
 import { roomApi, gameApi, discordApi, leaderboardApi, normalizeRoomWinner } from '../api';
 import type {
   BackendPlayer,
@@ -1366,5 +1375,97 @@ describe('transformPlayer (via API responses)', () => {
 
     const player = await gameApi.joinRoom('ROOM1', 'Test');
     expect(player.board.tiles).toEqual([]);
+  });
+});
+
+// ============================================================================
+// User-visible error handling (AC: a failed API call triggers a toast, not a
+// silent failure)
+// ============================================================================
+
+describe('user-visible error surfacing', () => {
+  beforeEach(() => {
+    toastMock.mockClear();
+  });
+
+  it('toasts a destructive error when a 5xx API call fails', async () => {
+    server.use(
+      http.get(
+        `${API_BASE}/rooms/SERVERDOWN/stats/`,
+        () =>
+          new HttpResponse(JSON.stringify({ error: 'Database unavailable' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+      ),
+    );
+
+    await expect(roomApi.getRoomStats('SERVERDOWN')).rejects.toThrow();
+
+    expect(toastMock).toHaveBeenCalledTimes(1);
+    const toastArg = toastMock.mock.calls[0][0] as {
+      variant?: string;
+      title?: string;
+      description?: string;
+    };
+    expect(toastArg.variant).toBe('destructive');
+    expect(toastArg.title).toBeTruthy();
+    expect(toastArg.description).toContain('Database unavailable');
+  });
+
+  it('toasts a destructive error when rejoin fails', async () => {
+    server.use(
+      http.post(
+        `${API_BASE}/rooms/ROOM1/rejoin_game/`,
+        () =>
+          new HttpResponse(JSON.stringify({ error: 'Invalid secret' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+      ),
+    );
+
+    // rejoinRoom swallows the error and returns null, but MUST still toast.
+    const result = await gameApi.rejoinRoom('ROOM1', 'bad-secret');
+    expect(result).toBeNull();
+
+    expect(toastMock).toHaveBeenCalledTimes(1);
+    const toastArg = toastMock.mock.calls[0][0] as {
+      variant?: string;
+      title?: string;
+    };
+    expect(toastArg.variant).toBe('destructive');
+    expect(toastArg.title).toBeTruthy();
+  });
+
+  it('toasts a destructive error on a network failure (no response)', async () => {
+    server.use(
+      http.get(`${API_BASE}/rooms/`, () => {
+        return HttpResponse.error();
+      }),
+    );
+
+    await expect(roomApi.getRooms()).rejects.toThrow();
+
+    expect(toastMock).toHaveBeenCalled();
+    const toastArg = toastMock.mock.calls[0][0] as { variant?: string };
+    expect(toastArg.variant).toBe('destructive');
+  });
+
+  it('does NOT toast on a 401 (handled silently by the refresh flow)', async () => {
+    server.use(
+      http.post(
+        `${API_BASE}/rooms/ROOM1/join_game/`,
+        () =>
+          new HttpResponse(JSON.stringify({ error: 'Unauthorized' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+      ),
+    );
+
+    await expect(gameApi.joinRoom('ROOM1', 'Test')).rejects.toThrow();
+
+    expect(toastMock).not.toHaveBeenCalled();
   });
 });

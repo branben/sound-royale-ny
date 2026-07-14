@@ -11,6 +11,8 @@ from .auth import _resolve_player, _resolve_player_from_token
 
 # Audit logger for security-relevant events
 audit_logger = logging.getLogger("game_audit")
+# Operational logger for runtime/DB errors (previously swallowed by bare excepts)
+logger = logging.getLogger(__name__)
 
 # Seconds to wait for a post-handshake auth message before closing (#105).
 AUTH_TIMEOUT_SECONDS = 10
@@ -269,7 +271,10 @@ class GameConsumer(AsyncWebsocketConsumer):
         try:
             Player.objects.filter(id=player_id).update(is_connected=is_connected)
         except Exception:
-            pass
+            # Previously swallowed. Log it and re-raise so the disconnect path
+            # can surface the failure instead of silently corrupting presence.
+            logger.exception("set_player_connected failed for player %s", player_id)
+            raise
 
     @database_sync_to_async
     def get_game_state(self):
@@ -327,7 +332,10 @@ class GameConsumer(AsyncWebsocketConsumer):
                 new_host.save(update_fields=["is_host"])
                 return new_host
         except Exception:
-            return None
+            # Previously swallowed and returned None silently. Log it and
+            # re-raise so the disconnect/host-migration path sees the failure.
+            logger.exception("promote_new_host failed for room %s", self.game_id)
+            raise
 
     @database_sync_to_async
     def get_player_presence_payload(self, player_id):

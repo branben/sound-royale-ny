@@ -25,6 +25,13 @@ CHANNEL_LAYERS = {
 SECURE_SSL_REDIRECT = False
 SECURE_HSTS_SECONDS = 0
 
+# APPEND_SLASH (Django default True) 301-redirects any request to a URL without
+# a trailing slash, which masks the real status code and breaks status
+# assertions across the suite (e.g. `AssertionError: 301 != 200`). Disabling it
+# in the test settings makes a missing trailing slash return its real status
+# instead of a redirect. Test-only — production keeps the redirect.
+APPEND_SLASH = False
+
 # Use SQLite for CI tests
 DATABASES = {
     "default": {

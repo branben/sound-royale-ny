@@ -12,6 +12,7 @@ import { mockGameState } from '@/data/mockGameState';
 import { normalizeRoomWinner, roomApi, getStoredAccessToken } from '@/services/api';
 import gameSocket, { GameSocketMessage } from '@/services/gameSocket';
 import { ReconnectingBanner } from '@/components/game/ReconnectingBanner';
+import { ConnectionErrorBanner } from '@/components/game/ConnectionErrorBanner';
 import { useUser } from './UserContext';
 
 // ---------------------------------------------------------------------------
@@ -155,6 +156,9 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
   const [error, setError] = useState<string | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [isReconnecting, setIsReconnecting] = useState(false);
+  // Persistent, non-dismissable banner shown when the WS errors out (replaces
+  // the old console-only behavior). Cleared on successful reconnect.
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   const isMounted = useRef(true);
 
@@ -370,13 +374,25 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
         // On (re)connect, re-fetch full game state from the backend and REPLACE
         // the local state so we recover from any state lost during the outage.
         await refreshRoomState();
-        if (isMounted.current) setIsReconnecting(false);
+        if (isMounted.current) {
+          setIsReconnecting(false);
+          setConnectionError(null);
+        }
       },
       onDisconnect: () => {
         // Show the reconnecting banner during the disconnect→reconnect window.
         if (isMounted.current) setIsReconnecting(true);
       },
-      onError: (error) => console.error('[GameContext] WebSocket error:', error),
+      onError: (error) => {
+        console.error('[GameContext] WebSocket error:', error);
+        // Surface the WS failure to the user via a persistent banner instead of
+        // only logging to console.
+        if (isMounted.current) {
+          setConnectionError(
+            'Connection problem — game updates may be delayed. Trying to reconnect…',
+          );
+        }
+      },
     });
 
     return () => {
@@ -514,6 +530,7 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
           <GameContext.Provider value={legacyValue}>
             {children}
             <ReconnectingBanner isVisible={isReconnecting} />
+            <ConnectionErrorBanner message={connectionError} />
           </GameContext.Provider>
         </GameActionsContext.Provider>
       </GameTimerContext.Provider>
