@@ -1824,10 +1824,6 @@ class TileViewSet(viewsets.ModelViewSet):
             "audio/wav",
             "audio/x-wav",
             "audio/ogg",
-            "audio/flac",
-            "audio/mp4",
-            "audio/x-m4a",
-            "audio/aac",
         }
         audio_file = request.FILES.get("audio_file")
         if not audio_file:
@@ -1843,7 +1839,7 @@ class TileViewSet(viewsets.ModelViewSet):
                 )
             if audio_file.content_type not in ALLOWED_AUDIO_MIME_TYPES:
                 return Response(
-                    {"error": f"Invalid file type '{audio_file.content_type}'. Allowed types: mp3, wav, ogg, flac, m4a, aac."},
+                    {"error": f"Invalid file type '{audio_file.content_type}'. Allowed types: mp3, wav, ogg."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -2199,10 +2195,6 @@ def upload_audio(request, tile_id):
         "audio/wav",
         "audio/x-wav",
         "audio/ogg",
-        "audio/flac",
-        "audio/mp4",
-        "audio/x-m4a",
-        "audio/aac",
     }
     if audio_file.size > settings.MAX_UPLOAD_SIZE:
         return Response(

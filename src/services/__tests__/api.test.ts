@@ -1040,12 +1040,16 @@ describe('discordApi', () => {
   // getAccountStatus
   // -----------------------------------------------------------------------
   describe('getAccountStatus', () => {
-    it('sends player_id and player_secret as query params', async () => {
+    it('sends player_id and player_secret in the POST body (not the URL)', async () => {
       server.use(
-        http.get(`${API_BASE}/auth/discord/status/`, ({ request }) => {
-          const url = new URL(request.url);
-          expect(url.searchParams.get('player_id')).toBe('player-1');
-          expect(url.searchParams.get('player_secret')).toBe('secret');
+        http.post(`${API_BASE}/auth/discord/status/`, async ({ request }) => {
+          expect(request.method).toBe('POST');
+          const body = (await request.json()) as {
+            player_id: string;
+            player_secret: string;
+          };
+          expect(body.player_id).toBe('player-1');
+          expect(body.player_secret).toBe('secret');
           return HttpResponse.json({
             is_linked: true,
             discord_user_id: 'discord-123',
@@ -1062,7 +1066,9 @@ describe('discordApi', () => {
 
     it('returns is_linked: false when not linked', async () => {
       server.use(
-        http.get(`${API_BASE}/auth/discord/status/`, () => HttpResponse.json({ is_linked: false })),
+        http.post(`${API_BASE}/auth/discord/status/`, () =>
+          HttpResponse.json({ is_linked: false }),
+        ),
       );
 
       const result = await discordApi.getAccountStatus('player-1', 'secret');
@@ -1074,12 +1080,16 @@ describe('discordApi', () => {
   // getAccountStatusBySession
   // -----------------------------------------------------------------------
   describe('getAccountStatusBySession', () => {
-    it('sends discord_user_id and session secret as query params', async () => {
+    it('sends discord_user_id and session secret in the POST body (not the URL)', async () => {
       server.use(
-        http.get(`${API_BASE}/auth/discord/status/`, ({ request }) => {
-          const url = new URL(request.url);
-          expect(url.searchParams.get('discord_user_id')).toBe('discord-456');
-          expect(url.searchParams.get('discord_session_secret')).toBe('sess-secret');
+        http.post(`${API_BASE}/auth/discord/status/`, async ({ request }) => {
+          expect(request.method).toBe('POST');
+          const body = (await request.json()) as {
+            discord_user_id: string;
+            discord_session_secret: string;
+          };
+          expect(body.discord_user_id).toBe('discord-456');
+          expect(body.discord_session_secret).toBe('sess-secret');
           return HttpResponse.json({
             is_linked: true,
             discord_user_id: 'discord-456',
