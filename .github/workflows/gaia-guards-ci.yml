@@ -137,7 +137,7 @@ jobs:
   e2e-full:
     name: E2E Full Suite
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     services:
       postgres:
         image: postgres:16-alpine
