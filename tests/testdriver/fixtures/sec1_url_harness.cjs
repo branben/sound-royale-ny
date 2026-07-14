@@ -33,9 +33,13 @@
  *   Exit code: 0 when no leak (ok=true), 1 when the secret leaks (ok=false),
  *   2 when the harness could not locate the code under test.
  *
- * Usage:
- *   SEC1_GAMESOCKET_TS=/tmp/gameSocket.ts SEC1_API_TS=/tmp/api.ts \
- *     node sec1_url_harness.cjs
+ * Usage (this is exactly what the TestDriver gate's runUrlHarness() does):
+ *   SEC1_GAMESOCKET_TS=src/services/gameSocket.ts \
+ *   SEC1_API_TS=src/services/api.ts \
+ *     node tests/testdriver/fixtures/sec1_url_harness.cjs
+ *
+ * Consumed by tests/testdriver/sec1-player-secret-not-in-url.test.mjs, which
+ * spawns this file and asserts on the parsed SEC1_RESULT.
  */
 
 const fs = require('fs');

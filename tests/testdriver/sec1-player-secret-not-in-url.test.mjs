@@ -1,4 +1,5 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -119,6 +120,57 @@ const SERVICE_SOURCES = readdirSync(servicesDir)
     name: `services/${name}`,
     source: readFileSync(join(servicesDir, name), 'utf8'),
   }));
+
+// --- Live URL-construction harness -----------------------------------------
+// The static regex scans above prove no *source* spells a secret into a URL.
+// This harness proves the same thing BEHAVIOURALLY: it runs the REAL
+// `getWsUrl()` (gameSocket.ts) and `getAccountStatus` (api.ts) URL-building
+// code with a unique canary secret and inspects the URLs they actually
+// produce. That catches a leak the regexes might miss (e.g. a secret appended
+// by helper logic rather than a literal `?secret=`), and it fails loudly if
+// the code under test was refactored out from under it (exit code 2) so a
+// green result can never mean "the check silently didn't run".
+const HARNESS = join(__dirname, 'fixtures', 'sec1_url_harness.cjs');
+const GAMESOCKET_TS = join(servicesDir, 'gameSocket.ts');
+const API_TS = join(servicesDir, 'api.ts');
+
+/**
+ * Run the harness against the real service sources and return its parsed
+ * `SEC1_RESULT` JSON. Throws if the harness could not locate the code under
+ * test (exit 2) so an unreadable/refactored source is a hard error, not a pass.
+ */
+function runUrlHarness() {
+  let stdout;
+  let exitCode = 0;
+  try {
+    stdout = execFileSync('node', [HARNESS], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        SEC1_GAMESOCKET_TS: GAMESOCKET_TS,
+        SEC1_API_TS: API_TS,
+      },
+    });
+  } catch (err) {
+    // Non-zero exit (1 = leak found, 2 = harness could not run) still writes
+    // SEC1_RESULT to stdout before exiting; capture it.
+    exitCode = typeof err.status === 'number' ? err.status : 1;
+    stdout = (err.stdout || '').toString();
+  }
+  const line = stdout.split('\n').find((l) => l.startsWith('SEC1_RESULT='));
+  if (!line) {
+    throw new Error(`harness produced no SEC1_RESULT line (exit ${exitCode}). stdout:\n${stdout}`);
+  }
+  const result = JSON.parse(line.slice('SEC1_RESULT='.length));
+  if (exitCode === 2 || result.error) {
+    throw new Error(
+      `SEC-1 harness could not locate the code under test: ${result.error || 'unknown'}. ` +
+        'The URL-building logic in gameSocket.ts / api.ts was likely refactored; ' +
+        'update fixtures/sec1_url_harness.cjs so this gate keeps running.',
+    );
+  }
+  return result;
+}
 
 // --- URL leak patterns -----------------------------------------------------
 // Case-insensitive so we catch both the frontend camelCase (`playerSecret`)
@@ -322,6 +374,28 @@ describe('SEC-1: player secret must never travel in a URL or console string (#10
           'credential (or a URL/string that embeds one). Redact it before ' +
           'logging.\n' +
           leaks.join('\n'),
+      ).toEqual([]);
+    },
+  );
+
+  it.fails(
+    'KNOWN-RED until SEC-1 lands: the real URL-builders emit no secret in their URLs (behavioural)',
+    () => {
+      // Behavioural counterpart to the static scans: execute the actual
+      // getWsUrl() / getAccountStatus URL construction with a canary secret and
+      // assert the canary is absent from every URL the app builds. Today the WS
+      // URL sets `?secret=<canary>` and the discord-status path interpolates
+      // `?player_secret=<canary>`, so `leaks` is non-empty and this fails
+      // (expected). Once SEC-1 moves the credential out of the URL, the builders
+      // produce clean URLs, `leaks` is empty, and this flips green.
+      const result = runUrlHarness();
+      expect(
+        result.leaks,
+        'The real URL-building code emitted the player secret into a URL. ' +
+          'URLs checked:\n' +
+          result.checked.map((c) => `  - ${c.where}: ${c.url}`).join('\n') +
+          '\nMove the credential to the Authorization header / POST body / first ' +
+          'WebSocket message so it never appears in a URL.',
       ).toEqual([]);
     },
   );
