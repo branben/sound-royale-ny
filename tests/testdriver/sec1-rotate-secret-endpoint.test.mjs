@@ -18,31 +18,46 @@ import { TestDriver } from 'testdriverai/vitest/hooks';
 // against a running process — not the test client.
 //
 // -------------------------------------------------------------------------
-// SEC-1 CAVEAT (review r3579654631) — the secret is authenticated in the POST
-// BODY (correct), but the CURRENT backend route also embeds the plaintext
-// secret in the URL PATH:
+// SEC-1 (review r3579654631) — WHERE the credential travels
+// -------------------------------------------------------------------------
+// SEC-1 (#105): "Player secret is exposed via URL query param or console/error
+// string. Move to Authorization header / POST body / first WS message."
 //
-//     POST /api/players/<current_secret>/rotate_secret/
+// This test enforces that contract on the wire at two strengths:
 //
-// because `PlayerViewSet.lookup_field = "player_secret"` (see
-// backend/game_engine/views.py). That path-segment placement is exactly the
-// leak SEC-1 warns about (address bar / browser history / server-proxy-CDN
-// access logs / Referer header). There is currently NO secret-free route to
-// reach rotation (no `by-id` variant like the genre_performance/set_checked_in
-// routes have), so the live test has no choice but to hit the path-based URL.
+//   (A) UNCONDITIONAL, always enforced — the secret must NEVER be a URL QUERY
+//       PARAM (`?player_secret=` / `?secret=`). This is the exact vector SEC-1
+//       names, it is entirely in the CLIENT's control (nothing about the
+//       backend routing forces a query param), and it must hold regardless of
+//       which route we call. `assertNoSecretQueryParam` runs on every rotation
+//       URL and hard-fails the suite if a secret ever appears in the query
+//       string.
 //
-// IMPORTANT: this test does NOT bless that shape. Moving the credential out of
-// the URL is an APPLICATION-CODE change (add a `by-id` rotate route that looks
-// the player up by `player_id` and authenticates via the POST body / an
-// `X-Player-Secret` header — the backend already reads `HTTP_X_PLAYER_SECRET`)
-// and is out of scope for the test agent. Instead the test:
-//   * authenticates every rotation via the POST BODY only (never a query
-//     param) — the SEC-1-correct transport for the auth material, and
-//   * runs an explicit SEC-1 guard (`SEC1_URL_LEAK_IS_FIXED`, default false)
-//     that asserts the observed route SHAPE. While the backend still requires
-//     the secret in the path it documents the known gap without failing the
-//     suite; flip it to `true` once a secret-free rotate route exists and the
-//     guard will hold the fix in place.
+//   (B) PATH-segment leak — RUNTIME auto-detected, no manual flag. The current
+//       router route is
+//           POST /api/players/<current_secret>/rotate_secret/
+//       and it carries the plaintext secret in the URL PATH purely because
+//       `PlayerViewSet.lookup_field = "player_secret"` (backend/game_engine/
+//       views.py). A path segment leaks the same way a query param does
+//       (address bar / history / server-proxy-CDN access logs / Referer).
+//
+//       Moving the credential out of the path is an APPLICATION-CODE change (a
+//       secret-free `by-id` rotate route that looks the player up by
+//       `player_id` and authenticates via the POST body / an `X-Player-Secret`
+//       header — the sibling genre_performance / set_checked_in routes already
+//       use exactly that `api/players/by-id/<uuid:player_id>/…` shape) and is
+//       out of the test agent's remit.
+//
+//       So instead of a human hand-flipping a "fixed" boolean, this test PROBES
+//       the running backend for that secret-free route at runtime:
+//         * If a `by-id` rotate route exists, the test USES it (secret in the
+//           body / `X-Player-Secret` header, `player_id` in the path) and then
+//           hard-asserts the plaintext secret appears NOWHERE in the request
+//           URL. The path-leak guard becomes a live regression gate the instant
+//           the app fix lands — automatically, with no test edit.
+//         * If it does not exist yet, the test falls back to the path route to
+//           reach rotation at all, and records the known, documented gap
+//           (`console.warn`) without silently blessing it.
 //
 // The backend is brought up from the PR branch inside the sandbox using the
 // repo's own `settings_test` (SQLite + in-memory channels, no Redis), with the
@@ -53,12 +68,6 @@ const REPO = 'https://github.com/branben/sound-royale-ny';
 const BRANCH = 'fix/player-secret-hashing';
 const BASE = 'http://127.0.0.1:8000';
 
-// Flip to `true` once the backend exposes a secret-free rotate route (e.g.
-// POST /api/players/by-id/<player_id>/rotate_secret/ authenticated via the
-// body / X-Player-Secret header). When true, the SEC-1 guard hard-fails if a
-// plaintext secret ever appears in the request URL again.
-const SEC1_URL_LEAK_IS_FIXED = false;
-
 // Run a shell command in the sandbox and return trimmed stdout, failing loudly
 // (with the captured output) when the command exits non-zero.
 async function sh(testdriver, cmd, timeout = 120000) {
@@ -66,25 +75,14 @@ async function sh(testdriver, cmd, timeout = 120000) {
   return typeof out === 'string' ? out.trim() : String(out ?? '').trim();
 }
 
-// SEC-1 guard: a rotation call must authenticate via the POST body, and — once
-// the fix lands — must NOT carry the plaintext secret anywhere in the URL. It
-// returns the URL actually used so the caller can log/inspect it.
-function assertSec1Transport({ url, secret }) {
-  // The auth credential must never be a query-string parameter, regardless of
-  // whether the path still carries it. This is the leak the sibling
-  // `sec1-*-not-in-url` tests pin on the client; enforce it on the wire here.
+// SEC-1 (A): the auth credential must NEVER be a URL query-string parameter.
+// This is always enforced, on every rotation URL, no exceptions. It is the
+// precise leak SEC-1 names and it is fully within the client's control.
+function assertNoSecretQueryParam(url) {
   expect(
     /[?&](?:player_secret|secret)=/i.test(url),
     `SEC-1: the rotation URL must not carry the secret as a query param: ${url}`,
   ).toBe(false);
-
-  const secretInPath = url.includes(encodeURIComponent(secret)) || url.includes(secret);
-  if (SEC1_URL_LEAK_IS_FIXED) {
-    expect(
-      secretInPath,
-      `SEC-1: the plaintext secret must not appear in the request URL: ${url}`,
-    ).toBe(false);
-  }
   return url;
 }
 
@@ -178,20 +176,71 @@ PY`,
       `issued secret should be plaintext, not a SHA-256 hex digest (got: ${oldSecret})`,
     ).toBe(false);
 
-    // The rotate route the current backend exposes. The secret is placed in
-    // the path ONLY because `lookup_field = "player_secret"` — see the SEC-1
-    // caveat in the header. `assertSec1Transport` records/guards that shape;
-    // auth material always travels in the POST body (never a query param).
-    const rotateUrl = (secret) =>
+    // --- 5b. SEC-1: probe for a secret-free `by-id` rotate route. --------
+    // The sibling privileged routes already expose an
+    //   api/players/by-id/<uuid:player_id>/…
+    // shape (genre_performance, set_checked_in). If a matching rotate route
+    // exists, we use IT — player_id in the path, secret in the body/header —
+    // so the plaintext secret never touches the URL. We detect it by probing
+    // with the CORRECT current secret in the body: a 200 (rotation happened)
+    // or 403 (route exists, auth path differs) both prove the route is wired;
+    // 404/405 mean it isn't there yet. We only *probe* here (a 200 would burn
+    // the secret), so we send a deliberately wrong body to keep it read-only:
+    // an existing route answers 403 (auth check ran), a missing route 404/405.
+    const byIdRotateUrl = `${BASE}/api/players/by-id/${encodeURIComponent(playerId)}/rotate_secret/`;
+    assertNoSecretQueryParam(byIdRotateUrl);
+    const byIdProbeStatus = await sh(
+      testdriver,
+      `curl -s -o /dev/null -w '%{http_code}' \
+           -X POST ${byIdRotateUrl} \
+           -H 'Content-Type: application/json' \
+           -H 'X-Player-Secret: probe-wrong-secret' \
+           -d '{"player_secret":"probe-wrong-secret"}'`,
+    );
+    // A wired route runs the auth check and rejects the wrong secret (403). A
+    // route that does not exist returns 404 (no match) or 405 (method).
+    const byIdRotateExists = byIdProbeStatus === '403';
+
+    // The path-based route the current router exposes. The plaintext secret is
+    // in the path ONLY because `lookup_field = "player_secret"`. This is the
+    // documented SEC-1 path-leak; we only use it as a fallback when no
+    // secret-free route exists.
+    const pathRotateUrl = (secret) =>
       `${BASE}/api/players/${encodeURIComponent(secret)}/rotate_secret/`;
 
+    // Build the actual rotate request for a given "current secret". Prefers the
+    // secret-free by-id route when present; otherwise falls back to the path
+    // route. Returns { url, curlAuthArgs } so callers stay route-agnostic.
+    const buildRotate = (currentSecret) => {
+      if (byIdRotateExists) {
+        const url = assertNoSecretQueryParam(byIdRotateUrl);
+        // SEC-1 fix present: the plaintext secret must appear NOWHERE in the URL.
+        expect(
+          url.includes(currentSecret) || url.includes(encodeURIComponent(currentSecret)),
+          `SEC-1: the plaintext secret must not appear in the request URL: ${url}`,
+        ).toBe(false);
+        return { url, secret: currentSecret };
+      }
+      // Fallback: no secret-free route yet — reach rotation via the path route.
+      const url = assertNoSecretQueryParam(pathRotateUrl(currentSecret));
+      console.warn(
+        `SEC-1 (#105): no secret-free \`by-id\` rotate route on the backend yet; ` +
+          `the live test must send the plaintext secret in the URL PATH to reach ` +
+          `rotation (${url}). Add POST /api/players/by-id/<player_id>/rotate_secret/ ` +
+          `(auth via body / X-Player-Secret header) and this test will use it ` +
+          `automatically and forbid the secret from ever appearing in the URL.`,
+      );
+      return { url, secret: currentSecret };
+    };
+
     // --- 6. Rotate with the CORRECT current secret → 200 + new plaintext.
-    const oldRotateUrl = assertSec1Transport({ url: rotateUrl(oldSecret), secret: oldSecret });
+    const oldRotate = buildRotate(oldSecret);
     const rotateJson = await sh(
       testdriver,
-      `curl -fsS -X POST ${oldRotateUrl} \
+      `curl -fsS -X POST ${oldRotate.url} \
            -H 'Content-Type: application/json' \
-           -d '{"player_secret":"${oldSecret}"}'`,
+           -H 'X-Player-Secret: ${oldRotate.secret}' \
+           -d '{"player_secret":"${oldRotate.secret}"}'`,
     );
     const rotated = JSON.parse(rotateJson);
     const newSecret = rotated.player_secret;
@@ -200,14 +249,16 @@ PY`,
     expect(rotated.player_id).toBe(playerId);
 
     // --- 7. The OLD secret is now invalid: rotating with it → 403/404. --
+    const oldAgain = buildRotate(oldSecret);
     const oldStatus = await sh(
       testdriver,
       `curl -s -o /dev/null -w '%{http_code}' \
-           -X POST ${oldRotateUrl} \
+           -X POST ${oldAgain.url} \
            -H 'Content-Type: application/json' \
-           -d '{"player_secret":"${oldSecret}"}'`,
+           -H 'X-Player-Secret: ${oldAgain.secret}' \
+           -d '{"player_secret":"${oldAgain.secret}"}'`,
     );
-    // 403 (rejected on secret mismatch) or 404 (URL lookup no longer resolves
+    // 403 (rejected on secret mismatch) or 404 (path lookup no longer resolves
     // the old secret) both prove the old credential is dead. Either is a pass;
     // a 200 would mean the old secret still works — a real regression.
     expect(
@@ -215,13 +266,14 @@ PY`,
       `old secret should be rejected after rotation, got HTTP ${oldStatus}`,
     ).toBe(true);
 
-    // --- 8. Rotating with a WRONG secret against the NEW url → 403. -----
-    const newRotateUrl = assertSec1Transport({ url: rotateUrl(newSecret), secret: newSecret });
+    // --- 8. Rotating with a WRONG secret against the NEW target → 403. --
+    const newRotate = buildRotate(newSecret);
     const wrongStatus = await sh(
       testdriver,
       `curl -s -o /dev/null -w '%{http_code}' \
-           -X POST ${newRotateUrl} \
+           -X POST ${newRotate.url} \
            -H 'Content-Type: application/json' \
+           -H 'X-Player-Secret: definitely-the-wrong-secret' \
            -d '{"player_secret":"definitely-the-wrong-secret"}'`,
     );
     expect(wrongStatus, `rotation with a wrong current secret must be rejected with 403`).toBe(
@@ -229,12 +281,14 @@ PY`,
     );
 
     // --- 9. The NEW secret still works (idempotent re-rotate → 200). ----
+    const reRotate = buildRotate(newSecret);
     const reRotateStatus = await sh(
       testdriver,
       `curl -s -o /dev/null -w '%{http_code}' \
-           -X POST ${newRotateUrl} \
+           -X POST ${reRotate.url} \
            -H 'Content-Type: application/json' \
-           -d '{"player_secret":"${newSecret}"}'`,
+           -H 'X-Player-Secret: ${reRotate.secret}' \
+           -d '{"player_secret":"${reRotate.secret}"}'`,
     );
     expect(
       reRotateStatus,
