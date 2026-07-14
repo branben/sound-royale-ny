@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, waitFor, act } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GameProvider } from '../GameContext';
 import { useUser } from '../UserContext';
 import type { GameSocketMessage } from '@/services/gameSocket';
