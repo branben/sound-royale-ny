@@ -6,6 +6,15 @@ REAL security-critical code from the repo end-to-end inside the TestDriver
 sandbox, without dragging in the whole ``game_engine`` app (whose ``Player``
 model is entangled with Room / DiscordAccount / auth.User foreign keys).
 
+TRANSPORT CONTRACT (SEC-1 #105)
+-------------------------------
+The plaintext ``player_secret`` MUST NOT travel in a URL. This harness mirrors
+the repo's real ``PlayerViewSet`` routes exactly: endpoints are addressed by the
+player's opaque ``pk`` in the URL, and the plaintext secret is presented in the
+POST body (``request.data['player_secret']``) — never as a path/query segment.
+Keeping the harness faithful to that contract means the at-rest test does not
+model the very anti-pattern the sibling ``sec1-*-not-in-url`` tests forbid.
+
 What is REAL (loaded from the repo, never re-implemented here):
 
   * ``backend/game_engine/security.py`` — ``hash_secret`` / ``new_player_secret``
@@ -17,16 +26,20 @@ What is REAL (loaded from the repo, never re-implemented here):
     ("hash before persist", "compare hashes, 403 on mismatch") is made by the
     real code, not by a copy.
 
-The harness registers a tiny API that mirrors the repo's real routes/behaviour:
+The harness registers a tiny API that mirrors the repo's real routes/behaviour
+(all secret-bearing values are in the request body, addressed by pk in the URL):
 
-  POST /api/players/                         -> create, returns plaintext once
-  POST /api/players/<secret>/rotate_secret/  -> rotate; 200 + new plaintext, or
-                                                403 when the presented secret is
-                                                wrong (matches views.py)
-  GET  /api/players/<secret>/stored/         -> harness-only introspection: the
-                                                RAW stored column value, so the
-                                                test can prove the DB holds the
-                                                hash and never the plaintext.
+  POST /api/players/                      -> create, returns {player_id, secret}
+                                             (plaintext returned exactly once)
+  POST /api/players/<pk>/rotate_secret/   -> rotate; requires the current secret
+                                             in the BODY. 200 + new plaintext, or
+                                             403 when the presented secret is
+                                             wrong (matches views.py).
+  GET  /api/players/<pk>/stored/          -> harness-only introspection: the RAW
+                                             stored column value, so the test can
+                                             prove the DB holds the hash and
+                                             never the plaintext. Addressed by pk
+                                             (never by the plaintext secret).
 
 The base URLs are resolved via ``django.urls.reverse`` and published to
 ``PSEC_URL_FILE`` (+ echoed as ``CREATE_URL=`` on stdout) so the HTTP client
@@ -127,12 +140,26 @@ from django.http import JsonResponse  # noqa: E402
 from django.views.decorators.csrf import csrf_exempt  # noqa: E402
 
 
+def _presented_secret(request):
+    """Read the plaintext secret the way the real views.py does: from the
+    request BODY (or the X-Player-Secret header) — never from the URL."""
+    body = {}
+    try:
+        body = json.loads(request.body or b"{}")
+    except (ValueError, TypeError):
+        body = {}
+    return body.get("player_secret") or request.META.get("HTTP_X_PLAYER_SECRET")
+
+
 @csrf_exempt
 def create_player(request):
     """POST /api/players/ — issue a fresh plaintext, store only the hash."""
     if request.method != "POST":
         return JsonResponse({"error": "method"}, status=405)
-    body = json.loads(request.body or b"{}")
+    try:
+        body = json.loads(request.body or b"{}")
+    except (ValueError, TypeError):
+        body = {}
     plain = new_player_secret()
     player = Player.objects.create(player_secret=plain, name=body.get("name", ""))
     # Return the plaintext exactly once (the DB stored only the hash).
@@ -142,17 +169,20 @@ def create_player(request):
 
 
 @csrf_exempt
-def rotate_secret(request, player_secret=None):
-    """POST /api/players/<secret>/rotate_secret/ — mirrors views.py logic."""
+def rotate_secret(request, pk=None):
+    """POST /api/players/<pk>/rotate_secret/ — mirrors views.py.
+
+    Addressed by the player's opaque pk (like the real ``detail=True`` route);
+    the current secret is presented in the BODY, never in the URL.
+    """
     if request.method != "POST":
         return JsonResponse({"error": "method"}, status=405)
     try:
-        player = Player.objects.get(player_secret=hash_secret(player_secret))
+        player = Player.objects.get(pk=pk)
     except Player.DoesNotExist:
         return JsonResponse({"error": "not found"}, status=404)
 
-    body = json.loads(request.body or b"{}")
-    provided = body.get("player_secret")
+    provided = _presented_secret(request)
     # --- verbatim auth check from backend/game_engine/views.py (PR #261) ---
     if not provided or player.player_secret != hash_secret(provided):
         return JsonResponse({"error": "Invalid player_secret"}, status=403)
@@ -164,13 +194,15 @@ def rotate_secret(request, player_secret=None):
 
 
 @csrf_exempt
-def stored_secret(request, player_secret=None):
-    """Harness-only: return the RAW stored column for a (plaintext) secret.
+def stored_secret(request, pk=None):
+    """Harness-only: return the RAW stored column for a player, keyed by pk.
 
     Lets the test prove the persisted value is a hash and never the plaintext.
+    Keyed by the opaque pk (never by the plaintext secret) so this diagnostic
+    route does not itself put a secret in the URL.
     """
     try:
-        player = Player.objects.get(player_secret=hash_secret(player_secret))
+        player = Player.objects.get(pk=pk)
     except Player.DoesNotExist:
         return JsonResponse({"error": "not found"}, status=404)
     return JsonResponse({"stored": player.player_secret})
@@ -179,12 +211,12 @@ def stored_secret(request, player_secret=None):
 urlpatterns = [
     path("api/players/", create_player, name="player-create"),
     path(
-        "api/players/<str:player_secret>/rotate_secret/",
+        "api/players/<int:pk>/rotate_secret/",
         rotate_secret,
         name="player-rotate-secret",
     ),
     path(
-        "api/players/<str:player_secret>/stored/",
+        "api/players/<int:pk>/stored/",
         stored_secret,
         name="player-stored",
     ),

@@ -16,13 +16,23 @@ import { TestDriver } from "testdriverai/vitest/hooks";
 //      never persisted.
 //   2. Issuance (room/player create) returns the plaintext exactly once.
 //   3. A rotation endpoint issues a fresh plaintext and INVALIDATES the old
-//      secret (POST /api/players/<secret>/rotate_secret/).
+//      secret (POST /api/players/<player_id>/rotate_secret/).
 //   4. Rotation rejects a wrong secret with 403.
 //
 // Rather than assert against a mock, this drives the REAL security code
 // end-to-end inside the TestDriver sandbox, in the same spirit as this repo's
 // health-redis-down.test.mjs: it stages the actual backend module under review
 // and probes a running Django server with curl.
+//
+// TRANSPORT CONTRACT (do not regress the sibling not-in-url tests)
+// ----------------------------------------------------------------
+// The real PlayerViewSet.rotate_secret is a DRF `detail=True` action: the URL
+// segment is the player's opaque PK, and the current secret is read from
+// `request.data['player_secret']` (the POST body) — never from the URL. This
+// test (and its harness) address every endpoint by `player_id` and send the
+// plaintext secret in the request BODY, so the at-rest gate never models the
+// very "secret in the URL" anti-pattern that #105 forbids and that
+// sec1-*-not-in-url.test.mjs enforce.
 //
 // WHAT IS REAL vs. HARNESS
 // ------------------------
@@ -77,16 +87,17 @@ describe("SEC-1: player_secret is hashed at rest and rotatable (#105, PR #261)",
 
     await testdriver.provision.chrome({ url: "about:blank" });
 
-    // Rotate `secret` (used as the URL credential) with `bodySecret` in the
-    // JSON body. Returns the parsed 200 JSON on success; REJECTS (throws) on any
-    // non-200 so a caller can gate the *rejection* with the framework's
+    // Rotate the player addressed by `playerId` (opaque PK in the URL) while
+    // presenting `bodySecret` in the JSON BODY — never in the URL (SEC-1 #105).
+    // Returns the parsed 200 JSON on success; REJECTS (throws) on any non-200 so
+    // a caller can gate the *rejection* with the framework's
     // `expect(...).rejects.toThrow()` instead of manually inspecting a status
     // code / flipping a `blocked` flag (TST-2).
-    const rotate = async (secret, bodySecret) => {
+    const rotate = async (playerId, bodySecret) => {
       const out = await testdriver.exec(
         "sh",
         [
-          `RESP=$(curl -s -w '\\nHTTP:%{http_code}' -X POST "${BASE}/api/players/${secret}/rotate_secret/" -H 'Content-Type: application/json' -d "{\\"player_secret\\":\\"${bodySecret}\\"}")`,
+          `RESP=$(curl -s -w '\\nHTTP:%{http_code}' -X POST "${BASE}/api/players/${playerId}/rotate_secret/" -H 'Content-Type: application/json' -d "{\\"player_secret\\":\\"${bodySecret}\\"}")`,
           `echo "ROTATE_CODE=$(printf %s "$RESP" | sed -n "s/^HTTP://p")"`,
           `echo "ROTATE_BODY=$(printf %s "$RESP" | head -1)"`,
         ].join("\n"),
@@ -152,16 +163,20 @@ describe("SEC-1: player_secret is hashed at rest and rotatable (#105, PR #261)",
     expect(bootOut).toContain("BOOT_DONE");
     expect(grab(bootOut, "SECURITY_SOURCE")).toContain("/tmp/psec/security.py");
 
-    // 4) CREATE a player. The response must carry a plaintext secret; the DB
-    //    must store only its SHA-256 hash (never the plaintext).
+    // 4) CREATE a player. The response must carry a plaintext secret + an opaque
+    //    player_id; the DB must store only the SHA-256 hash (never the
+    //    plaintext). We introspect the stored column by player_id, NOT by the
+    //    plaintext secret, so no secret is ever placed in a URL (SEC-1 #105).
     const create = await testdriver.exec(
       "sh",
       [
         `RESP=$(curl -s -X POST "${BASE}${createUrl}" -H 'Content-Type: application/json' -d '{"name":"SEC1Tester"}')`,
         'echo "CREATE_RESP=$RESP"',
         `SECRET=$(printf '%s' "$RESP" | python3 -c "import sys,json;print(json.load(sys.stdin)['player_secret'])")`,
+        `PID=$(printf '%s' "$RESP" | python3 -c "import sys,json;print(json.load(sys.stdin)['player_id'])")`,
         'echo "PLAINTEXT=$SECRET"',
-        `STORED=$(curl -s "${BASE}/api/players/$SECRET/stored/" | python3 -c "import sys,json;print(json.load(sys.stdin)['stored'])")`,
+        'echo "PLAYER_ID=$PID"',
+        `STORED=$(curl -s "${BASE}/api/players/$PID/stored/" | python3 -c "import sys,json;print(json.load(sys.stdin)['stored'])")`,
         'echo "STORED=$STORED"',
         // classify the stored value: is it a 64-char lowercase hex digest, and
         // is it different from the plaintext we were handed?
@@ -177,29 +192,31 @@ PY`,
     );
     const createOut = String(create?.stdout ?? create ?? "");
     const plaintext = grab(createOut, "PLAINTEXT");
+    const playerId = grab(createOut, "PLAYER_ID");
 
-    // Issuance returns a non-empty plaintext secret exactly once.
+    // Issuance returns a non-empty plaintext secret + an addressable player_id.
     expect(plaintext.length).toBeGreaterThan(0);
+    expect(playerId.length).toBeGreaterThan(0);
     // The persisted column is a SHA-256 hex digest, NOT the plaintext.
     expect(grab(createOut, "STORED_IS_HEX64")).toBe("yes");
     expect(grab(createOut, "STORED_NE_PLAINTEXT")).toBe("yes");
 
-    // 5) ROTATE with the correct secret -> resolves with a NEW, different
-    //    plaintext. Expressed as a framework RESOLUTION assertion.
-    const rotated = await rotate(plaintext, plaintext);
+    // 5) ROTATE with the correct secret (in the body) -> resolves with a NEW,
+    //    different plaintext. Expressed as a framework RESOLUTION assertion.
+    const rotated = await rotate(playerId, plaintext);
     const newSecret = rotated.player_secret;
     expect(newSecret.length).toBeGreaterThan(0);
     expect(newSecret).not.toBe(plaintext);
 
     // 6) The OLD secret is invalidated the moment it is rotated, and a WRONG
-    //    body secret against the (valid) NEW one must be forbidden. Both are
+    //    body secret against the same player must be forbidden. Both are
     //    asserted as framework REJECTIONS (TST-2) — `rotate()` throws on any
     //    non-200, so `expect(...).rejects.toThrow()` gates the rejection rather
-    //    than a hand-rolled status-code / `blocked`-flag check.
-    await expect(rotate(plaintext, plaintext)).rejects.toThrow(
-      /HTTP (403|404)/,
-    );
-    await expect(rotate(newSecret, "totally-wrong-secret")).rejects.toThrow(
+    //    than a hand-rolled status-code / `blocked`-flag check. Because we now
+    //    address by the stable player_id, both cases hit the real 403 auth
+    //    branch (stale/incorrect hash), not a 404.
+    await expect(rotate(playerId, plaintext)).rejects.toThrow(/HTTP 403/);
+    await expect(rotate(playerId, "totally-wrong-secret")).rejects.toThrow(
       /HTTP 403/,
     );
 
@@ -215,6 +232,7 @@ PY`,
 <li>issuance returns plaintext exactly once</li>
 <li>rotation issues a new secret + invalidates the old</li>
 <li>rotation rejects a wrong secret with 403</li>
+<li>secret travels in the POST body, addressed by player_id (never in the URL)</li>
 </ul></body>
 HTML`,
       15000,
