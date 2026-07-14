@@ -1,3 +1,4 @@
+// BUG-1 regression: proves setGameState runs on an unmounted GameProvider (PR #176).
 import React from 'react';
 import { render, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
