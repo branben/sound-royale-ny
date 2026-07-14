@@ -4,6 +4,7 @@ import asyncio
 from uuid import UUID
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
+from django.db import transaction
 from .models import Room, Player
 from .serializers import GameStateSerializer
 from .auth import _resolve_player, _resolve_player_from_token
@@ -291,18 +292,40 @@ class GameConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def promote_new_host(self):
-        """Promote the first connected non-spectator producer to host. Returns the new host or None."""
+        """Promote the first connected non-spectator producer to host atomically.
+
+        Uses select_for_update() inside a transaction so two concurrent host
+        migrations cannot both promote a player and create a dual-host state.
+        Only the first transaction to acquire the lock promotes exactly one
+        player; the loser sees no eligible candidate and returns None.
+        Returns the new host or None.
+        """
+        from django.db import transaction
         try:
-            new_host = Player.objects.filter(
-                room_id=self.game_id,
-                is_connected=True,
-                is_spectator=False,
-                is_host=False,
-            ).first()
-            if new_host:
+            with transaction.atomic():
+                # Lock all candidate players so the promotion is race-free.
+                # Also lock any current host(s) so we can demote them atomically
+                # — this prevents a dual-host state when a stale host lingers
+                # after disconnect.
+                candidates = list(
+                    Player.objects.select_for_update().filter(
+                        room_id=self.game_id,
+                        is_connected=True,
+                        is_spectator=False,
+                    )
+                )
+                # Eligible = not already host
+                eligible = [p for p in candidates if not p.is_host]
+                if not eligible:
+                    return None
+                new_host = eligible[0]
+                # Demote every current host, then promote exactly one.
+                Player.objects.filter(
+                    room_id=self.game_id, is_host=True
+                ).update(is_host=False)
                 new_host.is_host = True
-                new_host.save(update_fields=['is_host'])
-            return new_host
+                new_host.save(update_fields=["is_host"])
+                return new_host
         except Exception:
             return None
 
