@@ -34,20 +34,34 @@ import { TestDriver } from "testdriverai/vitest/hooks";
 //   4. On success the app navigates to /room/<code> as the host player, which
 //      opens the credentialed game WebSocket.
 //
-// Convention (matches tests/testdriver/smoke.test.mjs): the deployment under
-// test is configurable via SOUND_ROYALE_URL so the test runs unchanged against
-// whichever environment is available (local docker stack, staging, prod). At
-// authoring time no public deployment resolves (soundroyale.com does not yet
-// resolve), so point it at a running stack reachable from the sandbox, e.g.:
+// -------------------------------------------------------------------------
+// GATING (why this test skips by default)
+// -------------------------------------------------------------------------
+// This is a LIVE, black-box browser test: it can only run when there is a
+// reachable Sound Royale deployment to drive. It therefore runs ONLY when
+// SOUND_ROYALE_URL is set (the same convention used by
+// tests/testdriver/smoke.test.mjs and the live gate in
+// sec1-player-secret-not-in-url.test.mjs). When the variable is unset it is
+// `it.skip`-ped rather than provisioning a browser against a URL that does not
+// resolve — a hard `provision.chrome()` failure otherwise turns "no deployment
+// wired" (or a rate-limited/exhausted sandbox) into a spurious red build.
+//
+// The source-contract SEC-1 gates in sec1-player-secret-not-in-url.test.mjs run
+// unconditionally (no sandbox needed) and statically prove the credential is
+// out of every URL/console call, so coverage of #105 does NOT depend on this
+// live test being able to run.
+//
+// Point it at a running stack reachable from the sandbox, e.g.:
 //
 //   SOUND_ROYALE_URL=http://localhost:8080 \
 //     npx vitest run --config vitest.testdriver.config.mjs \
 //       tests/testdriver/sec1-secret-not-in-url.test.mjs
 // ---------------------------------------------------------------------------
-const BASE_URL = process.env.SOUND_ROYALE_URL || "https://soundroyale.com";
+const BASE_URL = process.env.SOUND_ROYALE_URL;
+const liveIt = BASE_URL && BASE_URL.trim() ? it : it.skip;
 
 describe("SEC-1 — player secret is never exposed in a URL", () => {
-  it("does not leak the player secret into URLs, network, or console", async (context) => {
+  liveIt("does not leak the player secret into URLs, network, or console", async (context) => {
     const testdriver = TestDriver(context);
 
     await testdriver.provision.chrome({ url: BASE_URL });
