@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SEC-1 harness — WebSocket URL secret leak</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 2rem; background: #0b0b12; color: #e8e8f0; }
+      h1 { font-size: 1.25rem; }
+      #status { font-size: 1.1rem; padding: .5rem 0; }
+      .leak { color: #ff5470; font-weight: 700; }
+      .safe { color: #35d07f; font-weight: 700; }
+      code, pre { background: #171724; padding: .5rem .75rem; border-radius: 6px; display: block; word-break: break-all; white-space: pre-wrap; }
+      .label { color: #9a9ab0; margin-top: 1rem; }
+    </style>
+  </head>
+  <body>
+    <h1>SEC-1 — Player secret must not leak into the WebSocket URL</h1>
+    <div class="label">Captured WebSocket connect URL:</div>
+    <pre id="ws-url">(waiting…)</pre>
+    <div class="label">Result:</div>
+    <div id="status">(running…)</div>
+    <script type="module" src="/sec1-ws-url.ts"></script>
+  </body>
+</html>
