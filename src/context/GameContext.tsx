@@ -262,6 +262,9 @@ export function GameProvider({ children, roomCode }: { children: ReactNode; room
     }
 
     const handleMessage = (message: GameSocketMessage) => {
+      // Guard: drop late socket messages delivered after unmount so we never
+      // read message.payload / call setState on an unmounted provider.
+      if (!isMounted.current) return;
       switch (message.type) {
         case 'game_state_update': {
           const newState = message.payload;
