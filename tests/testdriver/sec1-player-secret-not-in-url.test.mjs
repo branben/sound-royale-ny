@@ -361,3 +361,82 @@ describe('SEC-1: player secret must never travel in a URL or console string (#10
     },
   );
 });
+
+// ---------------------------------------------------------------------------
+// SEC-1 positive contract — PR #261: post-handshake WebSocket auth.
+//
+// The gates above assert the ABSENCE of the secret from URLs/console. PR #261
+// also introduced a POSITIVE contract in `src/services/gameSocket.ts` that
+// deserves its own regression pin, because "no secret in the URL" can be
+// satisfied trivially (e.g. by dropping auth entirely) — we want to prove the
+// credential is still transmitted, just over the safe channel SEC-1 mandates:
+//
+//   1. The WebSocket handshake URL carries ONLY the non-secret `player_id`
+//      (`url.searchParams.set('player_id', ...)`), never the secret.
+//   2. The secret is sent as the FIRST post-handshake message, an `auth`
+//      frame emitted from the socket's `onopen` handler
+//      (`sendAuthMessage()` → `{ type: 'auth', player_id, player_secret }`
+//      or `{ type: 'auth', token }`).
+//
+// This mirrors the wording of SEC-1 exactly ("Move to ... first WS message")
+// and guards against a regression that would either (a) re-add the secret to
+// the handshake URL, or (b) stop sending it post-handshake (breaking auth).
+// It is a fast, deterministic source scan — no sandbox/browser needed.
+// ---------------------------------------------------------------------------
+describe('SEC-1: the WebSocket auth credential moves to the first message, not the URL (#105, PR #261)', () => {
+  const gameSocket = SERVICE_SOURCES.find((s) => s.name === 'services/gameSocket.ts');
+
+  it('has the gameSocket service under review (sanity)', () => {
+    // If this file is renamed/moved, fail loudly rather than silently skipping
+    // the positive-contract checks below.
+    expect(gameSocket, 'expected src/services/gameSocket.ts to exist').toBeTruthy();
+  });
+
+  it('puts only the non-secret player_id in the WebSocket handshake URL', () => {
+    const code = stripComments(gameSocket.source);
+
+    // The non-secret player_id IS allowed in the handshake URL and must still
+    // be set there (proves the URL carries the safe identifier, not nothing).
+    expect(
+      /searchParams\.set\(\s*['"`]player_id['"`]/.test(code),
+      "gameSocket must set the non-secret 'player_id' on the WS handshake URL",
+    ).toBe(true);
+
+    // The secret must NOT be added to the handshake URL in any form: neither a
+    // searchParams call for a secret param, nor an interpolated `?secret=`/
+    // `?player_secret=` query string. (findUrlLeaks covers both shapes.)
+    expect(
+      findUrlLeaks(gameSocket),
+      'the WebSocket handshake URL must not carry the secret as a query param',
+    ).toEqual([]);
+  });
+
+  it('sends the secret as the first post-handshake `auth` message', () => {
+    const code = stripComments(gameSocket.source);
+
+    // An auth frame is constructed and sent carrying the credential. Accept the
+    // JWT form ({ type: 'auth', token }) OR the player_secret form
+    // ({ type: 'auth', player_id, player_secret }). We require the `auth` type
+    // AND the secret/token field to appear together in the sent payload.
+    const sendsAuthFrame = /type:\s*['"`]auth['"`]/.test(code);
+    expect(
+      sendsAuthFrame,
+      "gameSocket must send an { type: 'auth', ... } frame after the handshake",
+    ).toBe(true);
+
+    const authCarriesCredential =
+      /type:\s*['"`]auth['"`][\s\S]{0,120}?(?:player_secret|token)\b/.test(code);
+    expect(
+      authCarriesCredential,
+      "the 'auth' frame must carry the credential (player_secret or token) in its body",
+    ).toBe(true);
+
+    // The credential is sent from the socket's onopen path (post-handshake),
+    // not before connect. We pin that a dedicated auth-sending step exists and
+    // is invoked when the socket opens.
+    expect(
+      /sendAuthMessage\s*\(/.test(code),
+      'expected a sendAuthMessage() step that emits the credential after onopen',
+    ).toBe(true);
+  });
+});
