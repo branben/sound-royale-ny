@@ -45,6 +45,14 @@ import { TestDriver } from "testdriverai/vitest/hooks";
 // that the framework resolves the secret straight out of the URL path — when a
 // sandbox is available.
 //
+// TST-2: the live sub-test performs its HTTP calls through a rejection-aware
+// helper (`request()` THROWS `HTTP <code>` on any non-2xx response) rather than
+// carrying a manual try/catch `blocked` flag or a loose status-string
+// comparison. Success is asserted with the framework's rejection matcher via
+// `await expect(request(...)).resolves...`; once SEC-1 is fixed the leaking
+// path route disappears and the same call is asserted to reject with
+// `.rejects.toThrow(/HTTP 40[45]/)`. This mirrors the sibling rotation gate.
+//
 // Expected lifecycle:
 //   - BEFORE the fix (current code): the routes above embed `player_secret` in
 //     their path => the static gate FAILS (intentional red guard) and the live
@@ -179,6 +187,9 @@ describe("SEC-1: player secret must never travel in a SERVER URL path (#105)", (
 
     // If provisioning fails (e.g. no sandbox minutes), skip rather than fail —
     // the static contract gate above is the authoritative regression check.
+    // This try/catch is a test-lifecycle SKIP guard, not a rejection assertion:
+    // the actual server behaviour (below) is asserted with the framework
+    // rejection/resolution matchers per TST-2.
     try {
       await testdriver.provision.chrome({ url: "about:blank" });
     } catch (err) {
@@ -243,47 +254,73 @@ describe("SEC-1: player secret must never travel in a SERVER URL path (#105)", (
     // the secret placeholder in the PATH (this is the leak we are documenting).
     expect(routes.by_player_template).toMatch(/by-player\/SECRET/);
 
-    const httpJson = async (script) =>
-      String((await testdriver.exec("sh", script, 60000))?.stdout ?? "");
+    // --- request() helper: THROW on any non-2xx so the server's behaviour is --
+    // asserted with the framework's rejection/resolution matchers (TST-2), not
+    // a manual `blocked` flag or a loose status-string compare. Resolves with
+    // the parsed 2xx JSON body on success; rejects with an `HTTP <code>` error
+    // otherwise so callers can use `.rejects.toThrow(/HTTP 40x/)`.
+    const request = async ({ method = "GET", url, body, marker }) => {
+      const dataArg = body
+        ? `-H "Content-Type: application/json" -d '${JSON.stringify(body)}'`
+        : "";
+      const out = String(
+        (
+          await testdriver.exec(
+            "sh",
+            [
+              `URL="${BASE}${url}"`,
+              `CODE=$(curl -s -o /tmp/leak/${marker}.json -w "%{http_code}" -X ${method} ${dataArg} "$URL")`,
+              `echo "${marker.toUpperCase()}_CODE=$CODE"`,
+              `echo "${marker.toUpperCase()}=$(cat /tmp/leak/${marker}.json)"`,
+            ].join("\n"),
+            60000,
+          )
+        )?.stdout ?? "",
+      );
+      console.log(`${marker}:\n` + out);
+      const code = (out.match(new RegExp(`${marker.toUpperCase()}_CODE=(\\d+)`)) || [])[1];
+      const bodyRaw =
+        (out.match(new RegExp(`${marker.toUpperCase()}=(\\{.*\\})`)) || [])[1] || "{}";
+      if (!code || !/^2\d\d$/.test(code)) {
+        // Reject so callers use `await expect(request(...)).rejects.toThrow()`.
+        throw new Error(`request rejected with HTTP ${code}: ${bodyRaw}`);
+      }
+      return JSON.parse(bodyRaw);
+    };
 
-    // Create a player; capture the issued PLAINTEXT secret.
-    const createOut = await httpJson(
-      [
-        `URL="${BASE}${routes.create}"`,
-        'curl -s -X POST "$URL" -H "Content-Type: application/json" -d \'{"name":"LeakTester"}\' > /tmp/leak/create.json',
-        'echo "CREATE=$(cat /tmp/leak/create.json)"',
-      ].join("\n"),
-    );
-    console.log("Create:\n" + createOut);
-    const createBody = JSON.parse(
-      (createOut.match(/CREATE=(\{.*\})/) || [])[1] || "{}",
-    );
+    // Create a player; capture the issued PLAINTEXT secret. Success is asserted
+    // via the framework's `.resolves` matcher (TST-2).
+    let createBody;
+    await expect(
+      request({
+        method: "POST",
+        url: routes.create,
+        body: { name: "LeakTester" },
+        marker: "create",
+      }).then((b) => (createBody = b)),
+    ).resolves.toBeTruthy();
     const secret = createBody.player_secret;
     expect(secret, "create must return a plaintext player_secret").toBeTruthy();
 
-    // Call the by-player route with the secret IN THE PATH. Proving this works
-    // is proving the leak: the credential is being transported in the URL.
+    // Call the by-player route with the secret IN THE PATH. Proving this
+    // RESOLVES (2xx) is proving the leak: the credential is being transported in
+    // the URL and accepted by the server. Asserted with the framework matcher
+    // (TST-2) — no manual try/catch `blocked` flag, no loose status-string
+    // compare. Once SEC-1 is fixed the path route no longer accepts a secret,
+    // so this same call would `.rejects.toThrow(/HTTP 40[45]/)`.
     const byPlayerUrl = routes.by_player_template.replace(
       "SECRET",
       encodeURIComponent(secret),
     );
-    const lookupOut = await httpJson(
-      [
-        `URL="${BASE}${byPlayerUrl}"`,
-        'CODE=$(curl -s -o /tmp/leak/lookup.json -w "%{http_code}" "$URL")',
-        'echo "LOOKUP_CODE=$CODE"',
-        'echo "LOOKUP=$(cat /tmp/leak/lookup.json)"',
-      ].join("\n"),
-    );
-    console.log("By-player lookup:\n" + lookupOut);
-    const lookupCode = (lookupOut.match(/LOOKUP_CODE=(\d+)/) || [])[1];
-    const lookupBody = JSON.parse(
-      (lookupOut.match(/LOOKUP=(\{.*\})/) || [])[1] || "{}",
-    );
+    let lookupBody;
+    await expect(
+      request({ url: byPlayerUrl, marker: "lookup" }).then(
+        (b) => (lookupBody = b),
+      ),
+    ).resolves.toBeTruthy();
 
     // The observable SEC-1 signature: the server accepted the credential from
     // the URL PATH and used it to resolve the player.
-    expect(lookupCode).toBe("200");
     expect(lookupBody.resolved_from).toBe("path");
     expect(lookupBody.secret_in_path).toBe(secret);
     expect(lookupBody.player_id).toBe(createBody.player_id);
