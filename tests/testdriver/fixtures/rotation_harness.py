@@ -42,6 +42,7 @@ import tempfile
 import importlib.util
 
 import django
+import django.core.exceptions
 from django.conf import settings
 
 
@@ -175,6 +176,53 @@ class PlayerViewSet(viewsets.ViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @action(detail=False, methods=["post"], url_path="rotate_secret")
+    def rotate_secret_body(self, request):
+        """SEC-1 (#105) compliant rotation: NOTHING sensitive in the URL.
+
+        The player is identified by ``player_id`` and authenticated by the
+        current ``player_secret`` — BOTH supplied in the POST body (or, for a
+        header-based client, via ``X-Player-Id`` / ``X-Player-Secret``). The
+        URL is a fixed collection route (``/api/players/rotate_secret/``) with
+        no secret path segment, so the plaintext never lands in access logs,
+        proxy logs, browser history, or Referer headers.
+
+        This is the shape the reviewer's SEC-1 note asks the real endpoint to
+        adopt; the test below guards it end-to-end.
+        """
+        player_id = (
+            request.data.get("player_id")
+            or request.META.get("HTTP_X_PLAYER_ID")
+        )
+        provided_secret = (
+            request.data.get("player_secret")
+            or request.META.get("HTTP_X_PLAYER_SECRET")
+        )
+        if not player_id or not provided_secret:
+            return Response(
+                {"error": "player_id and player_secret are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            player = Player.objects.get(
+                id=player_id, player_secret=hash_secret(provided_secret)
+            )
+        except (Player.DoesNotExist, ValueError, django.core.exceptions.ValidationError):
+            return Response(
+                {"error": "Invalid player credentials"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        plain_secret = new_player_secret()
+        player.player_secret = plain_secret
+        player.save()  # model hashes before persisting
+
+        return Response(
+            {"player_id": str(player.id), "player_secret": plain_secret},
+            status=status.HTTP_200_OK,
+        )
+
 
 # --- Debug helper: expose the stored (hashed) value so the test can prove ----
 # the plaintext is NOT what is persisted. This is HARNESS-ONLY (never exists in
@@ -197,6 +245,7 @@ class _DebugViewSet(viewsets.ViewSet):
 
 _create = PlayerViewSet.as_view({"post": "create"})
 _rotate = PlayerViewSet.as_view({"post": "rotate_secret"})
+_rotate_body = PlayerViewSet.as_view({"post": "rotate_secret_body"})
 _debug = _DebugViewSet.as_view({"get": "retrieve"})
 
 urlpatterns = [
@@ -205,6 +254,13 @@ urlpatterns = [
         "api/players/<str:player_secret>/rotate_secret/",
         _rotate,
         name="player-rotate-secret",
+    ),
+    # SEC-1 (#105) compliant collection route: secret travels in the body,
+    # NOT the URL. Fixed path, no secret path segment.
+    path(
+        "api/players/rotate_secret/",
+        _rotate_body,
+        name="player-rotate-secret-body",
     ),
     path(
         "api/players/<str:player_secret>/_debug/",
@@ -240,6 +296,8 @@ _urls = {
         "player-rotate-secret", kwargs={"player_secret": "SECRET"}
     ),
     "debug_template": reverse("player-debug", kwargs={"player_secret": "SECRET"}),
+    # SEC-1: body/header-based rotation. No secret in the URL.
+    "rotate_body": reverse("player-rotate-secret-body"),
 }
 _urls_file = os.environ.get("ROTATION_URLS_FILE")
 if _urls_file:
