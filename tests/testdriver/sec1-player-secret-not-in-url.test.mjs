@@ -1,4 +1,5 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -66,6 +67,57 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, '..', '..');
 const srcDir = join(repoRoot, 'src');
 const servicesDir = join(srcDir, 'services');
+
+// Dynamic SEC-1 harness: reconstructs the WebSocket connect URL and the
+// /auth/discord/status/ GET path from the REAL sources with a unique canary
+// secret, then reports whether the canary lands in either query string. This
+// complements the static regex gates above with an actual URL-construction
+// reproduction of issue #105 (and gives the harness a caller so it is no
+// longer orphaned dead code).
+const harnessPath = join(__dirname, 'fixtures', 'sec1_url_harness.cjs');
+const gameSocketTs = join(servicesDir, 'gameSocket.ts');
+const apiTs = join(servicesDir, 'api.ts');
+
+/**
+ * Run the SEC-1 URL harness against the real sources and return its parsed
+ * `SEC1_RESULT` payload. The harness exits non-zero when the secret leaks
+ * (which is the current, pre-fix reality), so we capture stdout regardless of
+ * exit code and parse the single `SEC1_RESULT=<json>` line it emits. A missing
+ * or unparseable result (exit code 2 == 'could not locate the code under
+ * test', e.g. after a refactor) surfaces as a thrown error so the gate fails
+ * loudly rather than silently passing.
+ */
+function runSec1Harness() {
+  let stdout = '';
+  try {
+    stdout = execFileSync(process.execPath, [harnessPath], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        SEC1_GAMESOCKET_TS: gameSocketTs,
+        SEC1_API_TS: apiTs,
+      },
+    });
+  } catch (err) {
+    // Non-zero exit (leak detected, or harness could not run) still writes
+    // the SEC1_RESULT line to stdout; recover it from the failed child.
+    stdout = (err.stdout || '').toString();
+    if (!stdout) throw err;
+  }
+  const line = stdout
+    .split('\n')
+    .reverse()
+    .find((l) => l.startsWith('SEC1_RESULT='));
+  if (!line) {
+    throw new Error('SEC-1 harness produced no SEC1_RESULT line. stdout:\n' + stdout);
+  }
+  const result = JSON.parse(line.slice('SEC1_RESULT='.length));
+  if (result.error) {
+    // Harness could not locate the code under test \u2014 fail loudly.
+    throw new Error('SEC-1 harness could not run: ' + result.error);
+  }
+  return result;
+}
 
 // Directory names we never scan: nested test folders and build output.
 const IGNORED_DIRS = new Set(['__tests__', '__mocks__', 'node_modules', 'dist', 'build']);
@@ -323,6 +375,28 @@ describe('SEC-1: player secret must never travel in a URL or console string (#10
           'logging.\n' +
           leaks.join('\n'),
       ).toEqual([]);
+    },
+  );
+
+  it.fails(
+    'KNOWN-RED until SEC-1 lands: the harness reproduces no secret in the WS / GET URL (dynamic)',
+    () => {
+      // Dynamic counterpart to the static scans: actually rebuild the two
+      // secret-bearing URLs from the real sources with a unique canary and
+      // assert the canary is absent from both query strings. Today gameSocket
+      // sets `?secret=` and api.ts builds `?player_secret=`, so the harness
+      // reports a leak (ok=false) and this `it.fails` passes; once SEC-1 moves
+      // the credential out of the URL the harness returns ok=true, flipping
+      // this to a hard failure \u2014 the signal to drop the `.fails` marker.
+      const result = runSec1Harness();
+      expect(
+        result.leaks,
+        'The SEC-1 harness reconstructed a URL that still carries the player ' +
+          'secret in its query string. Move the credential to the ' +
+          'Authorization header, POST body, or first WebSocket message.\n' +
+          JSON.stringify(result.checked, null, 2),
+      ).toEqual([]);
+      expect(result.ok).toBe(true);
     },
   );
 
