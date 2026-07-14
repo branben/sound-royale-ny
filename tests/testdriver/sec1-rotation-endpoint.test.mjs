@@ -35,6 +35,16 @@ import { TestDriver } from "testdriverai/vitest/hooks";
 // comparison. The `rotate()` helper below THROWS on any non-2xx response (with
 // the status code in the message), so the happy path uses `.resolves` and the
 // rejection paths assert on the exact status via `.rejects.toThrow(/404/)`.
+//
+// SEC-1 (this test's own hygiene): the real PlayerViewSet keys its detail
+// route on the plaintext secret (`lookup_field = "player_secret"`), so a test
+// that exercises the REAL endpoint necessarily puts the secret in the request
+// URL — that faithfully mirrors the app contract and is not something the test
+// can change without ceasing to test the real route. What the test CAN control
+// is its own diagnostics: this client never prints raw secrets. Every value
+// that could contain a plaintext (or hashed) secret is passed through
+// `redact()` before it reaches console.log / assertion messages, so the
+// secret never leaks into CI logs or error strings.
 // ---------------------------------------------------------------------------
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -84,6 +94,26 @@ describe("SEC-1 (#105) — player_secret hashing at rest + rotation endpoint", (
       240000,
     );
 
+    // --- SEC-1 hygiene: never emit a raw secret into logs / error strings. --
+    // `secrets` accumulates every plaintext/hash the test has seen; `redact()`
+    // masks each occurrence (keeping a short prefix so logs stay debuggable)
+    // before anything is printed or embedded in an assertion message.
+    const secrets = new Set();
+    const track = (...values) => {
+      for (const v of values) {
+        if (typeof v === "string" && v.length >= 8) secrets.add(v);
+      }
+    };
+    const redact = (text) => {
+      let out = String(text ?? "");
+      for (const s of secrets) {
+        // Mask everything after a 4-char prefix, e.g. "abcd…[redacted]".
+        const masked = `${s.slice(0, 4)}…[redacted:${s.length}]`;
+        out = out.split(s).join(masked);
+      }
+      return out;
+    };
+
     // 3) Boot the harness. It resolves routes via reverse() (TST-1) and writes
     //    them to urls.json; we read them back rather than hardcoding paths.
     const boot = await testdriver.exec(
@@ -105,12 +135,12 @@ describe("SEC-1 (#105) — player_secret hashing at rest + rotation endpoint", (
       180000,
     );
     const bootOut = String(boot?.stdout ?? boot ?? "");
-    console.log("Rotation harness boot:\n" + bootOut);
+    console.log("Rotation harness boot:\n" + redact(bootOut));
 
     const routesRaw = (bootOut.match(/ROUTES=(\{.*\})/) || [])[1] || "{}";
     expect(
       () => JSON.parse(routesRaw),
-      `harness did not publish routes JSON: ${routesRaw}`,
+      `harness did not publish routes JSON: ${redact(routesRaw)}`,
     ).not.toThrow();
     const routes = JSON.parse(routesRaw);
 
@@ -122,7 +152,7 @@ describe("SEC-1 (#105) — player_secret hashing at rest + rotation endpoint", (
       tmpl.replace("SECRET", encodeURIComponent(secret));
 
     // Small helper: run a curl in the sandbox, echo an HTTP code + body on
-    // known markers, and return { code, body, out }.
+    // known markers, and return the raw stdout.
     const httpJson = async (script) => {
       const res = await testdriver.exec("sh", script, 60000);
       return String(res?.stdout ?? res ?? "");
@@ -130,7 +160,9 @@ describe("SEC-1 (#105) — player_secret hashing at rest + rotation endpoint", (
 
     // --- rotate() helper: THROW on any non-2xx so negative paths can be -------
     // asserted with the framework's rejection matcher (TST-2). Resolves with
-    // the parsed 2xx body (the new plaintext secret) on success.
+    // the parsed 2xx body (the new plaintext secret) on success. The URL still
+    // carries the secret because the REAL endpoint keys its detail route on it
+    // (lookup_field); the error message is REDACTED so no plaintext leaks.
     const rotate = async ({ urlSecret, bodySecret }) => {
       const out = await httpJson(
         [
@@ -140,12 +172,15 @@ describe("SEC-1 (#105) — player_secret hashing at rest + rotation endpoint", (
           'echo "ROTATE=$(cat /tmp/rot/rotate.json)"',
         ].join("\n"),
       );
-      console.log("Rotate:\n" + out);
+      console.log("Rotate:\n" + redact(out));
       const code = (out.match(/ROTATE_CODE=(\d+)/) || [])[1];
       const bodyRaw = (out.match(/ROTATE=(\{.*\})/) || [])[1] || "{}";
       if (!code || !/^2\d\d$/.test(code)) {
         // Reject so callers use `await expect(rotate(...)).rejects.toThrow()`.
-        throw new Error(`rotate_secret rejected with HTTP ${code}: ${bodyRaw}`);
+        // Body is redacted; the status code (the thing we assert on) is kept.
+        throw new Error(
+          `rotate_secret rejected with HTTP ${code}: ${redact(bodyRaw)}`,
+        );
       }
       return JSON.parse(bodyRaw);
     };
@@ -158,11 +193,13 @@ describe("SEC-1 (#105) — player_secret hashing at rest + rotation endpoint", (
         'echo "CREATE=$(cat /tmp/rot/create.json)"',
       ].join("\n"),
     );
-    console.log("Create:\n" + createOut);
     const createBody = JSON.parse(
       (createOut.match(/CREATE=(\{.*\})/) || [])[1] || "{}",
     );
     const originalSecret = createBody.player_secret;
+    // Track the plaintext BEFORE logging so it is redacted everywhere.
+    track(originalSecret);
+    console.log("Create:\n" + redact(createOut));
     expect(
       originalSecret,
       "create must return a plaintext player_secret",
@@ -177,10 +214,12 @@ describe("SEC-1 (#105) — player_secret hashing at rest + rotation endpoint", (
         'echo "DEBUG=$(curl -s "$URL")"',
       ].join("\n"),
     );
-    console.log("At-rest debug:\n" + debugOut);
     const debugBody = JSON.parse(
       (debugOut.match(/DEBUG=(\{.*\})/) || [])[1] || "{}",
     );
+    // Track the stored hash too, then log with everything redacted.
+    track(debugBody.stored_secret);
+    console.log("At-rest debug:\n" + redact(debugOut));
     // The persisted value is the SHA-256 hash of the plaintext — never the
     // plaintext itself.
     expect(debugBody.stored_is_hash, "stored value must be a 64-hex hash").toBe(
@@ -196,6 +235,7 @@ describe("SEC-1 (#105) — player_secret hashing at rest + rotation endpoint", (
       rotate({ urlSecret: originalSecret, bodySecret: originalSecret }).then(
         (body) => {
           newSecret = body.player_secret;
+          track(newSecret);
           return body.player_secret;
         },
       ),
