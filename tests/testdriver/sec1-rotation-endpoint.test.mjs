@@ -28,6 +28,13 @@ import { TestDriver } from "testdriverai/vitest/hooks";
 //
 // TST-1: the harness never hardcodes URLs — it resolves them via Django's
 // reverse() and publishes them as JSON at boot; this client reads them back.
+//
+// TST-2: negative paths (invalidated / wrong secret) are asserted with the
+// framework's rejection matcher — `await expect(rotate(...)).rejects.toThrow()`
+// — rather than a manual try/catch `blocked` flag or a loose status-string
+// comparison. The `rotate()` helper below THROWS on any non-2xx response (with
+// the status code in the message), so the happy path uses `.resolves` and the
+// rejection paths assert on the exact status via `.rejects.toThrow(/404/)`.
 // ---------------------------------------------------------------------------
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -46,6 +53,8 @@ const HARNESS_PY = readFileSync(
 // Base64 so multi-line Python drops into the sandbox in one exec without
 // heredoc/quoting fragility.
 const b64 = (s) => Buffer.from(s, "utf8").toString("base64");
+
+const BASE = "http://127.0.0.1:8112";
 
 describe("SEC-1 (#105) — player_secret hashing at rest + rotation endpoint", () => {
   it("hashes at rest, issues plaintext once, and rotates/invalidates secrets", async (context) => {
@@ -109,98 +118,103 @@ describe("SEC-1 (#105) — player_secret hashing at rest + rotation endpoint", (
     expect(routes.create).toMatch(/players/);
     expect(routes.rotate_template).toMatch(/rotate_secret/);
 
-    const fill = (tmpl, secret) => tmpl.replace("SECRET", encodeURIComponent(secret));
+    const fill = (tmpl, secret) =>
+      tmpl.replace("SECRET", encodeURIComponent(secret));
+
+    // Small helper: run a curl in the sandbox, echo an HTTP code + body on
+    // known markers, and return { code, body, out }.
+    const httpJson = async (script) => {
+      const res = await testdriver.exec("sh", script, 60000);
+      return String(res?.stdout ?? res ?? "");
+    };
+
+    // --- rotate() helper: THROW on any non-2xx so negative paths can be -------
+    // asserted with the framework's rejection matcher (TST-2). Resolves with
+    // the parsed 2xx body (the new plaintext secret) on success.
+    const rotate = async ({ urlSecret, bodySecret }) => {
+      const out = await httpJson(
+        [
+          `URL="${BASE}${fill(routes.rotate_template, urlSecret)}"`,
+          `CODE=$(curl -s -o /tmp/rot/rotate.json -w "%{http_code}" -X POST "$URL" -H "Content-Type: application/json" -d '{"player_secret":"${bodySecret}"}')`,
+          'echo "ROTATE_CODE=$CODE"',
+          'echo "ROTATE=$(cat /tmp/rot/rotate.json)"',
+        ].join("\n"),
+      );
+      console.log("Rotate:\n" + out);
+      const code = (out.match(/ROTATE_CODE=(\d+)/) || [])[1];
+      const bodyRaw = (out.match(/ROTATE=(\{.*\})/) || [])[1] || "{}";
+      if (!code || !/^2\d\d$/.test(code)) {
+        // Reject so callers use `await expect(rotate(...)).rejects.toThrow()`.
+        throw new Error(`rotate_secret rejected with HTTP ${code}: ${bodyRaw}`);
+      }
+      return JSON.parse(bodyRaw);
+    };
 
     // --- Step A: create a player; capture the issued PLAINTEXT secret. ------
-    const created = await testdriver.exec(
-      "sh",
+    const createOut = await httpJson(
       [
-        `URL="http://127.0.0.1:8112${routes.create}"`,
+        `URL="${BASE}${routes.create}"`,
         'curl -s -X POST "$URL" -H "Content-Type: application/json" -d \'{"name":"RotTester"}\' > /tmp/rot/create.json',
         'echo "CREATE=$(cat /tmp/rot/create.json)"',
       ].join("\n"),
-      60000,
     );
-    const createOut = String(created?.stdout ?? created ?? "");
     console.log("Create:\n" + createOut);
     const createBody = JSON.parse(
       (createOut.match(/CREATE=(\{.*\})/) || [])[1] || "{}",
     );
     const originalSecret = createBody.player_secret;
-    expect(originalSecret, "create must return a plaintext player_secret").toBeTruthy();
+    expect(
+      originalSecret,
+      "create must return a plaintext player_secret",
+    ).toBeTruthy();
     // Issued plaintext is a urlsafe token, NOT a 64-char hex hash.
     expect(originalSecret).not.toMatch(/^[0-9a-f]{64}$/);
 
     // --- Step B: prove the STORED value is a hash, not the plaintext. -------
-    const debug = await testdriver.exec(
-      "sh",
+    const debugOut = await httpJson(
       [
-        `URL="http://127.0.0.1:8112${fill(routes.debug_template, originalSecret)}"`,
+        `URL="${BASE}${fill(routes.debug_template, originalSecret)}"`,
         'echo "DEBUG=$(curl -s "$URL")"',
       ].join("\n"),
-      60000,
     );
-    const debugOut = String(debug?.stdout ?? debug ?? "");
     console.log("At-rest debug:\n" + debugOut);
     const debugBody = JSON.parse(
       (debugOut.match(/DEBUG=(\{.*\})/) || [])[1] || "{}",
     );
     // The persisted value is the SHA-256 hash of the plaintext — never the
     // plaintext itself.
-    expect(debugBody.stored_is_hash, "stored value must be a 64-hex hash").toBe(true);
+    expect(debugBody.stored_is_hash, "stored value must be a 64-hex hash").toBe(
+      true,
+    );
     expect(debugBody.stored_secret).not.toBe(originalSecret);
 
-    // --- Step C: rotate with the CORRECT current secret -> 200 + NEW secret.
-    const rotate = await testdriver.exec(
-      "sh",
-      [
-        `URL="http://127.0.0.1:8112${fill(routes.rotate_template, originalSecret)}"`,
-        `CODE=$(curl -s -o /tmp/rot/rotate.json -w "%{http_code}" -X POST "$URL" -H "Content-Type: application/json" -d '{"player_secret":"${originalSecret}"}')`,
-        'echo "ROTATE_CODE=$CODE"',
-        'echo "ROTATE=$(cat /tmp/rot/rotate.json)"',
-      ].join("\n"),
-      60000,
-    );
-    const rotateOut = String(rotate?.stdout ?? rotate ?? "");
-    console.log("Rotate (correct secret):\n" + rotateOut);
-    expect((rotateOut.match(/ROTATE_CODE=(\d+)/) || [])[1]).toBe("200");
-    const rotateBody = JSON.parse(
-      (rotateOut.match(/ROTATE=(\{.*\})/) || [])[1] || "{}",
-    );
-    const newSecret = rotateBody.player_secret;
+    // --- Step C: rotate with the CORRECT current secret -> resolves + NEW ----
+    // secret. `.resolves` proves the happy path succeeds (2xx) via the same
+    // rejection-aware helper used for the negative paths.
+    let newSecret;
+    await expect(
+      rotate({ urlSecret: originalSecret, bodySecret: originalSecret }).then(
+        (body) => {
+          newSecret = body.player_secret;
+          return body.player_secret;
+        },
+      ),
+    ).resolves.toBeTruthy();
     expect(newSecret, "rotation must return a new plaintext secret").toBeTruthy();
     expect(newSecret).not.toBe(originalSecret);
     expect(newSecret).not.toMatch(/^[0-9a-f]{64}$/);
 
-    // --- Step D: the OLD secret is now INVALIDATED (rotate again -> not 200).
-    const rotateOld = await testdriver.exec(
-      "sh",
-      [
-        `URL="http://127.0.0.1:8112${fill(routes.rotate_template, originalSecret)}"`,
-        `CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$URL" -H "Content-Type: application/json" -d '{"player_secret":"${originalSecret}"}')`,
-        'echo "OLD_CODE=$CODE"',
-      ].join("\n"),
-      60000,
-    );
-    const rotateOldOut = String(rotateOld?.stdout ?? rotateOld ?? "");
-    console.log("Rotate (old/invalidated secret):\n" + rotateOldOut);
-    // The old secret no longer resolves to the player (404) — it is dead.
-    expect((rotateOldOut.match(/OLD_CODE=(\d+)/) || [])[1]).not.toBe("200");
+    // --- Step D: the OLD secret is now INVALIDATED. Rotating with it again ---
+    // rejects (the old secret no longer resolves to a player -> 404).
+    // TST-2: framework rejection assertion, not a manual `blocked` flag.
+    await expect(
+      rotate({ urlSecret: originalSecret, bodySecret: originalSecret }),
+    ).rejects.toThrow(/HTTP 404/);
 
-    // --- Step E: the NEW secret works but a WRONG body secret is rejected. --
-    const wrongBody = await testdriver.exec(
-      "sh",
-      [
-        `URL="http://127.0.0.1:8112${fill(routes.rotate_template, newSecret)}"`,
-        `CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$URL" -H "Content-Type: application/json" -d '{"player_secret":"totally-wrong-secret"}')`,
-        'echo "WRONG_CODE=$CODE"',
-      ].join("\n"),
-      60000,
-    );
-    const wrongOut = String(wrongBody?.stdout ?? wrongBody ?? "");
-    console.log("Rotate (wrong secret in body):\n" + wrongOut);
-    // URL resolves the player (new secret is valid) but the body secret is
-    // wrong -> the endpoint rejects with 403.
-    expect((wrongOut.match(/WRONG_CODE=(\d+)/) || [])[1]).toBe("403");
+    // --- Step E: the NEW secret's URL resolves, but a WRONG body secret is ---
+    // rejected with 403. TST-2: framework rejection assertion.
+    await expect(
+      rotate({ urlSecret: newSecret, bodySecret: "totally-wrong-secret" }),
+    ).rejects.toThrow(/HTTP 403/);
   });
 });
