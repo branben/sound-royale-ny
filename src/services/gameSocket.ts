@@ -81,18 +81,42 @@ class GameSocketService {
 
     const url = new URL(`/ws/game/${this.options!.gameId}/`, baseUrl);
 
-    // Prefer JWT token for auth
-    if (this.options!.accessToken) {
-      url.searchParams.set('token', this.options!.accessToken);
-    } else if (this.options!.playerSecret) {
-      // Fallback to player_secret for backward compat
-      url.searchParams.set('secret', this.options!.playerSecret);
-      if (this.options!.playerId) {
-        url.searchParams.set('player_id', this.options!.playerId);
-      }
+    // player_id is non-secret and safe in the query string. The actual
+    // authenticator (JWT token or player_secret) is NOT put in the URL — it
+    // is sent as a post-handshake `auth` message (see connect()) so it is
+    // never logged by proxies/CDNs/history/Sentry (guardrail #105).
+    if (this.options!.playerId) {
+      url.searchParams.set('player_id', this.options!.playerId);
     }
 
     return url.toString();
+  }
+
+  /**
+   * Send the authenticator as the first WebSocket message (post-handshake
+   * auth). Keeps player_secret / JWT out of the URL per guardrail #105.
+   */
+  private sendAuthMessage(): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const o = this.options;
+    if (!o) return;
+    if (o.accessToken) {
+      this.sendRaw({ type: 'auth', token: o.accessToken });
+    } else if (o.playerSecret) {
+      this.sendRaw({
+        type: 'auth',
+        player_id: o.playerId,
+        player_secret: o.playerSecret,
+      });
+    }
+  }
+
+  private sendRaw(payload: unknown): void {
+    try {
+      this.ws?.send(JSON.stringify(payload));
+    } catch (err) {
+      console.error('[GameSocket] Failed to send message:', err);
+    }
   }
 
   connect(options: GameSocketOptions): void {
@@ -165,6 +189,9 @@ class GameSocketService {
         this.reconnectAttempts = 0;
         this.options?.onConnect?.();
         this.drainQueue();
+        // Post-handshake auth: send the authenticator as the first message
+        // so player_secret / JWT are never placed in the URL (guardrail #105).
+        this.sendAuthMessage();
       };
 
       this.ws.onmessage = (event) => {
