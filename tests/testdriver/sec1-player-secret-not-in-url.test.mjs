@@ -1,4 +1,5 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -66,6 +67,16 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, '..', '..');
 const srcDir = join(repoRoot, 'src');
 const servicesDir = join(srcDir, 'services');
+
+// The executable SEC-1 harness (fixtures/sec1_url_harness.cjs) and the two
+// real source files it drives. Unlike the regex gates above, the harness
+// EXECUTES the app's actual URL-building code (getWsUrl / getAccountStatus)
+// with a unique canary secret and checks the canary never lands in a URL
+// query string -- a stronger, evaluation-based counterpart to the static
+// scan that also keeps the harness wired in (not dead code).
+const HARNESS_PATH = join(__dirname, 'fixtures', 'sec1_url_harness.cjs');
+const GAMESOCKET_TS = join(servicesDir, 'gameSocket.ts');
+const API_TS = join(servicesDir, 'api.ts');
 
 // Directory names we never scan: nested test folders and build output.
 const IGNORED_DIRS = new Set(['__tests__', '__mocks__', 'node_modules', 'dist', 'build']);
@@ -237,7 +248,7 @@ function findConsoleLeaks({ name, source }) {
     leaks.push(
       `${name}: forwards a raw request URL / error object (e.g. config.url, ` +
         `error.message, error.stack) to the /errors/log/ sink while a request ` +
-        `URL still carries a secret \u2014 the secret is persisted in the ` +
+        `URL still carries a secret -- the secret is persisted in the ` +
         `backend error log. Redact the payload or, better, keep the secret out ` +
         `of the URL entirely (see the URL gates above).`,
     );
@@ -248,9 +259,11 @@ function findConsoleLeaks({ name, source }) {
 
 describe('SEC-1: player secret must never travel in a URL or console string (#105)', () => {
   // -------------------------------------------------------------------------
-  // WHY THESE THREE ARE `it.fails`
+  // WHY THESE FOUR ARE `it.fails`
   //
-  // The three source-contract assertions below are a RED GUARD for SEC-1: the
+  // The four assertions below (three static source-contract scans plus one
+  // dynamic harness that executes the real URL builders) are a RED GUARD for
+  // SEC-1: the
   // app code still leaks the credential in a URL (gameSocket.ts sets `?secret=`;
   // api.ts builds `?player_secret=` / `?discord_session_secret=`), and fixing
   // that app code is a separate change (issue #105). A plain `it(...)` here
@@ -275,6 +288,9 @@ describe('SEC-1: player secret must never travel in a URL or console string (#10
     expect(serviceNames).toContain('services/api.ts');
     expect(serviceNames).toContain('services/gameSocket.ts');
     expect(CLIENT_SOURCES.length).toBeGreaterThan(SERVICE_SOURCES.length);
+    // Pin the executable harness so the dynamic gate below can't be silently
+    // neutered by deleting the fixture.
+    expect(existsSync(HARNESS_PATH), `missing harness at ${HARNESS_PATH}`).toBe(true);
   });
 
   it.fails('KNOWN-RED until SEC-1 lands: no client source puts the secret in a request URL', () => {
@@ -323,6 +339,61 @@ describe('SEC-1: player secret must never travel in a URL or console string (#10
           'logging.\n' +
           leaks.join('\n'),
       ).toEqual([]);
+    },
+  );
+
+  it.fails(
+    'KNOWN-RED until SEC-1 lands: executing the real URL builders leaks no canary secret into a URL',
+    () => {
+      // Dynamic counterpart to the static gates: run fixtures/sec1_url_harness.cjs,
+      // which reads the REAL gameSocket.ts / api.ts, evaluates getWsUrl() and
+      // getAccountStatus() with a unique canary secret, and reports whether the
+      // canary ends up in either URL's query string. This proves the leak (or
+      // its absence) by execution, not by pattern match, so it can't be fooled
+      // by a URL assembled in a way the regexes don't anticipate.
+      let stdout;
+      let status = 0;
+      try {
+        stdout = execFileSync('node', [HARNESS_PATH], {
+          encoding: 'utf8',
+          env: {
+            ...process.env,
+            SEC1_GAMESOCKET_TS: GAMESOCKET_TS,
+            SEC1_API_TS: API_TS,
+          },
+        });
+      } catch (err) {
+        // Non-zero exit (1 = leak found, 2 = code-under-test not locatable).
+        stdout = (err.stdout || '').toString();
+        status = typeof err.status === 'number' ? err.status : 1;
+      }
+
+      const line = stdout.split('\n').find((l) => l.startsWith('SEC1_RESULT='));
+      // Exit 2 means the harness could not find getWsUrl()/getAccountStatus()
+      // (e.g. a refactor moved them). Treat that as a HARD failure regardless of
+      // .fails -- a green result must mean 'the secret is provably not in the
+      // URL', never 'the check couldn't run'. We surface it via a normal expect
+      // so it reads as a real error, then still evaluate the leak assertion.
+      expect(line, `harness produced no SEC1_RESULT line. stdout:\n${stdout}`).toBeTruthy();
+      const result = JSON.parse(line.slice('SEC1_RESULT='.length));
+      expect(
+        result.error,
+        `SEC-1 harness could not locate the code under test (exit ${status}); ` +
+          'a refactor may have moved getWsUrl()/getAccountStatus(). Update the ' +
+          'harness so this gate keeps executing the real URL builders.',
+      ).toBeFalsy();
+
+      // The KNOWN-RED assertion: no canary may leak into any built URL. Fails on
+      // today's code (ws sets ?secret=, discord-status builds ?player_secret=)
+      // and flips green the moment SEC-1 moves the credential out of the URL.
+      expect(
+        result.leaks,
+        'Executing the real URL builders leaked the canary secret into a URL ' +
+          'query string. Move the credential to the Authorization header, the ' +
+          'POST body, or the first WebSocket message.\n' +
+          JSON.stringify(result.checked, null, 2),
+      ).toEqual([]);
+      expect(result.ok).toBe(true);
     },
   );
 
