@@ -101,12 +101,22 @@ PY`,
         180000,
       );
 
-      // Wait for the server to accept connections (poll health for up to ~40s).
+      // Wait for the server to accept connections (poll for up to ~40s).
+      //
+      // NOTE: we deliberately do NOT gate readiness on `/api/health/`. That
+      // endpoint probes Redis and, under the repo's `settings_test`
+      // (InMemoryChannelLayer, no Redis process in the sandbox), it returns
+      // HTTP 503 by design — so `curl -f` against it would never succeed even
+      // though Django is fully up. The rotation/room endpoints under test are
+      // `AllowAny` and do not touch Redis, so "the server answers HTTP at all"
+      // is the correct readiness signal. curl prints `000` when it cannot
+      // connect; any real HTTP status (200/403/404/503/...) means we are up.
       await sh(
         testdriver,
         `for i in $(seq 1 40); do
-           if curl -fsS -o /dev/null ${BASE}/api/health/ 2>/dev/null; then
-             echo up; exit 0;
+           code=$(curl -s -o /dev/null -w '%{http_code}' ${BASE}/api/health/ 2>/dev/null || echo 000)
+           if [ "$code" != "000" ]; then
+             echo "up (health responded HTTP $code)"; exit 0;
            fi
            sleep 1
          done
