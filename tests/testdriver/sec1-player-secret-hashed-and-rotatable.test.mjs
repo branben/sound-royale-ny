@@ -34,6 +34,23 @@ import { TestDriver } from "testdriverai/vitest/hooks";
 // very "secret in the URL" anti-pattern that #105 forbids and that
 // sec1-*-not-in-url.test.mjs enforce.
 //
+// SECRET HYGIENE (SEC-1 #105 — no secret in URL *or* console/error string)
+// ------------------------------------------------------------------------
+// The guardrail forbids the plaintext secret appearing in a URL query param OR
+// in a console / error string. The dashcam run-recording and vitest logs both
+// capture exec stdout, so echoing the issued/rotated plaintext (or the raw
+// create response that contains it) would itself leak the secret into the
+// shared recording — the exact anti-pattern under review. Therefore:
+//   * The plaintext secret is NEVER printed to stdout and NEVER returned to
+//     the JS layer. It lives only inside the sandbox in mode-600 files under
+//     /tmp/psec/secrets/ and is referenced by path, never by value.
+//   * Every secret-dependent decision (is-hex64, plaintext != stored,
+//     new != old, HTTP status of a rotate) is computed IN the sandbox; only
+//     non-secret signals (booleans, lengths, HTTP codes) cross to JS.
+//   * The rotate helper posts the current secret straight from its sandbox
+//     file into the request BODY, and writes any freshly-issued secret back to
+//     a file — the value is never observed by the harness/test log.
+//
 // WHAT IS REAL vs. HARNESS
 // ------------------------
 // The security-critical logic — the SHA-256 hashing (hash_secret), the
@@ -76,10 +93,18 @@ const HARNESS_PY = readFileSync(
 const b64 = (s) => Buffer.from(s, "utf8").toString("base64");
 
 // Small helper: pull a labelled value (LABEL=value) out of exec stdout.
+// Only ever used to read NON-SECRET signals (HTTP codes, booleans, lengths,
+// player ids) — never a plaintext secret (those stay in the sandbox).
 const grab = (out, label) =>
   (String(out ?? "").match(new RegExp(`${label}=(\\S+)`)) || [])[1] || "";
 
 const BASE = `http://127.0.0.1:8112`;
+
+// Sandbox-only location for plaintext secrets. Files here are mode 600 and are
+// NEVER echoed; the value is referenced by path so it can't land in a log.
+const SECRET_DIR = "/tmp/psec/secrets";
+const CURRENT_SECRET = `${SECRET_DIR}/current`; // the live secret for the player
+const OLD_SECRET = `${SECRET_DIR}/old`; //         the pre-rotation secret
 
 describe("SEC-1: player_secret is hashed at rest and rotatable (#105, PR #261)", () => {
   it("stores only a hash, issues plaintext once, and rotation invalidates the old secret", async (context) => {
@@ -88,29 +113,43 @@ describe("SEC-1: player_secret is hashed at rest and rotatable (#105, PR #261)",
     await testdriver.provision.chrome({ url: "about:blank" });
 
     // Rotate the player addressed by `playerId` (opaque PK in the URL) while
-    // presenting `bodySecret` in the JSON BODY — never in the URL (SEC-1 #105).
-    // Returns the parsed 200 JSON on success; REJECTS (throws) on any non-200 so
-    // a caller can gate the *rejection* with the framework's
-    // `expect(...).rejects.toThrow()` instead of manually inspecting a status
-    // code / flipping a `blocked` flag (TST-2).
-    const rotate = async (playerId, bodySecret) => {
+    // presenting the secret read from the sandbox file `secretFile` in the JSON
+    // BODY — never in the URL (SEC-1 #105). The plaintext is streamed straight
+    // from the file into curl's body via python (jq-free JSON encoding) so it
+    // is never interpolated into the shell command, an env var, or stdout.
+    //
+    // Returns { code, newSecretFile } on success (the fresh secret is written
+    // to `newSecretFile`, NOT returned by value); REJECTS (throws) on any
+    // non-200 with a status-carrying message so a caller can gate the
+    // *rejection* with `expect(...).rejects.toThrow()` (TST-2). No secret ever
+    // appears in the thrown message or on stdout.
+    const rotate = async (playerId, secretFile, newSecretFile) => {
       const out = await testdriver.exec(
         "sh",
         [
-          `RESP=$(curl -s -w '\\nHTTP:%{http_code}' -X POST "${BASE}/api/players/${playerId}/rotate_secret/" -H 'Content-Type: application/json' -d "{\\"player_secret\\":\\"${bodySecret}\\"}")`,
-          `echo "ROTATE_CODE=$(printf %s "$RESP" | sed -n "s/^HTTP://p")"`,
-          `echo "ROTATE_BODY=$(printf %s "$RESP" | head -1)"`,
+          "set -e",
+          // Build the JSON body from the secret FILE (never a shell var / arg),
+          // so the plaintext is not exposed in the process table or any echo.
+          `BODY=$(SECRET_FILE="${secretFile}" python3 -c 'import json,os;print(json.dumps({"player_secret": open(os.environ["SECRET_FILE"]).read()}))')`,
+          `RESP=$(printf '%s' "$BODY" | curl -s -w '\\nHTTP:%{http_code}' -X POST "${BASE}/api/players/${playerId}/rotate_secret/" -H 'Content-Type: application/json' --data-binary @-)`,
+          `CODE=$(printf %s "$RESP" | sed -n "s/^HTTP://p")`,
+          // Emit ONLY the HTTP code. On success, extract the fresh secret and
+          // write it to a file (mode 600) — never print it.
+          `if [ "$CODE" = "200" ]; then`,
+          `  mkdir -p "${SECRET_DIR}" && printf %s "$RESP" | head -1 | python3 -c "import sys,json;open('${newSecretFile}','w').write(json.load(sys.stdin)['player_secret'])"`,
+          `  chmod 600 "${newSecretFile}"`,
+          `fi`,
+          `echo "ROTATE_CODE=$CODE"`,
         ].join("\n"),
         60000,
       );
       const text = String(out?.stdout ?? out ?? "");
       const code = grab(text, "ROTATE_CODE");
       if (code !== "200") {
-        // Surface a clear, framework-catchable rejection carrying the status.
+        // Status-only rejection — carries no secret material.
         throw new Error(`rotate_secret rejected with HTTP ${code}`);
       }
-      const body = (text.match(/ROTATE_BODY=(\{.*\})/) || [])[1] || "{}";
-      return JSON.parse(body);
+      return { code, newSecretFile };
     };
 
     // 1) Stage the REAL security.py + the harness inside the sandbox.
@@ -119,6 +158,7 @@ describe("SEC-1: player_secret is hashed at rest and rotatable (#105, PR #261)",
       [
         "set -e",
         "rm -rf /tmp/psec && mkdir -p /tmp/psec",
+        `mkdir -p "${SECRET_DIR}" && chmod 700 "${SECRET_DIR}"`,
         `echo ${b64(REAL_SECURITY_PY)} | base64 -d > /tmp/psec/security.py`,
         `echo ${b64(HARNESS_PY)} | base64 -d > /tmp/psec/harness.py`,
         "echo STAGED",
@@ -163,27 +203,35 @@ describe("SEC-1: player_secret is hashed at rest and rotatable (#105, PR #261)",
     expect(bootOut).toContain("BOOT_DONE");
     expect(grab(bootOut, "SECURITY_SOURCE")).toContain("/tmp/psec/security.py");
 
-    // 4) CREATE a player. The response must carry a plaintext secret + an opaque
+    // 4) CREATE a player. The response carries a plaintext secret + an opaque
     //    player_id; the DB must store only the SHA-256 hash (never the
-    //    plaintext). We introspect the stored column by player_id, NOT by the
-    //    plaintext secret, so no secret is ever placed in a URL (SEC-1 #105).
+    //    plaintext). The issued plaintext is written STRAIGHT to a mode-600
+    //    sandbox file and never printed — we then introspect the stored column
+    //    by player_id (NOT by the plaintext secret, so no secret is placed in a
+    //    URL, SEC-1 #105) and classify it entirely in-sandbox. Only non-secret
+    //    signals (booleans, lengths, the player id) cross to JS.
     const create = await testdriver.exec(
       "sh",
       [
+        "set -e",
+        `mkdir -p "${SECRET_DIR}"`,
         `RESP=$(curl -s -X POST "${BASE}${createUrl}" -H 'Content-Type: application/json' -d '{"name":"SEC1Tester"}')`,
-        'echo "CREATE_RESP=$RESP"',
-        `SECRET=$(printf '%s' "$RESP" | python3 -c "import sys,json;print(json.load(sys.stdin)['player_secret'])")`,
+        // Persist the issued plaintext to a file (mode 600). NEVER echoed.
+        `printf '%s' "$RESP" | python3 -c "import sys,json;open('${CURRENT_SECRET}','w').write(json.load(sys.stdin)['player_secret'])"`,
+        `chmod 600 "${CURRENT_SECRET}"`,
         `PID=$(printf '%s' "$RESP" | python3 -c "import sys,json;print(json.load(sys.stdin)['player_id'])")`,
-        'echo "PLAINTEXT=$SECRET"',
         'echo "PLAYER_ID=$PID"',
+        // Fetch the RAW stored column by player_id (never by the secret).
         `STORED=$(curl -s "${BASE}/api/players/$PID/stored/" | python3 -c "import sys,json;print(json.load(sys.stdin)['stored'])")`,
-        'echo "STORED=$STORED"',
-        // classify the stored value: is it a 64-char lowercase hex digest, and
-        // is it different from the plaintext we were handed?
-        `python3 - "$SECRET" "$STORED" <<'PY'
-import sys
-plain, stored = sys.argv[1], sys.argv[2]
+        // Classify the stored value + compare to the plaintext ENTIRELY in the
+        // sandbox, reading the plaintext from its file. Emit only booleans and
+        // the plaintext LENGTH — never the plaintext or the stored value.
+        `STORED="$STORED" python3 - "${CURRENT_SECRET}" <<'PY'
+import os, sys
+plain = open(sys.argv[1]).read()
+stored = os.environ["STORED"]
 is_hex64 = len(stored) == 64 and all(c in "0123456789abcdef" for c in stored)
+print("PLAINTEXT_LEN=%d" % len(plain))
 print("STORED_IS_HEX64=%s" % ("yes" if is_hex64 else "no"))
 print("STORED_NE_PLAINTEXT=%s" % ("yes" if stored != plain else "no"))
 PY`,
@@ -191,36 +239,71 @@ PY`,
       60000,
     );
     const createOut = String(create?.stdout ?? create ?? "");
-    const plaintext = grab(createOut, "PLAINTEXT");
+    const plaintextLen = Number(grab(createOut, "PLAINTEXT_LEN") || "0");
     const playerId = grab(createOut, "PLAYER_ID");
 
     // Issuance returns a non-empty plaintext secret + an addressable player_id.
-    expect(plaintext.length).toBeGreaterThan(0);
+    expect(plaintextLen).toBeGreaterThan(0);
     expect(playerId.length).toBeGreaterThan(0);
     // The persisted column is a SHA-256 hex digest, NOT the plaintext.
     expect(grab(createOut, "STORED_IS_HEX64")).toBe("yes");
     expect(grab(createOut, "STORED_NE_PLAINTEXT")).toBe("yes");
 
-    // 5) ROTATE with the correct secret (in the body) -> resolves with a NEW,
-    //    different plaintext. Expressed as a framework RESOLUTION assertion.
-    const rotated = await rotate(playerId, plaintext);
-    const newSecret = rotated.player_secret;
-    expect(newSecret.length).toBeGreaterThan(0);
-    expect(newSecret).not.toBe(plaintext);
+    // 5) ROTATE with the correct secret (read from its sandbox file, sent in
+    //    the body) -> resolves; the harness writes the fresh plaintext to a new
+    //    file. Keep a copy of the pre-rotation secret so we can prove it is now
+    //    invalid. Then verify the new secret differs from the old — computed
+    //    in-sandbox from the two files, emitting only a boolean.
+    await testdriver.exec(
+      "sh",
+      `cp "${CURRENT_SECRET}" "${OLD_SECRET}" && chmod 600 "${OLD_SECRET}" && echo COPIED`,
+      15000,
+    );
+    const rotated = await rotate(playerId, CURRENT_SECRET, CURRENT_SECRET);
+    expect(rotated.code).toBe("200");
+
+    const diff = await testdriver.exec(
+      "sh",
+      [
+        `python3 - "${OLD_SECRET}" "${CURRENT_SECRET}" <<'PY'`,
+        "import sys",
+        "old = open(sys.argv[1]).read()",
+        "new = open(sys.argv[2]).read()",
+        'print("NEW_LEN=%d" % len(new))',
+        'print("NEW_NE_OLD=%s" % ("yes" if new != old else "no"))',
+        "PY",
+      ].join("\n"),
+      15000,
+    );
+    const diffOut = String(diff?.stdout ?? diff ?? "");
+    expect(Number(grab(diffOut, "NEW_LEN") || "0")).toBeGreaterThan(0);
+    expect(grab(diffOut, "NEW_NE_OLD")).toBe("yes");
 
     // 6) The OLD secret is invalidated the moment it is rotated, and a WRONG
     //    body secret against the same player must be forbidden. Both are
-    //    asserted as framework REJECTIONS (TST-2) — `rotate()` throws on any
-    //    non-200, so `expect(...).rejects.toThrow()` gates the rejection rather
-    //    than a hand-rolled status-code / `blocked`-flag check. Because we now
-    //    address by the stable player_id, both cases hit the real 403 auth
-    //    branch (stale/incorrect hash), not a 404.
-    await expect(rotate(playerId, plaintext)).rejects.toThrow(/HTTP 403/);
-    await expect(rotate(playerId, "totally-wrong-secret")).rejects.toThrow(
-      /HTTP 403/,
+    //    asserted as framework REJECTIONS (TST-2) — `rotate()` throws (with a
+    //    status-only, secret-free message) on any non-200, so
+    //    `expect(...).rejects.toThrow()` gates the rejection rather than a
+    //    hand-rolled status-code / `blocked`-flag check. Because we now address
+    //    by the stable player_id, both cases hit the real 403 auth branch
+    //    (stale/incorrect hash), not a 404. The presented secrets are read from
+    //    sandbox files (the stale one; a throwaway wrong one) — never printed.
+    await testdriver.exec(
+      "sh",
+      `printf %s 'totally-wrong-secret' > "${SECRET_DIR}/wrong" && chmod 600 "${SECRET_DIR}/wrong" && echo WROTE_WRONG`,
+      15000,
     );
+    // Rotating with the stale (pre-rotation) secret must be rejected with 403.
+    await expect(
+      rotate(playerId, OLD_SECRET, `${SECRET_DIR}/unused_a`),
+    ).rejects.toThrow(/HTTP 403/);
+    // Rotating with a plainly-wrong secret must be rejected with 403.
+    await expect(
+      rotate(playerId, `${SECRET_DIR}/wrong`, `${SECRET_DIR}/unused_b`),
+    ).rejects.toThrow(/HTTP 403/);
 
     // 7) A visible confirmation for the run recording: render a small PASS page.
+    //    The page shows only the guarantee statements — NEVER a secret value.
     await testdriver.exec(
       "sh",
       `cat > /tmp/psec/result.html <<'HTML'
@@ -233,6 +316,7 @@ PY`,
 <li>rotation issues a new secret + invalidates the old</li>
 <li>rotation rejects a wrong secret with 403</li>
 <li>secret travels in the POST body, addressed by player_id (never in the URL)</li>
+<li>plaintext never printed to logs/console (kept in mode-600 sandbox files)</li>
 </ul></body>
 HTML`,
       15000,
