@@ -1,0 +1,108 @@
+name: PR Lifecycle
+
+on:
+  pull_request:
+    types: [opened, synchronize, labeled]
+  schedule:
+    - cron: '0 8 * * *'  # Daily 8am UTC
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  label-and-route:
+    name: Label and Route
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Label PR (size, critical-path, needs-review)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const criticalPaths = [
+              'backend/game_engine/consumers.py',
+              'backend/game_engine/auth.py',
+              'backend/game_engine/models.py',
+              'backend/game_engine/health.py',
+              'backend/game_engine/urls.py',
+              'src/context/GameContext.tsx',
+            ]
+            const pr = context.payload.pull_request;
+            if (!pr) return;
+            const files = await github.paginate(
+              github.rest.pulls.listFiles.endpoint.merge({ owner: context.repo.owner, repo: context.repo.repo, pull_number: pr.number })
+            );
+            const changedFiles = files.map(f => f.filename);
+            const touchesCritical = criticalPaths.some(p => changedFiles.includes(p));
+            const additions = files.reduce((sum, f) => sum + f.additions, 0);
+            const prSize = additions;
+
+            const labels = [];
+            // Size labels
+            if (prSize > 500) labels.push('size/XL');
+            else if (prSize > 200) labels.push('size/L');
+            else if (prSize > 50) labels.push('size/M');
+            else labels.push('size/S');
+
+            // Critical path + large PR
+            if (touchesCritical) {
+              labels.push('critical-path');
+              if (prSize > 200) labels.push('needs-human-review');
+            }
+
+            if (labels.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                labels: labels,
+              });
+            }
+
+      - name: Check guardrail acknowledgement
+        if: github.event.action == 'opened' || github.event.action == 'synchronize'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            if (!pr) return;
+            const body = pr.body || '';
+            // Only check if the checklist section exists at all
+            if (!body.includes('Churn Guardrails Acknowledgement')) return;
+
+            const unchecked = body.match(/- \[ \]/g);
+            if (unchecked && unchecked.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: `⚠️ **Guardrail Checklist Incomplete**
+
+                Please confirm you have reviewed the [Active Guardrails](AGENTS.md#active-guardrails) before marking this PR ready for review.
+
+                Unchecked items detected in your PR description. Update the checklist to confirm compliance.`,
+              });
+            }
+
+  stale-management:
+    name: Stale PR Management
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - uses: actions/stale@v9
+        with:
+          stale-pr-message: |
+            This PR has been automatically marked as stale due to 14 days of inactivity.
+
+            - If this PR is still relevant, please comment or push new changes to keep it active
+            - If this PR is ready to close, apply the `wontfix` label
+            - PRs with the `pinned` label are exempt
+
+            This is an automated message from the PR lifecycle bot. �
+          close-pr-message: 'Closing this PR due to 21 days of inactivity. Re-open if still relevant.'
+          days-before-stale: 14
+          days-before-close: 7
+          stale-pr-label: 'stale'
+          exempt-pr-labels: 'pinned,good-first-issue'
+          operations-per-run: 30
