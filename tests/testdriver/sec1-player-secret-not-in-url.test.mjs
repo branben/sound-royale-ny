@@ -1,6 +1,8 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, sep } from 'node:path';
+import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 import { TestDriver } from 'testdriverai/vitest/hooks';
 
@@ -66,6 +68,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, '..', '..');
 const srcDir = join(repoRoot, 'src');
 const servicesDir = join(srcDir, 'services');
+// The runtime harness that reproduces the SEC-1 leak against the REAL sources
+// (see the `runtime:` test at the bottom of this file).
+const HARNESS_PATH = join(__dirname, 'fixtures', 'sec1_url_harness.cjs');
 
 // Directory names we never scan: nested test folders and build output.
 const IGNORED_DIRS = new Set(['__tests__', '__mocks__', 'node_modules', 'dist', 'build']);
@@ -384,6 +389,88 @@ describe('SEC-1: player secret must never travel in a URL or console string (#10
           '(the room URL may contain a room code, but no credential/secret)',
       );
       expect(urlIsClean).toBeTruthy();
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // RUNTIME harness gate (`sec1_url_harness.cjs`).
+  //
+  // The three source-contract tests above are STATIC (regex over the source
+  // text). This test complements them with a RUNTIME proof: it stages the two
+  // real sources (`services/gameSocket.ts`, `services/api.ts`) and runs
+  // `fixtures/sec1_url_harness.cjs`, which extracts and EXECUTES the exact
+  // URL-construction paths the app uses (getWsUrl() and getAccountStatus()) with
+  // a unique canary secret, then reports whether the canary lands in either
+  // URL's query string. This catches a leak the regex could miss (e.g. a secret
+  // assembled programmatically at runtime) and fails loudly (exit 2) if the app
+  // was refactored so the harness can no longer find the code under test — a
+  // green result can only mean "the secret is provably not in the URL".
+  //
+  // It runs as a plain in-process Node subprocess: NO TestDriver sandbox is
+  // provisioned, so — like the static gates — it consumes zero TestDriver
+  // minutes and runs in CI without a live deployment.
+  //
+  // KNOWN-RED (`it.fails`) for the same reason as the static gates: today the
+  // real code leaks (`?secret=` / `?player_secret=`), so the harness reports
+  // ok:false and this assertion fails as expected. When SEC-1 lands and the
+  // credential moves out of the URL, the harness reports ok:true and this flips
+  // to a hard failure — the signal to drop the `.fails` marker.
+  // -------------------------------------------------------------------------
+  it.fails(
+    'runtime: the harness proves the real URL builders leak no secret (KNOWN-RED until SEC-1)',
+    () => {
+      // Stage the two real sources the harness reads (it resolves them from
+      // SEC1_GAMESOCKET_TS / SEC1_API_TS). We copy the on-disk files verbatim so
+      // the harness exercises exactly what ships.
+      const stageDir = mkdtempSync(join(tmpdir(), 'sec1-'));
+      const gameSocketPath = join(stageDir, 'gameSocket.ts');
+      const apiPath = join(stageDir, 'api.ts');
+      writeFileSync(gameSocketPath, readFileSync(join(servicesDir, 'gameSocket.ts')));
+      writeFileSync(apiPath, readFileSync(join(servicesDir, 'api.ts')));
+
+      const run = spawnSync(process.execPath, [HARNESS_PATH], {
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          SEC1_GAMESOCKET_TS: gameSocketPath,
+          SEC1_API_TS: apiPath,
+        },
+      });
+
+      const stdout = run.stdout || '';
+      const line = stdout.split('\n').find((l) => l.startsWith('SEC1_RESULT='));
+      // Guard: the harness must have run and emitted its result contract. If it
+      // exited 2 (could not locate the code under test) or printed nothing, that
+      // is a hard error, NOT a silent pass.
+      expect(
+        line,
+        'sec1_url_harness.cjs did not emit a SEC1_RESULT= line — the harness ' +
+          'could not run (exit ' +
+          run.status +
+          ').\nstdout:\n' +
+          stdout +
+          '\nstderr:\n' +
+          (run.stderr || ''),
+      ).toBeTruthy();
+      expect(
+        run.status,
+        'harness exited 2 = it could not locate the URL-building code (the app ' +
+          'was refactored). Update fixtures/sec1_url_harness.cjs so the gate keeps ' +
+          'running.\n' +
+          line,
+      ).not.toBe(2);
+
+      const result = JSON.parse(line.slice('SEC1_RESULT='.length));
+
+      // The SEC-1 contract: neither runtime URL may carry the canary secret.
+      expect(
+        result.ok,
+        'The real URL builders put the player secret in a query string. ' +
+          'Leaking URLs:\n' +
+          (result.leaks || []).map((l) => `  - ${l.where}: ${l.url}`).join('\n') +
+          '\nMove the credential to the Authorization header / POST body / first ' +
+          'WebSocket message.',
+      ).toBe(true);
     },
   );
 });
