@@ -302,6 +302,64 @@ export const gameApi = {
     return response.data;
   },
 
+  /**
+   * Upload a tile's audio with real progress reporting and cancel support.
+   *
+   * Uses XMLHttpRequest (not axios) because axios does not expose upload
+   * progress + an abort handle in a single ergonomic call. Returns the parsed
+   * backend response; on failure it throws an Error whose `.message` is the
+   * backend's `error` string when present (so the UI can surface specifics).
+   */
+  uploadTile: (
+    tileId: string,
+    audioFile: File,
+    playerId: string,
+    options: {
+      onProgress?: (percent: number) => void;
+      signal?: AbortSignal;
+    } = {},
+  ): Promise<GameState> =>
+    new Promise((resolve, reject) => {
+      const formData = new FormData();
+      formData.append('audio_file', audioFile);
+      formData.append('player_id', playerId);
+
+      const xhr = new XMLHttpRequest();
+      const url = `${API_BASE_URL}/tiles/${tileId}/play_tile/`;
+
+      xhr.open('POST', url);
+      // Auth headers (mirror api.ts interceptors) for the raw XHR.
+      const access = getStoredAccessToken();
+      if (access) xhr.setRequestHeader('Authorization', `Bearer ${access}`);
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && options.onProgress) {
+          options.onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      };
+
+      xhr.onload = () => {
+        try {
+          const data = xhr.responseText ? JSON.parse(xhr.responseText) : {};
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(data);
+          } else {
+            reject(new Error(data?.error || `Upload failed (HTTP ${xhr.status})`));
+          }
+        } catch {
+          reject(new Error(`Upload failed (HTTP ${xhr.status})`));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error('Network error during upload'));
+      xhr.onabort = () => reject(new Error('Upload cancelled'));
+      xhr.ontimeout = () => reject(new Error('Upload timed out'));
+
+      options.signal?.addEventListener('abort', () => xhr.abort());
+
+      xhr.send(formData);
+    }),
+
   resetGame: async (
     roomId: string,
     playerSecret: string,

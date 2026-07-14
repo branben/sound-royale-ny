@@ -21,10 +21,6 @@ class TileSerializer(serializers.ModelSerializer):
         "audio/wav",
         "audio/x-wav",
         "audio/ogg",
-        "audio/flac",
-        "audio/mp4",
-        "audio/x-m4a",
-        "audio/aac",
     }
 
     def validate_audio_file(self, value):
@@ -36,7 +32,7 @@ class TileSerializer(serializers.ModelSerializer):
             )
         if value.content_type not in self.ALLOWED_AUDIO_MIME_TYPES:
             raise ValidationError(
-                f"Invalid file type '{value.content_type}'. Allowed types: mp3, wav, ogg, flac, m4a, aac."
+                f"Invalid file type '{value.content_type}'. Allowed types: mp3, wav, ogg."
             )
         return value
 

@@ -54,6 +54,7 @@ describe('GameSocketService credential lifecycle', () => {
     });
 
     expect(MockWebSocket.instances).toHaveLength(1);
+    // Anonymous room socket carries no secret in the URL (guardrail #105).
     expect(MockWebSocket.instances[0].url).toBe('ws://localhost:8000/ws/game/1234/');
 
     gameSocket.connect({
@@ -65,8 +66,21 @@ describe('GameSocketService credential lifecycle', () => {
 
     expect(MockWebSocket.instances).toHaveLength(2);
     expect(MockWebSocket.instances[0].close).toHaveBeenCalledTimes(1);
+
+    // The authenticated socket carries player_id in the URL but NOT the
+    // secret — the secret is sent as a post-handshake `auth` message.
     expect(MockWebSocket.instances[1].url).toBe(
-      'ws://localhost:8000/ws/game/1234/?secret=secret-1&player_id=player-1',
+      'ws://localhost:8000/ws/game/1234/?player_id=player-1',
+    );
+
+    // Simulate the socket opening and verify the auth message is sent.
+    MockWebSocket.instances[1].open();
+    expect(MockWebSocket.instances[1].send).toHaveBeenCalledWith(
+      JSON.stringify({
+        type: 'auth',
+        player_id: 'player-1',
+        player_secret: 'secret-1',
+      }),
     );
   });
 });
