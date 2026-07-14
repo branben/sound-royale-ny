@@ -1,13 +1,18 @@
 import json
 import logging
+import asyncio
 from uuid import UUID
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from .models import Room, Player
 from .serializers import GameStateSerializer
+from .auth import _resolve_player, _resolve_player_from_token
 
 # Audit logger for security-relevant events
 audit_logger = logging.getLogger("game_audit")
+
+# Seconds to wait for a post-handshake auth message before closing (#105).
+AUTH_TIMEOUT_SECONDS = 10
 
 
 class GameConsumer(AsyncWebsocketConsumer):
@@ -36,36 +41,37 @@ class GameConsumer(AsyncWebsocketConsumer):
         self.room_code = room_identity["code"]
         self.game_group_name = f"game_{self.game_id}"
         self.player_id = None
+        self.authed = False
+        self.auth_timeout = None
 
+        # Player may already be resolved from a query/JWT by the auth
+        # middleware (legacy path). Otherwise we accept the socket and wait
+        # for a post-handshake `auth` message so the secret stays out of the
+        # URL (guardrail #105).
         player = self.scope.get("player")
-        player_id = str(player.id) if player else None
-        self.player_id = player_id
-
-        audit_logger.info(
-            "websocket_connect_attempt",
-            extra={
-                "room_id": self.game_id,
-                "room_code": self.room_code,
-                "player_id": player_id,
-                "has_identity": bool(player),
-                "action": "connect",
-            },
-        )
-
-        # Reject unauthenticated connections
-        if not player:
-            audit_logger.warning(
-                "websocket_unauthenticated_rejected",
-                extra={
-                    "room_id": self.game_id,
-                    "room_code": self.room_code,
-                    "action": "rejected",
-                },
-            )
-            await self.close(code=4003)
+        if player:
+            await self.finalize_connection(player)
             return
 
-        await self.set_player_connected(player_id, True)
+        await self.accept()
+        self.auth_timeout = asyncio.get_event_loop().call_later(
+            AUTH_TIMEOUT_SECONDS,
+            lambda: asyncio.ensure_future(self._close_unauthenticated()),
+        )
+
+    async def _close_unauthenticated(self):
+        if not self.authed:
+            await self.close(code=4003)
+
+    async def finalize_connection(self, player):
+        """Mark the player connected, join the group, and broadcast presence."""
+        player_id = str(player.id)
+        self.player_id = player_id
+        self.authed = True
+        if self.auth_timeout is not None:
+            self.auth_timeout.cancel()
+            self.auth_timeout = None
+
         audit_logger.info(
             "websocket_player_verified",
             extra={
@@ -74,6 +80,8 @@ class GameConsumer(AsyncWebsocketConsumer):
                 "action": "verified",
             },
         )
+
+        await self.set_player_connected(player_id, True)
 
         # Join room group
         await self.channel_layer.group_add(self.game_group_name, self.channel_name)
@@ -84,7 +92,7 @@ class GameConsumer(AsyncWebsocketConsumer):
             "websocket_connected",
             extra={
                 "room_id": self.game_id,
-                "player_id": self.player_id,
+                "player_id": player_id,
                 "group_name": self.game_group_name,
                 "action": "connected",
             },
@@ -99,6 +107,26 @@ class GameConsumer(AsyncWebsocketConsumer):
                     {"type": "player_joined", "payload": player_payload},
                 )
             await self.broadcast_game_state()
+
+    async def _handle_auth(self, data):
+        """Resolve the player from a post-handshake auth message (#105)."""
+        token = data.get("token")
+        player_id = data.get("player_id")
+        player_secret = data.get("player_secret")
+        player = None
+        if token:
+            player = await _resolve_player_from_token(token)
+        elif player_id and player_secret:
+            player = await _resolve_player(player_id, player_secret)
+
+        if not player:
+            audit_logger.warning(
+                "websocket_auth_failed",
+                extra={"room_id": self.game_id, "action": "reject"},
+            )
+            await self.close(code=4003)
+            return
+        await self.finalize_connection(player)
 
     async def disconnect(self, close_code):
         # Mark player as disconnected
@@ -144,6 +172,12 @@ class GameConsumer(AsyncWebsocketConsumer):
             return
 
         message_type = text_data_json.get("type")
+
+        # Post-handshake auth: client sends its authenticator as the first
+        # message (player_secret / JWT are NOT in the URL — guardrail #105).
+        if message_type == "auth" and not self.authed:
+            await self._handle_auth(text_data_json)
+            return
 
         # Security: Reject forbidden message types that should only come from server
         if message_type in self.FORBIDDEN_CLIENT_TYPES:
