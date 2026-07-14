@@ -39,6 +39,10 @@ import { describe, expect, it } from 'vitest';
 // TestDriver suite so it runs under vitest.testdriver.config.mjs alongside the
 // other SEC-1 gates.
 //
+// Related: this PR (#301) itself notes the SEC-1-compliant shape in its
+// description ("secret now travels in the POST body, not URL query params").
+// This gate makes that promise executable for the upload path specifically.
+//
 // Run with:
 //   npx vitest run --config vitest.testdriver.config.mjs \
 //     tests/testdriver/sec1-upload-tile-no-secret.test.mjs
