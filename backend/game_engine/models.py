@@ -4,6 +4,8 @@ from django.db import models
 from django.core.validators import FileExtensionValidator
 from typing import TYPE_CHECKING
 
+from .security import hash_secret, is_hex64, new_player_secret
+
 if TYPE_CHECKING:
     # type: ignore  # Disable Django's type checking for this file to avoid false positives with custom model imports
     from django.db.models import (
@@ -126,9 +128,21 @@ class Player(models.Model):
         CHECKED_IN = "CHECKED_IN", "Checked In"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    player_secret = models.UUIDField(
-        default=uuid.uuid4, editable=False
-    )  # Secret for reconnection
+    # Stored as SHA-256 hex of the issued plaintext secret (guardrail #105).
+    # The plaintext is returned to the client only on create/join/rotate.
+    player_secret = models.CharField(
+        max_length=64, default=new_player_secret, editable=False
+    )  # Secret for reconnection (hashed)
+
+    def save(self, *args, **kwargs):
+        # Hash the secret on assignment so plaintext is never persisted.
+        # If the value is already a 64-char lowercase hex digest, leave it
+        # (e.g. loaded from DB or already hashed) to avoid double-hashing.
+        raw = self.player_secret
+        secret_str = raw if isinstance(raw, str) else str(raw)
+        if len(secret_str) != 64 and not is_hex64(secret_str):
+            self.player_secret = hash_secret(secret_str)
+        super().save(*args, **kwargs)
     name = models.CharField(max_length=50)
     avatar = models.URLField(blank=True, null=True)
     room = models.ForeignKey(

@@ -17,6 +17,7 @@ import uuid
 from decouple import config
 
 from .models import Room, Player, Tile, Round
+from .security import hash_secret, is_hex64
 from .serializers import RoomSerializer, PlayerSerializer, TileSerializer
 
 logger = logging.getLogger(__name__)
@@ -73,13 +74,21 @@ class GameSessionViewSet(viewsets.ModelViewSet):
             return get_object_or_404(Room, id=self.kwargs['room_uuid'])
         
         elif 'player_secret' in self.kwargs:
-            # Lookup by player secret (returns player's room)
+            # Lookup by player secret (returns player's room).
+            # The secret in the URL is the plaintext; the stored value is
+            # hashed (guardrail #105). No longer required to be a UUID.
+            secret = self.kwargs['player_secret']
+            # Accept legacy UUID secrets and new urlsafe-token secrets.
+            # Reject obviously-invalid formats without a DB round-trip.
             try:
-                uuid.UUID(self.kwargs['player_secret'])
-            except ValueError:
+                uuid.UUID(secret)
+                is_valid_format = True
+            except (ValueError, AttributeError):
+                is_valid_format = bool(secret) and len(secret) >= 16 and is_hex64(secret)
+            if not is_valid_format:
                 raise ValueError("Invalid player secret format")
-            
-            player = get_object_or_404(Player, player_secret=self.kwargs['player_secret'])
+
+            player = get_object_or_404(Player, player_secret=hash_secret(secret))
             if not player.room:
                 raise ValueError("Player has not joined a room")
             return player.room
@@ -98,9 +107,12 @@ class GameSessionViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Customize queryset based on lookup strategy"""
         if 'player_secret' in self.kwargs:
-            # When looking up by player secret, filter to that player's room
+            # When looking up by player secret, filter to that player's room.
+            # The secret in the URL is plaintext; stored value is hashed (#105).
             try:
-                player = Player.objects.get(player_secret=self.kwargs['player_secret'])
+                player = Player.objects.get(
+                    player_secret=hash_secret(self.kwargs['player_secret'])
+                )
                 if not player.room:
                     return Room.objects.none()
                 return Room.objects.filter(id=player.room.id)
@@ -139,7 +151,7 @@ class GameSessionViewSet(viewsets.ModelViewSet):
         URL: /api/game-sessions/by-player/{player_secret}/
         """
         try:
-            player = get_object_or_404(Player, player_secret=player_secret)
+            player = get_object_or_404(Player, player_secret=hash_secret(player_secret))
             if not player.room:
                 return Response(
                     {"error": "Player has not joined a room"},

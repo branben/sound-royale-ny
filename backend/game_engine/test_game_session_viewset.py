@@ -14,6 +14,7 @@ import uuid
 from .models import Room, Player, Tile, Round
 from .game_session_views import GameSessionViewSet
 from .serializers import RoomSerializer, PlayerSerializer, TileSerializer
+from game_engine.test_auth_helper import make_player
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.routing]
@@ -25,19 +26,19 @@ class GameSessionViewSetTestCase(APITestCase):
     def setUp(self):
         """Set up test data"""
         self.room = Room.objects.create(code="1234", name="Test Room")
-        self.host = Player.objects.create(
+        self.host = make_player(
             room=self.room,
             name="HostPlayer",
             is_host=True,
             player_secret=uuid.uuid4()
         )
-        self.player = Player.objects.create(
+        self.player = make_player(
             room=self.room,
             name="TestPlayer",
             is_host=False,
             player_secret=uuid.uuid4()
         )
-        self.spectator = Player.objects.create(
+        self.spectator = make_player(
             room=self.room,
             name="SpectatorPlayer",
             is_spectator=True,
@@ -83,7 +84,7 @@ class GameSessionViewSetTestCase(APITestCase):
     def test_lookup_by_player_secret(self):
         """Test lookup by player secret"""
         viewset = GameSessionViewSet()
-        viewset.kwargs = {'player_secret': str(self.player.player_secret)}
+        viewset.kwargs = {'player_secret': self.player.plain_secret}
         viewset.format_kwarg = None
         
         room = viewset.get_object()
@@ -153,7 +154,7 @@ class GameSessionViewSetTestCase(APITestCase):
     def test_custom_queryset_for_player_secret_lookup(self):
         """Test custom queryset filtering for player secret lookup"""
         viewset = GameSessionViewSet()
-        viewset.kwargs = {'player_secret': str(self.player.player_secret)}
+        viewset.kwargs = {'player_secret': self.player.plain_secret}
         
         queryset = viewset.get_queryset()
         self.assertEqual(queryset.count(), 1)
@@ -178,7 +179,7 @@ class GameSessionViewSetTestCase(APITestCase):
         """Test tiles action with multiple lookup patterns"""
         # Test with player secret lookup
         viewset = GameSessionViewSet()
-        viewset.kwargs = {'player_secret': str(self.player.player_secret)}
+        viewset.kwargs = {'player_secret': self.player.plain_secret}
         viewset.action = 'tiles'
         viewset.format_kwarg = None
         viewset.request = MagicMock()  # Add mock request for serializer context
@@ -275,7 +276,7 @@ class GameSessionViewSetTestCase(APITestCase):
     def test_quick_status_check_action(self):
         """Test quick status check action"""
         viewset = GameSessionViewSet()
-        viewset.kwargs = {'player_secret': str(self.player.player_secret)}
+        viewset.kwargs = {'player_secret': self.player.plain_secret}
         viewset.action = 'quick_status_check'
         viewset.format_kwarg = None
         
@@ -407,7 +408,7 @@ class GameSessionViewSetTestCase(APITestCase):
             with patch('game_engine.game_session_views.get_object_or_404') as mock_get:
                 mock_get.return_value = self.player
                 
-                response = viewset.by_player(request, player_secret=str(self.player.player_secret))
+                response = viewset.by_player(request, player_secret=self.player.plain_secret)
                 
                 self.assertEqual(response.status_code, status.HTTP_200_OK)
                 self.assertIn('room', response.data)
@@ -452,13 +453,13 @@ class GameSessionViewSetIntegrationTestCase(APITestCase):
     def setUp(self):
         """Set up test data"""
         self.room = Room.objects.create(code="5678", name="Integration Test Room")
-        self.host = Player.objects.create(
+        self.host = make_player(
             room=self.room,
             name="IntegrationHost",
             is_host=True,
             player_secret=uuid.uuid4()
         )
-        self.player = Player.objects.create(
+        self.player = make_player(
             room=self.room,
             name="IntegrationPlayer",
             is_host=False,
@@ -483,7 +484,7 @@ class GameSessionViewSetIntegrationTestCase(APITestCase):
         self.assertEqual(room.id, self.room.id)
         
         # Test player secret lookup
-        viewset.kwargs = {'player_secret': str(self.player.player_secret)}
+        viewset.kwargs = {'player_secret': self.player.plain_secret}
         room = viewset.get_object()
         self.assertEqual(room.id, self.player.room.id)
     

@@ -4,6 +4,7 @@ from rest_framework import serializers
 from .models import Room, Player, Tile
 from .serializers import TileCreateSerializer
 import uuid
+from game_engine.test_auth_helper import make_player
 
 
 pytestmark = [pytest.mark.unit, pytest.mark.validation]
@@ -15,19 +16,19 @@ class TileCreateSerializerTestCase(TestCase):
     def setUp(self):
         """Set up test data"""
         self.room = Room.objects.create(code="1234", name="Test Room")
-        self.host = Player.objects.create(
+        self.host = make_player(
             room=self.room,
             name="HostPlayer",
             is_host=True,
             player_secret=uuid.uuid4()
         )
-        self.player = Player.objects.create(
+        self.player = make_player(
             room=self.room,
             name="TestPlayer",
             is_host=False,
             player_secret=uuid.uuid4()
         )
-        self.spectator = Player.objects.create(
+        self.spectator = make_player(
             room=self.room,
             name="SpectatorPlayer",
             is_spectator=True,
@@ -335,7 +336,7 @@ class TileCreateSerializerIntegrationTestCase(TestCase):
     def setUp(self):
         """Set up test data"""
         self.room = Room.objects.create(code="5678", name="Integration Test Room")
-        self.player = Player.objects.create(
+        self.player = make_player(
             room=self.room,
             name="IntegrationPlayer",
             is_host=False,

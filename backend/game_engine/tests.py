@@ -4,6 +4,7 @@ from django.urls import reverse
 from rest_framework.test import APIClient
 from unittest.mock import patch, MagicMock
 from .models import Room, Player, Round, Vote
+from game_engine.test_auth_helper import make_player
 
 
 class GameEngineBasicTestCase(TestCase):
@@ -73,7 +74,7 @@ class VotingAPITestCase(TestCase):
             code="1234", name="Test Room", status=Room.Status.PLAYING, current_round=1
         )
 
-        self.producer1 = Player.objects.create(
+        self.producer1 = make_player(
             room=self.room,
             name="Producer1",
             is_spectator=False,
@@ -81,19 +82,19 @@ class VotingAPITestCase(TestCase):
             is_host=True,
         )
 
-        self.producer2 = Player.objects.create(
+        self.producer2 = make_player(
             room=self.room, name="Producer2", is_spectator=False, elo_rating=1200
         )
 
-        self.spectator1 = Player.objects.create(
+        self.spectator1 = make_player(
             room=self.room, name="Spectator1", is_spectator=True
         )
 
-        self.spectator2 = Player.objects.create(
+        self.spectator2 = make_player(
             room=self.room, name="Spectator2", is_spectator=True
         )
 
-        self.spectator3 = Player.objects.create(
+        self.spectator3 = make_player(
             room=self.room, name="Spectator3", is_spectator=True
         )
 
@@ -110,7 +111,7 @@ class VotingAPITestCase(TestCase):
         response = self.client.post(
             url,
             {
-                "player_secret": str(self.producer1.player_secret),
+                "player_secret": self.producer1.plain_secret,
                 "voted_for_player_id": str(self.producer2.id),
             },
             format="json",
@@ -124,7 +125,7 @@ class VotingAPITestCase(TestCase):
         response = self.client.post(
             url,
             {
-                "player_secret": str(self.spectator1.player_secret),
+                "player_secret": self.spectator1.plain_secret,
                 "voted_for_player_id": str(self.producer1.id),
             },
             format="json",
@@ -137,7 +138,7 @@ class VotingAPITestCase(TestCase):
         self.round.voting_open = True
         self.round.save()
 
-        spectator4 = Player.objects.create(
+        spectator4 = make_player(
             room=self.room, name="Spectator4", is_spectator=True
         )
 
@@ -145,7 +146,7 @@ class VotingAPITestCase(TestCase):
         response = self.client.post(
             url,
             {
-                "player_secret": str(self.spectator1.player_secret),
+                "player_secret": self.spectator1.plain_secret,
                 "voted_for_player_id": str(self.producer1.id),
             },
             format="json",
@@ -161,7 +162,7 @@ class VotingAPITestCase(TestCase):
         response = self.client.post(
             url,
             {
-                "player_secret": str(self.spectator1.player_secret),
+                "player_secret": self.spectator1.plain_secret,
                 "voted_for_player_id": str(self.spectator2.id),
             },
             format="json",
@@ -179,7 +180,7 @@ class VotingAPITestCase(TestCase):
         response1 = self.client.post(
             url,
             {
-                "player_secret": str(self.spectator1.player_secret),
+                "player_secret": self.spectator1.plain_secret,
                 "voted_for_player_id": str(self.producer1.id),
             },
             format="json",
@@ -189,7 +190,7 @@ class VotingAPITestCase(TestCase):
         response2 = self.client.post(
             url,
             {
-                "player_secret": str(self.spectator1.player_secret),
+                "player_secret": self.spectator1.plain_secret,
                 "voted_for_player_id": str(self.producer2.id),
             },
             format="json",
@@ -201,7 +202,7 @@ class VotingAPITestCase(TestCase):
         url = f"/api/rooms/{self.room.code}/open_voting/"
 
         response = self.client.post(
-            url, {"player_secret": str(self.spectator1.player_secret)}, format="json"
+            url, {"player_secret": self.spectator1.plain_secret}, format="json"
         )
 
         self.assertEqual(response.status_code, 403)
@@ -211,7 +212,7 @@ class VotingAPITestCase(TestCase):
         url = f"/api/rooms/{self.room.code}/open_voting/"
 
         response = self.client.post(
-            url, {"player_secret": str(self.producer1.player_secret)}, format="json"
+            url, {"player_secret": self.producer1.plain_secret}, format="json"
         )
 
         self.assertEqual(response.status_code, 200)
@@ -225,7 +226,7 @@ class VotingAPITestCase(TestCase):
         url = f"/api/rooms/{self.room.code}/open_voting/"
 
         response = self.client.post(
-            url, {"player_secret": str(self.producer1.player_secret)}, format="json"
+            url, {"player_secret": self.producer1.plain_secret}, format="json"
         )
 
         self.assertEqual(response.status_code, 400)
@@ -242,14 +243,14 @@ class RoomDetailSerializerTestCase(TestCase):
             code="5678", name="Serializer Test Room", status=Room.Status.LOBBY
         )
 
-        self.host_player = Player.objects.create(
+        self.host_player = make_player(
             room=self.room,
             name="HostPlayer",
             is_spectator=False,
             is_host=True,
         )
 
-        self.non_host_player = Player.objects.create(
+        self.non_host_player = make_player(
             room=self.room,
             name="JoinPlayer",
             is_spectator=False,
@@ -295,7 +296,7 @@ class RoomDetailSerializerTestCase(TestCase):
     def test_room_detail_multiple_players_correct_is_host(self):
         """Room with multiple players returns correct is_host for each."""
         # Add a third player
-        third_player = Player.objects.create(
+        third_player = make_player(
             room=self.room,
             name="ThirdPlayer",
             is_spectator=False,
@@ -330,7 +331,7 @@ class PlayerCreateSerializerTestCase(TestCase):
         )
 
         # Create a host player (needed for room to be joinable)
-        Player.objects.create(
+        make_player(
             room=self.room,
             name="ExistingHost",
             is_spectator=False,
@@ -414,7 +415,7 @@ class PlayerCreateSerializerTestCase(TestCase):
         )
 
         # Create a host player (needed for room to be joinable)
-        Player.objects.create(
+        make_player(
             room=self.room,
             name="ExistingHost",
             is_spectator=False,
@@ -497,14 +498,14 @@ class RejoinGameTestCase(TestCase):
             code="7777", name="Rejoin Test Room", status=Room.Status.LOBBY
         )
 
-        self.host_player = Player.objects.create(
+        self.host_player = make_player(
             room=self.room,
             name="HostPlayer",
             is_spectator=False,
             is_host=True,
         )
 
-        self.non_host_player = Player.objects.create(
+        self.non_host_player = make_player(
             room=self.room,
             name="JoinPlayer",
             is_spectator=False,
@@ -515,7 +516,7 @@ class RejoinGameTestCase(TestCase):
         """Rejoining as host must return is_host: true."""
         response = self.client.post(
             f"/api/rooms/{self.room.code}/rejoin_game/",
-            {"player_secret": str(self.host_player.player_secret)},
+            {"player_secret": self.host_player.plain_secret},
             format="json",
         )
 
@@ -528,7 +529,7 @@ class RejoinGameTestCase(TestCase):
         """Rejoining as non-host must return is_host: false."""
         response = self.client.post(
             f"/api/rooms/{self.room.code}/rejoin_game/",
-            {"player_secret": str(self.non_host_player.player_secret)},
+            {"player_secret": self.non_host_player.plain_secret},
             format="json",
         )
 
@@ -551,7 +552,7 @@ class RejoinGameTestCase(TestCase):
         """Rejoin response must include id, name, isSpectator, is_host, is_checked_in."""
         response = self.client.post(
             f"/api/rooms/{self.room.code}/rejoin_game/",
-            {"player_secret": str(self.host_player.player_secret)},
+            {"player_secret": self.host_player.plain_secret},
             format="json",
         )
 
@@ -652,14 +653,14 @@ class RejoinGameTestCase(TestCase):
             code="7777", name="Rejoin Test Room", status=Room.Status.LOBBY
         )
 
-        self.host_player = Player.objects.create(
+        self.host_player = make_player(
             room=self.room,
             name="HostPlayer",
             is_spectator=False,
             is_host=True,
         )
 
-        self.non_host_player = Player.objects.create(
+        self.non_host_player = make_player(
             room=self.room,
             name="JoinPlayer",
             is_spectator=False,
@@ -670,7 +671,7 @@ class RejoinGameTestCase(TestCase):
         """Rejoining as host must return is_host: true."""
         response = self.client.post(
             f"/api/rooms/{self.room.code}/rejoin_game/",
-            {"player_secret": str(self.host_player.player_secret)},
+            {"player_secret": self.host_player.plain_secret},
             format="json",
         )
 
@@ -683,7 +684,7 @@ class RejoinGameTestCase(TestCase):
         """Rejoining as non-host must return is_host: false."""
         response = self.client.post(
             f"/api/rooms/{self.room.code}/rejoin_game/",
-            {"player_secret": str(self.non_host_player.player_secret)},
+            {"player_secret": self.non_host_player.plain_secret},
             format="json",
         )
 
@@ -706,7 +707,7 @@ class RejoinGameTestCase(TestCase):
         """Rejoin response must include id, name, isSpectator, is_host, is_checked_in."""
         response = self.client.post(
             f"/api/rooms/{self.room.code}/rejoin_game/",
-            {"player_secret": str(self.host_player.player_secret)},
+            {"player_secret": self.host_player.plain_secret},
             format="json",
         )
 

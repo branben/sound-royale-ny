@@ -5,12 +5,13 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from .models import Player, Room, Round, Tile, Vote
+from game_engine.test_auth_helper import make_player
 
 
 class ProducerTitleModelTestCase(TestCase):
     def setUp(self):
         self.room = Room.objects.create(code="7711", name="Titles")
-        self.player = Player.objects.create(room=self.room, name="Producer")
+        self.player = make_player(room=self.room, name="Producer")
 
     def test_title_defaults_to_none(self):
         self.assertFalse(self.player.is_checked_in)
@@ -42,11 +43,11 @@ class ProducerTitleAPITestCase(TestCase):
             status=Room.Status.PLAYING,
             total_rounds=3,
         )
-        self.winner = Player.objects.create(room=self.room, name="Winner", is_host=True)
-        self.loser = Player.objects.create(room=self.room, name="Loser")
-        self.other_loser = Player.objects.create(room=self.room, name="Other Loser")
+        self.winner = make_player(room=self.room, name="Winner", is_host=True)
+        self.loser = make_player(room=self.room, name="Loser")
+        self.other_loser = make_player(room=self.room, name="Other Loser")
         self.spectators = [
-            Player.objects.create(room=self.room, name=f"Spectator {index}", is_spectator=True)
+            make_player(room=self.room, name=f"Spectator {index}", is_spectator=True)
             for index in range(1, 4)
         ]
 
@@ -70,7 +71,7 @@ class ProducerTitleAPITestCase(TestCase):
         with patch("game_engine.views.start_timer_broadcast"):
             return self.client.post(
                 f"/api/rooms/{self.room.code}/next_turn/",
-                {"player_secret": str(self.winner.player_secret)},
+                {"player_secret": self.winner.plain_secret},
                 format="json",
             )
 
@@ -184,7 +185,7 @@ class ProducerTitleAPITestCase(TestCase):
                 response = self.client.post(
                     f"/api/rooms/{self.room.code}/vote/",
                     {
-                        "player_secret": str(spectator.player_secret),
+                        "player_secret": spectator.plain_secret,
                         "voted_for_player_id": str(
                             self.winner.id if index < 2 else self.loser.id
                         ),

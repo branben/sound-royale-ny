@@ -7,6 +7,7 @@ from rest_framework.test import APITestCase
 from .models import Room, Player, Tile
 from .serializers import PlayerCreateSerializer
 import uuid
+from game_engine.test_auth_helper import make_player
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.routing]
@@ -18,13 +19,13 @@ class PlayerViewSetTestCase(APITestCase):
     def setUp(self):
         """Set up test data"""
         self.room = Room.objects.create(code="1234")
-        self.host = Player.objects.create(
+        self.host = make_player(
             room=self.room,
             name="HostPlayer",
             is_host=True,
             player_secret=uuid.uuid4()
         )
-        self.player = Player.objects.create(
+        self.player = make_player(
             room=self.room,
             name="TestPlayer",
             is_host=False,
@@ -33,7 +34,7 @@ class PlayerViewSetTestCase(APITestCase):
     
     def test_player_retrieve_by_player_secret(self):
         """Test retrieving player by player_secret"""
-        url = reverse('player-detail', kwargs={'player_secret': str(self.player.player_secret)})
+        url = reverse('player-detail', kwargs={'player_secret': self.player.plain_secret})
         response = self.client.get(url)
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -54,7 +55,7 @@ class PlayerViewSetTestCase(APITestCase):
     
     def test_update_score_action_success(self):
         """Test update_score action with valid data"""
-        url = reverse('player-update-score', kwargs={'player_secret': str(self.player.player_secret)})
+        url = reverse('player-update-score', kwargs={'player_secret': self.player.plain_secret})
         data = {'score_delta': 100}
         response = self.client.post(url, data, format='json')
         
@@ -65,7 +66,7 @@ class PlayerViewSetTestCase(APITestCase):
     
     def test_update_score_action_invalid_delta(self):
         """Test update_score action with invalid score_delta"""
-        url = reverse('player-update-score', kwargs={'player_secret': str(self.player.player_secret)})
+        url = reverse('player-update-score', kwargs={'player_secret': self.player.plain_secret})
         data = {'score_delta': 'invalid'}
         response = self.client.post(url, data, format='json')
         
@@ -74,7 +75,7 @@ class PlayerViewSetTestCase(APITestCase):
     
     def test_update_score_action_missing_delta(self):
         """Test update_score action without score_delta"""
-        url = reverse('player-update-score', kwargs={'player_secret': str(self.player.player_secret)})
+        url = reverse('player-update-score', kwargs={'player_secret': self.player.plain_secret})
         response = self.client.post(url, {}, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -85,7 +86,7 @@ class PlayerViewSetTestCase(APITestCase):
         # Initial state (players default to False)
         self.assertFalse(self.player.is_connected)
         
-        url = reverse('player-toggle-connection', kwargs={'player_secret': str(self.player.player_secret)})
+        url = reverse('player-toggle-connection', kwargs={'player_secret': self.player.plain_secret})
         response = self.client.post(url, {}, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -99,7 +100,7 @@ class PlayerViewSetTestCase(APITestCase):
     
     def test_toggle_connection_action_twice(self):
         """Test toggle_connection action called twice"""
-        url = reverse('player-toggle-connection', kwargs={'player_secret': str(self.player.player_secret)})
+        url = reverse('player-toggle-connection', kwargs={'player_secret': self.player.plain_secret})
         
         # First toggle (False -> True)
         response1 = self.client.post(url, {}, format='json')
@@ -144,12 +145,12 @@ class PlayerViewSetTestCase(APITestCase):
     def test_action_urls_use_player_secret(self):
         """Test that action URLs use player_secret parameter"""
         # These URLs should use player_secret, not pk
-        update_score_url = reverse('player-update-score', kwargs={'player_secret': str(self.player.player_secret)})
-        toggle_connection_url = reverse('player-toggle-connection', kwargs={'player_secret': str(self.player.player_secret)})
+        update_score_url = reverse('player-update-score', kwargs={'player_secret': self.player.plain_secret})
+        toggle_connection_url = reverse('player-toggle-connection', kwargs={'player_secret': self.player.plain_secret})
         
         # Verify URLs contain player_secret
-        self.assertIn(str(self.player.player_secret), update_score_url)
-        self.assertIn(str(self.player.player_secret), toggle_connection_url)
+        self.assertIn(str(self.player.plain_secret), update_score_url)
+        self.assertIn(self.player.plain_secret, toggle_connection_url)
         
         # Verify URLs don't contain 'pk'
         self.assertNotIn('pk', update_score_url)
