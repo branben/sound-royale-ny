@@ -138,6 +138,20 @@ jobs:
     name: E2E Full Suite
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: sound_royale_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -152,6 +166,42 @@ jobs:
 
       - name: Install Playwright Chromium
         run: bunx playwright install chromium --with-deps
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Run migrations
+        working-directory: ./backend
+        env:
+          DJANGO_SETTINGS_MODULE: sound_royale_api.settings_e2e
+          PYTHONPATH: ..
+          POSTGRES_HOST: localhost
+        run: python manage.py migrate --noinput
+
+      - name: Start Django backend (daphne)
+        working-directory: ./backend
+        env:
+          DJANGO_SETTINGS_MODULE: sound_royale_api.settings_e2e
+          PYTHONPATH: ..
+          POSTGRES_HOST: localhost
+        run: |
+          daphne -p 8000 sound_royale_api.asgi:application &
+          BACKEND_PID=$!
+          echo "BACKEND_PID=$BACKEND_PID" >> $GITHUB_ENV
+          for i in $(seq 1 30); do
+            if curl -s http://127.0.0.1:8000/api/ > /dev/null 2>&1; then
+              echo "Backend ready on port 8000"
+              break
+            fi
+            sleep 1
+          done
 
       - name: Start Vite dev server
         run: |
@@ -170,9 +220,11 @@ jobs:
         run: bunx playwright test tests/e2e/ --reporter=line --workers=2
         timeout-minutes: 20
 
-      - name: Shut down dev server
+      - name: Shut down dev servers
         if: always()
-        run: kill $VITE_PID 2>/dev/null || true
+        run: |
+          kill $BACKEND_PID 2>/dev/null || true
+          kill $VITE_PID 2>/dev/null || true
 
   ui-quality:
     name: UI Quality Gate (Impeccable)
