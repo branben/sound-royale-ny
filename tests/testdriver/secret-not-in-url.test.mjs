@@ -70,14 +70,14 @@ const ROOM_NAME = "SecProbe Room";
 // keys off of.
 const PROBE_SNIPPET =
   "(function(){if(window.__secretProbe)return 'already-installed';var urls=[],logs=[];" +
-  "var OW=window.WebSocket;window.WebSocket=function(u,p){try{urls.push(String(u));}catch(e){}return new OW(u,p);};" +
-  "window.WebSocket.prototype=OW.prototype;" +
+  "var OW=window.WebSocket;var PW=function(u,p){try{urls.push(String(u));}catch(e){}return new OW(u,p);};" +
+  "PW.prototype=OW.prototype;PW.CONNECTING=OW.CONNECTING;PW.OPEN=OW.OPEN;PW.CLOSING=OW.CLOSING;PW.CLOSED=OW.CLOSED;window.WebSocket=PW;" +
   "var OF=window.fetch;window.fetch=function(){try{var a=arguments[0];urls.push(String(a&&a.url?a.url:a));}catch(e){}return OF.apply(this,arguments);};" +
   "var OX=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){try{urls.push(String(u));}catch(e){}return OX.apply(this,arguments);};" +
   "['log','info','warn','error','debug'].forEach(function(k){var o=console[k];console[k]=function(){try{logs.push(Array.prototype.map.call(arguments,String).join(' '));}catch(e){}return o.apply(console,arguments);};});" +
   "window.__secretProbe={urls:urls,logs:logs,check:function(secret){" +
   "var hay=urls.concat(logs);" +
-  "var leaked=hay.some(function(s){return (secret&&s.indexOf(secret)!==-1)||/[?&](secret|player_secret)=/.test(s);});" +
+  "var leaked=hay.some(function(s){return (secret&&s.indexOf(secret)!==-1)||/[?&](secret|player_secret|discord_session_secret)=/.test(s);});" +
   "var d=document.getElementById('__secretProbeBanner')||document.createElement('div');" +
   "d.id='__secretProbeBanner';d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;padding:24px;font:700 28px/1.3 monospace;text-align:center;color:#fff;background:'+(leaked?'#b00020':'#0a7d2c');" +
   "d.textContent='SECRET LEAK PROBE: '+(leaked?'FAIL':'PASS')+' — urls='+urls.length+' logs='+logs.length;" +
