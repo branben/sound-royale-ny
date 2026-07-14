@@ -26,6 +26,13 @@ import { TestDriver } from "testdriverai/vitest/hooks";
 // A real backend must be reachable so a genuine player_secret is minted on join;
 // against E2E mock mode (VITE_E2E_TESTING=true) no real secret exists, so the
 // leak would not be exercised — do not run this test in mock mode.
+//
+// Flow note (matches src/components/lobby/LobbyLanding.tsx + CreateRoomForm.tsx):
+// the lobby requires a player name before the "Create" button enables; clicking
+// "Create" opens a room-creation form with its own room-name input and a submit
+// button. The room is only actually created (and the player_secret minted +
+// game WebSocket opened) when that submit button is clicked — so the test must
+// complete BOTH steps to reach the leak point.
 const BASE_URL = process.env.SOUND_ROYALE_URL || "https://soundroyale.com";
 
 describe("SEC-1 — player secret is never exposed in the URL", () => {
@@ -36,8 +43,8 @@ describe("SEC-1 — player secret is never exposed in the URL", () => {
     // Let the SPA hydrate and the lobby render.
     await testdriver.wait(4000);
 
-    // Enter a player name to establish an identity (the join/create flow is what
-    // mints a player_secret on the backend and wires it into API/WS calls).
+    // Enter a player name to establish an identity. The lobby's Create/Join
+    // buttons stay disabled until a non-empty name is entered.
     const nameField = await testdriver.find(
       "the player name / nickname text input on the lobby",
       { timeout: 30000 },
@@ -45,14 +52,29 @@ describe("SEC-1 — player secret is never exposed in the URL", () => {
     await nameField.click();
     await testdriver.type("SecretTester");
 
-    // Create a room — this is the flow that authenticates the player and opens
-    // the game WebSocket, the path where the secret has historically leaked into
-    // the URL query string.
+    // Step 1: open the create-room flow.
     const createButton = await testdriver.find(
-      "the button that creates or starts a new battle/room (e.g. Create Room / Create Battle / Start)",
+      "the 'Create' button that opens the create-a-room flow",
       { timeout: 30000 },
     );
     await createButton.click();
+    await testdriver.wait(1500);
+
+    // Step 2: fill the room name and submit — this is the call that authenticates
+    // the player (mints the player_secret) and opens the game WebSocket, the path
+    // where the secret has historically leaked into the URL query string.
+    const roomNameField = await testdriver.find(
+      "the room name text input in the create-room form (placeholder like 'e.g. Friday Night Beats')",
+      { timeout: 30000 },
+    );
+    await roomNameField.click();
+    await testdriver.type("SecretRoom");
+
+    const submitButton = await testdriver.find(
+      "the button that submits/confirms creating the room (e.g. Create Room / Create Battle / Start)",
+      { timeout: 30000 },
+    );
+    await submitButton.click();
 
     // Give the room to load: the backend call returns the player_secret and the
     // client opens the game socket. Any leak into the URL happens here.
