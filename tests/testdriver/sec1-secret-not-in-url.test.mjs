@@ -34,20 +34,39 @@ import { TestDriver } from "testdriverai/vitest/hooks";
 //   4. On success the app navigates to /room/<code> as the host player, which
 //      opens the credentialed game WebSocket.
 //
-// Convention (matches tests/testdriver/smoke.test.mjs): the deployment under
-// test is configurable via SOUND_ROYALE_URL so the test runs unchanged against
-// whichever environment is available (local docker stack, staging, prod). At
-// authoring time no public deployment resolves (soundroyale.com does not yet
-// resolve), so point it at a running stack reachable from the sandbox, e.g.:
+// Convention (matches tests/testdriver/smoke.test.mjs and the sibling
+// sec1-player-secret-not-in-url.test.mjs live gate): the deployment under test
+// is read from SOUND_ROYALE_URL (wired in CI as the `vars.SOUND_ROYALE_URL`
+// Actions repo variable). This is a purely *live* browser gate — it has no
+// meaningful behaviour without a running app — so when SOUND_ROYALE_URL is
+// unset it is SKIPPED rather than failed. There is deliberately NO hard-coded
+// fallback: the intended domain (https://soundroyale.com, declared in
+// index.html og:url) does not yet resolve, and silently defaulting to it made
+// this test FAIL against a dead host in every environment where no deployment
+// is wired (local dev, and CI without the repo variable). Skipping when
+// unconfigured keeps the whole vitest.testdriver.config.mjs suite green while
+// still running the full end-to-end guard the moment a reachable URL exists.
+//
+// The static source-contract half of SEC-1 (scan src/** so the secret never
+// appears in a request URL / query string / console call) always runs in the
+// sibling sec1-player-secret-not-in-url.test.mjs, so coverage does not drop to
+// zero when this live gate is skipped.
+//
+// Point it at a running stack reachable from the sandbox, e.g.:
 //
 //   SOUND_ROYALE_URL=http://localhost:8080 \
 //     npx vitest run --config vitest.testdriver.config.mjs \
 //       tests/testdriver/sec1-secret-not-in-url.test.mjs
 // ---------------------------------------------------------------------------
-const BASE_URL = process.env.SOUND_ROYALE_URL || "https://soundroyale.com";
+const BASE_URL = process.env.SOUND_ROYALE_URL;
+
+// Live browser gate: run only when a reachable deployment is wired via
+// SOUND_ROYALE_URL, otherwise skip (see the header comment for why there is no
+// dead-host fallback).
+const liveIt = BASE_URL && BASE_URL.trim() ? it : it.skip;
 
 describe("SEC-1 — player secret is never exposed in a URL", () => {
-  it("does not leak the player secret into URLs, network, or console", async (context) => {
+  liveIt("does not leak the player secret into URLs, network, or console", async (context) => {
     const testdriver = TestDriver(context);
 
     await testdriver.provision.chrome({ url: BASE_URL });
