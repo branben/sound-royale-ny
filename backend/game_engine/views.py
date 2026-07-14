@@ -663,17 +663,6 @@ class RoomViewSet(viewsets.ModelViewSet):
             "refresh_token": token_data["refresh_token"],
         }
         return Response(response_data, status=status.HTTP_201_CREATED)
-            room.delete()
-            return discord_error
-
-        response_data = {
-                "room_code": room.code,
-                "player_id": str(player.id),
-                "player_secret": str(player.player_secret),
-                "access_token": token_data["access_token"],
-                "refresh_token": token_data["refresh_token"],
-            }
-        return Response(response_data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["post"])
     def join_game(self, request, pk=None, code=None):
