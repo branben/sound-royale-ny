@@ -69,11 +69,38 @@ const b64 = (s) => Buffer.from(s, "utf8").toString("base64");
 const grab = (out, label) =>
   (String(out ?? "").match(new RegExp(`${label}=(\\S+)`)) || [])[1] || "";
 
+const BASE = `http://127.0.0.1:8112`;
+
 describe("SEC-1: player_secret is hashed at rest and rotatable (#105, PR #261)", () => {
   it("stores only a hash, issues plaintext once, and rotation invalidates the old secret", async (context) => {
     const testdriver = TestDriver(context);
 
     await testdriver.provision.chrome({ url: "about:blank" });
+
+    // Rotate `secret` (used as the URL credential) with `bodySecret` in the
+    // JSON body. Returns the parsed 200 JSON on success; REJECTS (throws) on any
+    // non-200 so a caller can gate the *rejection* with the framework's
+    // `expect(...).rejects.toThrow()` instead of manually inspecting a status
+    // code / flipping a `blocked` flag (TST-2).
+    const rotate = async (secret, bodySecret) => {
+      const out = await testdriver.exec(
+        "sh",
+        [
+          `RESP=$(curl -s -w '\\nHTTP:%{http_code}' -X POST "${BASE}/api/players/${secret}/rotate_secret/" -H 'Content-Type: application/json' -d "{\\"player_secret\\":\\"${bodySecret}\\"}")`,
+          `echo "ROTATE_CODE=$(printf %s "$RESP" | sed -n "s/^HTTP://p")"`,
+          `echo "ROTATE_BODY=$(printf %s "$RESP" | head -1)"`,
+        ].join("\n"),
+        60000,
+      );
+      const text = String(out?.stdout ?? out ?? "");
+      const code = grab(text, "ROTATE_CODE");
+      if (code !== "200") {
+        // Surface a clear, framework-catchable rejection carrying the status.
+        throw new Error(`rotate_secret rejected with HTTP ${code}`);
+      }
+      const body = (text.match(/ROTATE_BODY=(\{.*\})/) || [])[1] || "{}";
+      return JSON.parse(body);
+    };
 
     // 1) Stage the REAL security.py + the harness inside the sandbox.
     await testdriver.exec(
@@ -125,8 +152,6 @@ describe("SEC-1: player_secret is hashed at rest and rotatable (#105, PR #261)",
     expect(bootOut).toContain("BOOT_DONE");
     expect(grab(bootOut, "SECURITY_SOURCE")).toContain("/tmp/psec/security.py");
 
-    const BASE = `http://127.0.0.1:8112`;
-
     // 4) CREATE a player. The response must carry a plaintext secret; the DB
     //    must store only its SHA-256 hash (never the plaintext).
     const create = await testdriver.exec(
@@ -159,40 +184,26 @@ PY`,
     expect(grab(createOut, "STORED_IS_HEX64")).toBe("yes");
     expect(grab(createOut, "STORED_NE_PLAINTEXT")).toBe("yes");
 
-    // 5) ROTATE with the correct secret -> 200 + a NEW plaintext; the OLD
-    //    secret is then invalid (no longer resolves); and a WRONG secret is
-    //    rejected with 403.
-    const rotate = await testdriver.exec(
-      "sh",
-      [
-        `OLD="${plaintext}"`,
-        // correct rotation
-        `ROT=$(curl -s -w '\\nHTTP:%{http_code}' -X POST "${BASE}/api/players/$OLD/rotate_secret/" -H 'Content-Type: application/json' -d "{\\"player_secret\\":\\"$OLD\\"}")`,
-        'echo "ROTATE_CODE=$(printf %s \"$ROT\" | sed -n \"s/^HTTP://p\")"',
-        `NEW=$(printf '%s' "$ROT" | head -1 | python3 -c "import sys,json;print(json.load(sys.stdin)['player_secret'])")`,
-        'echo "NEW=$NEW"',
-        `python3 -c "import sys;print('NEW_NE_OLD=%s' % ('yes' if sys.argv[1]!=sys.argv[2] else 'no'))" "$NEW" "$OLD"`,
-        // old secret must no longer be a valid credential (404: hash gone from DB)
-        `OLD_CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASE}/api/players/$OLD/rotate_secret/" -H 'Content-Type: application/json' -d "{\\"player_secret\\":\\"$OLD\\"}")`,
-        'echo "OLD_AFTER_ROTATE_CODE=$OLD_CODE"',
-        // wrong body secret against the (valid) new one must be forbidden
-        `WRONG_CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASE}/api/players/$NEW/rotate_secret/" -H 'Content-Type: application/json' -d '{"player_secret":"totally-wrong-secret"}')`,
-        'echo "WRONG_BODY_CODE=$WRONG_CODE"',
-      ].join("\n"),
-      60000,
+    // 5) ROTATE with the correct secret -> resolves with a NEW, different
+    //    plaintext. Expressed as a framework RESOLUTION assertion.
+    const rotated = await rotate(plaintext, plaintext);
+    const newSecret = rotated.player_secret;
+    expect(newSecret.length).toBeGreaterThan(0);
+    expect(newSecret).not.toBe(plaintext);
+
+    // 6) The OLD secret is invalidated the moment it is rotated, and a WRONG
+    //    body secret against the (valid) NEW one must be forbidden. Both are
+    //    asserted as framework REJECTIONS (TST-2) — `rotate()` throws on any
+    //    non-200, so `expect(...).rejects.toThrow()` gates the rejection rather
+    //    than a hand-rolled status-code / `blocked`-flag check.
+    await expect(rotate(plaintext, plaintext)).rejects.toThrow(
+      /HTTP (403|404)/,
     );
-    const rotateOut = String(rotate?.stdout ?? rotate ?? "");
+    await expect(rotate(newSecret, "totally-wrong-secret")).rejects.toThrow(
+      /HTTP 403/,
+    );
 
-    // Rotation succeeds and returns a fresh, different plaintext.
-    expect(grab(rotateOut, "ROTATE_CODE")).toBe("200");
-    expect(grab(rotateOut, "NEW").length).toBeGreaterThan(0);
-    expect(grab(rotateOut, "NEW_NE_OLD")).toBe("yes");
-    // The old secret is invalidated the moment it is rotated.
-    expect(["403", "404"]).toContain(grab(rotateOut, "OLD_AFTER_ROTATE_CODE"));
-    // A wrong secret is rejected with 403 (the verbatim views.py auth check).
-    expect(grab(rotateOut, "WRONG_BODY_CODE")).toBe("403");
-
-    // 6) A visible confirmation for the run recording: render a small PASS page.
+    // 7) A visible confirmation for the run recording: render a small PASS page.
     await testdriver.exec(
       "sh",
       `cat > /tmp/psec/result.html <<'HTML'
