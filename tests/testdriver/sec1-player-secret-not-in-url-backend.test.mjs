@@ -249,3 +249,5 @@ describe("SEC-1: the backend must never take the player secret from a URL (#105)
     },
   );
 });
+
+// SEC-1 backend transport gate for issue #105 (see PR #284).
