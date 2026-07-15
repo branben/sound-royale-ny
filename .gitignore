@@ -69,10 +69,12 @@ test-results/
 playwright-report/
 
 # --- Other junk ---
-scripts/
-# Exceptions: guardrail scripts are tracked in repo
+scripts/*
+# Exceptions: guardrail scripts and CI review scripts are tracked in repo
 !scripts/check-anti-patterns.sh
 !scripts/semantic-scan.sh
+!scripts/e2e-guard.sh
+!scripts/ci/
 backend/gaia/
 backend/media/
 backend/practical-exercises.md
@@ -120,3 +122,11 @@ deacon/
 # CocoIndex Code (ccc)
 /.cocoindex_code/
 .worktrees
+
+# --- Local agent/scratch surfaces (NOT version-controlled; harness works from shared state) ---
+.agents/
+.claude/
+.codex/
+.ce-loop/
+data/
+

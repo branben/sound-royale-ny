@@ -1,3 +1,4 @@
-# Anti-pattern guard — first layer of churn prevention
-# See: docs/plans/2026-06-25-001-quality-churn-guardrails-plan.md
-bash scripts/check-anti-patterns.sh
+#!/bin/sh
+npx lint-staged
+npm run verify:types
+npm run test:e2e:guard
