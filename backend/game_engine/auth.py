@@ -5,7 +5,7 @@ from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import AuthenticationFailed
 
 from game_engine.models import Player
-from game_engine.security import hash_secret
+from game_engine.security import hash_secret, is_hex64
 
 
 class PlayerSecretAuthentication(BaseAuthentication):
@@ -25,9 +25,14 @@ class PlayerSecretAuthentication(BaseAuthentication):
         if not player_id or not player_secret:
             return None
 
+        # Symmetric with Player.save(): the stored secret is a 64-char hex
+        # digest. Clients send the stored (hashed) value, so only hash
+        # when the incoming secret is NOT already a hex digest (avoids
+        # double-hashing a value that was persisted hashed).
+        secret_lookup = player_secret if is_hex64(player_secret) else hash_secret(player_secret)
         try:
             player = Player.objects.get(
-                id=player_id, player_secret=hash_secret(player_secret)
+                id=player_id, player_secret=secret_lookup
             )
         except Player.DoesNotExist:
             raise AuthenticationFailed("Invalid player credentials")
@@ -38,9 +43,10 @@ class PlayerSecretAuthentication(BaseAuthentication):
 @database_sync_to_async
 def _resolve_player(player_id, player_secret):
     """Resolve a player by id + secret, or return None."""
+    secret_lookup = player_secret if is_hex64(player_secret) else hash_secret(player_secret)
     try:
         return Player.objects.get(
-            id=player_id, player_secret=hash_secret(player_secret)
+            id=player_id, player_secret=secret_lookup
         )
     except Player.DoesNotExist:
         return None

@@ -54,7 +54,7 @@ from .serializers import (
     GenrePerformanceSerializer,
 )
 from .bingo_utils import check_bingo_lines, calculate_bingo_score, check_tie_breaker, get_theme_genres
-from .security import hash_secret
+from .security import hash_secret, is_hex64
 
 
 DEFAULT_THEME_ROTATIONS = {
@@ -246,7 +246,10 @@ def resolve_player_from_request(request, room):
     if player_id and player_secret:
         try:
             player = Player.objects.get(id=player_id, room=room)
-            if player.player_secret != hash_secret(player_secret):
+            # Incoming secret is the stored (hashed) value; only hash if
+            # it is not already a hex digest (symmetric with Player.save()).
+            sent = player_secret if is_hex64(player_secret) else hash_secret(player_secret)
+            if player.player_secret != sent:
                 return None, Response(
                     {"error": "Invalid player_secret"},
                     status=status.HTTP_403_FORBIDDEN,
@@ -260,8 +263,9 @@ def resolve_player_from_request(request, room):
 
     # Legacy fallback: player_secret only (no player_id)
     if player_secret:
+        secret_lookup = player_secret if is_hex64(player_secret) else hash_secret(player_secret)
         try:
-            player = Player.objects.get(room=room, player_secret=hash_secret(player_secret))
+            player = Player.objects.get(room=room, player_secret=secret_lookup)
             return player, None
         except Player.DoesNotExist:
             return None, Response(
