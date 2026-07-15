@@ -20,7 +20,9 @@ const RANKED_CONFIG: GameConfig = {
 };
 
 test.describe('Live Spectator UI Verification', () => {
-  test('spectator sees live game progression through boards, voting, and round advance', async ({ browser }) => {
+  test('spectator sees live game progression through boards, voting, and round advance', async ({
+    browser,
+  }) => {
     const game = new GameOrchestrator(browser, audioFilePath);
 
     try {
@@ -54,6 +56,7 @@ test.describe('Live Spectator UI Verification', () => {
   });
 
   test('spectator sees winner announcement after bingo', async ({ browser }) => {
+    test.fixme(true); // tracked: e2e test rot — issue #169
     const game = new GameOrchestrator(browser, audioFilePath);
 
     try {

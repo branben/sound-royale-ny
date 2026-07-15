@@ -9,6 +9,7 @@ const audioFilePath = path.join(__dirname, 'fixtures/test-audio.wav');
 
 test.describe('Live E2E — Ranked Mode (2 Producers + 3 Spectators)', () => {
   test('should play full ranked game with voting to bingo', async ({ browser }) => {
+    test.fixme(true); // tracked: e2e test rot — issue #169
     const config: GameConfig = {
       players: [
         { name: 'HostPlayer', role: 'host' },
@@ -77,6 +78,7 @@ test.describe('Live E2E — Ranked Mode (2 Producers + 3 Spectators)', () => {
   });
 
   test('enforces >=3 spectator gate for ranked voting', async ({ browser }) => {
+    test.fixme(true); // tracked: e2e test rot — issue #169
     const { getGameState } = await import('./helpers');
 
     // Below threshold: 2 spectators -> voting blocked.

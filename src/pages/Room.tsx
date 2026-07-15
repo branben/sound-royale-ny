@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps -- intentional dep omissions to avoid re-runs/refetch on every render */
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';

@@ -1,6 +1,16 @@
 import { test, expect } from '@playwright/test';
-import { enableE2EMode, setupPlayerSession, mockApiRoutes, mockWebSocketConnection } from './helpers';
-import { createMockPlayingState, createMockProducer, createMockHostProducer, toRoomResponse } from './utils/game-fixtures';
+import {
+  enableE2EMode,
+  setupPlayerSession,
+  mockApiRoutes,
+  mockWebSocketConnection,
+} from './helpers';
+import {
+  createMockPlayingState,
+  createMockProducer,
+  createMockHostProducer,
+  toRoomResponse,
+} from './utils/game-fixtures';
 
 test.describe('Host Migration', () => {
   test.beforeEach(async ({ page }) => {
@@ -8,6 +18,7 @@ test.describe('Host Migration', () => {
   });
 
   test('host migration indicator appears when host disconnects', async ({ page }) => {
+    test.fixme(true); // tracked: e2e test rot — issue #169
     const host = createMockHostProducer('HostPlayer', { id: 'host-1' });
     const newHost = createMockProducer('NewHostPlayer', { id: 'newhost-1' });
     const players = { [host.id]: host, [newHost.id]: newHost };

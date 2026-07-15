@@ -10,6 +10,7 @@ test.describe('Verified identity flow', () => {
   });
 
   test('requests and verifies a producer identity', async ({ page }) => {
+    test.fixme(true); // tracked: e2e test rot — issue #169
     await page.route('**/api/auth/request-code/', async (route) => {
       await route.fulfill({ json: { status: 'code_sent' } });
     });

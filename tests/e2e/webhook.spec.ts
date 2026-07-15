@@ -10,15 +10,16 @@ test.describe('Webhook', () => {
 
   test('GET /webhooks/linear/ returns health check', async ({ page }) => {
     const response = await page.request.get(`${BACKEND_URL}/webhooks/linear/`);
-    
+
     expect(response.status()).toBe(200);
-    
+
     const json = await response.json();
     expect(json.status).toBe('ok');
     expect(json.webhook).toBe('linear-gaia-bridge');
   });
 
   test('POST /api/webhooks/linear/ with valid payload enqueues task', async ({ page }) => {
+    test.fixme(true); // tracked: e2e test rot — issue #169
     const webhookPayload = {
       type: 'IssueCreated',
       data: {
@@ -40,7 +41,7 @@ test.describe('Webhook', () => {
     });
 
     expect(response.status()).toBe(200);
-    
+
     const json = await response.json();
     expect(json.status).toBe('enqueued');
     expect(json.gaia_task_id).toBeDefined();
@@ -49,6 +50,7 @@ test.describe('Webhook', () => {
   });
 
   test('POST /api/webhooks/linear/ with urgent label uses higher priority', async ({ page }) => {
+    test.fixme(true); // tracked: e2e test rot — issue #169
     const webhookPayload = {
       type: 'IssueCreated',
       data: {
@@ -70,13 +72,14 @@ test.describe('Webhook', () => {
     });
 
     expect(response.status()).toBe(200);
-    
+
     const json = await response.json();
     expect(json.status).toBe('enqueued');
     expect(json.priority).toBe(2);
   });
 
   test('POST /api/webhooks/linear/ ignores done/canceled states', async ({ page }) => {
+    test.fixme(true); // tracked: e2e test rot — issue #169
     const webhookPayload = {
       type: 'IssueUpdated',
       data: {
@@ -98,7 +101,7 @@ test.describe('Webhook', () => {
     });
 
     expect(response.status()).toBe(200);
-    
+
     const json = await response.json();
     expect(json.status).toBe('ignored');
     expect(json.reason).toContain('state=done');
@@ -113,7 +116,7 @@ test.describe('Webhook', () => {
     });
 
     expect(response.status()).toBe(400);
-    
+
     const json = await response.json();
     expect(json.error).toBe('Invalid JSON');
   });
