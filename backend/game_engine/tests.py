@@ -2,9 +2,9 @@ from django.test import TestCase
 from django.test import override_settings
 from django.urls import reverse
 from rest_framework.test import APIClient
-from unittest.mock import patch, MagicMock
 from .models import Room, Player, Round, Vote
 from game_engine.test_auth_helper import make_player
+from game_engine.health_check_base import HealthCheckBaseTestCase
 
 
 class GameEngineBasicTestCase(TestCase):
@@ -12,48 +12,26 @@ class GameEngineBasicTestCase(TestCase):
         self.assertTrue(True)
 
 
-class HealthCheckTestCase(TestCase):
-    def setUp(self):
-        # Resolve the root-level health probe by name so the test is
-        # resilient to URL path changes. Named health-check-root to
-        # disambiguate from the DRF api/health/ route (name=health-check).
-        self.health_url = reverse('health-check-root')
-
-    @patch('game_engine.health.connections')
-    @patch('redis.Redis')
-    def test_health_check_returns_200_when_healthy(self, mock_redis, mock_connections):
+class HealthCheckTestCase(HealthCheckBaseTestCase):
+    def test_health_check_returns_200_when_healthy(self):
         """Health check returns 200 when DB and Redis are reachable."""
-        mock_connections.__getitem__.return_value.ensure_connection.return_value = None
-        mock_connections.__getitem__.return_value.close.return_value = None
-        mock_redis.return_value.ping.return_value = True
-        mock_redis.return_value.close.return_value = None
         response = self.client.get(self.health_url)
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["status"], "ok")
         self.assertIn("checks", data)
 
-    @patch('game_engine.health.connections')
-    @patch('redis.Redis')
-    def test_health_check_returns_503_when_redis_down(self, mock_redis, mock_connections):
+    def test_health_check_returns_503_when_redis_down(self):
         """Health check returns 503 when Redis is unreachable."""
-        mock_connections.__getitem__.return_value.ensure_connection.return_value = None
-        mock_connections.__getitem__.return_value.close.return_value = None
-        mock_redis.return_value.ping.side_effect = Exception("Connection refused")
+        self.set_redis_down()
         response = self.client.get(self.health_url)
         self.assertEqual(response.status_code, 503)
         data = response.json()
         self.assertEqual(data["status"], "error")
         self.assertEqual(data["checks"]["redis"], "error")
 
-    @patch('game_engine.health.connections')
-    @patch('redis.Redis')
-    def test_health_check_no_auth_required(self, mock_redis, mock_connections):
+    def test_health_check_no_auth_required(self):
         """Health check is accessible without authentication."""
-        mock_connections.__getitem__.return_value.ensure_connection.return_value = None
-        mock_connections.__getitem__.return_value.close.return_value = None
-        mock_redis.return_value.ping.return_value = True
-        mock_redis.return_value.close.return_value = None
         response = self.client.get(self.health_url)
         self.assertEqual(response.status_code, 200)
 
