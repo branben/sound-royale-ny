@@ -54,6 +54,7 @@ from .serializers import (
     GenrePerformanceSerializer,
 )
 from .bingo_utils import check_bingo_lines, calculate_bingo_score, check_tie_breaker, get_theme_genres
+from .security import hash_secret
 
 
 DEFAULT_THEME_ROTATIONS = {
@@ -403,6 +404,10 @@ def _resolve_bingo_and_winner(room, player):
         completed_lines = check_bingo_lines(player_tiles)
 
         if completed_lines:
+            # Idempotent: get_or_create records the claim exactly once per
+            # (room, player) — only when a real bingo line is achieved, not
+            # on every tile completion.
+            record_bingo_claim(room, player)
             score_info = calculate_bingo_score(player, completed_lines)
 
             player_scores = []
@@ -647,8 +652,10 @@ class RoomViewSet(viewsets.ModelViewSet):
                     player=player, room=room, position=position, genre=genres.pop()
                 )
 
-        # Discord identity is attached OUTSIDE the atomic block: a failure here
-        # leaves a fully valid room+host, which the caller can re-link later.
+        # Discord identity is attached OUTSIDE the atomic block so a failure here
+        # does NOT roll back the valid room+host (which were committed in the
+        # atomic block above). On failure we tear down the room+player to avoid
+        # an orphaned, unlinked room, then return the error to the caller.
         discord_error = attach_discord_identity_from_session(player, request.data)
         if discord_error is not None:
             player.delete()
@@ -1953,10 +1960,6 @@ class TileViewSet(viewsets.ModelViewSet):
             if audio_file:
                 tile.audio_file = audio_file
             tile.save()
-
-            # Record a bingo claim at the moment of completion so duplicate
-            # achievement broadcasts / claims are idempotent.
-            record_bingo_claim(room, player)
 
             # Check for bingo lines and resolve winner (ranked matches only)
             if room.match_type == Room.MatchType.RANKED:
