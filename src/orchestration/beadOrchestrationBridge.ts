@@ -234,7 +234,19 @@ export class BeadOrchestrationBridge {
       ),
     );
     const taskId = extractId(out);
+    // Dry-run: exec is a no-op returning '', so Orca was never called.
+    // Return a routing preview instead of throwing on a missing task id.
     if (!taskId) {
+      if (!out) {
+        return {
+          beadId: bead.id,
+          lens,
+          worktreeId,
+          taskId: "<dry-run>",
+          taskTitle: taskTitle,
+          claimed: claim,
+        };
+      }
       throw new Error(`beadOrchestrationBridge: no task id from 'orca orchestration task-create' (stdout: ${out.slice(0, 200)})`);
     }
     return { beadId: bead.id, lens, worktreeId, taskId, taskTitle, claimed: claim };
