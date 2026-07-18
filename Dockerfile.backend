@@ -18,4 +18,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD python -c "import os, urllib.request; urllib.request.urlopen('http://localhost:' + os.environ.get('PORT','8000') + '/health/')" || exit 1
 
-CMD ["daphne", "-b", "0.0.0.0", "-p", "${PORT:-8000}", "sound_royale_api.asgi:application"]
+# Shell form so $PORT expands (exec form does NOT expand shell vars).
+CMD daphne -b 0.0.0.0 -p "${PORT:-8000}" sound_royale_api.asgi:application
