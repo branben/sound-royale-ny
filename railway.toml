@@ -1,0 +1,41 @@
+[build]
+dockerfile = "backend/Dockerfile"
+# Build context defaults to the repo root, which the Dockerfile expects
+# (it does `COPY backend/...` and `COPY .`).
+
+[deploy]
+healthcheckPath = "/api/health/"
+healthcheckTimeout = 120
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10
+# Runs after build, before the healthcheck — applies DB migrations.
+releaseCommand = "python manage.py migrate --noinput"
+
+[[services]]
+name = "sound-royale-backend"
+
+# Postgres + Redis add-ons must be attached in the Railway dashboard
+# (`railway add` or Project -> Add Service). Their connection details are
+# injected as references below.
+[[services.env]]
+# --- Django core ---
+DJANGO_SETTINGS_MODULE = "sound_royale_api.settings"
+DEBUG = "False"
+# Generate a real SECRET_KEY: python -c "import secrets;print(secrets.token_urlsafe(50))"
+SECRET_KEY = "${{RAILWAY_DJANGO_SECRET_KEY}}"
+ALLOWED_HOSTS = "${{RAILWAY_ALLOWED_HOSTS}}"
+# --- Database (from Postgres add-on) ---
+DB_ENGINE = "django.db.backends.postgresql"
+DB_HOST = "${{Postgres.PGHOST}}"
+DB_NAME = "${{Postgres.PGDATABASE}}"
+DB_USER = "${{Postgres.PGUSER}}"
+DB_PASSWORD = "${{Postgres.PGPASSWORD}}"
+DB_PORT = "${{Postgres.PGPORT}}"
+# --- Redis / Channels layer (from Redis add-on) ---
+REDIS_URL = "${{Redis.REDIS_URL}}"
+# --- CORS: the Cloudflare Pages frontend domain ---
+CORS_ALLOWED_ORIGINS = "${{RAILWAY_CORS_ORIGINS}}"
+# --- Security hardening for production (HTTPS terminates at Railway edge) ---
+SECURE_SSL_REDIRECT = "True"
+SESSION_COOKIE_SECURE = "True"
+CSRF_COOKIE_SECURE = "True"
