@@ -1,0 +1,27 @@
+name = "sound-royale-ny"
+compatibility_date = "2025-07-01"
+pages_build_output_dir = "dist"
+
+# Cloudflare Pages project for the Sound Royale frontend.
+# Serves the static build (dist/) and proxies /api -> the Django backend via
+# a Pages Function (functions/api/[[path]].js).
+#
+# NO [build] block here: Cloudflare Pages uses the build command + output dir
+# configured in the dashboard (pnpm install + pnpm run build). Defining a
+# [build] block in wrangler.toml OVERRIDES the dashboard settings and breaks
+# the deploy. pages_build_output_dir only tells the CLI where the static
+# output lives (used by `wrangler pages dev` locally) — it does not set a
+# build command.
+#
+# The WebSocket endpoint (/ws/game/*) is NOT proxied here — it needs a backend
+# with real WebSocket support (Django Channels). Point VITE_WS_URL at that host
+# directly (set via dashboard env or [env.*.vars] once Railway is deployed).
+
+[vars]
+VITE_API_BASE_URL = "/api"
+# VITE_WS_URL is injected per-environment (the real Channels host).
+# Uncomment + set once the Railway backend is live:
+# [env.production.vars]
+# VITE_WS_URL = "wss://your-railway-host.up.railway.app"
+# [env.preview.vars]
+# VITE_WS_URL = "wss://your-railway-host.up.railway.app"
