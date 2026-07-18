@@ -54,7 +54,7 @@ from .serializers import (
     GenrePerformanceSerializer,
 )
 from .bingo_utils import check_bingo_lines, calculate_bingo_score, check_tie_breaker, get_theme_genres
-from .security import hash_secret, is_hex64
+from .security import hash_secret, is_hex64, new_player_secret
 
 
 DEFAULT_THEME_ROTATIONS = {
@@ -640,8 +640,16 @@ class RoomViewSet(viewsets.ModelViewSet):
                     room.save()
                     break
 
+            # Generate the host's plaintext secret once; the model hashes it
+            # on save, so capture the plaintext to return to the client
+            # (the only time the secret is issued in plaintext — guardrail #105).
+            host_secret = new_player_secret()
             player = Player.objects.create(
-                room=room, name=player_name, is_spectator=False, is_host=True
+                room=room,
+                name=player_name,
+                is_spectator=False,
+                is_host=True,
+                player_secret=host_secret,
             )
             # Generate JWT tokens for the host player
             token_data = get_authenticated_player(player)
@@ -669,7 +677,7 @@ class RoomViewSet(viewsets.ModelViewSet):
         response_data = {
             "room_code": room.code,
             "player_id": str(player.id),
-            "player_secret": str(player.player_secret),
+            "player_secret": host_secret,
             "access_token": token_data["access_token"],
             "refresh_token": token_data["refresh_token"],
         }
