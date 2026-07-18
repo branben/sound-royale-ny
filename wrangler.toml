@@ -1,25 +1,23 @@
 name = "sound-royale-ny"
 compatibility_date = "2025-07-01"
+pages_build_output_dir = "dist"
 
 # Cloudflare Pages project for the Sound Royale frontend.
 # Serves the static build (dist/) and proxies /api -> the Django backend via
-# a Pages Function (functions/api/[[path]].js). The WebSocket endpoint
-# (/ws/game/*) is NOT proxied here — it needs a backend with real WebSocket
-# support (Django Channels). Point VITE_WS_URL at that host directly.
+# a Pages Function (functions/api/[[path]].js). The build command + output dir
+# are configured in the Cloudflare dashboard (pnpm install + pnpm run build),
+# so no [build] block here — keeping it would override the working pnpm build
+# with a bare `npm run build` (no install, wrong package manager).
+#
+# The WebSocket endpoint (/ws/game/*) is NOT proxied here — it needs a backend
+# with real WebSocket support (Django Channels). Point VITE_WS_URL at that host
+# directly (set via dashboard env or [env.*.vars] once Railway is deployed).
 
-[build]
-command = "npm run build"
-publish = "dist"
-
-# Vite reads import.meta.env.* at BUILD TIME. REST API uses same-origin /api so
-# the Functions proxy below forwards to Django. VITE_WS_URL is set separately
-# (see functions/env) because WS cannot be proxied by a Pages Function.
 [vars]
 VITE_API_BASE_URL = "/api"
-# VITE_WS_URL is injected per-environment below (the real Channels host).
-
-[env.production.vars]
-# VITE_WS_URL = "wss://your-backend-host.example.com"
-
-[env.preview.vars]
-# VITE_WS_URL = "wss://your-backend-host.example.com"
+# VITE_WS_URL is injected per-environment (the real Channels host).
+# Uncomment + set once the Railway backend is live:
+# [env.production.vars]
+# VITE_WS_URL = "wss://your-railway-host.up.railway.app"
+# [env.preview.vars]
+# VITE_WS_URL = "wss://your-railway-host.up.railway.app"
