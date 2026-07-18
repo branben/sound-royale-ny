@@ -84,7 +84,7 @@ jobs:
           version: 10
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: rm -rf node_modules && pnpm install --frozen-lockfile
 
       - name: Prettier formatting check
         run: pnpm exec prettier --check "src/**/*.{ts,tsx,css,json}"
@@ -108,7 +108,7 @@ jobs:
           version: 10
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: rm -rf node_modules && pnpm install --frozen-lockfile
 
       - name: Install Playwright Chromium
         run: pnpm exec playwright install chromium --with-deps
@@ -162,7 +162,7 @@ jobs:
           version: 10
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: rm -rf node_modules && pnpm install --frozen-lockfile
 
       - name: Install Playwright Chromium
         run: pnpm exec playwright install chromium --with-deps
@@ -239,7 +239,7 @@ jobs:
           version: 10
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: rm -rf node_modules && pnpm install --frozen-lockfile
 
       - name: Impeccable UI anti-pattern scan
         run: pnpm run audit:ui
