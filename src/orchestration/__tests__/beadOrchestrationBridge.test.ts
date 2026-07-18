@@ -15,7 +15,8 @@ const SAMPLE_BEAD_JSON = JSON.stringify([
     id: 'sound-royale-ny-vbv',
     title: 'Bridge Beads tracker into Orca orchestration task state',
     description: 'Gap 2/3: no bridge bd -> orca orchestration task-*',
-    acceptance_criteria: 'A claimed bead produces a corresponding orca task; closing updates status.',
+    acceptance_criteria:
+      'A claimed bead produces a corresponding orca task; closing updates status.',
     status: 'in_progress',
     labels: ['GAIA', 'production-readiness', 'ready-for-agent'],
     external_ref: 'kb:school-core',
@@ -34,8 +35,10 @@ function makeExec() {
       if (args[0] === 'show') return Buffer.from(SAMPLE_BEAD_JSON);
     }
     if (command === 'orca') {
-      if (args.includes('task-create')) return Buffer.from(JSON.stringify({ id: TASK_UUID, ok: true }));
-      if (args.includes('task-update')) return Buffer.from(JSON.stringify({ id: TASK_UUID, status: 'completed' }));
+      if (args.includes('task-create'))
+        return Buffer.from(JSON.stringify({ id: TASK_UUID, ok: true }));
+      if (args.includes('task-update'))
+        return Buffer.from(JSON.stringify({ id: TASK_UUID, status: 'completed' }));
     }
     return Buffer.from('');
   };
@@ -87,9 +90,11 @@ describe('parseBead', () => {
 
 describe('extractId', () => {
   it('pulls an id from JSON with nested result', () => {
-    expect(extractId(JSON.stringify({ ok: true, result: { id: 'abcdef01-1234-5678-9abc-def012345678' } }))).toBe(
-      'abcdef01-1234-5678-9abc-def012345678',
-    );
+    expect(
+      extractId(
+        JSON.stringify({ ok: true, result: { id: 'abcdef01-1234-5678-9abc-def012345678' } }),
+      ),
+    ).toBe('abcdef01-1234-5678-9abc-def012345678');
   });
   it('falls back to regex on raw text', () => {
     expect(extractId('created task abcdef01-1234-5678-9abc-def012345678 ok')).toBe(
@@ -178,6 +183,8 @@ describe('BeadOrchestrationBridge.closeSync (AC half 2)', () => {
       return Buffer.from('');
     };
     const bridge = new BeadOrchestrationBridge({ exec });
-    expect(() => bridge.closeSync('sound-royale-ny-vbv', '99999999-9999-9999-9999-999999999999', 'completed')).toThrow(/bd close failed/);
+    expect(() =>
+      bridge.closeSync('sound-royale-ny-vbv', '99999999-9999-9999-9999-999999999999', 'completed'),
+    ).toThrow(/bd close failed/);
   });
 });
