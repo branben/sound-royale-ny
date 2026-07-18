@@ -4,14 +4,19 @@ pages_build_output_dir = "dist"
 
 # Cloudflare Pages project for the Sound Royale frontend.
 # Serves the static build (dist/) and proxies /api -> the Django backend via
-# a Pages Function (functions/api/[[path]].js). The build command + output dir
-# are configured in the Cloudflare dashboard (pnpm install + pnpm run build),
-# so no [build] block here — keeping it would override the working pnpm build
-# with a bare `npm run build` (no install, wrong package manager).
+# a Pages Function (functions/api/[[path]].js).
+#
+# Build is defined here (not the dashboard) so it is authoritative and uses the
+# repo's canonical package manager (pnpm). The [build] block must NOT contain a
+# `publish` field — that is invalid in the current Pages build system and caused
+# deploys to fail.
 #
 # The WebSocket endpoint (/ws/game/*) is NOT proxied here — it needs a backend
 # with real WebSocket support (Django Channels). Point VITE_WS_URL at that host
 # directly (set via dashboard env or [env.*.vars] once Railway is deployed).
+
+[build]
+command = "pnpm install --frozen-lockfile && pnpm run build"
 
 [vars]
 VITE_API_BASE_URL = "/api"
