@@ -9,6 +9,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ .
 
+# Logging uses RotatingFileHandler -> BASE_DIR/logs/django.log.
+# The dir must exist (and be writable by appuser) or Django
+# crashes at startup with "Unable to configure handler 'file'".
+RUN mkdir -p /app/logs && chown -R appuser:appuser /app/logs
+
 RUN chown -R appuser:appuser /app
 
 USER appuser
