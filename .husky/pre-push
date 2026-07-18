@@ -10,9 +10,8 @@ while read local_ref local_sha remote_ref remote_sha; do
         # Branch deletion — skip validation
         exit 0
     fi
-    # Pass the SHA range to the gate. If the gate script is missing
-    # (untracked / not yet committed), skip rather than fail the push —
-    # a missing gate file is a broken-hook condition, not a code failure.
+    # Pass the SHA range to the gate. Skip gracefully if the gate script is
+    # missing (untracked / not committed) so clean checkouts don't fail every push.
     if [ ! -x ./scripts/gaia-gate.sh ]; then
         echo "warn: scripts/gaia-gate.sh not found — skipping pre-push gate"
         continue
