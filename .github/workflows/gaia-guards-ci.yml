@@ -78,22 +78,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
         with:
-          bun-version: latest
+          version: 10
 
       - name: Install dependencies
-        run: bun install --ignore-scripts
+        run: pnpm install --frozen-lockfile
 
       - name: Prettier formatting check
-        run: bunx prettier --check "src/**/*.{ts,tsx,css,json}"
+        run: pnpm exec prettier --check "src/**/*.{ts,tsx,css,json}"
 
       - name: TypeScript typecheck
-        run: bunx tsc --noEmit
+        run: pnpm exec tsc --noEmit
 
       - name: Frontend build
-        run: bun run build
+        run: pnpm run build
 
   e2e-smoke:
     name: E2E Smoke (frontend-only)
@@ -102,20 +102,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
         with:
-          bun-version: latest
+          version: 10
 
       - name: Install dependencies
-        run: bun install --ignore-scripts
+        run: pnpm install --frozen-lockfile
 
       - name: Install Playwright Chromium
-        run: bunx playwright install chromium --with-deps
+        run: pnpm exec playwright install chromium --with-deps
 
       - name: Start Vite dev server
         run: |
-          bun run dev:frontend &
+          pnpm run dev:frontend &
           VITE_PID=$!
           echo "VITE_PID=$VITE_PID" >> $GITHUB_ENV
           # Wait for Vite to be ready (max 30s)
@@ -128,7 +128,7 @@ jobs:
           done
 
       - name: Run smoke tests
-        run: bunx playwright test tests/e2e/smoke.spec.ts --reporter=line
+        run: pnpm exec playwright test tests/e2e/smoke.spec.ts --reporter=line
 
       - name: Shut down dev server
         if: always()
@@ -156,16 +156,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
         with:
-          bun-version: latest
+          version: 10
 
       - name: Install dependencies
-        run: bun install --ignore-scripts
+        run: pnpm install --frozen-lockfile
 
       - name: Install Playwright Chromium
-        run: bunx playwright install chromium --with-deps
+        run: pnpm exec playwright install chromium --with-deps
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -205,7 +205,7 @@ jobs:
 
       - name: Start Vite dev server
         run: |
-          bun run dev:frontend &
+          pnpm run dev:frontend &
           VITE_PID=$!
           echo "VITE_PID=$VITE_PID" >> $GITHUB_ENV
           for i in $(seq 1 30); do
@@ -217,7 +217,7 @@ jobs:
           done
 
       - name: Run full E2E suite
-        run: bunx playwright test tests/e2e/ --reporter=line --workers=2
+        run: pnpm exec playwright test tests/e2e/ --reporter=line --workers=2
         timeout-minutes: 20
 
       - name: Shut down dev servers
@@ -233,16 +233,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
         with:
-          bun-version: latest
+          version: 10
 
       - name: Install dependencies
-        run: bun install --ignore-scripts
+        run: pnpm install --frozen-lockfile
 
       - name: Impeccable UI anti-pattern scan
-        run: bun run audit:ui
+        run: pnpm run audit:ui
 
   repo-hygiene:
     name: Repository Hygiene
