@@ -72,13 +72,22 @@ function main(): void {
   if (cmd === 'status') {
     const beadId = String(args['bead'] ?? '');
     if (!beadId) die('status requires --bead <id>');
-    const out = String(execFileSync('bd', ['show', '--long', '--json', beadId], { encoding: 'utf8' }));
+    const out = String(
+      execFileSync('bd', ['show', '--long', '--json', beadId], { encoding: 'utf8' }),
+    );
     const bead = parseBead(out);
     const lens = pickLens(bead.labels, args['lens'] as LensName | undefined);
     const taskStatus = mapBeadStatusToTaskStatus(bead.status);
     process.stdout.write(
       JSON.stringify(
-        { beadId, title: bead.title, lens, taskStatus, labels: bead.labels, beadStatus: bead.status },
+        {
+          beadId,
+          title: bead.title,
+          lens,
+          taskStatus,
+          labels: bead.labels,
+          beadStatus: bead.status,
+        },
         null,
         2,
       ) + '\n',
@@ -90,7 +99,9 @@ function main(): void {
     const beadId = String(args['bead'] ?? '');
     if (!beadId) die('sync requires --bead <id>');
     if (!live) {
-      process.stderr.write('[DRY-RUN] pass --live to actually create the Orca task. Routing preview:\n');
+      process.stderr.write(
+        '[DRY-RUN] pass --live to actually create the Orca task. Routing preview:\n',
+      );
     }
     const exec = (live ? realExec : () => Buffer.from('')) as unknown as ExecFn;
     const bridge = new BeadOrchestrationBridge({
@@ -98,7 +109,9 @@ function main(): void {
       lens: args['lens'] as LensName | undefined,
       dispatchStudent: Boolean(args['dispatch-student']),
     });
-    const out = String(execFileSync('bd', ['show', '--long', '--json', beadId], { encoding: 'utf8' }));
+    const out = String(
+      execFileSync('bd', ['show', '--long', '--json', beadId], { encoding: 'utf8' }),
+    );
     const bead = parseBead(out);
     const res = bridge.syncToOrca(bead, live);
     process.stdout.write(

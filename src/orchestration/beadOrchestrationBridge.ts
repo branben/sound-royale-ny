@@ -34,20 +34,10 @@ export const WORKTREES: Record<LensName, string> = {
 
 // `orca orchestration task-update --status` valid values.
 export type OrcaTaskStatus =
-  | 'pending'
-  | 'ready'
-  | 'dispatched'
-  | 'completed'
-  | 'failed'
-  | 'blocked';
+  'pending' | 'ready' | 'dispatched' | 'completed' | 'failed' | 'blocked';
 
 // Beads status values observed from `bd show --json` (status field).
-export type BeadStatus =
-  | 'open'
-  | 'in_progress'
-  | 'blocked'
-  | 'deferred'
-  | 'closed';
+export type BeadStatus = 'open' | 'in_progress' | 'blocked' | 'deferred' | 'closed';
 
 export interface BeadRecord {
   id: string;
@@ -148,7 +138,10 @@ export function parseBead(stdout: string): BeadRecord {
 }
 
 /** Extract a UUID-shaped id from `orca ... --json` stdout (best-effort). */
-export function extractId(stdout: string, rawJsonKeys: string[] = ['id', 'taskId', 'handle']): string | null {
+export function extractId(
+  stdout: string,
+  rawJsonKeys: string[] = ['id', 'taskId', 'handle'],
+): string | null {
   // Try structured JSON first.
   try {
     const data = JSON.parse(stdout);
@@ -199,9 +192,7 @@ export class BeadOrchestrationBridge {
 
   /** Claim a bead atomically (sets assignee=you, status=in_progress). */
   claim(beadId: string): ClaimResult {
-    const raw = String(
-      this.exec('bd', ['update', beadId, '--claim'], { encoding: 'utf8' }),
-    );
+    const raw = String(this.exec('bd', ['update', beadId, '--claim'], { encoding: 'utf8' }));
     return { beadId, claimed: true, raw };
   }
 
@@ -242,12 +233,14 @@ export class BeadOrchestrationBridge {
           beadId: bead.id,
           lens,
           worktreeId,
-          taskId: "<dry-run>",
+          taskId: '<dry-run>',
           taskTitle: taskTitle,
           claimed: claim,
         };
       }
-      throw new Error(`beadOrchestrationBridge: no task id from 'orca orchestration task-create' (stdout: ${out.slice(0, 200)})`);
+      throw new Error(
+        `beadOrchestrationBridge: no task id from 'orca orchestration task-create' (stdout: ${out.slice(0, 200)})`,
+      );
     }
     return { beadId: bead.id, lens, worktreeId, taskId, taskTitle, claimed: claim };
   }
@@ -257,13 +250,21 @@ export class BeadOrchestrationBridge {
    * (or the mapped status). This is the second half of the AC: closing the
    * bead updates task status.
    */
-  closeSync(beadId: string, taskId: string | null, status: OrcaTaskStatus = 'completed'): CloseSyncResult {
+  closeSync(
+    beadId: string,
+    taskId: string | null,
+    status: OrcaTaskStatus = 'completed',
+  ): CloseSyncResult {
     let beadClosed = false;
     let taskStatusUpdated = false;
     try {
-      this.exec('bd', ['close', beadId, '--reason', 'bridge: completed via Orca orchestration task'], {
-        encoding: 'utf8',
-      });
+      this.exec(
+        'bd',
+        ['close', beadId, '--reason', 'bridge: completed via Orca orchestration task'],
+        {
+          encoding: 'utf8',
+        },
+      );
       beadClosed = true;
     } catch (err) {
       // Surfaced to caller via result; do not swallow for verification.

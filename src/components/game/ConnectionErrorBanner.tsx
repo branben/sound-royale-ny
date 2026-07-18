@@ -32,9 +32,7 @@ export const ConnectionErrorBanner: React.FC<ConnectionErrorBannerProps> = ({
     >
       <div className="flex items-center gap-2">
         <AlertTriangle className="h-5 w-5 text-destructive-foreground" />
-        <span className="text-sm font-semibold text-destructive-foreground">
-          {message}
-        </span>
+        <span className="text-sm font-semibold text-destructive-foreground">{message}</span>
       </div>
     </div>
   );
