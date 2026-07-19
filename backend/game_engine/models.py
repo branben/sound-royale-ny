@@ -72,6 +72,11 @@ class Room(models.Model):
     # frontend shudder animation; not a literal count of winning lines.
     MIN_TILES_FOR_BINGO_RESOLUTION = 5
 
+    # Number of resolved rounds that triggers a "sweeper" bonus.
+    SWEEP_ROUNDS = 3
+    # Vote-margin threshold (winner votes minus rest) that flags a sweep.
+    SWEEP_VOTE_MARGIN = 1
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     code = models.CharField(
         max_length=4, unique=True, blank=True, default=""

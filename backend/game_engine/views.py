@@ -326,7 +326,7 @@ def has_ranked_three_round_sweep(room, winner, current_round, is_ranked):
         .exclude(winner__isnull=True)
         .order_by("round_number")
     )
-    return len(resolved_rounds) == 3 and all(
+    return len(resolved_rounds) == Room.SWEEP_ROUNDS and all(
         round_obj.winner_id == winner.id for round_obj in resolved_rounds
     )
 
@@ -1265,7 +1265,7 @@ class RoomViewSet(viewsets.ModelViewSet):
             base_gain = 25
             max_votes = resolution["max_votes"]
             vote_margin = max_votes - (spectator_count - max_votes)
-            if vote_margin == 1:
+            if vote_margin == Room.SWEEP_VOTE_MARGIN:
                 multiplier = 1.5
             elif vote_margin == spectator_count:
                 multiplier = 2.0
