@@ -713,9 +713,9 @@ class RoomViewSet(viewsets.ModelViewSet):
 
                 spectator_count = room.players.filter(is_spectator=True).count()
                 if is_spectator_join:
-                    if spectator_count >= 10:
+                    if spectator_count >= Room.MAX_SPECTATORS:
                         return Response(
-                            {"error": "Spectator limit reached (max 10)"},
+                            {"error": f"Spectator limit reached (max {Room.MAX_SPECTATORS})"},
                             status=status.HTTP_400_BAD_REQUEST,
                         )
 

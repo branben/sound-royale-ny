@@ -64,6 +64,9 @@ class Room(models.Model):
     # Minimum non-spectator producers needed for a round to start or continue.
     MIN_PRODUCERS_TO_PLAY = 2
 
+    # Maximum spectators allowed in a room.
+    MAX_SPECTATORS = 10
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     code = models.CharField(
         max_length=4, unique=True, blank=True, default=""
