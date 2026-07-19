@@ -278,6 +278,7 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
                 displayTimeLeft !== null && displayTimeLeft <= 30
                   ? 'bg-destructive/30 text-destructive'
                   : 'bg-primary/15 text-primary',
+                displayTimeLeft !== null && displayTimeLeft <= 10 && 'timer-urgent',
               )}
             >
               {displayTimeLeft !== null && displayTimeLeft <= 30 && <Clock className="h-4 w-4" />}
@@ -433,6 +434,7 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
                       displayTimeLeft <= 30
                         ? 'bg-destructive/30 text-destructive'
                         : 'bg-primary/15 text-primary',
+                      displayTimeLeft <= 10 && 'timer-urgent',
                     )}
                   >
                     {displayTimeLeft <= 30 && <Clock className="h-4 w-4" />}

@@ -253,15 +253,28 @@ Animations communicate **state changes only**, not decoration. If it doesn't hel
 | Slide up | Drawers, bottom sheets | 300ms |
 | Card entry | Cards appearing on initial load | 300ms |
 | Timer tick | Countdown number change | 100ms |
-| Bingo celebration | When a player gets bingo | 500ms (one-shot, not looped) |
+| Timer urgency | Timer < 10s — gentle pulse + red (state-driven, not always-on) | 1s loop while urgent |
+| Tile claim | Tile completes — scale pop + color settle | 400ms (one-shot) |
+| Bingo celebration | When a player gets bingo | 500ms (one-shot) |
+| Tile hover | Interactive empty tile lifts on hover (`scale 1.03`) | 150ms |
+| Score count-up | Score number animates to new value on change | 600ms |
+| "Your Turn" badge | Slides in when it becomes this player's turn | 200ms |
+| Board shudder | Board shakes when 5+ tiles complete (momentum feedback) | 300ms |
+
+**Purposeful game-feel is allowed and encouraged** — animations must communicate a
+*state change* (claim, score, turn, urgency), not decorate a static screen. This is
+what makes the game feel alive vs. a dashboard. The existing components
+(`BingoTile`, `BingoBoard`, `ScoreDisplay`, `GameInfo`) already implement these;
+keep them.
 
 ### Forbidden
 
-- Infinite pulse / spin / glow animations
-- Decorative entrance sequences
-- Staggered reveals (every element entering one-by-one)
+- Infinite pulse / spin / glow on **non-state-driven** elements (decorative loops)
+- **Always-on** urgency/pulse regardless of game state
+- Staggered entrance sequences on every element, one-by-one, on every load
 - Any animation that delays the user's ability to interact
-- Hover animations that change layout (no translateY lifts on cards)
+- Hover animations that change layout flow (no translateY lifts that shift siblings)
+- Reduced-motion override that fires automatically (must stay opt-in via `?motion=on`)
 
 ### Implementation
 

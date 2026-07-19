@@ -166,11 +166,15 @@
   animation: card-rise 280ms ease-out forwards;
 }
 
-/* ── Reduced Motion: Disable ALL animations ── */
+/* ── Reduced Motion: Disable ALL animations ──
+   Scoped to html:not(.motion-force) so a dev/diagnostic override
+   (?motion=on or localStorage sr-force-motion=true) can re-enable motion
+   for previewing game-feel regardless of OS "Reduce Motion" setting.
+   Accessibility: the override is opt-in only and never fires automatically. */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  html:not(.motion-force) *,
+  html:not(.motion-force) *::before,
+  html:not(.motion-force) *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;

@@ -54,6 +54,16 @@ window.addEventListener(
   true, // Capture phase to catch resource errors
 );
 
+// Dev/diagnostic motion override: re-enable animations even when the OS has
+// "Reduce Motion" on, so game-feel can be previewed. Triggered by ?motion=on
+// or localStorage sr-force-motion=true. Opt-in only — never set automatically.
+const forceMotion =
+  new URLSearchParams(window.location.search).get('motion') === 'on' ||
+  localStorage.getItem('sr-force-motion') === 'true';
+if (forceMotion) {
+  document.documentElement.classList.add('motion-force');
+}
+
 createRoot(document.getElementById('root')!).render(
   <UserProvider>
     <App />
