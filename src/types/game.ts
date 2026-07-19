@@ -4,6 +4,10 @@ export type TileStatus = 'empty' | 'pending' | 'complete';
 // (voting + ELO). Must stay in sync with backend Room.MIN_SPECTATORS_FOR_RANKED.
 export const MIN_SPECTATORS_FOR_RANKED = 3;
 
+// Minimum non-spectator producers needed for a round to start or continue.
+// Must stay in sync with backend Room.MIN_PRODUCERS_TO_PLAY.
+export const MIN_PRODUCERS_TO_PLAY = 2;
+
 export interface Tile {
   id: string;
   genre: string;

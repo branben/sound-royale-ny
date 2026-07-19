@@ -61,6 +61,9 @@ class Room(models.Model):
     # (voting + ELO). Derived from live spectator count, not a fixed room setting.
     MIN_SPECTATORS_FOR_RANKED = 3
 
+    # Minimum non-spectator producers needed for a round to start or continue.
+    MIN_PRODUCERS_TO_PLAY = 2
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     code = models.CharField(
         max_length=4, unique=True, blank=True, default=""

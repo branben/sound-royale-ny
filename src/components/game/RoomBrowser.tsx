@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Users, Clock, Sparkles } from 'lucide-react';
 import { roomApi, gameApi } from '@/services/api';
 import { getDiscordSession } from '@/services/discordSession';
-import { RoomResponse } from '@/types/game';
+import { RoomResponse, MIN_PRODUCERS_TO_PLAY } from '@/types/game';
 import { useUser } from '@/context/UserContext';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -84,14 +84,14 @@ export const RoomBrowser: React.FC<RoomBrowserProps> = ({ isOpen, onClose, onRoo
   const getRoomStatus = (room: RoomResponse) => {
     if (room.status === 'playing') return 'In Progress';
     if (room.status === 'finished') return 'Finished';
-    if (room.players.length >= 2) return 'Full';
+    if (room.players.length >= MIN_PRODUCERS_TO_PLAY) return 'Full';
     return 'Open';
   };
 
   const getStatusColor = (room: RoomResponse) => {
     if (room.status === 'playing') return 'text-orange-400';
     if (room.status === 'finished') return 'text-gray-400';
-    if (room.players.length >= 2) return 'text-red-400';
+    if (room.players.length >= MIN_PRODUCERS_TO_PLAY) return 'text-red-400';
     return 'text-green-400';
   };
 
@@ -141,7 +141,7 @@ export const RoomBrowser: React.FC<RoomBrowserProps> = ({ isOpen, onClose, onRoo
                         onClick={() => handleJoinRoom(room)}
                         disabled={
                           joiningRoomCode === room.code ||
-                          room.players.length >= 2 ||
+                          room.players.length >= MIN_PRODUCERS_TO_PLAY ||
                           room.status !== 'lobby'
                         }
                         className="bg-primary hover:opacity-90"

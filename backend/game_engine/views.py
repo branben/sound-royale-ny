@@ -849,7 +849,7 @@ class RoomViewSet(viewsets.ModelViewSet):
             )
 
         players = room.players.filter(is_spectator=False)
-        if len(players) < 2:
+        if len(players) < Room.MIN_PRODUCERS_TO_PLAY:
             return Response(
                 {"error": "Need at least 2 players to start"},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -1261,7 +1261,7 @@ class RoomViewSet(viewsets.ModelViewSet):
         awarded_sweeper = False
         is_ranked = spectator_count >= Room.MIN_SPECTATORS_FOR_RANKED
 
-        if len(producers) >= 2:
+        if len(producers) >= Room.MIN_PRODUCERS_TO_PLAY:
             base_gain = 25
             max_votes = resolution["max_votes"]
             vote_margin = max_votes - (spectator_count - max_votes)
@@ -1377,7 +1377,7 @@ class RoomViewSet(viewsets.ModelViewSet):
                 return resolution_result["response"]
 
         producers = room.players.filter(is_spectator=False)
-        if producers.count() < 2:
+        if producers.count() < Room.MIN_PRODUCERS_TO_PLAY:
             return Response(
                 {"error": "Need at least 2 producers to continue"},
                 status=status.HTTP_400_BAD_REQUEST,

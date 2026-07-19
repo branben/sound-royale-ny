@@ -2,6 +2,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Gamepad2, Users, Crown, Loader2 } from 'lucide-react';
+import { MIN_PRODUCERS_TO_PLAY } from '@/types/game';
 
 interface Player {
   id: string;
@@ -104,7 +105,7 @@ export function LobbyWaitingRoom({
         </Button>
       )}
 
-      {isHost && players.length >= 2 && (
+      {isHost && players.length >= MIN_PRODUCERS_TO_PLAY && (
         <Button
           data-testid="start-game"
           onClick={onStartMatch}
