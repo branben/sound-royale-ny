@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { X, Users, Clock, Sparkles } from 'lucide-react';
+import { Users, Clock, Sparkles } from 'lucide-react';
 import { roomApi, gameApi } from '@/services/api';
 import { getDiscordSession } from '@/services/discordSession';
 import { RoomResponse } from '@/types/game';
@@ -102,12 +102,6 @@ export const RoomBrowser: React.FC<RoomBrowserProps> = ({ isOpen, onClose, onRoo
           <DialogTitle className="text-2xl font-bold font-['Righteous'] text-foreground">
             Available Rooms
           </DialogTitle>
-          <button
-            onClick={onClose}
-            className="absolute right-4 top-4 text-gray-400 hover:text-white transition-colors"
-          >
-            <X className="h-5 w-5" />
-          </button>
         </DialogHeader>
 
         <div className="space-y-4 mt-4">

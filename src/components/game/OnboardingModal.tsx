@@ -1,7 +1,7 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { X, Gamepad2, Users, Music, Trophy, Zap } from 'lucide-react';
+import { Gamepad2, Users, Music, Trophy, Zap } from 'lucide-react';
 
 interface OnboardingModalProps {
   isOpen: boolean;
@@ -16,12 +16,6 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
           <DialogTitle className="text-2xl font-bold font-['Righteous'] text-foreground">
             How to Play Sound Royale
           </DialogTitle>
-          <button
-            onClick={onClose}
-            className="absolute right-4 top-4 text-gray-400 hover:text-white transition-colors"
-          >
-            <X className="h-5 w-5" />
-          </button>
         </DialogHeader>
 
         <div className="space-y-6 mt-4">
