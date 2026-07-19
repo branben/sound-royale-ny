@@ -67,6 +67,11 @@ class Room(models.Model):
     # Maximum spectators allowed in a room.
     MAX_SPECTATORS = 10
 
+    # Minimum number of completed tiles before bingo line detection runs.
+    # On the 3×3 board, this gates both backend bingo resolution and
+    # frontend shudder animation; not a literal count of winning lines.
+    MIN_TILES_FOR_BINGO_RESOLUTION = 5
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     code = models.CharField(
         max_length=4, unique=True, blank=True, default=""

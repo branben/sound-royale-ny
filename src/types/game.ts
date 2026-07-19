@@ -8,6 +8,10 @@ export const MIN_SPECTATORS_FOR_RANKED = 3;
 // Must stay in sync with backend Room.MIN_PRODUCERS_TO_PLAY.
 export const MIN_PRODUCERS_TO_PLAY = 2;
 
+// Minimum completed tiles before bingo line detection runs (3×3 board).
+// Must stay in sync with backend Room.MIN_TILES_FOR_BINGO_RESOLUTION.
+export const MIN_TILES_FOR_BINGO_RESOLUTION = 5;
+
 export interface Tile {
   id: string;
   genre: string;

@@ -403,7 +403,7 @@ def _resolve_bingo_and_winner(room, player):
         [],
     )
 
-    if len(current_player_tiles) >= 5:
+    if len(current_player_tiles) >= Room.MIN_TILES_FOR_BINGO_RESOLUTION:
         player_tiles = list(current_player_tiles)
         completed_lines = check_bingo_lines(player_tiles)
 

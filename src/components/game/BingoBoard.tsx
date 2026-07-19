@@ -1,6 +1,6 @@
 import { memo, useEffect, useState, useRef, forwardRef, type ForwardedRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BoardData } from '@/types/game';
+import { BoardData, MIN_TILES_FOR_BINGO_RESOLUTION } from '@/types/game';
 import { BingoTile } from './BingoTile';
 import { cn } from '@/lib/utils';
 import { DiscordVerifiedIcon } from './DiscordVerifiedIcon';
@@ -55,7 +55,10 @@ export const BingoBoard = memo(
         : null;
 
     useEffect(() => {
-      if (completedCount > prevCompletedRef.current && completedCount >= 5) {
+      if (
+        completedCount > prevCompletedRef.current &&
+        completedCount >= MIN_TILES_FOR_BINGO_RESOLUTION
+      ) {
         setShudder(true);
         const t = setTimeout(() => setShudder(false), 300);
         prevCompletedRef.current = completedCount;
