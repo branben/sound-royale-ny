@@ -1,5 +1,9 @@
 export type TileStatus = 'empty' | 'pending' | 'complete';
 
+// Minimum spectators required for a round to be treated as ranked
+// (voting + ELO). Must stay in sync with backend Room.MIN_SPECTATORS_FOR_RANKED.
+export const MIN_SPECTATORS_FOR_RANKED = 3;
+
 export interface Tile {
   id: string;
   genre: string;

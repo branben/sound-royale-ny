@@ -57,6 +57,10 @@ class Room(models.Model):
         CASUAL = "casual", "Casual"
         RANKED = "ranked", "Ranked"
 
+    # Minimum spectators required for a round to be treated as ranked
+    # (voting + ELO). Derived from live spectator count, not a fixed room setting.
+    MIN_SPECTATORS_FOR_RANKED = 3
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     code = models.CharField(
         max_length=4, unique=True, blank=True, default=""

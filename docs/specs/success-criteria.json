@@ -135,7 +135,7 @@
         },
         {
           "id": "casual-no-voting",
-          "description": "Casual rounds end on time-up with no spectator voting (per GameInfo.tsx:95, backend views.py:1751).",
+          "description": "Casual rounds end on time-up with no spectator voting (per GameInfo.tsx spectator-count check, backend views.py:1163 gates voting on MIN_SPECTATORS_FOR_RANKED).",
           "testRefs": [
             "tests/e2e/live/casual-full-game.spec.ts > casual round ends on time-up with no spectator voting"
           ],
@@ -143,7 +143,7 @@
         },
         {
           "id": "casual-no-elo",
-          "description": "Casual results do not affect ELO / ranked leaderboard (views.py:1751 gates resolution).",
+          "description": "Casual results do not affect ELO / ranked leaderboard (views.py:1262/1363 gates ranked resolution on MIN_SPECTATORS_FOR_RANKED).",
           "testRefs": [
             "tests/e2e/live/casual-full-game.spec.ts > casual results do not affect ELO or ranked leaderboard"
           ],
@@ -166,7 +166,7 @@
         },
         {
           "id": "ranked-voting-gate",
-          "description": "Voting requires >=3 spectators (per VotingPanel.tsx:105, backend views.py:1095).",
+          "description": "Voting requires >=3 spectators (per MIN_SPECTATORS_FOR_RANKED in src/types/game.ts, backend views.py:1163 / 1472).",
           "testRefs": [
             "tests/e2e/live/ranked-full-game.spec.ts > enforces >=3 spectator gate for ranked voting"
           ],

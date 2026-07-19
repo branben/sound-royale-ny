@@ -1,7 +1,7 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Share2, Users, Crown, X, Clock, Trophy, WifiOff } from 'lucide-react';
-import { Player } from '@/types/game';
+import { Player, MIN_SPECTATORS_FOR_RANKED } from '@/types/game';
 import { cn } from '@/lib/utils';
 import { useGame } from '@/context/useGame';
 import { useUser } from '@/context/UserContext';
@@ -87,10 +87,10 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
       // Compute spectator count at the moment timer hits 0
       const currentPlayers = gameState.players ?? {};
       const spectatorCount = Object.values(currentPlayers).filter(
-        (player) => player.isSpectator || player.name?.startsWith('Spectator '),
+        (player) => player.isSpectator,
       ).length;
       toast.message(
-        spectatorCount >= 3
+        spectatorCount >= MIN_SPECTATORS_FOR_RANKED
           ? "Time's up - voting is open."
           : "Time's up - casual round, no spectator voting.",
       );
@@ -204,11 +204,10 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
   }
 
   const players = Object.values(gameState.players);
-  const isSpectatorPlayer = (player: Player) =>
-    player.isSpectator || player.name?.startsWith('Spectator ');
+  const isSpectatorPlayer = (player: Player) => player.isSpectator;
   const spectators = players.filter(isSpectatorPlayer);
   const activePlayers = players.filter((player: Player) => !isSpectatorPlayer(player));
-  const isRankedRound = spectators.length >= 3;
+  const isRankedRound = spectators.length >= MIN_SPECTATORS_FOR_RANKED;
   const hasRoundTimedOut = gameState.status === 'playing' && displayTimeLeft === 0;
 
   const playerBorder = (playerId: string) => {

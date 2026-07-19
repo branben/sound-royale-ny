@@ -861,7 +861,7 @@ class RoomViewSet(viewsets.ModelViewSet):
 
             # Determine match type based on current spectator count
             spectator_count = room.players.filter(is_spectator=True).count()
-            room.match_type = Room.MatchType.RANKED if spectator_count >= 3 else Room.MatchType.CASUAL
+            room.match_type = Room.MatchType.RANKED if spectator_count >= Room.MIN_SPECTATORS_FOR_RANKED else Room.MatchType.CASUAL
             room.save()
 
             # Tiles are now created when players join, not when game starts
@@ -982,7 +982,7 @@ class RoomViewSet(viewsets.ModelViewSet):
 
                 # Re-evaluate match type for the new match based on current spectators
                 spectator_count = room.players.filter(is_spectator=True).count()
-                room.match_type = Room.MatchType.RANKED if spectator_count >= 3 else Room.MatchType.CASUAL
+                room.match_type = Room.MatchType.RANKED if spectator_count >= Room.MIN_SPECTATORS_FOR_RANKED else Room.MatchType.CASUAL
                 room.save()
 
                 # Step 3: Get players and validate
@@ -1160,7 +1160,7 @@ class RoomViewSet(viewsets.ModelViewSet):
             )
 
         spectator_count = room.players.filter(is_spectator=True).count()
-        if spectator_count < 3:
+        if spectator_count < Room.MIN_SPECTATORS_FOR_RANKED:
             return Response(
                 {"error": "Need at least 3 spectators for voting"},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -1259,7 +1259,7 @@ class RoomViewSet(viewsets.ModelViewSet):
         sweeper_penalty = 0
         awarded_jackpot = False
         awarded_sweeper = False
-        is_ranked = spectator_count >= 3
+        is_ranked = spectator_count >= Room.MIN_SPECTATORS_FOR_RANKED
 
         if len(producers) >= 2:
             base_gain = 25
@@ -1360,7 +1360,7 @@ class RoomViewSet(viewsets.ModelViewSet):
             )
 
         spectator_count = room.players.filter(is_spectator=True).count()
-        is_ranked = spectator_count >= 3
+        is_ranked = spectator_count >= Room.MIN_SPECTATORS_FOR_RANKED
         resolution_result = None
 
         if is_ranked and current_round.voting_open:
@@ -1469,7 +1469,7 @@ class RoomViewSet(viewsets.ModelViewSet):
             )
 
         spectator_count = room.players.filter(is_spectator=True).count()
-        if spectator_count < 3:
+        if spectator_count < Room.MIN_SPECTATORS_FOR_RANKED:
             return Response(
                 {
                     "error": "Need at least 3 spectators for voting (casual mode - no voting)"

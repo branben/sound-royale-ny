@@ -491,6 +491,11 @@ export default function Room() {
                 Battle Room
               </span>
               <span
+                title={
+                  gameState.matchType === 'ranked'
+                    ? 'Ranked: 3+ spectators present — voting + ELO active'
+                    : 'Casual: becomes Ranked when 3+ spectators join'
+                }
                 className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
                   gameState.matchType === 'ranked'
                     ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/30'
