@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Vote } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { MIN_SPECTATORS_FOR_RANKED } from '@/types/game';
 
 interface RoundStageProps {
   roundNumber: number;
@@ -69,12 +70,12 @@ export function RoundStage({
               Vote open
             </span>
           )}
-          {!votingOpen && spectatorCount >= 3 && (
+          {!votingOpen && spectatorCount >= MIN_SPECTATORS_FOR_RANKED && (
             <span className="inline-flex items-center gap-1 rounded-full bg-zinc-800 px-2 py-0.5 text-xs font-medium text-zinc-400">
               Ranked voting
             </span>
           )}
-          {!votingOpen && spectatorCount < 3 && (
+          {!votingOpen && spectatorCount < MIN_SPECTATORS_FOR_RANKED && (
             <span className="inline-flex items-center gap-1 rounded-full bg-zinc-800 px-2 py-0.5 text-xs font-medium text-zinc-400">
               Casual mode
             </span>

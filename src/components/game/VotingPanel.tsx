@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Player } from '@/types/game';
+import { Player, MIN_SPECTATORS_FOR_RANKED } from '@/types/game';
 import { gameApi } from '@/services/api';
 import { toast } from 'sonner';
 import { Vote, CheckCircle2, Loader2 } from 'lucide-react';
@@ -40,7 +40,7 @@ export function VotingPanel({
   const [isVoting, setIsVoting] = useState(false);
   const [hasVoted, setHasVoted] = useState(false);
 
-  const isRanked = spectatorCount >= 3;
+  const isRanked = spectatorCount >= MIN_SPECTATORS_FOR_RANKED;
 
   const playerCardColor = (playerId: string) => {
     const idx = playerColors.get(playerId) ?? 0;
