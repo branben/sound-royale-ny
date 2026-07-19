@@ -102,7 +102,7 @@ export function VotingPanel({
         </div>
         <p className="text-sm text-muted-foreground">
           {!isRanked
-            ? `Waiting for more spectators to join (${spectatorCount}/3 for ranked mode)`
+            ? `Waiting for more spectators to join (${spectatorCount}/${MIN_SPECTATORS_FOR_RANKED} for ranked mode)`
             : 'Waiting for producers to finish their beats...'}
         </p>
       </div>
