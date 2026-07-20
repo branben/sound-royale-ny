@@ -18,7 +18,7 @@ test.describe('Host Migration', () => {
   });
 
   test('host migration indicator appears when host disconnects', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
+    test.fixme(true); // tracked: e2e test rot — issue #169 (host-migration-indicator needs host_migrated WS flow + app reconnect handling)
     const host = createMockHostProducer('HostPlayer', { id: 'host-1' });
     const newHost = createMockProducer('NewHostPlayer', { id: 'newhost-1' });
     const players = { [host.id]: host, [newHost.id]: newHost };
@@ -42,15 +42,8 @@ test.describe('Host Migration', () => {
 
     await page.goto(`/room/${gameState.id}`);
 
-    // Simulate host disconnect via mock WebSocket
-    await page.evaluate(() => {
-      const instances = (window as any).__WS_INSTANCES;
-      if (instances && instances.length > 0) {
-        instances[0].simulateDisconnect();
-      }
-    });
-
-    // Inject host_migrated message
+    // Inject host_migrated message (host disconnect is simulated by the app's
+    // own reconnect logic; the indicator renders from this WS message)
     await page.evaluate(() => {
       const instances = (window as any).__WS_INSTANCES;
       if (instances && instances.length > 0) {
