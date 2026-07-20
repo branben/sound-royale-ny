@@ -82,7 +82,7 @@ sound-royale-ny/
 
 - **No Redux or Zustand** — React Context + React Query only
 - **No producer voting** — spectators only. Cut from MVP
-- **No dark-tech/cyberpunk/synthwave** — polished Jackbox aesthetic. Flat colors, no neon/glass/gradients
+- **Dark flat stage is INTENDED** — the "polished Jackbox" aesthetic is a dark game-show stage (`#09090b` near-black bg per `design-system/sound-royale/MASTER.md`). The prohibition is *styling*, not darkness: NO neon/glow/cyberpunk/synthwave — no glow box-shadows, no gradients, no glassmorphism, no always-on pulse. Authoritative spec: `design-system/sound-royale/MASTER.md` (the repo-level shorthand here is a summary, not the source of truth).
 - **No `as any`, `@ts-ignore`, `@ts-expect-error`** — CI-enforced
 - **No direct DOM manipulation** — use shadcn/ui abstractions
 - **No tile gen before players join** — generate on join for immediate feedback

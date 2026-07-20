@@ -1,0 +1,51 @@
+name: Visual Verify (PixelRAG)
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  visual-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install frontend deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Install PixelRAG (pixelshot)
+        run: pipx install pixelrag
+
+      - name: Install Playwright Chromium (pixelshot playwright backend)
+        run: npx playwright install --with-deps chromium
+
+      - name: Start Vite dev server
+        run: pnpm exec vite --port 8081 --host &
+        # CI uses pixelshot's playwright backend (no external Chrome needed):
+        # set PIXELSHOT_BACKEND=playwright in capture.sh for CI, cdp for local.
+
+      - name: Wait for dev server
+        run: npx wait-on http://localhost:8081
+
+      - name: Capture + assert
+        working-directory: scripts/visual-verify
+        run: |
+          ./capture.sh
+          node assert.mjs captures/latest
+
+      - name: Upload report + tiles
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-verify
+          path: scripts/visual-verify/captures/latest

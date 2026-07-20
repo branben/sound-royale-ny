@@ -1,0 +1,4 @@
+# Visual-verify harness: ignore per-run captures + generated report.
+# Keep baselines/ committed as the golden reference set.
+captures/
+report.json

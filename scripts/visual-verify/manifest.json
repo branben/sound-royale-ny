@@ -1,0 +1,109 @@
+{
+  "$schema": "PixelRAG visual-verification route manifest for Sound Royale",
+  "baseUrl": "http://localhost:8081",
+  "chrome": {
+    "cdpUrl": "http://localhost:9222",
+    "launch": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome --headless=new --remote-debugging-port=9222 --no-sandbox --disable-gpu --user-data-dir=/tmp/chrome-px"
+  },
+  "tileHeight": 1568,
+  "routes": [
+    {
+      "path": "/",
+      "name": "lobby",
+      "auth": false,
+      "expect": {
+        "bgNearBlack": true,
+        "singlePrimaryCta": true,
+        "noGradient": true,
+        "noGlow": true,
+        "fonts": ["Righteous", "Poppins"],
+        "verbatim": ["SOUND ROYALE"]
+      }
+    },
+    {
+      "path": "/spectator",
+      "name": "spectator-index",
+      "auth": false,
+      "expect": {
+        "bgNearBlack": true,
+        "noGradient": true,
+        "noGlow": true,
+        "fonts": ["Righteous", "Poppins"]
+      }
+    },
+    {
+      "path": "/producer",
+      "name": "producer",
+      "auth": false,
+      "expect": {
+        "bgNearBlack": true,
+        "noGradient": true,
+        "noGlow": true,
+        "fonts": ["Righteous", "Poppins"]
+      }
+    },
+    {
+      "path": "/admin/themes",
+      "name": "admin-themes",
+      "auth": false,
+      "expect": {
+        "bgNearBlack": true,
+        "noGradient": true,
+        "noGlow": true,
+        "solidSurfaces": true,
+        "fonts": ["Righteous", "Poppins"]
+      }
+    },
+    {
+      "path": "/admin/players",
+      "name": "admin-players",
+      "auth": false,
+      "expect": {
+        "bgNearBlack": true,
+        "noGradient": true,
+        "noGlow": true,
+        "solidSurfaces": true,
+        "fonts": ["Righteous", "Poppins"]
+      }
+    },
+    {
+      "path": "/leaderboard",
+      "name": "leaderboard",
+      "auth": false,
+      "expect": {
+        "bgNearBlack": true,
+        "noGradient": true,
+        "noGlow": true,
+        "fonts": ["Righteous", "Poppins"]
+      }
+    },
+    {
+      "path": "/auth/discord/callback",
+      "name": "discord-callback",
+      "auth": false,
+      "expect": {
+        "bgNearBlack": true,
+        "noGradient": true,
+        "noGlow": true
+      }
+    },
+    {
+      "path": "/zzz-not-found",
+      "name": "not-found",
+      "auth": false,
+      "expect": {
+        "bgNearBlack": true,
+        "noGradient": true,
+        "noGlow": true
+      }
+    }
+  ],
+  "authGatedRoutes": [
+    {
+      "path": "/room/:id",
+      "name": "room",
+      "auth": true,
+      "note": "Requires a created room + player creds injected before capture. Out of scope for v1 (public routes only). See seed step TODO in capture.sh."
+    }
+  ]
+}

@@ -75,6 +75,7 @@ scripts/*
 !scripts/semantic-scan.sh
 !scripts/e2e-guard.sh
 !scripts/ci/
+!scripts/visual-verify/
 backend/gaia/
 backend/media/
 backend/practical-exercises.md
