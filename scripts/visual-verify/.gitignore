@@ -2,6 +2,5 @@
 # Keep baselines/ committed as the golden reference set.
 captures/
 report.json
-# Generated at capture time (contains live JWT creds / runtime seed page):
+# Generated at capture time (contains live JWT creds):
 seed.json
-public/seed.html

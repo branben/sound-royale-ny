@@ -37,8 +37,11 @@ if (!res.ok) {
 const data = await res.json();
 const out = {
   roomCode: data.room_code,
+  playerId: data.player_id,
+  playerSecret: data.player_secret,
   accessToken: data.access_token,
   refreshToken: data.refresh_token,
+  playerName: roomName,
 };
 fs.writeFileSync(path.join(__dirname, 'seed.json'), JSON.stringify(out, null, 2));
 console.log(`seeded room ${out.roomCode} -> seed.json`);

@@ -84,17 +84,31 @@ capture_route() {
   mkdir -p "$route_out"
 
   if [ "$seedable" = "1" ] && [ "$USE_SEED" -eq 1 ]; then
-    # 1) Write a same-origin seed page that sets localStorage then redirects
-    #    (location.replace keeps the document in the SAME target, so a single
-    #    pixelshot capture with --wait-network-idle ends on the room page).
-    local code at rt
+    # 1) Write a same-origin seed page that reconstructs the FULL UserContext
+    #    session (see src/context/UserContext.tsx) then redirects to /room/:id.
+    #    - JWT tokens (GameContext reads these on mount)
+    #    - soundRoyaleSessions map: "<roomCode>:<playerId>" -> StoredRoomSession
+    #    - soundRoyaleActiveSessionKey (localStorage AND sessionStorage): the key
+    #    readInitialSession() pulls from sessionStorage to repopulate the session
+    #    location.replace keeps the document in the SAME target, so a single
+    #    --wait-network-idle capture ends on the room page with the host joined.
+    local code pid secret at rt pname
     code="$(python3 -c 'import json;print(json.load(open("'"$SEED"'"))["roomCode"])')"
+    pid="$(python3 -c 'import json;print(json.load(open("'"$SEED"'"))["playerId"])')"
+    secret="$(python3 -c 'import json;print(json.load(open("'"$SEED"'"))["playerSecret"])')"
     at="$(python3 -c 'import json;print(json.load(open("'"$SEED"'"))["accessToken"])')"
     rt="$(python3 -c 'import json;print(json.load(open("'"$SEED"'"))["refreshToken"])')"
+    pname="$(python3 -c 'import json;print(json.load(open("'"$SEED"'"))["playerName"])')"
+    local skey="${code}:${pid}"
     cat > "$SR_PUBLIC/seed.html" <<EOF
 <!doctype html><meta charset="utf-8"><body><script>
 localStorage.setItem('soundRoyaleAccessToken','$at');
 localStorage.setItem('soundRoyaleRefreshToken','$rt');
+var sess = {};
+sess['$skey'] = {roomCode:'$code',playerName:'$pname',playerId:'$pid',playerSecret:'$secret',isSpectator:false,isHost:true};
+localStorage.setItem('soundRoyaleSessions', JSON.stringify(sess));
+localStorage.setItem('soundRoyaleActiveSessionKey', '$skey');
+sessionStorage.setItem('soundRoyaleActiveSessionKey', '$skey');
 location.replace('/room/$code');
 </script></body></html>
 EOF

@@ -83,6 +83,7 @@ backend/quick-start-guide.md
 backend/skills-hardening-program.md
 backend/test_discovery_report.py
 tests/gaia/
+public/seed.html
 
 # Old CI pipelines (untracked local artifacts)
 .github/workflows/linear-poll.yml
