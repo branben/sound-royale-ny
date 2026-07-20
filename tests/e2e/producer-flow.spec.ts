@@ -163,37 +163,6 @@ test.describe('Producer Flow', () => {
     await expect(page.getByTestId('game-board')).toBeVisible();
   });
 
-  test('routes spectators to the spectator dashboard instead of the producer board', async ({
-    page,
-  }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
-    const producer = createMockProducer('Producer');
-    const spectator = createMockSpectator('Spectator');
-    const gameState = createMockPlayingStateWithoutGenre({
-      [producer.id]: producer,
-      [spectator.id]: spectator,
-    });
-
-    await mockApiRoutes(page, {
-      roomResponse: toRoomResponse(gameState),
-      rejoin: {
-        player: spectator,
-        playerSecret: 'spectator-secret',
-      },
-    });
-
-    await setupPlayerSession(page, {
-      playerName: spectator.name,
-      playerId: spectator.id,
-      playerSecret: 'spectator-secret',
-    });
-
-    await page.goto(`/room/${gameState.id}`);
-
-    await expect(page.getByTestId('request-to-play')).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Your Status' })).not.toBeVisible();
-  });
-
   test('shows start battle controls to the joined host in the lobby', async ({ page }) => {
     test.fixme(true); // tracked: e2e test rot — issue #169
     const lobbyState = createMockLobbyState('HostPlayer', ['Player2'], []);

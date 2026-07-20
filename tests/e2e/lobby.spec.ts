@@ -17,11 +17,10 @@ test.describe('Lobby', () => {
   });
 
   test('renders lobby container with correct heading', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     await expect(page.getByTestId('lobby')).toBeVisible();
     await expect(page.locator('h1')).toHaveText('SOUND ROYALE');
     await expect(
-      page.getByText('Compete head-to-head. Upload beats. Claim tiles. Win bingo.'),
+      page.getByText('Multiplayer music bingo. Upload beats, claim tiles, win the round.'),
     ).toBeVisible();
   });
 

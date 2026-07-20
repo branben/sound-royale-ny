@@ -80,7 +80,6 @@ test.describe('Music Battle Game Flows', () => {
 
   test.describe('Existing Tests', () => {
     test('should handle room navigation - join existing room', async ({ page }) => {
-      test.fixme(true); // tracked: e2e test rot — issue #169
       const testPlayer = createMockProducer('TestPlayer');
 
       // Build a room response that includes testPlayer so hasCurrentPlayer is true
@@ -138,7 +137,7 @@ test.describe('Music Battle Game Flows', () => {
       await page.getByTestId('join-room-button').click();
 
       // Assert the Room transitions to lobby waiting view
-      await expect(page.getByText('Waiting for contestants')).toBeVisible({ timeout: 10000 });
+      await expect(page.getByText('Waiting for opponent…')).toBeVisible({ timeout: 10000 });
     });
 
     test('should handle tile selection and upload', async ({ page }) => {

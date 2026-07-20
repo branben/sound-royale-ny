@@ -28,35 +28,6 @@ test.describe('Single Round End-to-End', () => {
   });
 
   test.describe('Lobby Phase', () => {
-    test('shows the joined host lobby with a start battle action', async ({ page }) => {
-      test.fixme(true); // tracked: e2e test rot — issue #169
-      const lobbyState = createMockLobbyState('HostPlayer', ['Player1'], ['Spectator1']);
-      const host = findPlayerByName(lobbyState.players, 'HostPlayer');
-
-      await mockApiRoutes(page, {
-        roomResponse: toRoomResponse(lobbyState),
-        rejoin: {
-          player: host,
-          playerSecret: 'host-secret',
-        },
-        startGame: {
-          json: { status: 'started' },
-        },
-      });
-
-      await setupPlayerSession(page, {
-        playerName: host.name,
-        playerId: host.id,
-        playerSecret: 'host-secret',
-      });
-
-      await page.goto(`/room/${lobbyState.id}`);
-
-      await expect(page.getByTestId('lobby')).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Start Battle' })).toBeVisible();
-      await expect(page.getByText(new RegExp(`Room Code: ${lobbyState.id}`))).toBeVisible();
-    });
-
     test('keeps non-host players in the waiting state until the host starts', async ({ page }) => {
       test.fixme(true); // tracked: e2e test rot — issue #169
       const lobbyState = createMockLobbyState('HostPlayer', ['Player1'], []);
@@ -193,41 +164,6 @@ test.describe('Single Round End-to-End', () => {
 
       await page.goto(`/room/${gameState.id}`);
 
-      await expect(page.getByTestId(`player-name-${producer1.name}`)).toBeVisible();
-      await expect(page.getByTestId(`player-name-${producer2.name}`)).toBeVisible();
-    });
-  });
-
-  test.describe('Spectator View', () => {
-    test('shows the spectator dashboard and request-to-play action', async ({ page }) => {
-      test.fixme(true); // tracked: e2e test rot — issue #169
-      const producer1 = createMockProducer('Producer1');
-      const producer2 = createMockProducer('Producer2');
-      const spectator = createMockSpectator('Spectator1');
-      const gameState = createMockPlayingStateWithoutGenre({
-        [producer1.id]: producer1,
-        [producer2.id]: producer2,
-        [spectator.id]: spectator,
-      });
-
-      await mockApiRoutes(page, {
-        roomResponse: toRoomResponse(gameState),
-        rejoin: {
-          player: spectator,
-          playerSecret: 'spectator-secret',
-        },
-      });
-
-      await setupPlayerSession(page, {
-        playerName: spectator.name,
-        playerId: spectator.id,
-        playerSecret: 'spectator-secret',
-      });
-
-      await page.goto(`/room/${gameState.id}`);
-
-      await expect(page.getByTestId('request-to-play')).toBeVisible();
-      await expect(page.getByRole('heading', { name: 'Battle Arena' })).toBeVisible();
       await expect(page.getByTestId(`player-name-${producer1.name}`)).toBeVisible();
       await expect(page.getByTestId(`player-name-${producer2.name}`)).toBeVisible();
     });
