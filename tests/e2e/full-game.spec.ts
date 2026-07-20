@@ -23,7 +23,9 @@ test.describe('Full 3-Round Game', () => {
     await enableE2EMode(page);
   });
 
-  test.skip('should configure game with 3 rounds [needs multi-round-config component]', async ({ page }) => {
+  test.skip('should configure game with 3 rounds [needs multi-round-config component]', async ({
+    page,
+  }) => {
     const gameState = createMockLobbyState('HostPlayer', ['Player1'], []);
 
     await page.route('**/api/**', async (route) => {
@@ -35,14 +37,20 @@ test.describe('Full 3-Round Game', () => {
     });
 
     const hostId = Object.keys(gameState.players)[0];
-    await setupPlayerSession(page, { playerName: 'HostPlayer', playerId: hostId, playerSecret: 'host-secret' });
+    await setupPlayerSession(page, {
+      playerName: 'HostPlayer',
+      playerId: hostId,
+      playerSecret: 'host-secret',
+    });
 
     await page.goto(`/room/${gameState.id}`);
     await expect(page.locator('[data-testid="multi-round-config"]')).toBeVisible();
     await expect(page.locator('[data-testid="multi-round-config"]')).toContainText('3 Rounds');
   });
 
-  test.skip('should progress from round 1 to round 2 [needs round progression UI]', async ({ page }) => {
+  test.skip('should progress from round 1 to round 2 [needs round progression UI]', async ({
+    page,
+  }) => {
     const producer = createMockProducer('Player1');
     let currentRound = 1;
 
@@ -56,14 +64,20 @@ test.describe('Full 3-Round Game', () => {
       }
     });
 
-    await setupPlayerSession(page, { playerName: producer.name, playerId: producer.id, playerSecret: 'player-secret' });
+    await setupPlayerSession(page, {
+      playerName: producer.name,
+      playerId: producer.id,
+      playerSecret: 'player-secret',
+    });
 
     await page.goto(`/room/test-room`);
     await expect(page.locator('[data-testid="round-indicator"]')).toBeVisible();
     await expect(page.locator('[data-testid="round-indicator"]')).toContainText('2/');
   });
 
-  test.skip('should progress from round 2 to round 3 [needs round progression UI]', async ({ page }) => {
+  test.skip('should progress from round 2 to round 3 [needs round progression UI]', async ({
+    page,
+  }) => {
     const producer = createMockProducer('Player1');
 
     await page.route('**/api/**', async (route) => {
@@ -75,14 +89,20 @@ test.describe('Full 3-Round Game', () => {
       }
     });
 
-    await setupPlayerSession(page, { playerName: producer.name, playerId: producer.id, playerSecret: 'player-secret' });
+    await setupPlayerSession(page, {
+      playerName: producer.name,
+      playerId: producer.id,
+      playerSecret: 'player-secret',
+    });
 
     await page.goto(`/room/test-room`);
     await expect(page.locator('[data-testid="round-indicator"]')).toBeVisible();
     await expect(page.locator('[data-testid="round-indicator"]')).toContainText('3/');
   });
 
-  test.skip('should accumulate scores across rounds [needs total-score component]', async ({ page }) => {
+  test.skip('should accumulate scores across rounds [needs total-score component]', async ({
+    page,
+  }) => {
     const producer = createMockProducer('Player1');
     const gameState = createMockFinishedState({ [producer.id]: producer }, producer.id, 3);
 
@@ -94,7 +114,11 @@ test.describe('Full 3-Round Game', () => {
       },
     });
 
-    await setupPlayerSession(page, { playerName: producer.name, playerId: producer.id, playerSecret: 'player-secret' });
+    await setupPlayerSession(page, {
+      playerName: producer.name,
+      playerId: producer.id,
+      playerSecret: 'player-secret',
+    });
 
     await page.goto(`/room/${gameState.id}`);
     await expect(page.locator('[data-testid="total-score"]')).toBeVisible();
@@ -107,7 +131,7 @@ test.describe('Full 3-Round Game', () => {
     const gameState = createMockFinishedState(
       { [winner.id]: winner, [loser.id]: loser },
       winner.id,
-      3
+      3,
     );
 
     await mockApiRoutes(page, {
@@ -118,11 +142,24 @@ test.describe('Full 3-Round Game', () => {
       },
     });
 
-    await setupPlayerSession(page, { playerName: winner.name, playerId: winner.id, playerSecret: 'winner-secret' });
+    await setupPlayerSession(page, {
+      playerName: winner.name,
+      playerId: winner.id,
+      playerSecret: 'winner-secret',
+    });
 
     await page.goto(`/room/${gameState.id}`);
-    await expect(page.locator('[data-testid="winner-announcement"]')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-testid="winner-announcement"]')).toBeVisible({
+      timeout: 10000,
+    });
     await expect(page.locator('[data-testid="winner-announcement"]')).toContainText('Winner');
+
+    // Visual-regression gate: finished board + winner overlay.
+    await page.waitForTimeout(600);
+    await expect(page).toHaveScreenshot('full-game-winner-screen.png', {
+      maxDiffPixelRatio: 0.02,
+      animations: 'disabled',
+    });
   });
 
   test('should show game over screen for abandoned game', async ({ page }) => {
@@ -137,14 +174,27 @@ test.describe('Full 3-Round Game', () => {
       },
     });
 
-    await setupPlayerSession(page, { playerName: producer.name, playerId: producer.id, playerSecret: 'player-secret' });
+    await setupPlayerSession(page, {
+      playerName: producer.name,
+      playerId: producer.id,
+      playerSecret: 'player-secret',
+    });
 
     await page.goto(`/room/${gameState.id}`);
     await expect(page.locator('[data-testid="game-over-screen"]')).toBeVisible();
     await expect(page.locator('[data-testid="game-over-screen"]')).toContainText('GAME OVER');
+
+    // Visual-regression gate: finished board + game-over overlay.
+    await page.waitForTimeout(600);
+    await expect(page).toHaveScreenshot('full-game-gameover-screen.png', {
+      maxDiffPixelRatio: 0.02,
+      animations: 'disabled',
+    });
   });
 
-  test.skip('should show play again option [needs play-again button in winner flow]', async ({ page }) => {
+  test.skip('should show play again option [needs play-again button in winner flow]', async ({
+    page,
+  }) => {
     const producer = createMockProducer('Player1');
     const gameState = createMockFinishedState({ [producer.id]: producer }, producer.id, 3);
 
@@ -156,9 +206,15 @@ test.describe('Full 3-Round Game', () => {
       }
     });
 
-    await setupPlayerSession(page, { playerName: producer.name, playerId: producer.id, playerSecret: 'player-secret' });
+    await setupPlayerSession(page, {
+      playerName: producer.name,
+      playerId: producer.id,
+      playerSecret: 'player-secret',
+    });
 
     await page.goto(`/room/${gameState.id}`);
-    await expect(page.locator('button:has-text("Play Again"), [data-testid="play-again"]')).toBeVisible();
+    await expect(
+      page.locator('button:has-text("Play Again"), [data-testid="play-again"]'),
+    ).toBeVisible();
   });
 });

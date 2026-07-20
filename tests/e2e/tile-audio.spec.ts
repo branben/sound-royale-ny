@@ -1,5 +1,10 @@
 import { test, expect } from '@playwright/test';
-import { enableE2EMode, setupPlayerSession, mockApiRoutes, mockWebSocketConnection } from './helpers';
+import {
+  enableE2EMode,
+  setupPlayerSession,
+  mockApiRoutes,
+  mockWebSocketConnection,
+} from './helpers';
 import { createMockPlayingState, createMockProducer, toRoomResponse } from './utils/game-fixtures';
 
 test.describe('Tile Audio Playback', () => {
@@ -44,12 +49,19 @@ test.describe('Tile Audio Playback', () => {
     await expect(firstTile).toBeVisible();
     // Verify tile is clickable (interactive)
     await expect(firstTile).toBeEnabled();
+
+    // Visual-regression gate: playing board with claimed tiles + audio controls.
+    await page.waitForTimeout(600);
+    await expect(page).toHaveScreenshot('tile-audio-playing-board.png', {
+      maxDiffPixelRatio: 0.02,
+      animations: 'disabled',
+    });
   });
 
   test('tile without audio URL does not show audio controls', async ({ page }) => {
     const producer = createMockProducer('Producer1', { id: 'producer-1' });
     // Ensure no audioUrl on tiles
-    producer.board.tiles = producer.board.tiles.map(tile => ({
+    producer.board.tiles = producer.board.tiles.map((tile) => ({
       ...tile,
       audioUrl: undefined,
     }));
