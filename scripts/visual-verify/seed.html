@@ -1,0 +1,16 @@
+<!doctype html>
+<!--
+  Generated at capture time by capture.sh --seed. NEVER committed (capture.sh
+  writes + removes it). Served from the Vite origin (localhost:8081) so the
+  localStorage it sets is same-origin as /room/:code. Reads creds from the
+  query string, sets the two keys GameContext reads on mount, then redirects.
+-->
+<html><head><meta charset="utf-8"><title>seed</title></head><body>
+<script>
+  const q = new URLSearchParams(location.search);
+  const at = q.get('at'), rt = q.get('rt'), code = q.get('code');
+  if (at) localStorage.setItem('soundRoyaleAccessToken', at);
+  if (rt) localStorage.setItem('soundRoyaleRefreshToken', rt);
+  location.replace('/room/' + code);
+</script>
+</body></html>

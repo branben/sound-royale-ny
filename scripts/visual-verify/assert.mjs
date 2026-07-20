@@ -129,7 +129,11 @@ if (!fs.existsSync(tilesDir)) {
   process.exit(2);
 }
 
-const results = await Promise.all(manifest.routes.map((r) => analyzeTile(tilesDir, r.name, r.expect || {})));
+const publicRoutes = manifest.routes.map((r) => analyzeTile(tilesDir, r.name, r.expect || {}));
+// Seeded routes (e.g. room) are only present when capture ran with --seed.
+const seeded = (manifest.seededRoutes || []).filter((r) => fs.existsSync(path.join(tilesDir, `${r.name}.png.tiles`)));
+const seededRoutes = seeded.map((r) => analyzeTile(tilesDir, r.name, r.expect || {}));
+const results = (await Promise.all(publicRoutes)).concat(await Promise.all(seededRoutes));
 
 // Emit machine-readable + human report
 const report = { generatedAt: new Date().toISOString(), tilesDir, results };

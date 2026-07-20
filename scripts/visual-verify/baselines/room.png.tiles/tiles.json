@@ -1,5 +1,5 @@
 {
-  "url": "http://localhost:8081/admin/themes",
+  "url": "http://localhost:8081/seed.html",
   "page_height": 8192,
   "tiles": ["tile_0000.jpg"],
   "complete": true

@@ -98,12 +98,26 @@
       }
     }
   ],
+  "seededRoutes": [
+    {
+      "path": "/room/:id",
+      "name": "room",
+      "auth": true,
+      "expect": {
+        "bgNearBlack": true,
+        "noGradient": true,
+        "noGlow": true,
+        "solidSurfaces": true
+      },
+      "note": "Rendered only with --seed (seed.json creds injected into localStorage). Requires Django backend running."
+    }
+  ],
   "authGatedRoutes": [
     {
       "path": "/room/:id",
       "name": "room",
       "auth": true,
-      "note": "Requires a created room + player creds injected before capture. Out of scope for v1 (public routes only). See seed step TODO in capture.sh."
+      "note": "Legacy alias. Use seededRoutes + --seed instead."
     }
   ]
 }
