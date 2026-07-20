@@ -1,4 +1,4 @@
-name: Visual Verify (PixelRAG)
+name: Visual Verify
 
 on:
   pull_request:
@@ -6,7 +6,10 @@ on:
     branches: [main]
 
 jobs:
-  visual-verify:
+  # PixelRAG design-token gate: bgNearBlack / noGradient / noGlow across public routes.
+  # (Auth-gated room route requires a running Django backend + seed; out of scope here —
+  #  run capture.sh --seed locally. The public 8 routes need no backend.)
+  pixelrag:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,8 +34,6 @@ jobs:
 
       - name: Start Vite dev server
         run: pnpm exec vite --port 8081 --host &
-        # CI uses pixelshot's playwright backend (no external Chrome needed):
-        # set PIXELSHOT_BACKEND=playwright in capture.sh for CI, cdp for local.
 
       - name: Wait for dev server
         run: npx wait-on http://localhost:8081
@@ -47,5 +48,44 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: visual-verify
+          name: visual-verify-pixelrag
           path: scripts/visual-verify/captures/latest
+
+  # Playwright visual-regression gate: per-route toHaveScreenshot diffs.
+  # Catches content/layout/text/CTA regressions the design-token checks can't.
+  # The room route uses the repo's mock helpers (no backend needed).
+  playwright:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install frontend deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Start Vite dev server
+        run: pnpm exec vite --port 8081 --host &
+
+      - name: Wait for dev server
+        run: npx wait-on http://localhost:8081
+
+      - name: Run visual-regression suite
+        run: pnpm run verify:visual:e2e
+
+      - name: Upload snapshot diffs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-verify-playwright
+          path: test-results
