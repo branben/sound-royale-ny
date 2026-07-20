@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Settings, Trophy } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { MIN_ROUNDS, MAX_ROUNDS } from '@/types/game';
 
 interface MultiRoundConfigProps {
   totalRounds?: number;
@@ -21,7 +22,7 @@ export const MultiRoundConfig: React.FC<MultiRoundConfigProps> = ({
   className,
 }) => {
   const handleRoundsChange = (newRounds: number) => {
-    if (isHost && onRoundsChange && newRounds >= 1 && newRounds <= 10) {
+    if (isHost && onRoundsChange && newRounds >= MIN_ROUNDS && newRounds <= MAX_ROUNDS) {
       onRoundsChange(newRounds);
     }
   };

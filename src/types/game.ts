@@ -12,6 +12,10 @@ export const MIN_PRODUCERS_TO_PLAY = 2;
 // Must stay in sync with backend Room.MIN_TILES_FOR_BINGO_RESOLUTION.
 export const MIN_TILES_FOR_BINGO_RESOLUTION = 5;
 
+// Min/max rounds a match can be configured to run.
+export const MIN_ROUNDS = 1;
+export const MAX_ROUNDS = 10;
+
 export interface Tile {
   id: string;
   genre: string;
