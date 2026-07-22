@@ -68,7 +68,6 @@ test.describe('Create → Join → Start Integration Flow', () => {
   test('host creates room and sees Start Battle button after second player joins', async ({
     browser,
   }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     test.setTimeout(60000);
 
     const runId = Date.now().toString().slice(-6);
@@ -88,8 +87,8 @@ test.describe('Create → Join → Start Integration Flow', () => {
       await expect(host.page).toHaveURL(/\/room\/\d{4}$/, { timeout: 15000 });
       const roomCode = host.page.url().match(/\/room\/(\d{4})$/)![1];
 
-      // Host should see "Waiting for contestants" (not Start Battle yet — only 1 player)
-      await expect(host.page.getByText(/Waiting for contestants/i)).toBeVisible({ timeout: 10000 });
+      // Host should see "Waiting for opponent…" (not Start Battle yet — only 1 player)
+      await expect(host.page.getByText(/Waiting for opponent/i)).toBeVisible({ timeout: 10000 });
 
       // --- Second player joins via UI ---
       await player2.page.goto('/');
@@ -102,12 +101,12 @@ test.describe('Create → Join → Start Integration Flow', () => {
       await expect(player2.page.locator(`data-testid=lobby`)).toBeVisible({ timeout: 15000 });
       await expect(player2.page.getByText(roomCode).first()).toBeVisible();
 
-      // Player2 should see "You're in battle!"
-      await expect(player2.page.getByText(/You're in battle/i)).toBeVisible({ timeout: 10000 });
+      // Player2 should see "You're in."
+      await expect(player2.page.getByText(/You're in/i)).toBeVisible({ timeout: 10000 });
 
-      // --- Host should now see "Start Battle" button ---
+      // --- Host should now see "Start Match" button ---
       await expect(host.page.getByTestId('start-battle')).toBeVisible({ timeout: 15000 });
-      await expect(host.page.getByTestId('start-battle')).toContainText('Start Battle');
+      await expect(host.page.getByTestId('start-battle')).toContainText(/Start Match/i);
 
       // Verify no "Waiting for contestants" message is shown anymore for host
       await expect(host.page.getByText(/Waiting for contestants/i)).not.toBeVisible();
@@ -125,7 +124,6 @@ test.describe('Create → Join → Start Integration Flow', () => {
   // Scenario 2: Second player joins → both players see correct lobby state
   // -----------------------------------------------------------------------
   test('both players see correct lobby state after join', async ({ browser }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     test.setTimeout(60000);
 
     const runId = Date.now().toString().slice(-6);
@@ -151,8 +149,8 @@ test.describe('Create → Join → Start Integration Flow', () => {
       await expect(player2.page.locator('data-testid=lobby')).toBeVisible({ timeout: 10000 });
       await expect(player2.page.getByText(roomCode).first()).toBeVisible();
 
-      // Player2 should see "You're in battle!" instead of join buttons
-      await expect(player2.page.getByText(/You're in battle/i)).toBeVisible({ timeout: 10000 });
+      // Player2 should see "You're in." instead of join buttons
+      await expect(player2.page.getByText(/You're in/i)).toBeVisible({ timeout: 10000 });
 
       // --- Verify backend state matches UI ---
       const backendState = await getGameState(roomCode);

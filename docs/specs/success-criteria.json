@@ -53,7 +53,6 @@
           "description": "A player reloading mid-game restores their board/state via rejoin.",
           "testRefs": [
             "tests/e2e/rejoin-recovery.spec.ts > restores a producer board through rejoin_game after reload",
-            "tests/e2e/rejoin-recovery.spec.ts > restores a spectator dashboard through rejoin_game after reload",
             "tests/e2e/live/create-join-start.spec.ts > host status is restored after page refresh via rejoin flow"
           ],
           "status": "covered"

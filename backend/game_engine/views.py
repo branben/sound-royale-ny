@@ -1973,9 +1973,10 @@ class TileViewSet(viewsets.ModelViewSet):
                 tile.audio_file = audio_file
             tile.save()
 
-            # Check for bingo lines and resolve winner (ranked matches only)
-            if room.match_type == Room.MatchType.RANKED:
-                _resolve_bingo_and_winner(room, player)
+            # Check for bingo lines and resolve winner (both casual and ranked).
+            # Casual matches finish on a bingo line too; the frontend renders the
+            # winner announcement for either match type (Room.tsx:722).
+            _resolve_bingo_and_winner(room, player)
 
             transaction.on_commit(lambda: broadcast_game_update(room))
 

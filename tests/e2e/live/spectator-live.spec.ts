@@ -56,7 +56,7 @@ test.describe('Live Spectator UI Verification', () => {
   });
 
   test('spectator sees winner announcement after bingo', async ({ browser }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
+    test.setTimeout(90000);
     const game = new GameOrchestrator(browser, audioFilePath);
 
     try {
