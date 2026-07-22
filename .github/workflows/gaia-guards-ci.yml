@@ -80,8 +80,6 @@ jobs:
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - name: Install dependencies
         run: rm -rf node_modules && pnpm install --frozen-lockfile
@@ -104,8 +102,6 @@ jobs:
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - name: Install dependencies
         run: rm -rf node_modules && pnpm install --frozen-lockfile
@@ -158,8 +154,6 @@ jobs:
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - name: Install dependencies
         run: rm -rf node_modules && pnpm install --frozen-lockfile
@@ -235,8 +229,6 @@ jobs:
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - name: Install dependencies
         run: rm -rf node_modules && pnpm install --frozen-lockfile
