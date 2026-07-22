@@ -179,14 +179,15 @@ jobs:
           POSTGRES_HOST: localhost
         run: python manage.py migrate --noinput
 
-      - name: Start Django backend (runserver)
+      - name: Start Django backend (daphne, async — matches local E2E harness)
         working-directory: ./backend
         env:
           DJANGO_SETTINGS_MODULE: sound_royale_api.settings_e2e
           PYTHONPATH: ..
           POSTGRES_HOST: localhost
+          DISABLE_THROTTLES: 'true'
         run: |
-          python manage.py runserver 0.0.0.0:8000 &
+          python -m daphne -p 8000 -b 0.0.0.0 sound_royale_api.asgi:application &
           BACKEND_PID=$!
           echo "BACKEND_PID=$BACKEND_PID" >> $GITHUB_ENV
           for i in $(seq 1 30); do
