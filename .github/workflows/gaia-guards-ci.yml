@@ -222,8 +222,16 @@ jobs:
           done
 
       - name: Run full E2E suite
-        run: pnpm exec playwright test tests/e2e/ --reporter=line --workers=2
+        run: pnpm exec playwright test tests/e2e/ --reporter=line --reporter=junit --workers=2
         timeout-minutes: 20
+
+      - name: Upload E2E results (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-junit
+          path: playwright-report/results.xml
+          retention-days: 3
 
       - name: Shut down dev servers
         if: always()
