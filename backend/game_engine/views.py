@@ -786,6 +786,26 @@ class RoomViewSet(viewsets.ModelViewSet):
             ]
 
             if existing_conflicts:
+                # Idempotent rejoin: if the joining name already exists in the
+                # room, treat this as a reconnect (page refresh / WS drop) and
+                # return the existing player instead of 409-ing. This matches
+                # guardrail #101 (reconnect must re-fetch, not re-create) and the
+                # explicit rejoin-flow E2E test. Genuine name collisions between
+                # distinct players are still prevented by the DB unique constraint
+                # (caught by the IntegrityError branch below on a real dup).
+                existing_player = (
+                    room.players.filter(name__iexact=conflicting_name).first()
+                )
+                if existing_player is not None:
+                    token_data = get_authenticated_player(existing_player)
+                    response_data = PlayerCreateSerializer(existing_player).data
+                    response_data.update(
+                        {
+                            "access_token": token_data["access_token"],
+                            "refresh_token": token_data["refresh_token"],
+                        }
+                    )
+                    return Response(response_data, status=status.HTTP_200_OK)
                 return Response(
                     {
                         "error": f'Name "{conflicting_name}" is already taken in this room',
