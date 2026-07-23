@@ -34,3 +34,16 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:8080",
     "http://localhost:5173",
 ]
+
+# Use a REAL (Redis) channel layer, not the in-memory one inherited from
+# settings_test. InMemoryChannelLayer isolates each ASGI connection, so
+# WebSocket game-state broadcasts never reach other players — every
+# real-time E2E spec fails. CI provisions a redis:7-alpine service.
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [os.environ.get("REDIS_URL", "redis://localhost:6379/0")],
+        },
+    },
+}
