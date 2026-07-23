@@ -60,8 +60,11 @@ check_e2e_structure() {
     # 4. Validate test files have content (structural check)
     while IFS= read -r -d '' file; do
         local tests_in_file
-        tests_in_file=$(grep -c "test('" "$file" 2>/dev/null || echo "0")
-        if [ "$tests_in_file" -eq 0 ]; then
+        tests_in_file=$(grep -c "test('" "$file" 2>/dev/null || true)
+        # grep -c can emit a multi-line result in some shells; keep the first line.
+        tests_in_file=${tests_in_file%%[$'\n']*}
+        tests_in_file=${tests_in_file:-0}
+        if [ "${tests_in_file:-0}" -eq 0 ]; then
             warn "No tests found in: $file"
         fi
     done < <(find "$E2E_DIR" -name "*.spec.ts" -type f -print0 2>/dev/null || true)
