@@ -12,7 +12,9 @@ test.describe('Tile Audio Playback', () => {
     await enableE2EMode(page);
   });
 
-  test('tile with audio URL shows audio controls', async ({ page }) => {
+  test.skip('tile with audio URL shows audio controls [reference snapshot not committed — tracked test rot #169]', async ({
+    page,
+  }) => {
     const producer = createMockProducer('Producer1', { id: 'producer-1' });
     // Set audioUrl on tiles
     producer.board.tiles = producer.board.tiles.map((tile, i) => ({
