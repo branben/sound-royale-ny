@@ -194,7 +194,7 @@ jobs:
           DJANGO_SETTINGS_MODULE: sound_royale_api.settings_e2e
           PYTHONPATH: ..
           POSTGRES_HOST: localhost
-          REDIS_URL: redis://localhost:6379/0
+          REDIS_URL: redis://redis:6379/0
           DISABLE_THROTTLES: 'true'
         run: |
           python -m daphne -p 8000 -b 0.0.0.0 sound_royale_api.asgi:application &
