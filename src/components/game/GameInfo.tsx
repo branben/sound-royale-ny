@@ -336,6 +336,12 @@ export function GameInfo({ roomId, currentPlayerName }: GameInfoProps) {
                       )}
                     </div>
                   </div>
+                  <span
+                    data-testid={`player-elo-stats-${player.id}`}
+                    className="text-xs text-gray-400"
+                  >
+                    {formatPlayerEloStats(player)}
+                  </span>
                   <div className="flex items-center gap-2">
                     {gameState.status === 'playing' && gameState.roundState?.votingOpen && (
                       <span className="text-xs text-gray-400" data-testid="vote-count">

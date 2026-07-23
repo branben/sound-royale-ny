@@ -94,7 +94,6 @@ test.describe('ELO Rating System', () => {
   });
 
   test('should show ELO stats in final standings', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     const winner = createMockProducer('Winner', {
       eloRating: 1300,
       eloWins: 6,
@@ -160,7 +159,6 @@ test.describe('ELO Rating System', () => {
   });
 
   test('should persist ELO across games', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     const player = createMockProducer('Player', {
       eloRating: 1400,
       eloWins: 10,

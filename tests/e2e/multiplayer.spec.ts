@@ -4,8 +4,8 @@ import { createMockPlayingState, createMockProducer, toRoomResponse } from './ut
 
 const mockMultiplayerRoomResponse = toRoomResponse(
   createMockPlayingState({
-    [createMockProducer('PlayerOne').id]: createMockProducer('PlayerOne'),
-    [createMockProducer('PlayerTwo').id]: createMockProducer('PlayerTwo'),
+    player1: createMockProducer('PlayerOne', { id: 'player1' }),
+    player2: createMockProducer('PlayerTwo', { id: 'player2' }),
   }),
 );
 
@@ -17,7 +17,14 @@ test.describe('Multi-Player Game Scenarios', () => {
       playerId: 'player1',
       playerSecret: 'secret1',
     });
-    await mockApiRoutes(page, { roomResponse: mockMultiplayerRoomResponse });
+    await mockApiRoutes(page, {
+      roomResponse: mockMultiplayerRoomResponse,
+      seed: true,
+      rejoin: {
+        player: { id: 'player1', name: 'PlayerOne', isHost: true },
+        playerSecret: 'secret1',
+      },
+    });
   });
 
   test('should handle multiple players joining', async ({ browser }) => {
@@ -100,7 +107,6 @@ test.describe('Multi-Player Game Scenarios', () => {
   });
 
   test('should handle round transitions', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169 (board render needs WS game_state_update; fixture-shape + mock gap)
     await page.goto('/room/test-room');
 
     await expect(page.locator('[data-testid="game-board"]')).toBeVisible();

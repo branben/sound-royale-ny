@@ -103,7 +103,6 @@ test.describe('Producer titles', () => {
   });
 
   test('ranked title and ELO results render in match surfaces', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     const sweeper = createMockProducer('Sweeper Winner', {
       eloRating: 1260,
       currentTitle: 'SWEEPER',

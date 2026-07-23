@@ -77,7 +77,6 @@ test.describe('Spectator Mode Experience', () => {
   });
 
   test('renders a player board display for each producer', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     const producer1 = createMockProducer('Producer1');
     const producer2 = createMockProducer('Producer2');
     const spectator = createMockSpectator('Spectator');
@@ -103,8 +102,8 @@ test.describe('Spectator Mode Experience', () => {
 
     await page.goto(`/room/${gameState.id}`);
 
-    await expect(page.getByRole('heading', { name: producer1.name })).toBeVisible();
-    await expect(page.getByRole('heading', { name: producer2.name })).toBeVisible();
+    await expect(page.getByRole('heading', { name: producer1.name }).first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: producer2.name }).first()).toBeVisible();
   });
 
   test('shows the finished-state winner announcement', async ({ page }) => {

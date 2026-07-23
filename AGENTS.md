@@ -118,11 +118,11 @@ Serena memories at `guardrails/` contain the canonical version with full context
 - MUST support cancel/retry on failed uploads
 - MUST surface specific error messages
 
-### Secret Handling (issue #105)
-- MUST hash player_secret before storage (Argon2 or SHA-256)
-- MUST NOT send secrets in URL query strings
-- MUST use `Sec-WebSocket-Protocol` header or post-handshake auth for WebSocket
-- MUST implement secret rotation endpoint
+### Secret Handling (issue #105) — CLOSED
+- MUST hash player_secret before storage (SHA-256, `backend/game_engine/security.py`) ✅
+- MUST NOT send secrets in URL query strings — WS uses post-handshake `auth` message (`src/services/gameSocket.ts`) ✅
+- MUST implement secret rotation endpoint — `PlayerViewSet.rotate_secret` (`player-rotate-secret` route), tested in `test_player_secret_security.py` ✅
+- All three clauses verified green (4/4 security tests pass).
 
 ## Session-Start Protocol
 

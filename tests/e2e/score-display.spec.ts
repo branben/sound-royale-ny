@@ -91,11 +91,17 @@ test.describe('Score Display', () => {
       playerId: 'player1',
       playerSecret: 'test-secret',
     });
-    await mockApiRoutes(page, { roomResponse: mockScoreRoomResponse });
+    await mockApiRoutes(page, {
+      roomResponse: mockScoreRoomResponse,
+      seed: true,
+      rejoin: {
+        player: { id: 'player1', name: 'TestPlayer', isHost: true },
+        playerSecret: 'test-secret',
+      },
+    });
   });
 
   test('should show base score calculation (100 points per line)', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     await page.goto('/room/test-room-id');
     await page.waitForSelector('[data-testid="game-board"]');
 
@@ -104,7 +110,6 @@ test.describe('Score Display', () => {
   });
 
   test('should show multi-line bonus in ScoreDisplay', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     await page.goto('/room/test-room-id');
     await page.waitForSelector('[data-testid="game-board"]');
 
@@ -113,7 +118,6 @@ test.describe('Score Display', () => {
   });
 
   test('should show speed bonus when completing quickly', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     await page.goto('/room/test-room-id');
     await page.waitForSelector('[data-testid="game-board"]');
 
@@ -122,7 +126,6 @@ test.describe('Score Display', () => {
   });
 
   test('should show combined bonuses together', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     await page.goto('/room/test-room-id');
     await page.waitForSelector('[data-testid="game-board"]');
 
@@ -131,7 +134,6 @@ test.describe('Score Display', () => {
   });
 
   test('should show completed lines visualization', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     await page.goto('/room/test-room-id');
     await page.waitForSelector('[data-testid="game-board"]');
 

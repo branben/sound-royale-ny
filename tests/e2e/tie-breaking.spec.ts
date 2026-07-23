@@ -56,11 +56,14 @@ test.describe('Tie-Breaking Logic', () => {
       playerId: 'player1',
       playerSecret: 'secret1',
     });
-    await mockApiRoutes(page, { roomResponse: mockTieBreakerRoomResponse });
+    await mockApiRoutes(page, {
+      roomResponse: mockTieBreakerRoomResponse,
+      seed: true,
+      rejoin: { player: { id: 'player1', name: 'PlayerA', isHost: true }, playerSecret: 'secret1' },
+    });
   });
 
   test('should declare player with most lines as winner', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     await page.goto('/room/test-room-id');
     await page.waitForSelector('[data-testid="game-board"]');
 
@@ -68,7 +71,6 @@ test.describe('Tie-Breaking Logic', () => {
   });
 
   test('should use efficiency tie-breaker when lines are equal', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     await page.goto('/room/test-room-id');
     await page.waitForSelector('[data-testid="game-board"]');
 
@@ -76,7 +78,6 @@ test.describe('Tie-Breaking Logic', () => {
   });
 
   test('should handle simultaneous completion tie-breaker', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     await page.goto('/room/test-room-id');
     await page.waitForSelector('[data-testid="game-board"]');
 
@@ -84,7 +85,6 @@ test.describe('Tie-Breaking Logic', () => {
   });
 
   test('should show tie-breaker explanation in victory display', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     await page.goto('/room/test-room-id');
     await page.waitForSelector('[data-testid="game-board"]');
 

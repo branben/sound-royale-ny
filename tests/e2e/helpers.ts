@@ -3,6 +3,8 @@ import { Page, Route } from '@playwright/test';
 declare global {
   interface Window {
     __E2E_TESTING__?: boolean;
+    __E2E_ROOM_RESPONSE__?: unknown;
+    __E2E_USE_ROOM_SEED__?: boolean;
   }
 }
 
@@ -14,20 +16,29 @@ export async function enableE2EMode(page: Page): Promise<void> {
 
 export async function setupPlayerSession(
   page: Page,
-  session: { playerName: string; playerId: string; playerSecret: string; roomCode?: string; isSpectator?: boolean }
+  session: {
+    playerName: string;
+    playerId: string;
+    playerSecret: string;
+    roomCode?: string;
+    isSpectator?: boolean;
+  },
 ): Promise<void> {
   await page.addInitScript((s) => {
     const roomCode = s.roomCode ?? 'test-room';
     const sessionKey = `${roomCode}:${s.playerId}`;
-    localStorage.setItem('soundRoyaleSessions', JSON.stringify({
-      [sessionKey]: {
-        roomCode,
-        playerName: s.playerName,
-        playerId: s.playerId,
-        playerSecret: s.playerSecret,
-        isSpectator: s.isSpectator ?? false,
-      },
-    }));
+    localStorage.setItem(
+      'soundRoyaleSessions',
+      JSON.stringify({
+        [sessionKey]: {
+          roomCode,
+          playerName: s.playerName,
+          playerId: s.playerId,
+          playerSecret: s.playerSecret,
+          isSpectator: s.isSpectator ?? false,
+        },
+      }),
+    );
     sessionStorage.setItem('soundRoyaleActiveSessionKey', sessionKey);
   }, session);
 }
@@ -45,7 +56,7 @@ export interface MockWebSocketMessage {
 
 export async function mockWebSocketConnection(
   page: Page,
-  options: MockWebSocketOptions = {}
+  options: MockWebSocketOptions = {},
 ): Promise<void> {
   // Define the MockWebSocket class as a string to inject into the page context
   const mockWebSocketCode = `
@@ -238,11 +249,13 @@ export function createMockGameMessage(type: string, data: unknown): MockWebSocke
   return {
     type,
     data,
-    timestamp: Date.now()
+    timestamp: Date.now(),
   };
 }
 
-export function createMockGameStateUpdate(gameState: Record<string, unknown>): MockWebSocketMessage {
+export function createMockGameStateUpdate(
+  gameState: Record<string, unknown>,
+): MockWebSocketMessage {
   return createMockGameMessage('game_state_update', gameState);
 }
 
@@ -294,9 +307,7 @@ interface MockRouteResponse {
   json: unknown;
 }
 
-type MockRouteHandler =
-  | MockRouteResponse
-  | ((route: Route) => Promise<void>);
+type MockRouteHandler = MockRouteResponse | ((route: Route) => Promise<void>);
 
 type MockGenrePerformance = Array<{
   genre: string;
@@ -316,7 +327,11 @@ interface MockLeaderboardUser {
 }
 
 interface MockApiRoutesOptions {
-  roomResponse: Record<string, unknown> | MockRouteHandler;
+  roomResponse?: Record<string, unknown> | MockRouteHandler;
+  // When true, seeds GameContext's initial E2E state from `roomResponse`
+  // (opt-in per spec — avoids overwriting the static mockGameState used by
+  // active specs that rely on it). See GameContext.tsx.
+  seed?: boolean;
   rejoin?: {
     player: MockPlayerLike;
     playerSecret: string;
@@ -333,7 +348,9 @@ interface MockApiRoutesOptions {
   leaderboard?: { leaderboard: MockLeaderboardUser[] } | MockRouteHandler;
 }
 
-function toTileResponse(tile: NonNullable<MockPlayerLike['board']>['tiles'][number]): Record<string, unknown> {
+function toTileResponse(
+  tile: NonNullable<MockPlayerLike['board']>['tiles'][number],
+): Record<string, unknown> {
   return {
     id: tile.id,
     genre: tile.genre,
@@ -345,7 +362,7 @@ function toTileResponse(tile: NonNullable<MockPlayerLike['board']>['tiles'][numb
 
 export function toRejoinResponse(
   player: MockPlayerLike,
-  playerSecret: string
+  playerSecret: string,
 ): Record<string, unknown> {
   return {
     id: player.id,
@@ -387,10 +404,7 @@ function toPlayerListResponse(player: MockPlayerLike): Record<string, unknown> {
   };
 }
 
-async function fulfillRoute(
-  route: Route,
-  handler: MockRouteHandler
-): Promise<void> {
+async function fulfillRoute(route: Route, handler: MockRouteHandler): Promise<void> {
   if (typeof handler === 'function') {
     await handler(route);
     return;
@@ -402,10 +416,7 @@ async function fulfillRoute(
   });
 }
 
-export async function mockApiRoutes(
-  page: Page,
-  options: MockApiRoutesOptions
-): Promise<void> {
+export async function mockApiRoutes(page: Page, options: MockApiRoutesOptions): Promise<void> {
   await page.route('**/api/**', async (route) => {
     const url = route.request().url();
 

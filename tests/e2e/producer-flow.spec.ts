@@ -164,7 +164,6 @@ test.describe('Producer Flow', () => {
   });
 
   test('shows start battle controls to the joined host in the lobby', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     const lobbyState = createMockLobbyState('HostPlayer', ['Player2'], []);
     const host = findPlayerByName(lobbyState.players, 'HostPlayer');
 
@@ -188,7 +187,7 @@ test.describe('Producer Flow', () => {
     await page.goto(`/room/${lobbyState.id}`);
 
     await expect(page.getByTestId('lobby')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Start Battle' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Start Match' })).toBeVisible();
   });
 
   test('hides start battle controls from joined non-host players in the lobby', async ({

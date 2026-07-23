@@ -484,7 +484,7 @@ export default function Room() {
 
       <main className="flex-1 flex flex-col items-center px-4 py-8">
         {gameState.status === 'lobby' ? (
-          <div className="w-full max-w-xl mx-auto flex flex-col items-center">
+          <div data-testid="lobby" className="w-full max-w-xl mx-auto flex flex-col items-center">
             {/* Stage label — small, Poppins, no second Righteous wordmark */}
             <div className="flex items-center gap-2 mb-2">
               <span className="text-xs font-medium uppercase tracking-[0.2em] text-zinc-500">

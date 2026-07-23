@@ -39,8 +39,14 @@ test.describe('Bingo Line Detection', () => {
   });
 
   test('should detect horizontal row completion', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
-    await mockApiRoutes(page, { roomResponse: mockRoomResponse });
+    await mockApiRoutes(page, {
+      roomResponse: mockRoomResponse,
+      seed: true,
+      rejoin: {
+        player: { id: 'player1', name: 'TestPlayer', isHost: true },
+        playerSecret: 'test-secret',
+      },
+    });
 
     page.on('console', (msg) => console.log('CONSOLE:', msg.type(), msg.text()));
     page.on('pageerror', (err) => console.log('PAGE ERROR:', err.message));
@@ -54,7 +60,6 @@ test.describe('Bingo Line Detection', () => {
   });
 
   test('should detect vertical column completion', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     const colResponse = {
       code: 'test-room-id',
       status: 'playing',
@@ -80,7 +85,14 @@ test.describe('Bingo Line Detection', () => {
         },
       ],
     };
-    await mockApiRoutes(page, { roomResponse: colResponse });
+    await mockApiRoutes(page, {
+      roomResponse: colResponse,
+      seed: true,
+      rejoin: {
+        player: { id: 'player1', name: 'TestPlayer', isHost: true },
+        playerSecret: 'test-secret',
+      },
+    });
 
     await page.goto('/room/test-room-id');
     await page.getByTestId('game-board').waitFor({ state: 'visible' });
