@@ -25,10 +25,12 @@ async function withRetry<T>(fn: () => Promise<T>, label: string, maxRetries = 12
         continue;
       }
       if (status === 409) {
-        // Transient conflict under parallel load (Postgres): duplicate tile
-        // claim or name collision that resolves on retry. Back off and retry.
+        // Persistent conflict (Postgres). Log the endpoint so CI can pin it.
+        const req = error.config;
+        console.log(
+          `${label} 409 conflict on ${req?.method?.toUpperCase() ?? '?'} ${req?.url ?? '?'} (attempt ${i + 1}/${maxRetries})`,
+        );
         const backoff = Math.min(Math.pow(2, i) * 500, 4000);
-        console.log(`${label} 409 conflict, retrying in ${backoff}ms... (${i + 1}/${maxRetries})`);
         await sleep(backoff);
         continue;
       }
