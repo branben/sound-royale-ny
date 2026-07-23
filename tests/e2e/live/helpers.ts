@@ -15,7 +15,12 @@ async function withRetry<T>(fn: () => Promise<T>, label: string, maxRetries = 12
       return await fn();
     } catch (error: any) {
       const status = error.response?.status;
-      if (i === maxRetries - 1) throw error;
+      if (i === maxRetries - 1) {
+        console.log(
+          `${label} FINAL ${status} on ${error.config?.method?.toUpperCase() ?? '?'} ${error.config?.url ?? '?'} :: ${JSON.stringify(error.response?.data || {}).slice(0, 200)}`,
+        );
+        throw error;
+      }
       if (status === 429) {
         const backoff = Math.pow(2, i) * 1000;
         console.log(
