@@ -632,13 +632,20 @@ class RoomViewSet(viewsets.ModelViewSet):
             # Create the room
             room = serializer.save()
 
-            # Generate unique 4-digit room code
+            # Generate unique 4-digit room code. The allocation is wrapped in
+            # its own atomic block + IntegrityError retry so concurrent
+            # create_room calls (e.g. parallel E2E workers) can never land on
+            # the same code — a TOCTOU between .exists() and .save() would
+            # otherwise let two rooms share a code and cross-contaminate joins.
             while True:
                 code = "".join(random.choices("0123456789", k=4))
-                if not Room.objects.filter(code=code).exists():
-                    room.code = code
-                    room.save()
+                try:
+                    with transaction.atomic():
+                        room.code = code
+                        room.save()
                     break
+                except IntegrityError:
+                    continue
 
             # Generate the host's plaintext secret once; the model hashes it
             # on save, so capture the plaintext to return to the client

@@ -24,17 +24,6 @@ async function withRetry<T>(fn: () => Promise<T>, label: string, maxRetries = 12
         await sleep(backoff);
         continue;
       }
-      if (status === 409) {
-        // Persistent conflict (Postgres). Log the endpoint so CI can pin it.
-        const req = error.config;
-        const body = JSON.stringify(error.response?.data || {});
-        console.log(
-          `${label} 409 conflict on ${req?.method?.toUpperCase() ?? '?'} ${req?.url ?? '?'} :: ${body}`,
-        );
-        const backoff = Math.min(Math.pow(2, i) * 500, 4000);
-        await sleep(backoff);
-        continue;
-      }
       if (status === 500) {
         const backoff = Math.min(Math.pow(2, i) * 1000, 8000);
         console.log(`${label} 500 error, retrying in ${backoff}ms... (${i + 1}/${maxRetries})`);
