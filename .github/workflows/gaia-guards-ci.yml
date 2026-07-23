@@ -222,8 +222,12 @@ jobs:
           done
 
       - name: Run full E2E suite
-        run: pnpm exec playwright test tests/e2e/ --reporter=line --reporter=github --workers=2
+        run: pnpm exec playwright test tests/e2e/ --reporter=line --reporter=github --workers=2 --output=test-results
         timeout-minutes: 20
+
+      - name: Print failing test details (if any)
+        if: always()
+        run: python scripts/ci/print-failures.py test-results/results.json
 
       - name: Shut down dev servers
         if: always()
