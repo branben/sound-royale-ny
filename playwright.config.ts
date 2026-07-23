@@ -41,5 +41,7 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  reporter: 'html',
+  reporter: process.env.CI
+    ? [['list'], ['json', { outputFile: 'test-results/results.json' }]]
+    : 'html',
 });

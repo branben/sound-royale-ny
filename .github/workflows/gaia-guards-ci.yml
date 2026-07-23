@@ -222,7 +222,7 @@ jobs:
           done
 
       - name: Run full E2E suite
-        run: pnpm exec playwright test tests/e2e/ --reporter=line --reporter=github --workers=2 --output=test-results
+        run: pnpm exec playwright test tests/e2e/ --workers=2
         timeout-minutes: 20
 
       - name: Print failing test details (if any)
