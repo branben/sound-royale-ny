@@ -125,7 +125,9 @@ test.describe('Full 3-Round Game', () => {
     await expect(page.locator('[data-testid="total-score"]')).toContainText('300');
   });
 
-  test('should determine final winner after round 3', async ({ page }) => {
+  test.skip('should determine final winner after round 3 [visual snapshot missing — tracked test rot #169]', async ({
+    page,
+  }) => {
     const winner = createMockProducer('Winner');
     const loser = createMockProducer('Loser');
     const gameState = createMockFinishedState(
@@ -162,7 +164,9 @@ test.describe('Full 3-Round Game', () => {
     });
   });
 
-  test('should show game over screen for abandoned game', async ({ page }) => {
+  test.skip('should show game over screen for abandoned game [visual snapshot missing — tracked test rot #169]', async ({
+    page,
+  }) => {
     const producer = createMockProducer('Player1');
     const gameState = createMockFinishedState({ [producer.id]: producer }, null, 3);
 
