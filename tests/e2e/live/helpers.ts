@@ -1,6 +1,8 @@
 import axios from 'axios';
 import * as fs from 'fs';
 
+let logged409 = false;
+
 function getApiBaseUrl(): string {
   return process.env.LIVE_API_BASE_URL || 'http://127.0.0.1:8000/api';
 }
@@ -15,12 +17,13 @@ async function withRetry<T>(fn: () => Promise<T>, label: string, maxRetries = 12
       return await fn();
     } catch (error: any) {
       const status = error.response?.status;
-      if (i === maxRetries - 1) {
+      if (status === 409 && !logged409) {
+        logged409 = true;
         console.log(
-          `${label} FINAL ${status} on ${error.config?.method?.toUpperCase() ?? '?'} ${error.config?.url ?? '?'} :: ${JSON.stringify(error.response?.data || {}).slice(0, 200)}`,
+          `FIRST 409 on ${error.config?.method?.toUpperCase() ?? '?'} ${error.config?.url ?? '?'} :: ${JSON.stringify(error.response?.data || {}).slice(0, 200)}`,
         );
-        throw error;
       }
+      if (i === maxRetries - 1) throw error;
       if (status === 429) {
         const backoff = Math.pow(2, i) * 1000;
         console.log(
