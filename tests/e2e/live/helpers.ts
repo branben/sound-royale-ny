@@ -1,8 +1,6 @@
 import axios from 'axios';
 import * as fs from 'fs';
 
-let logged409 = false;
-
 function getApiBaseUrl(): string {
   return process.env.LIVE_API_BASE_URL || 'http://127.0.0.1:8000/api';
 }
@@ -17,12 +15,6 @@ async function withRetry<T>(fn: () => Promise<T>, label: string, maxRetries = 12
       return await fn();
     } catch (error: any) {
       const status = error.response?.status;
-      if (status === 409 && !logged409) {
-        logged409 = true;
-        console.log(
-          `FIRST 409 on ${error.config?.method?.toUpperCase() ?? '?'} ${error.config?.url ?? '?'} :: ${JSON.stringify(error.response?.data || {}).slice(0, 200)}`,
-        );
-      }
       if (i === maxRetries - 1) throw error;
       if (status === 429) {
         const backoff = Math.pow(2, i) * 1000;
@@ -52,16 +44,37 @@ export async function getGameState(roomCode: string) {
 }
 
 export async function joinRoom(roomCode: string, playerName: string, isSpectator: boolean = false) {
-  return withRetry(
-    () =>
-      axios
-        .post(`${getApiBaseUrl()}/rooms/${roomCode}/join_game/`, {
-          name: playerName,
-          is_spectator: isSpectator,
-        })
-        .then((r) => r.data),
-    `joinRoom(${roomCode})`,
-  );
+  try {
+    return await withRetry(
+      () =>
+        axios
+          .post(`${getApiBaseUrl()}/rooms/${roomCode}/join_game/`, {
+            name: playerName,
+            is_spectator: isSpectator,
+          })
+          .then((r) => r.data),
+      `joinRoom(${roomCode})`,
+    );
+  } catch (error: any) {
+    // Idempotent rejoin: a 409 means the name already exists in the room
+    // (e.g. a benign double-join under parallel Postgres load, or a page
+    // refresh). Resolve the existing player from room state instead of failing.
+    if (error.response?.status === 409) {
+      const state = await getGameState(roomCode);
+      const players = state.players || {};
+      const existing = Object.values(players).find(
+        (p: any) => p.name?.toLowerCase() === playerName.toLowerCase(),
+      ) as any;
+      if (existing) {
+        return {
+          id: existing.id,
+          name: existing.name,
+          player_secret: existing.player_secret,
+        };
+      }
+    }
+    throw error;
+  }
 }
 
 export async function startGame(roomCode: string, playerSecret: string) {
