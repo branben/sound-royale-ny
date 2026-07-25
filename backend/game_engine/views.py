@@ -778,24 +778,34 @@ class RoomViewSet(viewsets.ModelViewSet):
 
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except IntegrityError as e:
+            # A join collides on the (room, name) unique constraint. This can
+            # happen even when the pre-save snapshot above didn't contain the
+            # name — e.g. a concurrent or just-committed join in another
+            # transaction (live E2E runs with workers=2 against Postgres).
+            # Re-query the room authoritatively so we return 409 on a genuine
+            # duplicate name rather than masking it as a 500. Only re-raise when
+            # the name truly doesn't exist (a real DB fault).
             conflicting_name = data.get("name", "Unknown")
-            existing_conflicts = [
-                name
-                for name in existing_names
-                if conflicting_name.lower() == str(name).lower()
-            ]
+            name_exists = Player.objects.filter(
+                room=room, name__iexact=conflicting_name
+            ).exists()
 
-            if existing_conflicts:
+            if name_exists:
                 return Response(
                     {
                         "error": f'Name "{conflicting_name}" is already taken in this room',
                         "conflict_type": "duplicate_name",
-                        "existing_names": list(existing_names),
+                        "existing_names": list(
+                            Player.objects.filter(room=room).values_list(
+                                "name", flat=True
+                            )
+                        ),
                     },
                     status=status.HTTP_409_CONFLICT,
                 )
-            else:
-                raise
+            # Not a name collision — surface the underlying error instead of
+            # silently returning 200/201.
+            raise
         except Exception as e:
             logger.exception(
                 f"Failed to join room in room {room.code if 'room' in locals() else 'unknown'}"

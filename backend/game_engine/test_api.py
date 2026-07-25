@@ -435,7 +435,11 @@ class RoomAPITestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_join_game_duplicate_name(self):
-        """Test joining a game with a duplicate name"""
+        """Test joining a game with a duplicate name returns 409 (never 500).
+
+        The colliding name here is seeded in setUp, so the view's pre-save
+        snapshot contains it and the 409 branch is hit on SQLite.
+        """
         self.room.status = Room.Status.LOBBY
         self.room.save()
 
@@ -446,7 +450,29 @@ class RoomAPITestCase(TestCase):
         url = reverse('room-join-game', kwargs={'code': '1234'})
         response = self.client.post(url, data, format='json')
 
-        self.assertIn(response.status_code, [status.HTTP_409_CONFLICT, status.HTTP_400_BAD_REQUEST])
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.data.get('conflict_type'), 'duplicate_name')
+
+    def test_join_game_duplicate_name_second_request_is_409_not_500(self):
+        """Regression test for the E2E 500 bug.
+
+        CI runs the live suite on Postgres with workers=2. The harness joins a
+        fixed name (e.g. 'Player2') and a second join of the same name lands in
+        a separate transaction whose pre-save snapshot did NOT yet contain the
+        first commit. The buggy view then fell through to the generic except and
+        returned 500 instead of 409. This test reproduces the two-separate-
+        request shape: the first join succeeds, the second must be 409.
+        """
+        self.room.status = Room.Status.LOBBY
+        self.room.save()
+
+        url = reverse('room-join-game', kwargs={'code': '1234'})
+        first = self.client.post(url, {'name': 'DupPlayer', 'is_spectator': False}, format='json')
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+
+        second = self.client.post(url, {'name': 'DupPlayer', 'is_spectator': False}, format='json')
+        self.assertEqual(second.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(second.data.get('conflict_type'), 'duplicate_name')
 
     def test_join_game_spectator_limit_reached(self):
         """Test joining as spectator when limit is reached"""
