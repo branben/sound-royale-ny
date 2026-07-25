@@ -19,7 +19,6 @@ test.describe('Webhook', () => {
   });
 
   test('POST /api/webhooks/linear/ with valid payload enqueues task', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     const webhookPayload = {
       type: 'IssueCreated',
       data: {
@@ -50,7 +49,6 @@ test.describe('Webhook', () => {
   });
 
   test('POST /api/webhooks/linear/ with urgent label uses higher priority', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     const webhookPayload = {
       type: 'IssueCreated',
       data: {
@@ -79,7 +77,6 @@ test.describe('Webhook', () => {
   });
 
   test('POST /api/webhooks/linear/ ignores done/canceled states', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     const webhookPayload = {
       type: 'IssueUpdated',
       data: {

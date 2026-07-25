@@ -61,7 +61,6 @@ test.describe('Multi-Player Game Scenarios', () => {
   });
 
   test('should sync game state across players', async ({ browser }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169 (board render needs WS game_state_update; fixture-shape + mock gap)
     const context1 = await browser.newContext();
     const context2 = await browser.newContext();
 

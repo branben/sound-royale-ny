@@ -11,7 +11,6 @@ test.describe('Live WebSocket multiplayer joining', () => {
   test('credentialed producers and spectators receive host-started match state', async ({
     browser,
   }, testInfo) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     const runId = Date.now().toString(36);
     const hostName = `Host-${runId}`;
     const producerName = `Producer-${runId}`;

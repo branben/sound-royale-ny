@@ -63,7 +63,6 @@ test.describe('Producer titles', () => {
   });
 
   test('admin can toggle Checked In status', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     const player = createMockProducer('Admin Target', {
       eloRating: 1200,
       isCheckedIn: false,

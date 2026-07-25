@@ -7,7 +7,6 @@ test.describe('Integration Verification — All Flows', () => {
   });
 
   test('lobby shell loads with title and room code input', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     await page.goto('/');
 
     await expect(page).toHaveTitle(/Sound Royale/);

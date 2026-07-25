@@ -128,7 +128,6 @@ test.describe('Spectator Disconnection', () => {
   });
 
   test('restores the spectator dashboard after a reload-style reconnect', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     const producer = createMockProducer('Producer1');
     const spectator = createMockSpectator('Spectator');
     const gameState = createMockPlayingStateWithoutGenre({
@@ -258,7 +257,6 @@ test.describe('Room Reload Recovery', () => {
     await expect(page.getByTestId('disconnected-indicator')).toBeVisible();
   });
 
-  test.fixme(true); // tracked: e2e test rot — issue #169 (E2E mode seeds mockGameState; error screen never shows on /rooms/ 500)
   test('shows the room error state when the request fails', async ({ page }) => {
     const producer = createMockProducer('Producer1');
 

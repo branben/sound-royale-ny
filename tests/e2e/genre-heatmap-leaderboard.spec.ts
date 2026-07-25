@@ -22,7 +22,6 @@ test.describe('Genre heatmap leaderboard', () => {
   test('opens leaderboard from lobby and renders players sorted by ELO with genre summary', async ({
     page,
   }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     const champion = createMockProducer('Champion', {
       eloRating: 1500,
       eloWins: 9,
