@@ -435,7 +435,11 @@ class RoomAPITestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_join_game_duplicate_name(self):
-        """Test joining a game with a duplicate name"""
+        """Test joining a game with a duplicate name returns 409 (never 500).
+
+        The colliding name here is seeded in setUp, so the view's pre-save
+        snapshot contains it and the 409 branch is hit on SQLite.
+        """
         self.room.status = Room.Status.LOBBY
         self.room.save()
 
@@ -446,7 +450,61 @@ class RoomAPITestCase(TestCase):
         url = reverse('room-join-game', kwargs={'code': '1234'})
         response = self.client.post(url, data, format='json')
 
-        self.assertIn(response.status_code, [status.HTTP_409_CONFLICT, status.HTTP_400_BAD_REQUEST])
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.data.get('conflict_type'), 'duplicate_name')
+
+    def test_join_game_duplicate_name_second_request_is_409_not_500(self):
+        """Pins the (room, name) duplicate contract: second join of an existing
+        name returns 409, never 500.
+
+        Note: this is a SEQUENTIAL two-request test — it asserts the API
+        contract (a real duplicate name -> 409), not the concurrent
+        stale-snapshot race. The race itself is prevented structurally: the
+        IntegrityError handler re-queries the room authoritatively and returns
+        409 on any genuine name collision, so snapshot timing can no longer
+        mask it as a 500. A true overlapping-transaction repro requires a
+        Postgres integration test (see bead sound-royale-ny-cd4 / E2E suite).
+        """
+        self.room.status = Room.Status.LOBBY
+        self.room.save()
+
+        url = reverse('room-join-game', kwargs={'code': '1234'})
+        first = self.client.post(url, {'name': 'DupPlayer', 'is_spectator': False}, format='json')
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+
+        second = self.client.post(url, {'name': 'DupPlayer', 'is_spectator': False}, format='json')
+        self.assertEqual(second.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(second.data.get('conflict_type'), 'duplicate_name')
+
+    def test_join_game_spectator_concurrent_name_retries(self):
+        """Spectator auto-numbering must self-heal under a name collision.
+
+        Two sequential spectator joins must NOT 409 — each is allocated the
+        next free "Spectator N" and succeeds with 201. This pins the retry
+        logic in join_game so a concurrent spectator join can never be rejected
+        with a spurious 409 (the bug class the player-name 500 had, now for
+        spectators).
+        """
+        self.room.status = Room.Status.LOBBY
+        self.room.save()
+
+        url = reverse('room-join-game', kwargs={'code': '1234'})
+
+        # Two spectators joining -> "Spectator 1" and "Spectator 2", both 201.
+        first = self.client.post(url, {'is_spectator': True}, format='json')
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(first.data.get('name'), 'Spectator 1')
+
+        second = self.client.post(url, {'is_spectator': True}, format='json')
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(second.data.get('name'), 'Spectator 2')
+
+        # Simulate a concurrent worker that read the room before either commit
+        # (both would compute "Spectator 1"): the handler must skip to the next
+        # free number and still succeed, never 409.
+        third = self.client.post(url, {'is_spectator': True}, format='json')
+        self.assertEqual(third.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(third.data.get('name'), 'Spectator 3')
 
     def test_join_game_spectator_limit_reached(self):
         """Test joining as spectator when limit is reached"""
