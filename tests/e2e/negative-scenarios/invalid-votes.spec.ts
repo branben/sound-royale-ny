@@ -76,7 +76,6 @@ test.describe('Voting Guardrails', () => {
   test('keeps spectators on the spectator dashboard when vote controls are unavailable', async ({
     page,
   }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     const producer = createMockProducer('Producer1');
     const spectator = createMockSpectator('Spectator1');
     const gameState = createMockPlayingStateWithoutGenre({

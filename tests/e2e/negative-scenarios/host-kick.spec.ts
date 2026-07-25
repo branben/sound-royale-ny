@@ -28,7 +28,6 @@ test.describe('Host Controls', () => {
   });
 
   test('shows the joined host lobby with a start battle action', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     const lobbyState = createMockLobbyState('HostPlayer', ['Player2'], []);
     const host = findPlayerByName(lobbyState.players, 'HostPlayer');
 
@@ -56,7 +55,6 @@ test.describe('Host Controls', () => {
   });
 
   test('keeps joined non-host players in the waiting state', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     const lobbyState = createMockLobbyState('HostPlayer', ['Player2'], []);
     const player = findPlayerByName(lobbyState.players, 'Player2');
 

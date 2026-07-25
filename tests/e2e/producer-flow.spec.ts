@@ -193,7 +193,6 @@ test.describe('Producer Flow', () => {
   test('hides start battle controls from joined non-host players in the lobby', async ({
     page,
   }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169
     const lobbyState = createMockLobbyState('HostPlayer', ['Player2'], []);
     const player = findPlayerByName(lobbyState.players, 'Player2');
 

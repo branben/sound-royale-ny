@@ -18,7 +18,6 @@ test.describe('Host Migration', () => {
   });
 
   test('host migration indicator appears when host disconnects', async ({ page }) => {
-    test.fixme(true); // tracked: e2e test rot — issue #169 (host-migration-indicator needs host_migrated WS flow + app reconnect handling)
     const host = createMockHostProducer('HostPlayer', { id: 'host-1' });
     const newHost = createMockProducer('NewHostPlayer', { id: 'newhost-1' });
     const players = { [host.id]: host, [newHost.id]: newHost };
