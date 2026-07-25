@@ -785,6 +785,14 @@ class RoomViewSet(viewsets.ModelViewSet):
             # Re-query the room authoritatively so we return 409 on a genuine
             # duplicate name rather than masking it as a 500. Only re-raise when
             # the name truly doesn't exist (a real DB fault).
+            #
+            # SAFETY: this re-query runs after an errored statement, so it is
+            # only valid because the `transaction.atomic()` above (line 702) is
+            # the outermost atomic block — Django rolls back and restores
+            # autocommit as the exception leaves `atomic()`, before this runs.
+            # If this view were ever wrapped in an outer atomic (e.g.
+            # ATOMIC_REQUESTS enabled), the re-query would hit
+            # "current transaction is aborted" and 500 again.
             conflicting_name = data.get("name", "Unknown")
             name_exists = Player.objects.filter(
                 room=room, name__iexact=conflicting_name
