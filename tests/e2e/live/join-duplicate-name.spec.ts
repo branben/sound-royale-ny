@@ -86,14 +86,19 @@ test.describe('Live E2E — join_game duplicate name returns 409 (not 500)', () 
 
     expect(r1.status).toBe(201);
     expect(r2.status).toBe(201);
-    expect(r1.data.name).not.toBe(r2.data.name);
+    // Auto-numbering must produce exactly "Spectator 1" / "Spectator 2"
+    // (distinct, sequential) — not a regression that emits "Spectator 3/4".
+    expect([r1.data.name, r2.data.name].sort()).toEqual([
+      'Spectator 1',
+      'Spectator 2',
+    ]);
 
     const state = await getGameState(roomCode);
     const spectatorNames = Object.values(state.players || {})
       .filter((p: any) => p.isSpectator)
       .map((p: any) => p.name)
       .sort();
-    expect(spectatorNames).toHaveLength(2);
+    expect(spectatorNames).toEqual(['Spectator 1', 'Spectator 2']);
 
     await host.page.close();
   });
