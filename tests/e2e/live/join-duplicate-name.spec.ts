@@ -69,24 +69,36 @@ test.describe('Live E2E — join_game duplicate name returns 409 (not 500)', () 
     const host = new PlayerPage(await browser.newPage(), 'HostPlayer', 'host');
     const roomCode = await host.createRoom();
 
-    // Two spectators joining "simultaneously" with the same computed name must
-    // both succeed (auto-numbered "Spectator 1" / "Spectator 2"), never 409.
-    const [s1, s2] = await Promise.all([
-      new PlayerPage(await browser.newPage(), 'Spectator1', 'spectator').joinRoom(roomCode, true),
-      new PlayerPage(await browser.newPage(), 'Spectator1', 'spectator').joinRoom(roomCode, true),
+    // Two spectators joining "simultaneously" must both succeed with distinct
+    // auto-numbered names ("Spectator 1" / "Spectator 2"), never 409. We hit
+    // the API directly (no page nav) so the assertion is about the backend
+    // contract, not the harness. The Django unit test
+    // test_join_game_spectator_concurrent_name_retries pins the same guarantee
+    // at the unit layer; this confirms it over real HTTP/Postgres.
+    const [r1, r2] = await Promise.all([
+      axios.post(`${getApiBaseUrl()}/rooms/${roomCode}/join_game/`, {
+        is_spectator: true,
+      }),
+      axios.post(`${getApiBaseUrl()}/rooms/${roomCode}/join_game/`, {
+        is_spectator: true,
+      }),
     ]);
 
-    expect(s1.id).toBeTruthy();
-    expect(s2.id).toBeTruthy();
-    expect(s1.id).not.toBe(s2.id);
+    expect(r1.status).toBe(201);
+    expect(r2.status).toBe(201);
+    // Auto-numbering must produce exactly "Spectator 1" / "Spectator 2"
+    // (distinct, sequential) — not a regression that emits "Spectator 3/4".
+    expect([r1.data.name, r2.data.name].sort()).toEqual([
+      'Spectator 1',
+      'Spectator 2',
+    ]);
 
     const state = await getGameState(roomCode);
     const spectatorNames = Object.values(state.players || {})
       .filter((p: any) => p.isSpectator)
       .map((p: any) => p.name)
       .sort();
-    // Both spectators landed, with distinct auto-names.
-    expect(spectatorNames).toHaveLength(2);
+    expect(spectatorNames).toEqual(['Spectator 1', 'Spectator 2']);
 
     await host.page.close();
   });
