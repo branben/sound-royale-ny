@@ -727,56 +727,102 @@ class RoomViewSet(viewsets.ModelViewSet):
                         )
 
                 if is_spectator_join:
-                    existing_names = set(
-                        Player.objects.filter(room=room).values_list("name", flat=True)
-                    )
-                    spectator_num = 1
-                    while f"Spectator {spectator_num}" in existing_names:
+                    # Spectators are auto-numbered "Spectator N". The number is
+                    # derived from a snapshot of existing names, so two concurrent
+                    # spectator joins (e.g. E2E workers=2) can pick the SAME N and
+                    # both hit the (room, name) unique constraint. Rather than
+                    # 409-ing a legitimate spectator, retry with the next free
+                    # number, re-reading inside the atomic block each attempt so
+                    # the allocation is self-healing under concurrency. Bounded to
+                    # avoid an infinite loop if the room is full of spectators.
+                    spectator_num = 0
+                    MAX_SPECTATOR_ALLOC_RETRIES = Room.MAX_SPECTATORS + 1
+                    for _ in range(MAX_SPECTATOR_ALLOC_RETRIES):
+                        existing_names = set(
+                            Player.objects.filter(room=room).values_list(
+                                "name", flat=True
+                            )
+                        )
+                        # Advance past any name already taken (committed OR a
+                        # collision we just hit and must skip over).
                         spectator_num += 1
-                    data["name"] = f"Spectator {spectator_num}"
+                        while f"Spectator {spectator_num}" in existing_names:
+                            spectator_num += 1
+                        data["name"] = f"Spectator {spectator_num}"
+                        serializer = PlayerCreateSerializer(
+                            data=data, context={"room": room}
+                        )
+                        if not serializer.is_valid():
+                            return Response(
+                                serializer.errors,
+                                status=status.HTTP_400_BAD_REQUEST,
+                            )
+                        try:
+                            player = serializer.save()
+                            break
+                        except IntegrityError:
+                            # Another worker claimed this number first (or the
+                            # prior attempt rolled back) — the next loop bumps
+                            # spectator_num past it and recomputes.
+                            continue
+                    else:
+                        # Exhausted retries (effectively the spectator limit).
+                        return Response(
+                            {
+                                "error": f"Spectator limit reached (max {Room.MAX_SPECTATORS})",
+                                "conflict_type": "spectator_limit",
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
                 else:
                     existing_names = set(
                         Player.objects.filter(room=room).values_list("name", flat=True)
                     )
-
-                serializer = PlayerCreateSerializer(data=data, context={"room": room})
-                if serializer.is_valid():
+                    serializer = PlayerCreateSerializer(
+                        data=data, context={"room": room}
+                    )
+                    if not serializer.is_valid():
+                        return Response(
+                            serializer.errors,
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
                     player = serializer.save()
-                    discord_error = attach_discord_identity_from_session(player, data)
-                    if discord_error is not None:
-                        return discord_error
 
-                    if not player.is_spectator:
-                        # Use theme-based genre selection
-                        theme_genres = get_theme_genres(room)
-                        random.shuffle(theme_genres)
-                        genres = theme_genres[:9]
+                # Shared success path (both spectator and player joins).
+                discord_error = attach_discord_identity_from_session(player, data)
+                if discord_error is not None:
+                    return discord_error
 
-                        for position in range(9):
-                            tile = Tile.objects.create(
-                                player=player,
-                                position=position,
-                                genre=genres.pop(),
-                                room=room,
-                            )
+                if not player.is_spectator:
+                    # Use theme-based genre selection
+                    theme_genres = get_theme_genres(room)
+                    random.shuffle(theme_genres)
+                    genres = theme_genres[:9]
 
-                    transaction.on_commit(lambda: broadcast_game_update(room))
+                    for position in range(9):
+                        tile = Tile.objects.create(
+                            player=player,
+                            position=position,
+                            genre=genres.pop(),
+                            room=room,
+                        )
 
-            
-                    token_data = get_authenticated_player(player)
+                transaction.on_commit(lambda: broadcast_game_update(room))
 
-                    response_data = PlayerCreateSerializer(player).data
-                    response_data.update({
+                token_data = get_authenticated_player(player)
+
+                response_data = PlayerCreateSerializer(player).data
+                response_data.update(
+                    {
                         "access_token": token_data["access_token"],
                         "refresh_token": token_data["refresh_token"],
-                    })
+                    }
+                )
 
-                    return Response(
-                        response_data,
-                        status=status.HTTP_201_CREATED,
-                    )
-
-                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    response_data,
+                    status=status.HTTP_201_CREATED,
+                )
         except IntegrityError as e:
             # A join collides on the (room, name) unique constraint. This can
             # happen even when the pre-save snapshot above didn't contain the
