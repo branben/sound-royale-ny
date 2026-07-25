@@ -1,3 +1,4 @@
+import logging
 from urllib.parse import parse_qs
 
 from channels.db import database_sync_to_async
@@ -6,6 +7,8 @@ from rest_framework.exceptions import AuthenticationFailed
 
 from game_engine.models import Player
 from game_engine.security import hash_secret, is_hex64
+
+logger = logging.getLogger(__name__)
 
 
 class PlayerSecretAuthentication(BaseAuthentication):
@@ -65,6 +68,10 @@ def _resolve_player_from_token(token):
         user = User.objects.get(id=user_id)
         return getattr(user, "player", None)
     except Exception:
+        # JWT resolution is a fallback auth path; a failure here means the token
+        # is invalid/expired, not a server error. Log it (guardrail #102: no silent
+        # swallow) and return None so the caller falls through to player_secret auth.
+        logger.warning("JWT player resolution failed; falling back to header-based auth")
         return None
 
 
