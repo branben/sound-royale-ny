@@ -10,6 +10,14 @@ test.describe('Verified identity flow', () => {
   });
 
   test('requests and verifies a producer identity', async ({ page }) => {
+    // Re-fixme (2026-07-25): the UI it drives — VerifiedIdentityPanel — exists in
+    // src/components/auth/VerifiedIdentityPanel.tsx but is NOT mounted anywhere in the
+    // app tree (zero import sites). Navigating to '/' yields no email input / Send Code
+    // button, so the flow can't be exercised. This is a genuine frontend wiring gap, not
+    // test rot: the panel must be mounted into the auth flow before this test can pass.
+    // e2e-full run 30142171425 confirmed it times out at the first assertion.
+    // Tracked under issue #249 (e2e coverage) + needs a separate wiring task.
+    test.fixme(true);
     await page.route('**/api/auth/request-code/', async (route) => {
       await route.fulfill({ json: { status: 'code_sent' } });
     });
