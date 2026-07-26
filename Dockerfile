@@ -5,10 +5,11 @@ RUN adduser --disabled-password --gecos "" appuser
 WORKDIR /app
 
 COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-# Diagnostic: surface installed channels/daphne versions in build log (verify
-# the prod WS handshake_deferred fix actually installed channels>=4.1.0).
-RUN pip show channels daphne 2>/dev/null | grep -E "Name|Version" || true
+# The trailing echo changes this RUN's cache key vs the pre-fix build, forcing
+# Railway's BuildKit (which caches RUN layers by command string, not by
+# requirements.txt content) to reinstall instead of reusing the stale
+# channels==4.0.0 layer. Without it, prod kept serving the broken 4.0.0 image.
+RUN pip install --no-cache-dir -r requirements.txt && echo "installed $(pip show channels daphne | grep -i version | tr '\n' ' ')"
 
 COPY backend/ .
 
