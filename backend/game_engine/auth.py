@@ -2,8 +2,10 @@ import logging
 from urllib.parse import parse_qs
 
 from channels.db import database_sync_to_async
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import AuthenticationFailed
+from rest_framework_simplejwt.exceptions import TokenBackendError, TokenError
 
 from game_engine.models import Player
 from game_engine.security import hash_secret, is_hex64
@@ -67,11 +69,26 @@ def _resolve_player_from_token(token):
         User = get_user_model()
         user = User.objects.get(id=user_id)
         return getattr(user, "player", None)
-    except Exception:
-        # JWT resolution is a fallback auth path; a failure here means the token
-        # is invalid/expired, not a server error. Log it (guardrail #102: no silent
-        # swallow) and return None so the caller falls through to player_secret auth.
-        logger.warning("JWT player resolution failed; falling back to header-based auth")
+    except Exception as e:
+        # JWT resolution is a fallback auth path. Expected failures are client-side:
+        # an invalid/expired/malformed token (TokenError/TokenBackendError) or a
+        # token whose subject no longer exists (ObjectDoesNotExist). These are
+        # routine and not a server fault, so log them at INFO with a safe
+        # 'error_type' discriminator (no token value) and fall through to
+        # player_secret auth. Guardrail #102 requires we NOT silently swallow.
+        # Unexpected errors (e.g. DB outage) are surfaced at WARNING with a
+        # traceback so genuine operational failures stay visible.
+        if isinstance(e, (TokenError, TokenBackendError, ObjectDoesNotExist)):
+            logger.info(
+                "JWT player resolution failed; falling back to header-based auth (error_type=%s)",
+                type(e).__name__,
+            )
+        else:
+            logger.warning(
+                "JWT player resolution failed unexpectedly; falling back to header-based auth (error_type=%s)",
+                type(e).__name__,
+                exc_info=True,
+            )
         return None
 
 
