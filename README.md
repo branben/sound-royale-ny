@@ -25,8 +25,8 @@ Sound Royale is a multiplayer music bingo game where producers compete head-to-h
 
 ```bash
 # Frontend
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 
 # Backend
 cd backend
@@ -44,7 +44,7 @@ python manage.py runserver
 npx tsc --noEmit
 
 # E2E tests (requires frontend on localhost:8080)
-npm run test:e2e
+pnpm run test:e2e
 
 # Backend tests
 cd backend && python manage.py test game_engine
