@@ -2,7 +2,12 @@ psycopg2-binary==2.9.9
 Django==4.2.30
 djangorestframework==3.15.2
 django-cors-headers==4.3.1
-channels==4.0.0
+# NOTE: channels==4.0.0 is INCOMPATIBLE with daphne==4.2.2 — daphne 4.2.x calls
+# self.handshake_deferred on its WebSocketProtocol, which only exists in channels>=4.1.0.
+# The mismatch crashed every WS accept() with 1011 (AttributeError), leaving rooms stuck
+# on "Reconnecting…". Pin channels to 4.1.0 (daphne 4.2.2's floor) to keep the realtime
+# stack coherent. See dogfood-output/report.md (Issue 2).
+channels==4.1.0
 channels-redis>=4.1.0
 daphne==4.2.2
 uvicorn==0.24.0
