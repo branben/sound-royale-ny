@@ -196,6 +196,9 @@ jobs:
           POSTGRES_HOST: localhost
           REDIS_URL: redis://redis:6379/0
           DISABLE_THROTTLES: 'true'
+          # Provisioned secret for the Linear webhook e2e test (webhook.spec.ts
+          # signs its payload with this value; backend requires the signature).
+          LINEAR_WEBHOOK_SECRET: 'ci-e2e-webhook-secret'
         run: |
           python -m daphne -p 8000 -b 0.0.0.0 sound_royale_api.asgi:application &
           BACKEND_PID=$!

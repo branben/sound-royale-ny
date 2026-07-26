@@ -99,7 +99,7 @@ test.describe('Voting Guardrails', () => {
 
     await page.goto(`/room/${gameState.id}`);
 
-    await expect(page.getByTestId('request-to-play')).toBeVisible();
+    await expect(page.getByText('Spectating')).toBeVisible();
     await expect(page.getByTestId('voting-panel')).not.toBeVisible();
   });
 

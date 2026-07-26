@@ -213,10 +213,8 @@ test.describe('Producer Flow', () => {
     await page.goto(`/room/${lobbyState.id}`);
 
     await expect(page.getByTestId('lobby')).toBeVisible();
-    await expect(
-      page.getByText(/Waiting for more players to join and host to start game/i),
-    ).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Start Battle' })).not.toBeVisible();
+    await expect(page.getByText(/Waiting for opponent/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Start Match' })).not.toBeVisible();
   });
 
   test('shows winner and score surfaces after the round is finished', async ({ page }) => {

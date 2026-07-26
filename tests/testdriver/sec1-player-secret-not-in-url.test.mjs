@@ -324,7 +324,7 @@ describe('SEC-1: player secret must never travel in a URL or console string (#10
       // smoke suite's onboarding behaviour) so the lobby is interactable.
       await testdriver.wait(4000);
       const dismiss = await testdriver.find(
-        'the Close button that dismisses the How to Play instructions modal',
+        "the 'Let's Play!' button that dismisses the How to Play instructions modal",
       );
       if (dismiss.found()) {
         await dismiss.click();

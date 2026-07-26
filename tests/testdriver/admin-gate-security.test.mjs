@@ -74,7 +74,7 @@ describe("SEC-1 — admin access is gated server-side, not by a bundled PIN", ()
     await testdriver.wait(4000);
 
     const locked = await testdriver.assert(
-      "an 'Admin Access' gate is shown asking for an admin PIN (a password field and an 'Unlock Editor' button), and the player-management list / check-in controls are NOT visible",
+      "an 'Admin Access' gate is shown asking for an admin PIN (a password field and an 'Unlock Player Admin' button), and the player-management list / check-in controls are NOT visible",
     );
     expect(locked).toBeTruthy();
   });

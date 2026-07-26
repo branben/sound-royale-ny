@@ -96,7 +96,7 @@ test.describe('Producer titles', () => {
     await page.goto('/admin/players');
     await page.getByLabel('Admin PIN').fill('9619');
     await page.getByRole('button', { name: 'Unlock Player Admin' }).click();
-    await expect(page.getByText('Admin Target')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Check In', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Check In', exact: true }).click();
     await expect(page.getByLabel('Checked In title')).toBeVisible();
   });

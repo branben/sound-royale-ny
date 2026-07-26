@@ -1,7 +1,18 @@
 import { test, expect } from '@playwright/test';
+import crypto from 'crypto';
 import { enableE2EMode } from './helpers';
 
 const BACKEND_URL = 'http://127.0.0.1:8000';
+
+// The backend requires an HMAC-SHA256 signature over the raw body, keyed by
+// LINEAR_WEBHOOK_SECRET. In CI that secret is provisioned on the e2e-full job;
+// locally it falls back to '' (which still matches a locally-empty backend).
+function signLinearPayload(payload: unknown): string {
+  const secret = process.env.LINEAR_WEBHOOK_SECRET ?? '';
+  const body = JSON.stringify(payload);
+  const digest = crypto.createHmac('sha256', secret).update(body).digest('hex');
+  return `sha256=${digest}`;
+}
 
 test.describe('Webhook', () => {
   test.beforeEach(async ({ page }) => {
@@ -36,6 +47,7 @@ test.describe('Webhook', () => {
       data: webhookPayload,
       headers: {
         'Content-Type': 'application/json',
+        'Linear-Signature': signLinearPayload(webhookPayload),
       },
     });
 
@@ -66,6 +78,7 @@ test.describe('Webhook', () => {
       data: webhookPayload,
       headers: {
         'Content-Type': 'application/json',
+        'Linear-Signature': signLinearPayload(webhookPayload),
       },
     });
 
@@ -94,6 +107,7 @@ test.describe('Webhook', () => {
       data: webhookPayload,
       headers: {
         'Content-Type': 'application/json',
+        'Linear-Signature': signLinearPayload(webhookPayload),
       },
     });
 

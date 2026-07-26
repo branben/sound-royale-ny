@@ -22,7 +22,7 @@ test.describe('PII Prevention', () => {
     await page.goto('/');
 
     // Wait for the initial lobby shell so startup logs have already fired.
-    await expect(page.getByRole('heading', { name: 'Sound Royale' })).toBeVisible();
+    await page.getByTestId('lobby').getByText('SOUND ROYALE').waitFor();
     await expect(page.getByText('Enter a room code to join the battle')).toBeVisible();
 
     // Verify no PII was logged

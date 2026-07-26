@@ -46,7 +46,7 @@ describe("Sound Royale — public smoke tests", () => {
     // lobby. Dismiss it so the lobby (with its create/join entry points) is
     // reachable for the assertion below.
     const dismiss = await testdriver.find(
-      "the Close button that dismisses the How to Play instructions modal",
+      "the 'Let's Play!' button that dismisses the How to Play instructions modal",
     );
     await dismiss.click();
     await testdriver.wait(1000);
