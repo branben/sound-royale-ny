@@ -6,6 +6,9 @@ WORKDIR /app
 
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+# Diagnostic: surface installed channels/daphne versions in build log (verify
+# the prod WS handshake_deferred fix actually installed channels>=4.1.0).
+RUN pip show channels daphne 2>/dev/null | grep -E "Name|Version" || true
 
 COPY backend/ .
 
