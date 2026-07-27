@@ -5,11 +5,14 @@ RUN adduser --disabled-password --gecos "" appuser
 WORKDIR /app
 
 COPY backend/requirements.txt .
-# The trailing echo changes this RUN's cache key vs the pre-fix build, forcing
-# Railway's BuildKit (which caches RUN layers by command string, not by
-# requirements.txt content) to reinstall instead of reusing the stale
-# channels==4.0.0 layer. Without it, prod kept serving the broken 4.0.0 image.
 RUN pip install --no-cache-dir -r requirements.txt && echo "installed $(pip show channels daphne | grep -i version | tr '\n' ' ')"
+
+# Force the pinned channels version in a SEPARATE layer. Railway's BuildKit was
+# reusing a cached `pip install -r requirements.txt` layer (channels==4.0.0) even
+# after the requirements.txt pin changed, so prod kept crashing with the daphne
+# handshake_deferred AttributeError. This explicit upgrade installs 4.1.0 in a
+# fresh layer (new cache key) that cannot be served from the stale 4.0.0 cache.
+RUN pip install --no-cache-dir --force-reinstall --upgrade "channels==4.1.0" && echo "channels forced: $(pip show channels | grep -i version)"
 
 COPY backend/ .
 
