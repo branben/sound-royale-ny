@@ -36,10 +36,10 @@ class WebSocketAuthBroadcastTestCase(TestCase):
 
     def setUp(self):
         self.room = Room.objects.create(
-            code="5578", name="WSRegression", is_ranked=False
+            code="5578", name="WSRegression", match_type=Room.MatchType.CASUAL
         )
         self.producer = make_player(
-            self.room, display_name="QAProducer1", is_host=True
+            self.room, name="QAProducer1", is_host=True
         )
         self.room.players.add(self.producer)
 
