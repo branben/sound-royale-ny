@@ -2,11 +2,9 @@ import pytest
 from django.test import TestCase
 from rest_framework import status
 from django.db import transaction, IntegrityError
-from django.db.models import ProtectedError
 from .models import Room, Player, Tile
 from .views import RoomViewSet
 import uuid
-import random
 from unittest.mock import patch, MagicMock
 from game_engine.test_auth_helper import get_jwt_header, create_user_for_player, make_player
 
@@ -115,12 +113,12 @@ class TransactionSafetyTestCase(TestCase):
         with patch.object(Tile.objects, 'create', side_effect=mock_create):
             with patch.object(viewset, 'get_object', return_value=self.room):
                 response = viewset.reset_game(request)
-        
+
         # IntegrityError is caught and re-raised as ValueError inside the view,
         # which is then caught by the outer except ValueError block → 400.
         # The client receives a generic message (internal detail is logged, not leaked).
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("Invalid game state for reset", response.data['error'])
+        self.assertIn("Invalid game state for reset", response.data["error"])
 
         # Verify rollback occurred - original tiles should still exist
         remaining_tiles = Tile.objects.filter(player__room=self.room).count()
