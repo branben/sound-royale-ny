@@ -98,8 +98,14 @@ class RealDaphneHandshakeTestCase(TransactionTestCase):
         ready.wait(timeout=10)
 
         async def drive():
-            import websockets
-
+            try:
+                import websockets
+            except ImportError:
+                self.skipTest(
+                    "websockets client lib not installed — T3 needs it to drive a "
+                    "real daphne handshake. Install websockets to run this guard "
+                    "(it is NOT a prod dependency)."
+                )
             url = f"ws://127.0.0.1:{port}/ws/game/{room.code}/?player_id={producer.id}"
             frames = []
             async with websockets.connect(url, max_size=None) as ws:
