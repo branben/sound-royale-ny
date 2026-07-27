@@ -35,9 +35,11 @@ class WebSocketAuthBroadcastTestCase(TestCase):
     """Auth handshake must broadcast game_state_update (no 1011)."""
 
     def setUp(self):
-        self.producer = make_player(display_name="QAProducer1", is_host=True)
         self.room = Room.objects.create(
             code="5578", name="WSRegression", is_ranked=False
+        )
+        self.producer = make_player(
+            self.room, display_name="QAProducer1", is_host=True
         )
         self.room.players.add(self.producer)
 
