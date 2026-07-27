@@ -1,17 +1,9 @@
-# Build from the repo-root Dockerfile, which COPYs backend/requirements.txt and runs
-# `pip install -r requirements.txt` with no stale layer cache. (PR #367 pinned
-# channels==4.1.0 to fix the daphne handshake_deferred WS crash; the previous
-# Nixpacks auto-build cached the broken channels==4.0.0 layer and never reinstalled.)
-[build]
-dockerfilePath = "Dockerfile"
-
 [deploy]
 healthcheckPath = "/health/"
 healthcheckTimeout = 120
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 10
 releaseCommand = "python manage.py migrate --noinput"
-dockerfilePath = "Dockerfile"
 
 [[services]]
 name = "sound-royale-backend"

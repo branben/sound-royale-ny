@@ -53,6 +53,7 @@ class GameConsumer(AsyncWebsocketConsumer):
         # URL (guardrail #105).
         player = self.scope.get("player")
         if player:
+            await self.accept()
             await self.finalize_connection(player)
             return
 
@@ -89,7 +90,13 @@ class GameConsumer(AsyncWebsocketConsumer):
         # Join room group
         await self.channel_layer.group_add(self.game_group_name, self.channel_name)
 
-        await self.accept()
+        # NOTE: do NOT call self.accept() here. The socket is already accepted
+        # in connect() (either the post-handshake-auth path at line 59, or the
+        # legacy player-in-scope path above). A second accept() sends
+        # websocket.accept to daphne after handshake_deferred was already
+        # consumed/deleted, raising AttributeError: 'WebSocketProtocol' object
+        # has no attribute 'handshake_deferred' (HTTP 1011, rooms stuck on
+        # "Reconnecting…"). See dogfood-output/report.md (Issue 2).
 
         audit_logger.info(
             "websocket_connected",
