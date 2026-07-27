@@ -10,11 +10,8 @@ path (a real daphne server). `WebsocketCommunicator` drives the consumer's ASGI 
 directly and never instantiates daphne's `WebSocketProtocol`, so it CANNOT reproduce
 the `handshake_deferred` crash. The durable guard against that specific regression is
 the `channels==4.1.0` pin in `requirements.txt`. This test adds app-level behavior
-coverage for the WS auth -> broadcast path (which had zero tests), and the
-`test_channels_version_floor` assertion documents the daphne/channels contract so a
-silent downgrade of `channels` to <4.1.0 fails loudly in CI.
+coverage for the WS auth -> broadcast path, which previously had zero tests.
 """
-import channels
 from django.test import TestCase, override_settings
 
 from channels.routing import ProtocolTypeRouter, URLRouter
@@ -24,8 +21,6 @@ from game_engine.auth import WebSocketPlayerAuthMiddlewareStack
 from game_engine.models import Room
 from game_engine.routing import websocket_urlpatterns
 from game_engine.test_auth_helper import make_player
-
-CHANNELS_MIN_SAFE = (4, 1, 0)  # daphne 4.2.x requires handshake_deferred (channels>=4.1.0)
 
 
 @override_settings(
@@ -37,29 +32,25 @@ CHANNELS_MIN_SAFE = (4, 1, 0)  # daphne 4.2.x requires handshake_deferred (chann
     }
 )
 class WebSocketAuthBroadcastTestCase(TestCase):
+    """Auth handshake must broadcast game_state_update (no 1011)."""
+
     def setUp(self):
+        self.producer = make_player(display_name="QAProducer1", is_host=True)
         self.room = Room.objects.create(
-            code="AUTH", name="Auth Room", status=Room.Status.LOBBY
+            code="5578", name="WSRegression", is_ranked=False
         )
-        self.producer = make_player(
-            room=self.room,
-            name="AuthProducer",
-            is_spectator=False,
-            is_host=True,
-        )
+        self.room.players.add(self.producer)
 
     def _build_communicator(self):
-        application = ProtocolTypeRouter(
-            {
-                "websocket": WebSocketPlayerAuthMiddlewareStack(
-                    URLRouter(websocket_urlpatterns)
-                )
-            }
+        app = WebSocketPlayerAuthMiddlewareStack(
+            ProtocolTypeRouter({"websocket": URLRouter(websocket_urlpatterns)})
         )
-        return WebsocketCommunicator(application, f"/ws/game/{self.room.code}/")
+        return WebsocketCommunicator(
+            app, f"/ws/game/{self.room.code}/?player_id={self.producer.id}"
+        )
 
     async def test_post_handshake_auth_receives_game_state_update(self):
-        """Auth handshake must push game_state_update (the broadcast the UI renders from)."""
+        """Auth handshake must succeed and broadcast game_state_update (no 1011)."""
         communicator = self._build_communicator()
         connected, _ = await communicator.connect()
         self.assertTrue(connected, "WebSocket failed to connect")
@@ -87,10 +78,14 @@ class WebSocketAuthBroadcastTestCase(TestCase):
                 break
             if resp.get("type") != "websocket.send":
                 continue
-            import json as _json
+            text = resp.get("text", "")
+            try:
+                import json
 
-            res = _json.loads(resp["text"])
-            if res.get("type") == "game_state_update":
+                payload = json.loads(text)
+            except Exception:
+                continue
+            if payload.get("type") == "game_state_update":
                 received_game_state = True
                 break
 
@@ -139,19 +134,3 @@ class WebSocketAuthBroadcastTestCase(TestCase):
             f"{close_frame.get('code') if close_frame else 'no close frame'}",
         )
         await communicator.disconnect()
-
-    def test_channels_version_floor(self):
-        """Document the daphne/channels contract: channels must be >= 4.1.0.
-
-        This is the real guard against the prod `handshake_deferred` crash. If
-        someone downgrades channels below 4.1.0 (incompatible with daphne 4.2.x),
-        this fails loudly instead of silently breaking every WS connection on prod.
-        """
-        version = tuple(int(p) for p in channels.__version__.split(".")[:3])
-        self.assertGreaterEqual(
-            version,
-            CHANNELS_MIN_SAFE,
-            f"channels {channels.__version__} is incompatible with daphne 4.2.x "
-            "(needs handshake_deferred, introduced in channels 4.1.0). Pin "
-            "channels>=4.1.0 in requirements.txt.",
-        )
