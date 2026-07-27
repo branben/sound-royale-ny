@@ -2360,75 +2360,2364 @@ def log_client_error(request):
 
 
 
+import os
+
+from django.shortcuts import get_object_or_404
+from rest_framework import viewsets, status
+from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
+
+from rest_framework.throttling import ScopedRateThrottle
+from django.db import transaction, IntegrityError
+from django.db.models import Prefetch
+from django.utils import timezone
+from django.conf import settings
+from django.contrib.auth import get_user_model
+
+from rest_framework_simplejwt.tokens import RefreshToken
+from itertools import groupby
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
+
+# Round duration in seconds. Override via SR_ROUND_SECONDS (e.g. for fast E2E).
+ROUND_SECONDS = int(os.getenv("SR_ROUND_SECONDS", "60"))
+import random
+import asyncio
+import json
+import logging
+import os
+
+logger = logging.getLogger(__name__)
+audit_logger = logging.getLogger("game_audit")
+
+from .models import (
+    Room,
+    Player,
+    Tile,
+    Round,
+    Vote,
+    BingoClaim,
+    ThemeRotation,
+    DiscordAccount,
+)
+from .discord_service import DiscordOAuthService
+from .serializers import (
+    RoomSerializer,
+    RoomDetailSerializer,
+    RoomCreateSerializer,
+    TileSerializer,
+    PlayerSerializer,
+    PlayerCreateSerializer,
+    GameStateSerializer,
+    VoteSerializer,
+    RoundSerializer,
+    ThemeRotationSerializer,
+    GenrePerformanceSerializer,
+)
+from .bingo_utils import check_bingo_lines, calculate_bingo_score, check_tie_breaker, get_theme_genres
+from .security import hash_secret, is_hex64, new_player_secret
+
+
+DEFAULT_THEME_ROTATIONS = {
+    "classic": {
+        "name": "Classic",
+        "description": "theme by @1120cooks",
+        "genres": ["Phonk", "Trap", "Lo-Fi", "House", "Drill", "R&B", "EDM", "Jazz", "Ambient"],
+    },
+    "weekly": {
+        "name": "Weekly Rotation",
+        "description": "theme by @1120cooks",
+        "genres": ["Trap", "Phonk", "Drill", "R&B", "EDM", "House", "Lo-Fi", "Jazz", "Ambient"],
+    },
+    "monthly": {
+        "name": "Monthly Rotation",
+        "description": "theme by @1120cooks",
+        "genres": ["House", "EDM", "Techno", "Disco", "Lo-Fi", "R&B", "Trap", "Phonk", "Ambient"],
+    },
+}
+
+
+# Core genres that match the frontend GENRES constant
+CORE_GENRES = ["phonk", "trap", "lofi", "house", "drill", "rnb", "edm", "jazz", "ambient"]
+
+
+def build_genre_performance(player):
+    """Build FIFA-style genre performance stats for a player."""
+    player_rooms = Room.objects.filter(players=player)
+    rounds = Round.objects.filter(room__in=player_rooms)
+
+    # Get all distinct genres from rounds (historical genres)
+    historical_genres = list(
+        rounds.values_list("current_tile_genre", flat=True)
+        .distinct()
+        .order_by("current_tile_genre")
+    )
+
+    # Union with core genres from Tile.Genre.choices
+    all_genres = set(Tile.Genre.choices[i][0] for i in range(len(Tile.Genre.choices)))
+    all_genres.update(historical_genres)
+
+    genre_stats = {}
+    for genre in all_genres:
+        # Normalize genre to lowercase for legacy check (case-insensitive comparison)
+        genre_lower = genre.lower()
+        genre_rounds = rounds.filter(current_tile_genre=genre)
+
+        total_rounds = genre_rounds.count()
+        if total_rounds == 0:
+            genre_stats[genre] = {
+                "genre": genre,
+                "wins": 0,
+                "total_rounds": 0,
+                "win_rate": 0.0,
+                "grade": "N/A",
+                "is_legacy": genre_lower not in CORE_GENRES,
+            }
+            continue
+
+        wins = genre_rounds.filter(winner=player).count()
+        win_rate = round((wins / total_rounds) * 100, 2)
+
+        if win_rate >= 80:
+            grade = "S"
+        elif win_rate >= 70:
+            grade = "A"
+        elif win_rate >= 60:
+            grade = "B"
+        elif win_rate >= 50:
+            grade = "C"
+        elif win_rate >= 40:
+            grade = "D"
+        elif win_rate >= 30:
+            grade = "E"
+        else:
+            grade = "F"
+
+        genre_stats[genre] = {
+            "genre": genre,
+            "wins": wins,
+            "total_rounds": total_rounds,
+            "win_rate": win_rate,
+            "grade": grade,
+            "is_legacy": genre_lower not in CORE_GENRES,
+        }
+
+    performance_data = list(genre_stats.values())
+
+    # Sort: core genres first (in CORE_GENRES order), then historical by total_rounds descending
+    def sort_key(item):
+        genre_lower = item["genre"].lower()
+        if genre_lower in CORE_GENRES:
+            # Core genres: sort by CORE_GENRES order
+            return (0, CORE_GENRES.index(genre_lower))
+        else:
+            # Historical genres: sort by total_rounds descending
+            return (1, -item["total_rounds"])
+
+    performance_data.sort(key=sort_key)
+    return performance_data
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def genre_performance_by_player_id(request, player_id):
+    """Public genre performance endpoint keyed by stable player id."""
+    player = get_object_or_404(Player, id=player_id)
+    serializer = GenrePerformanceSerializer(build_genre_performance(player), many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+
 @api_view(["POST"])
 @permission_classes([AllowAny])
-def upload_audio(request, tile_id):
-    """
-    Direct upload endpoint for tile audio.
-    Enforces the same MIME allow-list and size cap as play_tile.
-    """
-    tile = get_object_or_404(Tile, id=tile_id)
-    player, error = resolve_player_from_request(request, tile.room)
-    if error:
-        return error
-
-    if tile.player_id != player.id:
+def verify_admin_pin(request):
+    """Verify an admin PIN. Returns 200 if valid, 403 if not."""
+    configured_secret = getattr(settings, "THEME_ADMIN_SECRET", "")
+    provided_secret = request.data.get("pin", "") or request.headers.get("X-Theme-Admin-Secret", "")
+    if not configured_secret:
         return Response(
-            {"error": "Only the tile's owner can upload audio"},
+            {"valid": False, "error": "Admin PIN is not configured"},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    if provided_secret != configured_secret:
+        return Response(
+            {"valid": False, "error": "Invalid admin PIN"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    return Response({"valid": True})
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def set_checked_in_by_player_id(request, player_id):
+    """Admin endpoint for idempotently assigning Checked In status."""
+    configured_secret = getattr(settings, "THEME_ADMIN_SECRET", "")
+    provided_secret = request.headers.get("X-Theme-Admin-Secret", "")
+    if not configured_secret or provided_secret != configured_secret:
+        return Response(
+            {"error": "Invalid theme admin secret"},
             status=status.HTTP_403_FORBIDDEN,
         )
 
-    audio_file = request.FILES.get("audio_file")
-    if not audio_file:
-        return Response(
-            {"error": "No audio file provided"},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+    player = get_object_or_404(Player, id=player_id)
+    player.is_checked_in = bool(request.data.get("is_checked_in", False))
+    player.save(update_fields=["is_checked_in"])
+    serializer = PlayerSerializer(player)
+    return Response(serializer.data, status=status.HTTP_200_OK)
 
-    # Security: enforce size + MIME allow-list. See finding upload_audio_bypass.
-    ALLOWED_AUDIO_MIME_TYPES = {
-        "audio/mpeg",
-        "audio/wav",
-        "audio/x-wav",
-        "audio/ogg",
+
+def get_authenticated_player(player):
+    """Create a Django User for the player if needed and return JWT tokens."""
+    User = get_user_model()
+    if not player.user:
+        # Generate a deterministic username based on player UUID
+        username = f"player_{player.id.hex[:12]}"
+        # Ensure uniqueness (unlikely collision)
+        user = User.objects.create(username=username)
+        player.user = user
+        player.save(update_fields=["user"])
+    else:
+        user = player.user
+    refresh = RefreshToken.for_user(user)
+    return {
+        "access_token": str(refresh.access_token),
+        "refresh_token": str(refresh),
     }
-    if audio_file.size > settings.MAX_UPLOAD_SIZE:
-        return Response(
-            {"error": f"File too large. Maximum size is {settings.MAX_UPLOAD_SIZE // (1024 * 1024)}MB."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-    if audio_file.content_type not in ALLOWED_AUDIO_MIME_TYPES:
-        return Response(
-            {"error": f"Invalid file type '{audio_file.content_type}'. Allowed types: mp3, wav, ogg, flac, m4a, aac."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
 
-    tile.audio_file = audio_file
-    tile.audio_url = f"{request.get_host()}/media/{audio_file.name}"
-    tile.save()
 
-    audit_logger.info(
-        "audio_upload",
-        extra={
-            "tile_id": str(tile.id),
-            "player_id": str(player.id),
-            "player_name": player.name,
-            "room_code": tile.room.code,
-            "audio_filename": audio_file.name,
-            "file_size": audio_file.size,
-            "content_type": audio_file.content_type,
-            "timestamp": timezone.now().isoformat(),
-            "action": "upload_audio",
-            "outcome": "success",
-        },
+def resolve_player_from_request(request, room):
+    """Resolve player from JWT or player_secret fallback.
+
+    Priority:
+    1. JWT: request.user.player (via Player.user OneToOneField)
+    2. Fallback: player_id + player_secret from request body or headers
+
+    Returns (player, error_response) — one will be None.
+    """
+    # Try JWT first
+    user = getattr(request, 'user', None)
+    if user and getattr(user, 'is_authenticated', False):
+        player = getattr(user, 'player', None)
+        if player and player.room_id == room.id:
+            return player, None
+
+    # Fallback to player_secret in request body or headers
+    player_id = request.data.get('player_id') or request.META.get('HTTP_X_PLAYER_ID')
+    player_secret = request.data.get('player_secret') or request.META.get('HTTP_X_PLAYER_SECRET')
+
+    if player_id and player_secret:
+        try:
+            player = Player.objects.get(id=player_id, room=room)
+            # Incoming secret is the stored (hashed) value; only hash if
+            # it is not already a hex digest (symmetric with Player.save()).
+            sent = player_secret if is_hex64(player_secret) else hash_secret(player_secret)
+            if player.player_secret != sent:
+                return None, Response(
+                    {"error": "Invalid player_secret"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            return player, None
+        except Player.DoesNotExist:
+            return None, Response(
+                {"error": "Player not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+    # Legacy fallback: player_secret only (no player_id)
+    if player_secret:
+        secret_lookup = player_secret if is_hex64(player_secret) else hash_secret(player_secret)
+        try:
+            player = Player.objects.get(room=room, player_secret=secret_lookup)
+            return player, None
+        except Player.DoesNotExist:
+            return None, Response(
+                {"error": "Invalid player credentials"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+    return None, Response(
+        {"error": "Authentication required"},
+        status=status.HTTP_403_FORBIDDEN,
     )
+
+
+def get_vote_resolution(current_round):
+    votes_for = {}
+    checked_in_votes_for = set()
+    for vote in current_round.votes.select_related("voter", "voted_for").all():
+        voted_for_id = str(vote.voted_for.id)
+        votes_for[voted_for_id] = votes_for.get(voted_for_id, 0) + 1
+        if vote.voter.is_checked_in:
+            checked_in_votes_for.add(voted_for_id)
+
+    if not votes_for:
+        return None
+
+    max_votes = max(votes_for.values())
+    winners = [pid for pid, count in votes_for.items() if count == max_votes]
+    return {
+        "votes_for": votes_for,
+        "max_votes": max_votes,
+        "winners": winners,
+        "checked_in_votes_for": checked_in_votes_for,
+    }
+
+
+def has_consecutive_round_wins(room, winner, current_round, streak_length=2):
+    resolved_rounds = list(
+        Round.objects.filter(room=room, round_number__lte=current_round.round_number)
+        .exclude(winner__isnull=True)
+        .order_by("-round_number")
+    )
+    streak = 0
+    for round_obj in resolved_rounds:
+        if round_obj.winner_id != winner.id:
+            break
+        streak += 1
+        if streak >= streak_length:
+            return True
+    return False
+
+
+def has_ranked_three_round_sweep(room, winner, current_round, is_ranked):
+    if not is_ranked or room.total_rounds != 3 or current_round.round_number != 3:
+        return False
+
+    resolved_rounds = list(
+        Round.objects.filter(room=room, round_number__lte=3)
+        .exclude(winner__isnull=True)
+        .order_by("round_number")
+    )
+    return len(resolved_rounds) == Room.SWEEP_ROUNDS and all(
+        round_obj.winner_id == winner.id for round_obj in resolved_rounds
+    )
+
+
+def ensure_theme_rotations():
+    for key, defaults in DEFAULT_THEME_ROTATIONS.items():
+        ThemeRotation.objects.get_or_create(key=key, defaults=defaults)
+
+
+def get_discord_account_from_session(data):
+    """Return a DiscordAccount verified by stable browser session fields."""
+    discord_user_id = data.get("discord_user_id")
+    discord_session_secret = data.get("discord_session_secret")
+
+    if not discord_user_id and not discord_session_secret:
+        return None, None
+
+    if not discord_user_id or not discord_session_secret:
+        return None, Response(
+            {"error": "discord_user_id and discord_session_secret are required together"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        return DiscordAccount.objects.get(
+            discord_user_id=discord_user_id,
+            session_secret=discord_session_secret,
+        ), None
+    except DiscordAccount.DoesNotExist:
+        return None, Response(
+            {"error": "Invalid Discord session"},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+
+
+def attach_discord_identity_from_session(player, data):
+    discord_account, error_response = get_discord_account_from_session(data)
+    if error_response is not None:
+        return error_response
+
+    if discord_account is not None:
+        player.discord_identity = discord_account
+        player.save(update_fields=["discord_identity"])
+
+    return None
+
+
+def normalize_genre(value):
+    """Normalize a genre string for comparison. Pure utility, no side effects."""
+    normalized = "".join(char for char in str(value).lower() if char.isalnum())
+    return "rb" if normalized == "rnb" else normalized
+
+
+def _resolve_bingo_and_winner(room, player):
+    if room.status == Room.Status.FINISHED:
+        return
+
+    all_players_with_tiles = room.players.filter(
+        is_spectator=False
+    ).prefetch_related(
+        Prefetch(
+            "tiles",
+            queryset=Tile.objects.filter(status=Tile.Status.COMPLETE),
+            to_attr="completed_tiles",
+        )
+    )
+
+    current_player_tiles = next(
+        (
+            p.completed_tiles
+            for p in all_players_with_tiles
+            if p.id == player.id
+        ),
+        [],
+    )
+
+    if len(current_player_tiles) >= Room.MIN_TILES_FOR_BINGO_RESOLUTION:
+        player_tiles = list(current_player_tiles)
+        completed_lines = check_bingo_lines(player_tiles)
+
+        if completed_lines:
+            # Idempotent: get_or_create records the claim exactly once per
+            # (room, player) — only when a real bingo line is achieved, not
+            # on every tile completion.
+            record_bingo_claim(room, player)
+            score_info = calculate_bingo_score(player, completed_lines)
+
+            player_scores = []
+
+            for other_player in all_players_with_tiles:
+                if other_player.id == player.id:
+                    continue
+
+                other_completed_tiles = other_player.completed_tiles
+
+                if other_completed_tiles:
+                    other_tiles_list = list(other_completed_tiles)
+                    other_completed_lines = check_bingo_lines(other_tiles_list)
+
+                    if other_completed_lines:
+                        other_score_info = calculate_bingo_score(
+                            other_player, other_completed_lines
+                        )
+                        player_scores.append((other_player, other_score_info))
+
+            if len(player_scores) == 0:
+                room.status = Room.Status.FINISHED
+                room.winner = player
+                room.save()
+            else:
+                player_scores.append((player, score_info))
+                winner = check_tie_breaker(player_scores)
+
+                if winner:
+                    room.status = Room.Status.FINISHED
+                    room.winner = winner
+                    room.save()
+
+
+def record_bingo_claim(room, player):
+    """Idempotently record a bingo claim for (room, player).
+
+    Returns the BingoClaim if freshly created, or the existing one if the
+    player already claimed bingo in this room. The unique_together on
+    BingoClaim guarantees only one claim per (room, player) survives a race
+    between concurrent claims.
+    """
+    claim, _created = BingoClaim.objects.get_or_create(room=room, player=player)
+    return claim
+
+
+def broadcast_game_update(room):
+    """
+    Helper to broadcast game state updates to the room's channel group.
+    """
+    channel_layer = get_channel_layer()
+    serializer = GameStateSerializer(room)
+    async_to_sync(channel_layer.group_send)(
+        f"game_{room.id}", {"type": "game_state_update", "payload": serializer.data}
+    )
+
+
+def broadcast_timer_tick(room):
+    """
+    Broadcast a timer_tick message to the room's channel group.
+    """
+    channel_layer = get_channel_layer()
+    current_round = Round.objects.filter(room=room).first()
+    if not current_round or not current_round.timer_ends_at:
+        return
+
+    now = timezone.now()
+    if current_round.timer_ends_at <= now:
+        time_remaining = 0
+    else:
+        time_remaining = int((current_round.timer_ends_at - now).total_seconds())
+
+    async_to_sync(channel_layer.group_send)(
+        f"game_{room.id}",
+        {"type": "timer_tick", "payload": {"timeRemaining": time_remaining}},
+    )
+
+
+_active_timer_tasks: dict[str, asyncio.Task] = {}
+
+async def _timer_loop(room_id: str, duration: int, channel_layer):
+    try:
+        for remaining in range(duration, -1, -1):
+            await channel_layer.group_send(
+                f"game_{room_id}",
+                {"type": "timer_tick", "payload": {"timeRemaining": remaining}},
+            )
+            if remaining > 0:
+                await asyncio.sleep(1)
+    except asyncio.CancelledError:
+        pass
+    finally:
+        _active_timer_tasks.pop(room_id, None)
+
+def start_timer_broadcast(room_id: str, duration: int):
+    cancel_timer_broadcast(room_id)
+    from channels.layers import get_channel_layer
+    channel_layer = get_channel_layer()
+    # Run the timer loop in a background thread with its own event loop,
+    # because this function is called from sync DRF views where no
+    # event loop is running.
+    loop = asyncio.new_event_loop()
+    task = loop.create_task(_timer_loop(room_id, duration, channel_layer))
+    _active_timer_tasks[room_id] = task
+
+    import threading
+
+    def _run_loop():
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(task)
+        except (asyncio.CancelledError, Exception) as exc:
+            logger.debug("Timer loop cleanup exception: %s", exc)
+        finally:
+            loop.close()
+
+    t = threading.Thread(target=_run_loop, daemon=True)
+    t.start()
+
+def cancel_timer_broadcast(room_id: str):
+    task = _active_timer_tasks.pop(room_id, None)
+    if task and not task.done():
+        task.cancel()
+
+
+class ThemeRotationViewSet(viewsets.ModelViewSet):
+    serializer_class = ThemeRotationSerializer
+    permission_classes = [AllowAny]
+    lookup_field = "key"
+    http_method_names = ["get", "put", "head", "options"]
+
+    def get_queryset(self):
+        ensure_theme_rotations()
+        return ThemeRotation.objects.filter(key__in=DEFAULT_THEME_ROTATIONS.keys()).order_by("id")
+
+    def update(self, request, *args, **kwargs):
+        configured_secret = getattr(settings, "THEME_ADMIN_SECRET", "")
+        provided_secret = request.headers.get("X-Theme-Admin-Secret", "")
+        if not configured_secret or provided_secret != configured_secret:
+            return Response(
+                {"error": "Invalid theme admin secret"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+
+class RoomViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for managing game rooms.
+    """
+
+    queryset = Room.objects.all()
+    serializer_class = RoomSerializer
+    permission_classes = [AllowAny]
+    lookup_field = "code"  # Allow lookup by 4-digit room code
+    throttle_scope = "room_creation"
+    # Security: disable generic write/delete routes. All room mutations must
+    # go through the custom actions (start_game, reset_game, next_turn, etc.)
+    # which verify player_secret + is_host. See security finding room_crud_open.
+    http_method_names = ["get", "post", "head", "options"]
+
+    def list(self, request, *args, **kwargs):
+        # Security: do not expose a global listing of every room on the platform.
+        # Clients must look up rooms by code via the detail endpoint.
+        # See security finding global_list_exposure.
+        return Response(
+            {"error": "Listing all rooms is not permitted. Look up a room by code."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    def get_throttles(self):
+        throttles = super().get_throttles()
+        if self.action == "create":
+            throttles.append(ScopedRateThrottle())
+        return throttles
+
+    def get_object(self):
+        if self.kwargs.get(self.lookup_field):
+            # Try to get by room code first
+            try:
+                return Room.objects.get(code=str(self.kwargs[self.lookup_field]))
+            except Room.DoesNotExist:
+                # Fallback to UUID lookup if code lookup fails
+                pass
+
+        # Default behavior for UUID lookup
+        return super().get_object()
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return RoomCreateSerializer
+        elif self.action in ["retrieve", "join_game", "start_game"]:
+            return RoomDetailSerializer
+        return RoomSerializer
+
+    def create(self, request, *args, **kwargs):
+        """Override create to return room_code, player_id, and player_secret.
+
+        NOTE: player_secret is intentionally returned here (and in join_game) as
+        this is the ONLY time it is issued to the client. It serves as the session
+        auth token for all subsequent requests. It must NOT be returned by any
+        other endpoint (list, retrieve, etc.).
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        player_name = serializer.validated_data.get("player_name", "Host")
+
+        # Create the Room + host Player + initial tiles in a single atomic
+        # transaction so a failure at any step rolls back everything (no
+        # orphaned room with no host, no half-built board).
+        with transaction.atomic():
+            # Create the room
+            room = serializer.save()
+
+            # Generate unique 4-digit room code. The allocation is wrapped in
+            # its own atomic block + IntegrityError retry so concurrent
+            # create_room calls (e.g. parallel E2E workers) can never land on
+            # the same code — a TOCTOU between .exists() and .save() would
+            # otherwise let two rooms share a code and cross-contaminate joins.
+            while True:
+                code = "".join(random.choices("0123456789", k=4))
+                try:
+                    with transaction.atomic():
+                        room.code = code
+                        room.save()
+                    break
+                except IntegrityError:
+                    continue
+
+            # Generate the host's plaintext secret once; the model hashes it
+            # on save, so capture the plaintext to return to the client
+            # (the only time the secret is issued in plaintext — guardrail #105).
+            host_secret = new_player_secret()
+            player = Player.objects.create(
+                room=room,
+                name=player_name,
+                is_spectator=False,
+                is_host=True,
+                player_secret=host_secret,
+            )
+            # Generate JWT tokens for the host player
+            token_data = get_authenticated_player(player)
+
+            # Use theme-based genre selection
+            theme_genres = get_theme_genres(room)
+            random.shuffle(theme_genres)
+            genres = theme_genres[:9]
+
+            for position in range(9):
+                Tile.objects.create(
+                    player=player, room=room, position=position, genre=genres.pop()
+                )
+
+        # Discord identity is attached OUTSIDE the atomic block so a failure here
+        # does NOT roll back the valid room+host (which were committed in the
+        # atomic block above). On failure we tear down the room+player to avoid
+        # an orphaned, unlinked room, then return the error to the caller.
+        discord_error = attach_discord_identity_from_session(player, request.data)
+        if discord_error is not None:
+            player.delete()
+            room.delete()
+            return discord_error
+
+        response_data = {
+            "room_code": room.code,
+            "player_id": str(player.id),
+            "player_secret": host_secret,
+            "access_token": token_data["access_token"],
+            "refresh_token": token_data["refresh_token"],
+        }
+        return Response(response_data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"])
+    def join_game(self, request, pk=None, code=None):
+        """
+        Join a game room as a player or spectator.
+        """
+        room = self.get_object()
+
+        existing_names = set()
+        try:
+            with transaction.atomic():
+                # Handle JSON parsing errors
+                try:
+                    data = request.data.copy()
+                except Exception as e:
+                    return Response(
+                        {"error": "Invalid JSON format"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                is_spectator_join = data.get("is_spectator", False)
+                if room.status != Room.Status.LOBBY and not (
+                    is_spectator_join and room.status == Room.Status.PLAYING
+                ):
+                    return Response(
+                        {"error": "Only spectators can join after a game has started"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                spectator_count = room.players.filter(is_spectator=True).count()
+                if is_spectator_join:
+                    if spectator_count >= Room.MAX_SPECTATORS:
+                        return Response(
+                            {"error": f"Spectator limit reached (max {Room.MAX_SPECTATORS})"},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                if is_spectator_join:
+                    # Spectators are auto-numbered "Spectator N". The number is
+                    # derived from a snapshot of existing names, so two concurrent
+                    # spectator joins (e.g. E2E workers=2) can pick the SAME N and
+                    # both hit the (room, name) unique constraint. Rather than
+                    # 409-ing a legitimate spectator, retry with the next free
+                    # number, re-reading inside the atomic block each attempt so
+                    # the allocation is self-healing under concurrency. Bounded to
+                    # avoid an infinite loop if the room is full of spectators.
+                    spectator_num = 0
+                    MAX_SPECTATOR_ALLOC_RETRIES = Room.MAX_SPECTATORS + 1
+                    for _ in range(MAX_SPECTATOR_ALLOC_RETRIES):
+                        existing_names = set(
+                            Player.objects.filter(room=room).values_list(
+                                "name", flat=True
+                            )
+                        )
+                        # Advance past any name already taken (committed OR a
+                        # collision we just hit and must skip over).
+                        spectator_num += 1
+                        while f"Spectator {spectator_num}" in existing_names:
+                            spectator_num += 1
+                        data["name"] = f"Spectator {spectator_num}"
+                        serializer = PlayerCreateSerializer(
+                            data=data, context={"room": room}
+                        )
+                        if not serializer.is_valid():
+                            return Response(
+                                serializer.errors,
+                                status=status.HTTP_400_BAD_REQUEST,
+                            )
+                        try:
+                            player = serializer.save()
+                            break
+                        except IntegrityError:
+                            # Another worker claimed this number first (or the
+                            # prior attempt rolled back) — the next loop bumps
+                            # spectator_num past it and recomputes.
+                            continue
+                    else:
+                        # Exhausted retries (effectively the spectator limit).
+                        return Response(
+                            {
+                                "error": f"Spectator limit reached (max {Room.MAX_SPECTATORS})",
+                                "conflict_type": "spectator_limit",
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                else:
+                    existing_names = set(
+                        Player.objects.filter(room=room).values_list("name", flat=True)
+                    )
+                    serializer = PlayerCreateSerializer(
+                        data=data, context={"room": room}
+                    )
+                    if not serializer.is_valid():
+                        return Response(
+                            serializer.errors,
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                    player = serializer.save()
+
+                # Shared success path (both spectator and player joins).
+                discord_error = attach_discord_identity_from_session(player, data)
+                if discord_error is not None:
+                    return discord_error
+
+                if not player.is_spectator:
+                    # Use theme-based genre selection
+                    theme_genres = get_theme_genres(room)
+                    random.shuffle(theme_genres)
+                    genres = theme_genres[:9]
+
+                    for position in range(9):
+                        tile = Tile.objects.create(
+                            player=player,
+                            position=position,
+                            genre=genres.pop(),
+                            room=room,
+                        )
+
+                transaction.on_commit(lambda: broadcast_game_update(room))
+
+                token_data = get_authenticated_player(player)
+
+                response_data = PlayerCreateSerializer(player).data
+                response_data.update(
+                    {
+                        "access_token": token_data["access_token"],
+                        "refresh_token": token_data["refresh_token"],
+                    }
+                )
+
+                return Response(
+                    response_data,
+                    status=status.HTTP_201_CREATED,
+                )
+        except IntegrityError as e:
+            # A join collides on the (room, name) unique constraint. This can
+            # happen even when the pre-save snapshot above didn't contain the
+            # name — e.g. a concurrent or just-committed join in another
+            # transaction (live E2E runs with workers=2 against Postgres).
+            # Re-query the room authoritatively so we return 409 on a genuine
+            # duplicate name rather than masking it as a 500. Only re-raise when
+            # the name truly doesn't exist (a real DB fault).
+            #
+            # SAFETY: this re-query runs after an errored statement, so it is
+            # only valid because the `transaction.atomic()` above (line 702) is
+            # the outermost atomic block — Django rolls back and restores
+            # autocommit as the exception leaves `atomic()`, before this runs.
+            # If this view were ever wrapped in an outer atomic (e.g.
+            # ATOMIC_REQUESTS enabled), the re-query would hit
+            # "current transaction is aborted" and 500 again.
+            conflicting_name = data.get("name", "Unknown")
+            name_exists = Player.objects.filter(
+                room=room, name__iexact=conflicting_name
+            ).exists()
+
+            if name_exists:
+                return Response(
+                    {
+                        "error": f'Name "{conflicting_name}" is already taken in this room',
+                        "conflict_type": "duplicate_name",
+                        "existing_names": list(
+                            Player.objects.filter(room=room).values_list(
+                                "name", flat=True
+                            )
+                        ),
+                    },
+                    status=status.HTTP_409_CONFLICT,
+                )
+            # Not a name collision — surface the underlying error instead of
+            # silently returning 200/201.
+            raise
+        except Exception as e:
+            logger.exception(
+                f"Failed to join room in room {room.code if 'room' in locals() else 'unknown'}"
+            )
+            return Response(
+                {
+                    "error": "Failed to join room. Please try again.",
+                    "existing_names_in_room": list(existing_names)
+                    if "existing_names" in locals()
+                    else [],
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @action(detail=True, methods=["post"])
+    def toggle_ready(self, request, pk=None, code=None):
+        """
+        Toggle a player's ready status in this room.
+        """
+        room = self.get_object()
+        player, error = resolve_player_from_request(request, room)
+        if error:
+            return error
+
+        player.is_ready = not player.is_ready
+        player.save(update_fields=["is_ready"])
+
+        broadcast_game_update(room)
+
+        return Response(
+            {
+                "player_id": str(player.id),
+                "is_ready": player.is_ready,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=["post"])
+    def start_game(self, request, pk=None, code=None):
+        """
+        Start the game in a room. Only host can start.
+        """
+        room = self.get_object()
+        player, error = resolve_player_from_request(request, room)
+        if error:
+            return error
+
+        if not player.is_host:
+            return Response(
+                {"error": "Only host can start game"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if room.status != Room.Status.LOBBY:
+            return Response(
+                {"error": "Game has already started"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        players = room.players.filter(is_spectator=False)
+        if len(players) < Room.MIN_PRODUCERS_TO_PLAY:
+            return Response(
+                {"error": "Need at least 2 players to start"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            # Change room status
+            room.status = Room.Status.PLAYING
+
+            # Determine match type based on current spectator count
+            spectator_count = room.players.filter(is_spectator=True).count()
+            room.match_type = Room.MatchType.RANKED if spectator_count >= Room.MIN_SPECTATORS_FOR_RANKED else Room.MatchType.CASUAL
+            room.save()
+
+            # Tiles are now created when players join, not when game starts
+
+            # Create the first round with a random genre
+            used_genres = set(
+                Round.objects.filter(room=room).values_list(
+                    "current_tile_genre", flat=True
+                )
+            )
+            # Use theme-based genre selection
+            theme_genres = get_theme_genres(room)
+            available_genres = [g for g in theme_genres if g not in used_genres]
+            if not available_genres:
+                available_genres = theme_genres
+
+            first_genre = random.choice(available_genres)
+
+            timer_started = timezone.now()
+            timer_ends = timer_started + timezone.timedelta(seconds=ROUND_SECONDS)
+
+            first_round = Round.objects.create(
+                room=room,
+                round_number=1,
+                current_tile_genre=first_genre,
+                timer_duration=ROUND_SECONDS,
+                timer_started_at=timer_started,
+                timer_ends_at=timer_ends,
+            )
+
+        broadcast_game_update(room)
+        broadcast_timer_tick(room)
+        start_timer_broadcast(room.id, ROUND_SECONDS)
+
+        return Response(
+            {
+                "status": "Game started",
+                "match_type": room.match_type,
+                "first_round": RoundSerializer(first_round).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=["get"])
+    def game_state(self, request, pk=None, code=None):
+        """
+        Get the current game state.
+        """
+        room = self.get_object()
+        serializer = GameStateSerializer(room)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=["post"])
+    def rejoin_game(self, request, pk=None, code=None):
+        """
+        Rejoin a game room using player_secret.
+        Returns player data if secret matches, 404 if not found.
+        """
+        room = self.get_object()
+        player_secret = request.data.get("player_secret")
+
+        if not player_secret:
+            return Response(
+                {"error": "player_secret is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            player = Player.objects.get(room=room, player_secret=hash_secret(player_secret))
+            return Response(
+                {
+                    "id": str(player.id),
+                    "name": player.name,
+                    "isSpectator": player.is_spectator,
+                    "is_host": player.is_host,
+                    "is_checked_in": player.is_checked_in,
+                    "current_title": player.current_title,
+                },
+                status=status.HTTP_200_OK,
+            )
+        except Player.DoesNotExist:
+            return Response(
+                {"error": "Player not found with this secret"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+    @action(detail=True, methods=["post"])
+    def reset_game(self, request, pk=None, code=None):
+        """
+        Reset the game for a new round. Only host can reset.
+        Transaction-safe with proper rollback on any failure.
+        """
+        room = self.get_object()
+        player, error = resolve_player_from_request(request, room)
+        if error:
+            return error
+
+        if not player.is_host:
+            return Response(
+                {"error": "Only host can reset game"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            with transaction.atomic():
+                # Store original state for potential rollback logging
+                original_round = room.current_round
+                original_status = room.status
+
+                # Step 1: Delete existing rounds and tiles (atomic operation)
+                Round.objects.filter(room=room).delete()
+                deleted_count, _ = Tile.objects.filter(player__room=room).delete()
+
+                # Step 2: Update room state for new match
+                room.status = Room.Status.LOBBY
+                room.current_round = 1
+                room.winner = None
+
+                # Re-evaluate match type for the new match based on current spectators
+                spectator_count = room.players.filter(is_spectator=True).count()
+                room.match_type = Room.MatchType.RANKED if spectator_count >= Room.MIN_SPECTATORS_FOR_RANKED else Room.MatchType.CASUAL
+                room.save()
+
+                # Step 3: Get players and validate
+                players = room.players.filter(is_spectator=False)
+                if players.count() == 0:
+                    raise ValueError("No active players found in room")
+
+                # Step 4: Create new tiles for each player
+                created_tiles = []
+                # Use theme-based genre selection
+                theme_genres = get_theme_genres(room)
+
+                for player in players:
+                    # Create a copy of genres for each player to ensure uniqueness
+                    player_genres = theme_genres.copy()
+                    random.shuffle(player_genres)
+
+                    # Take first 9 genres for this player
+                    selected_genres = player_genres[:9]
+
+                    if len(selected_genres) < 9:
+                        raise ValueError(f"Insufficient genres available for player {player.name}")
+
+                    # Create tiles for this player
+                    for position in range(9):
+                        try:
+                            tile = Tile.objects.create(
+                                player=player,
+                                room=room,
+                                position=position,
+                                genre=selected_genres[position]
+                            )
+                            created_tiles.append(tile)
+                        except IntegrityError as e:
+                            # This shouldn't happen with our validation, but handle it gracefully
+                            raise ValueError(f"Failed to create tile at position {position} for player {player.name}: {str(e)}")
+
+                # Step 5: Validate all tiles were created successfully
+                expected_tiles = players.count() * 9
+                if len(created_tiles) != expected_tiles:
+                    raise ValueError(f"Expected {expected_tiles} tiles, only created {len(created_tiles)}")
+
+                transaction.on_commit(lambda: broadcast_game_update(room))
+
+                return Response(
+                    {
+                        "status": "Game reset successfully",
+                        "match_type": room.match_type,
+                        "round": room.current_round,
+                        "tiles_created": len(created_tiles),
+                        "players": players.count(),
+                        "previous_round": original_round
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
+        except ValueError as e:
+            # Validation errors - don't rollback as no changes were made
+            logger.warning(f"Validation error in reset_game for room {room.code}: {str(e)}")
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        except IntegrityError as e:
+            # Database constraint violation - transaction will automatically rollback
+            logger.error(f"Database integrity error in reset_game for room {room.code}: {str(e)}")
+            return Response(
+                {"error": "Database constraint violation. Please try again."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        except Exception as e:
+            # Any other exception - transaction will automatically rollback
+            logger.exception(f"Unexpected error in reset_game for room {room.code}")
+            return Response(
+                {"error": "Failed to reset game due to unexpected error. Please try again."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @action(detail=True, methods=["post"])
+    def kick_player(self, request, pk=None, code=None):
+        room = self.get_object()
+        # player_id in body is the TARGET to kick; auth is via JWT or player_secret
+        target_player_id = request.data.get("player_id")
+
+        # Authenticate the requester separately from target identification
+        player, error = resolve_player_from_request(request, room)
+        if error:
+            return error
+
+        if not player.is_host:
+            return Response(
+                {"error": "Only host can kick players"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if not target_player_id:
+            return Response(
+                {"error": "player_id (target) is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            target_player = room.players.get(id=target_player_id)
+            if target_player == player:
+                return Response(
+                    {"error": "Cannot kick the host"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            player_name = target_player.name
+            target_player.delete()
+            broadcast_game_update(room)
+
+            return Response(
+                {"status": f"Player {player_name} kicked"},
+                status=status.HTTP_200_OK,
+            )
+
+        except Player.DoesNotExist:
+            return Response(
+                {"error": "Player not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+
+    @action(detail=True, methods=["post"])
+    def vote(self, request, **kwargs):
+        """
+        Cast a vote for a producer in the current round.
+        Only spectators can vote, and only when voting is open.
+        """
+        room = self.get_object()
+        voted_for_player_id = request.data.get("voted_for_player_id")
+
+        voter, error = resolve_player_from_request(request, room)
+        if error:
+            return error
+
+        if not voted_for_player_id:
+            return Response(
+                {"error": "voted_for_player_id is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not voter.is_spectator:
+            return Response(
+                {"error": "Only spectators can vote"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            voted_for_player = room.players.get(id=voted_for_player_id)
+            if voted_for_player.is_spectator:
+                return Response(
+                    {"error": "Cannot vote for a spectator"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        except Player.DoesNotExist:
+            return Response(
+                {"error": "Player being voted for not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        current_round = Round.objects.filter(room=room).first()
+        if not current_round:
+            return Response(
+                {"error": "No active round in this room"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not current_round.voting_open:
+            return Response(
+                {"error": "Voting is not open for this round"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        spectator_count = room.players.filter(is_spectator=True).count()
+        if spectator_count < Room.MIN_SPECTATORS_FOR_RANKED:
+            return Response(
+                {"error": "Need at least 3 spectators for voting"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            with transaction.atomic():
+                # Lock the round row so concurrent votes are serialized and
+                # votes_recorded is incremented atomically. select_for_update
+                # also re-reads the round inside the lock, so a duplicate vote
+                # is detected here (in addition to the unique_together on Vote).
+                current_round = Round.objects.select_for_update().get(
+                    pk=current_round.pk
+                )
+                existing_vote = Vote.objects.filter(
+                    round=current_round, voter=voter
+                ).first()
+                if existing_vote:
+                    return Response(
+                        {"error": "You have already voted in this round"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                vote = Vote.objects.create(
+                    round=current_round,
+                    voter=voter,
+                    voted_for=voted_for_player,
+                )
+                current_round.votes_recorded += 1
+                current_round.save()
+        except IntegrityError:
+            return Response(
+                {"error": "You have already voted in this round"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        audit_logger.info(
+            "vote_cast",
+            extra={
+                "room_code": room.code,
+                "voter_id": str(voter.id),
+                "voter_name": voter.name,
+                "voted_for_id": str(voted_for_player.id),
+                "voted_for_name": voted_for_player.name,
+                "round_number": current_round.round_number,
+                "timestamp": timezone.now().isoformat(),
+                "action": "vote_cast",
+                "outcome": "success",
+            },
+        )
+
+        broadcast_game_update(room)
+
+        if current_round.votes_recorded >= spectator_count:
+            return self._auto_advance_turn(room, current_round, spectator_count)
+
+        return Response(
+            VoteSerializer(vote).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    def _resolve_ranked_round(self, room, current_round, spectator_count):
+        resolution = get_vote_resolution(current_round)
+        if not resolution:
+            return {
+                "response": Response(
+                    {"error": "No votes recorded"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            }
+
+        winners = resolution["winners"]
+        if len(winners) > 1:
+            current_round.voting_open = True
+            current_round.votes_recorded = 0
+            Vote.objects.filter(round=current_round).delete()
+            current_round.save()
+            broadcast_game_update(room)
+            return {
+                "response": Response(
+                    {"error": "Tie vote - re-voting required", "tie": True},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            }
+
+        winner_id = winners[0]
+        winner = Player.objects.get(id=winner_id)
+
+        current_round.winner = winner
+        current_round.voting_open = False
+        current_round.save(update_fields=["winner", "voting_open", "updated_at"])
+
+        producers = list(room.players.filter(is_spectator=False).order_by("joined_at"))
+        losers = [producer for producer in producers if producer.id != winner.id]
+        elo_gain = 0
+        sweeper_penalty = 0
+        awarded_jackpot = False
+        awarded_sweeper = False
+        is_ranked = spectator_count >= Room.MIN_SPECTATORS_FOR_RANKED
+
+        if len(producers) >= Room.MIN_PRODUCERS_TO_PLAY:
+            base_gain = 25
+            max_votes = resolution["max_votes"]
+            vote_margin = max_votes - (spectator_count - max_votes)
+            if vote_margin == Room.SWEEP_VOTE_MARGIN:
+                multiplier = 1.5
+            elif vote_margin == spectator_count:
+                multiplier = 2.0
+            else:
+                multiplier = 1.0
+
+            elo_gain = int(base_gain * multiplier)
+            if winner_id in resolution["checked_in_votes_for"]:
+                elo_gain = int(elo_gain * 1.2)
+
+            if has_consecutive_round_wins(room, winner, current_round):
+                if not winner.earned_jackpot:
+                    winner.earned_jackpot = True
+                    awarded_jackpot = True
+                elo_gain += 10
+
+            if has_ranked_three_round_sweep(room, winner, current_round, is_ranked):
+                if not winner.earned_sweeper:
+                    winner.earned_sweeper = True
+                    awarded_sweeper = True
+                sweeper_penalty = 20
+
+            winner.elo_rating += elo_gain
+            winner.elo_wins += 1
+            winner.elo_matches += 1
+
+            for loser in losers:
+                loser.elo_rating = max(100, loser.elo_rating - elo_gain - sweeper_penalty)
+                loser.elo_losses += 1
+                loser.elo_matches += 1
+
+            winner.save(
+                update_fields=[
+                    "elo_rating",
+                    "elo_wins",
+                    "elo_matches",
+                    "earned_jackpot",
+                    "earned_sweeper",
+                ]
+            )
+            for loser in losers:
+                loser.save(update_fields=["elo_rating", "elo_losses", "elo_matches"])
+
+            audit_logger.info(
+                "elo_updated",
+                extra={
+                    "room_code": room.code,
+                    "round_number": current_round.round_number,
+                    "winner_id": str(winner.id),
+                    "winner_name": winner.name,
+                    "winner_new_rating": winner.elo_rating,
+                    "elo_gained": elo_gain,
+                    "sweeper_penalty": sweeper_penalty,
+                    "loser_ids": [str(loser.id) for loser in losers],
+                    "awarded_jackpot": awarded_jackpot,
+                    "awarded_sweeper": awarded_sweeper,
+                    "timestamp": timezone.now().isoformat(),
+                    "action": "elo_update",
+                    "outcome": "success",
+                },
+            )
+
+        return {
+            "response": None,
+            "winner": winner,
+            "elo_gain": elo_gain,
+            "sweeper_penalty": sweeper_penalty,
+        }
+
+    @action(detail=True, methods=["post"])
+    def next_turn(self, request, pk=None, code=None):
+        """
+        Advance to the next round/tile after voting is complete.
+        Only host can trigger this.
+        """
+        room = self.get_object()
+        player, error = resolve_player_from_request(request, room)
+        if error:
+            return error
+
+        if not player.is_host:
+            return Response(
+                {"error": "Only host can advance the turn"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        current_round = Round.objects.filter(room=room).first()
+        if not current_round:
+            return Response(
+                {"error": "No active round in this room"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        spectator_count = room.players.filter(is_spectator=True).count()
+        is_ranked = spectator_count >= Room.MIN_SPECTATORS_FOR_RANKED
+        resolution_result = None
+
+        if is_ranked and current_round.voting_open:
+            if current_round.votes_recorded < spectator_count:
+                return Response(
+                    {"error": "Waiting for all spectators to vote"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            resolution_result = self._resolve_ranked_round(
+                room, current_round, spectator_count
+            )
+            if resolution_result["response"] is not None:
+                return resolution_result["response"]
+
+        producers = room.players.filter(is_spectator=False)
+        if producers.count() < Room.MIN_PRODUCERS_TO_PLAY:
+            return Response(
+                {"error": "Need at least 2 producers to continue"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        used_genres = set(
+            Round.objects.filter(room=room).values_list("current_tile_genre", flat=True)
+        )
+        # Use theme-based genre selection
+        theme_genres = get_theme_genres(room)
+        available_genres = [g for g in theme_genres if g not in used_genres]
+        if not available_genres:
+            available_genres = theme_genres
+
+        next_genre = random.choice(available_genres)
+        next_round_number = room.current_round + 1
+
+        if room.total_rounds and next_round_number > room.total_rounds:
+            room.status = Room.Status.FINISHED
+            room.save(update_fields=["status"])
+            broadcast_game_update(room)
+            return Response(
+                {
+                    "status": "Game finished",
+                    "reason": "All rounds completed",
+                    "final_round": room.current_round,
+                    "total_rounds": room.total_rounds,
+                    "winner": resolution_result["winner"].name if resolution_result else None,
+                    "elo_gained": resolution_result["elo_gain"] if resolution_result else 0,
+                    "draw": resolution_result is None,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        timer_started = timezone.now()
+        timer_ends = timer_started + timezone.timedelta(seconds=ROUND_SECONDS)
+
+        with transaction.atomic():
+            new_round = Round.objects.create(
+                room=room,
+                round_number=next_round_number,
+                current_tile_genre=next_genre,
+                timer_duration=ROUND_SECONDS,
+                timer_started_at=timer_started,
+                timer_ends_at=timer_ends,
+            )
+            room.current_round = next_round_number
+            room.save()
+
+        broadcast_game_update(room)
+        broadcast_timer_tick(room)
+        start_timer_broadcast(room.id, ROUND_SECONDS)
+
+        return Response(
+            {
+                "status": "Advanced to next round",
+                "new_round": RoundSerializer(new_round).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=["post"])
+    def open_voting(self, request, **kwargs):
+        """
+        Open voting for spectators after timer ends.
+        """
+        room = self.get_object()
+        player, error = resolve_player_from_request(request, room)
+        if error:
+            return error
+
+        if not player.is_host:
+            return Response(
+                {"error": "Only host can open voting"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        current_round = Round.objects.filter(room=room).first()
+        if not current_round:
+            return Response(
+                {"error": "No active round in this room"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if current_round.voting_open:
+            return Response(
+                {"error": "Voting is already open"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        spectator_count = room.players.filter(is_spectator=True).count()
+        if spectator_count < Room.MIN_SPECTATORS_FOR_RANKED:
+            return Response(
+                {
+                    "error": "Need at least 3 spectators for voting (casual mode - no voting)"
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            current_round.voting_open = True
+            current_round.save()
+
+        audit_logger.info(
+            "voting_opened",
+            extra={
+                "room_code": room.code,
+                "round_number": current_round.round_number,
+                "spectator_count": spectator_count,
+                "timestamp": timezone.now().isoformat(),
+                "action": "open_voting",
+                "outcome": "success",
+            },
+        )
+
+        broadcast_game_update(room)
+
+        return Response(
+            {
+                "status": "Voting opened",
+                "round": RoundSerializer(current_round).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def _auto_advance_turn(self, room, current_round, spectator_count):
+        """
+        Automatically advance to next turn when all spectators have voted.
+        Determines winner and advances the round.
+        """
+        resolution_result = self._resolve_ranked_round(
+            room, current_round, spectator_count
+        )
+        if resolution_result["response"] is not None:
+            return resolution_result["response"]
+
+        used_genres = set(
+            Round.objects.filter(room=room).values_list("current_tile_genre", flat=True)
+        )
+        # Use theme-based genre selection
+        theme_genres = get_theme_genres(room)
+        available_genres = [g for g in theme_genres if g not in used_genres]
+        if not available_genres:
+            available_genres = theme_genres
+
+        next_genre = random.choice(available_genres)
+        next_round_number = room.current_round + 1
+
+        if room.total_rounds and next_round_number > room.total_rounds:
+            room.status = Room.Status.FINISHED
+            room.save(update_fields=["status"])
+            broadcast_game_update(room)
+            return Response(
+                {
+                    "status": "Game finished",
+                    "reason": "All rounds completed",
+                    "final_round": room.current_round,
+                    "total_rounds": room.total_rounds,
+                    "winner": resolution_result["winner"].name,
+                    "elo_gained": resolution_result["elo_gain"],
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        timer_started = timezone.now()
+        timer_ends = timer_started + timezone.timedelta(seconds=ROUND_SECONDS)
+
+        new_round = Round.objects.create(
+            room=room,
+            round_number=next_round_number,
+            current_tile_genre=next_genre,
+            timer_duration=ROUND_SECONDS,
+            timer_started_at=timer_started,
+            timer_ends_at=timer_ends,
+        )
+        room.current_round = next_round_number
+        room.save()
+
+        broadcast_game_update(room)
+        broadcast_timer_tick(room)
+        start_timer_broadcast(room.id, ROUND_SECONDS)
+
+        return Response(
+            {
+                "status": "Advanced to next round",
+                "new_round": RoundSerializer(new_round).data,
+                "winner": resolution_result["winner"].name,
+                "elo_gained": resolution_result["elo_gain"],
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class PlayerViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for managing players.
+    """
+
+    queryset = Player.objects.all()
+    serializer_class = PlayerSerializer
+    permission_classes = [AllowAny]
+    lookup_field = "player_secret"  # Allow lookup by player secret
+    # Security: disable generic create/write/delete routes. Players may only
+    # be created through room create_room/join_game actions which enforce
+    # lobby status and spectator-count limits. Privileged state changes go
+    # through dedicated secret-verified actions.
+    # See security findings player_field_escalation and player_create_bypass.
+    # POST is allowed at the viewset level so the secret-verified actions
+    # (toggle_ready, toggle_connection, leave_game, update_score) are reachable;
+    # generic write routes below are explicitly 405'd to preserve the intent.
+    http_method_names = ["get", "post", "head", "options"]
+
+    def list(self, request, *args, **kwargs):
+        # Security: do not expose a global listing of every player and their
+        # stats/Discord linkage. Clients must query players by id.
+        # See security finding global_list_exposure.
+        return Response(
+            {"error": "Listing all players is not permitted."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return PlayerCreateSerializer  # Use create serializer for direct player creation
+        return PlayerSerializer
+
+    def get_object(self):
+        """
+        Override get_object to handle player_secret lookup. The secret in the
+        URL is the plaintext; the stored value is hashed (guardrail #105).
+        """
+        if self.kwargs.get(self.lookup_field):
+            try:
+                return Player.objects.get(
+                    player_secret=hash_secret(self.kwargs[self.lookup_field])
+                )
+            except Player.DoesNotExist:
+                pass
+        return super().get_object()
+
+    # Security: block generic write routes. Players may only be created via
+    # room create_room/join_game actions, and mutated via the secret-verified
+    # actions (toggle_ready, toggle_connection, leave_game, update_score).
+    # See security findings player_field_escalation and player_create_bypass.
+    def create(self, request, *args, **kwargs):
+        return Response(
+            {"error": "Direct player creation is not permitted. Join a room instead."},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
+
+    def update(self, request, *args, **kwargs):
+        return Response(
+            {"error": "Direct player updates are not permitted."},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
+
+    def partial_update(self, request, *args, **kwargs):
+        return self.update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        return Response(
+            {"error": "Direct player deletion is not permitted."},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
+
+    @action(detail=True, methods=["post"])
+    def toggle_ready(self, request, pk=None, player_secret=None):
+        """
+        Toggle player ready status in lobby.
+        """
+        player = self.get_object()
+
+        # Verify player_secret matches
+        provided_secret = request.data.get("player_secret")
+        if not provided_secret or player.player_secret != hash_secret(provided_secret):
+            return Response(
+                {"error": "Invalid player_secret"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Toggle ready status
+        player.is_ready = not player.is_ready
+        player.save()
+
+        # Broadcast update to all players
+        if player.room:
+            broadcast_game_update(player.room)
+
+        return Response(
+            {
+                "player_id": str(player.id),
+                "is_ready": player.is_ready
+            },
+            status=status.HTTP_200_OK
+        )
+
+    @action(detail=True, methods=["post"])
+    def rotate_secret(self, request, pk=None, player_secret=None):
+        """Rotate the player's secret. Requires the current secret (guardrail #105).
+
+        Returns a fresh plaintext secret exactly once; the previous secret is
+        invalidated immediately (the model stores only the hash).
+        """
+        player = self.get_object()
+
+        provided_secret = request.data.get("player_secret")
+        if not provided_secret or player.player_secret != hash_secret(provided_secret):
+            return Response(
+                {"error": "Invalid player_secret"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        plain_secret = new_player_secret()
+        player.player_secret = plain_secret
+        player.save()  # model hashes before persisting
+
+        return Response(
+            {"player_id": str(player.id), "player_secret": plain_secret},
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=["post"])
+    def update_score(self, request, pk=None, player_secret=None):
+        """
+        Update player score (for future ELO implementation)
+        """
+        player = self.get_object()
+
+        score_delta = request.data.get('score_delta', 0)
+        if not isinstance(score_delta, (int, float)):
+            return Response(
+                {"error": "score_delta must be a number"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # For now, just return success - ELO implementation would go here
+        return Response(
+            {
+                "status": "Score update received",
+                "player": player.name,
+                "score_delta": score_delta
+            },
+            status=status.HTTP_200_OK
+        )
+
+    @action(detail=True, methods=["post"])
+    def toggle_connection(self, request, pk=None, player_secret=None):
+        """
+        Toggle player connection status
+        """
+        player = self.get_object()
+
+        # Toggle connection status
+        player.is_connected = not player.is_connected
+        player.save()
+
+        if player.room:
+            broadcast_game_update(player.room)
+
+        return Response(
+            {
+                "status": "Connection toggled",
+                "player": player.name,
+                "is_connected": player.is_connected
+            },
+            status=status.HTTP_200_OK
+        )
+
+    def perform_create(self, serializer):
+        """
+        Override to ensure room is set when creating players directly.
+        This handles the case where players are created via PlayerViewSet.create()
+        """
+        # Get room from request data
+        room_id = self.request.data.get("room_id")
+        if room_id:
+            from .models import Room
+            room = Room.objects.get(id=room_id)
+            # Provide room context to serializer (serializer.create() will handle room assignment)
+            serializer.context['room'] = room
+            serializer.save()
+        else:
+            raise serializers.ValidationError("room_id is required")
+
+    @action(detail=True, methods=["get"])
+    def genre_performance(self, request, pk=None):
+        """
+        Get genre performance stats for a player with FIFA-style grades.
+        Computes win rate per genre based on historical round data.
+        """
+        player = self.get_object()
+        serializer = GenrePerformanceSerializer(build_genre_performance(player), many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"])
+    def leave_game(self, request, pk=None, code=None):
+        """
+        Leave a game room.
+        """
+        player = self.get_object()
+        if not player.room:
+            player.delete()
+            return Response({"status": "Left"}, status=status.HTTP_200_OK)
+
+        room = player.room
+
+        if room.status == Room.Status.PLAYING and not player.is_spectator:
+            return Response(
+                {"error": "Cannot leave a game in progress"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        player.delete()
+
+        # If no players left, delete the room
+        if room.players.count() == 0:
+            room.delete()
+            return Response({"status": "Room deleted"}, status=status.HTTP_200_OK)
+
+        return Response({"status": "Left game"}, status=status.HTTP_200_OK)
+
+
+    @action(detail=True, methods=["post"])
+    def claim_bingo(self, request, pk=None, player_secret=None):
+        """Idempotent bingo claim for a player in their room.
+
+        A player may only claim bingo once per room. Duplicate claims from the
+        same player are rejected (HTTP 409) rather than double-counted. The
+        row-level uniqueness is enforced by BingoClaim.unique_together, so a
+        concurrent double-submit race can never create two claims.
+        """
+        player = self.get_object()
+        room = player.room
+        if not room:
+            return Response(
+                {"error": "Player is not in a room"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Detail lookup is by `player_secret`, so self.get_object() has already
+        # authenticated the caller against the requested player. No further
+        # credential check is needed (mirrors toggle_ready/leave_game actions).
+
+        try:
+            with transaction.atomic():
+                # Lock the existing claim row (if any) so two concurrent claims
+                # are serialized; the second sees the committed row and is 409'd.
+                existing = BingoClaim.objects.select_for_update().filter(
+                    room=room, player=player
+                ).first()
+                if existing:
+                    return Response(
+                        {
+                            "error": "Bingo already claimed for this room",
+                            "already_claimed": True,
+                        },
+                        status=status.HTTP_409_CONFLICT,
+                    )
+                claim = BingoClaim.objects.create(room=room, player=player)
+        except IntegrityError:
+            # Another concurrent transaction won the race and inserted first.
+            return Response(
+                {
+                    "error": "Bingo already claimed for this room",
+                    "already_claimed": True,
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        transaction.on_commit(lambda: broadcast_game_update(room))
+
+        return Response(
+            {
+                "status": "Bingo claimed",
+                "room_code": room.code,
+                "player_id": str(player.id),
+                "claimed_at": claim.claimed_at.isoformat(),
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class TileViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for managing game tiles.
+    """
+
+    queryset = Tile.objects.all()
+    serializer_class = TileSerializer
+    permission_classes = [AllowAny]
+    throttle_scope = "audio_upload"
+    # Security: disable generic write/delete routes. Tile state changes must
+    # go through the play_tile action which enforces ownership, round genre,
+    # and file validation. See security finding tile_crud_open.
+    http_method_names = ["get", "post", "head", "options"]
+
+    def list(self, request, *args, **kwargs):
+        # Security: do not expose a global listing of every uploaded tile /
+        # audio file across all rooms. Tiles are read via room/game_state.
+        # See security finding global_list_exposure.
+        return Response(
+            {"error": "Listing all tiles is not permitted."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    def get_throttles(self):
+        throttles = super().get_throttles()
+        if self.action == "play_tile":
+            throttles.append(ScopedRateThrottle())
+        return throttles
+
+    @action(detail=True, methods=["post"])
+    def play_tile(self, request, pk=None, code=None):
+        """
+        Play a tile in the game.
+        """
+        tile = self.get_object()
+        room = tile.room
+
+        if room.status != Room.Status.PLAYING:
+            return Response(
+                {"error": "Game is not in progress"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if tile.status != Tile.Status.EMPTY:
+            return Response(
+                {"error": "Tile has already been played"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        player_id = request.data.get("player_id")
+        try:
+            player = Player.objects.get(id=player_id, room=room, is_spectator=False)
+        except Player.DoesNotExist:
+            return Response(
+                {"error": "Invalid player"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if tile.player_id != player.id:
+            return Response(
+                {"error": "This tile does not belong to the player"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        current_round = Round.objects.filter(
+            room=room,
+            round_number=room.current_round,
+        ).first()
+        if current_round:
+            if normalize_genre(tile.genre) != normalize_genre(current_round.current_tile_genre):
+                return Response(
+                    {"error": f"Tile genre '{tile.genre}' does not match current round genre '{current_round.current_tile_genre}'"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        ALLOWED_AUDIO_MIME_TYPES = {
+            "audio/mpeg",
+            "audio/wav",
+            "audio/x-wav",
+            "audio/ogg",
+        }
+        audio_file = request.FILES.get("audio_file")
+        if not audio_file:
+            return Response(
+                {"error": "No audio file provided."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if audio_file:
+            if audio_file.size > settings.MAX_UPLOAD_SIZE:
+                return Response(
+                    {"error": f"File too large. Maximum size is {settings.MAX_UPLOAD_SIZE // (1024 * 1024)}MB."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if audio_file.content_type not in ALLOWED_AUDIO_MIME_TYPES:
+                return Response(
+                    {"error": f"Invalid file type '{audio_file.content_type}'. Allowed types: mp3, wav, ogg."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        with transaction.atomic():
+            # Lock the tile row so two concurrent claims on the same tile are
+            # serialized: the second transaction waits for the lock, then sees
+            # the COMMITTED status and is rejected instead of overwriting.
+            tile = Tile.objects.select_for_update().get(pk=tile.pk)
+            if tile.status != Tile.Status.EMPTY:
+                return Response(
+                    {"error": "Tile has already been played"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            tile.status = Tile.Status.COMPLETE
+            if audio_file:
+                tile.audio_file = audio_file
+            tile.save()
+
+            # Check for bingo lines and resolve winner (both casual and ranked).
+            # Casual matches finish on a bingo line too; the frontend renders the
+            # winner announcement for either match type (Room.tsx:722).
+            _resolve_bingo_and_winner(room, player)
+
+            transaction.on_commit(lambda: broadcast_game_update(room))
+
+        # Return updated game state
+        game_serializer = GameStateSerializer(room)
+        return Response(game_serializer.data, status=status.HTTP_200_OK)
+
+
+# Discord OAuth2 Endpoints
+@api_view(["GET"])
+def discord_auth(request):
+    """
+    Initiate Discord OAuth2 flow.
+    Returns the authorization URL for the frontend to redirect to.
+    """
+    import secrets
+    from django.core.cache import cache
+
+    # Generate a state parameter for CSRF protection
+    state = secrets.token_urlsafe(32)
+
+    # Store state in cache for validation during callback
+    cache.set(f"discord_oauth_state_{state}", True, timeout=600)  # 10 minutes
+
+    discord_service = DiscordOAuthService()
+    auth_url = discord_service.get_authorization_url(state)
 
     return Response(
-        {
-            "status": "Audio uploaded successfully",
-            "tile_id": str(tile.id),
-            "file_size": audio_file.size,
-            "filename": audio_file.name,
-        },
+        {"authorization_url": auth_url, "state": state},
         status=status.HTTP_200_OK,
     )
+
+
+@api_view(["GET"])
+def discord_callback(request):
+    """
+    Handle Discord OAuth2 callback.
+    Exchanges the authorization code for tokens and retrieves user info.
+    """
+    code = request.GET.get("code")
+    state = request.GET.get("state")
+
+    if not code or not state:
+        return Response(
+            {"error": "Missing code or state parameter"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Validate state parameter
+    from django.core.cache import cache
+    if not cache.get(f"discord_oauth_state_{state}"):
+        return Response(
+            {"error": "Invalid or expired state parameter"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Clear the state from cache
+    cache.delete(f"discord_oauth_state_{state}")
+
+    try:
+        discord_service = DiscordOAuthService()
+
+        # Exchange code for tokens
+        token_data = discord_service.exchange_code_for_token(code)
+
+        # Get user info from Discord
+        user_info = discord_service.get_user_info(token_data["access_token"])
+
+        return Response(
+            {
+                "discord_user_id": user_info["id"],
+                "discord_username": user_info["username"],
+                "discriminator": user_info.get("discriminator", ""),
+                "avatar": user_info.get("avatar"),
+                "access_token": token_data["access_token"],
+                "refresh_token": token_data.get("refresh_token"),
+                "expires_in": token_data.get("expires_in", 3600),
+            },
+            status=status.HTTP_200_OK,
+        )
+    except Exception as e:
+        logger.error(f"Discord OAuth callback error: {e}", exc_info=True)
+        return Response(
+            {"error": "Failed to complete OAuth flow"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def discord_link_account(request):
+    """
+    Link Discord account to a Sound Royale player.
+    """
+    player_id = request.data.get("player_id")
+    player_secret = request.data.get("player_secret")
+    discord_user_id = request.data.get("discord_user_id")
+    discord_username = request.data.get("discord_username")
+    discord_avatar_url = request.data.get("discord_avatar_url")
+    access_token = request.data.get("access_token")
+    refresh_token = request.data.get("refresh_token")
+    expires_in = request.data.get("expires_in", 3600)
+
+    if not all([player_id, player_secret, discord_user_id, access_token]):
+        return Response(
+            {"error": "Missing required fields"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Find existing player or create one on-the-fly for Discord linking
+    player = Player.objects.filter(id=player_id, player_secret=hash_secret(player_secret)).first()
+    if not player:
+        try:
+            player = Player.objects.create(
+                id=player_id,
+                player_secret=player_secret,
+                name=discord_username or "Discord User",
+                room=None,
+            )
+        except IntegrityError:
+            return Response(
+                {"error": "Player ID exists with different credentials"},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+    try:
+        discord_service = DiscordOAuthService()
+
+        # Generate Discord avatar URL if avatar hash provided
+        avatar_url = None
+        if discord_avatar_url:
+            avatar_url = f"https://cdn.discordapp.com/avatars/{discord_user_id}/{discord_avatar_url}.png"
+
+        # Link the Discord account
+        discord_account = discord_service.link_discord_account(
+            player=player,
+            discord_user_id=discord_user_id,
+            discord_username=discord_username,
+            discord_avatar_url=avatar_url,
+            access_token=access_token,
+            refresh_token=refresh_token,
+            expires_in=expires_in,
+        )
+
+        return Response(
+            {
+                "status": "Discord account linked successfully",
+                "discord_user_id": discord_account.discord_user_id,
+                "discord_username": discord_account.discord_username,
+                "discord_avatar_url": discord_account.discord_avatar_url,
+                "discord_session_secret": str(discord_account.session_secret),
+                "linked_at": discord_account.linked_at,
+            },
+            status=status.HTTP_200_OK,
+        )
+    except Exception as e:
+        logger.error(f"Discord account linking error: {e}", exc_info=True)
+        return Response(
+            {"error": "Failed to link Discord account"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+
+@api_view(["POST"])
+def discord_unlink_account(request):
+    """
+    Unlink Discord account from a Sound Royale player.
+    """
+    player_id = request.data.get("player_id")
+    player_secret = request.data.get("player_secret")
+
+    if not player_id or not player_secret:
+        return Response(
+            {"error": "player_id and player_secret are required"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        # Verify player credentials
+        player = Player.objects.get(id=player_id, player_secret=hash_secret(player_secret))
+    except Player.DoesNotExist:
+        return Response(
+            {"error": "Invalid player credentials"},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    try:
+        discord_service = DiscordOAuthService()
+        success = discord_service.unlink_discord_account(player)
+
+        if success:
+            return Response(
+                {"status": "Discord account unlinked successfully"},
+                status=status.HTTP_200_OK,
+            )
+        else:
+            return Response(
+                {"error": "No Discord account linked to this player"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+    except Exception as e:
+        logger.error(f"Discord account unlinking error: {e}", exc_info=True)
+        return Response(
+            {"error": "Failed to unlink Discord account"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def discord_account_status(request):
+    """
+    Get Discord account linking status for a player.
+
+    Security: credentials are read from the POST body (or X-Player-Id /
+    X-Player-Secret headers) so they never appear in URL query strings,
+    server access logs, or browser history. See finding secret_in_query_string.
+    """
+    data = request.data if isinstance(request.data, dict) else {}
+    player_id = (
+        request.headers.get("X-Player-Id")
+        or data.get("player_id")
+    )
+    player_secret = (
+        request.headers.get("X-Player-Secret")
+        or data.get("player_secret")
+    )
+    discord_user_id = data.get("discord_user_id")
+    discord_session_secret = data.get("discord_session_secret")
+
+    discord_account = None
+    if discord_user_id or discord_session_secret:
+        discord_account, error_response = get_discord_account_from_session(
+            {
+                "discord_user_id": discord_user_id,
+                "discord_session_secret": discord_session_secret,
+            }
+        )
+        if error_response is not None:
+            return error_response
+    else:
+        if not player_id or not player_secret:
+            return Response(
+                {"error": "player_id and player_secret are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            player = Player.objects.get(id=player_id, player_secret=hash_secret(player_secret))
+        except Player.DoesNotExist:
+            return Response(
+                {"is_linked": False},
+                status=status.HTTP_200_OK,
+            )
+
+        discord_service = DiscordOAuthService()
+        discord_account = discord_service.get_discord_account(player)
+
+    try:
+        if discord_account:
+            return Response(
+                {
+                    "is_linked": True,
+                    "discord_user_id": discord_account.discord_user_id,
+                    "discord_username": discord_account.discord_username,
+                    "discord_avatar_url": discord_account.discord_avatar_url,
+                    "discord_session_secret": str(discord_account.session_secret),
+                    "linked_at": discord_account.linked_at,
+                    "last_sync_at": discord_account.last_sync_at,
+                    "privacy_settings": discord_account.privacy_settings,
+                },
+                status=status.HTTP_200_OK,
+            )
+        else:
+            return Response(
+                {"is_linked": False},
+                status=status.HTTP_200_OK,
+            )
+    except Exception as e:
+        logger.error(f"Discord account status check error: {e}", exc_info=True)
+        return Response(
+            {"error": "Failed to check Discord account status"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+ERROR_LOG_PATH = os.path.join(os.path.dirname(__file__), "error_log.jsonl")
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def log_client_error(request):
+    """Accept error reports from the frontend and append to a JSONL file."""
+    try:
+        entry = {
+            "timestamp": timezone.now().isoformat(),
+            "path": request.data.get("path", ""),
+            "method": request.data.get("method", ""),
+            "status": request.data.get("status", 0),
+            "message": request.data.get("message", ""),
+            "stack": request.data.get("stack", ""),
+            "component_stack": request.data.get("componentStack", ""),
+            "user_agent": request.META.get("HTTP_USER_AGENT", ""),
+        }
+        with open(ERROR_LOG_PATH, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+        return Response({"ok": True}, status=status.HTTP_201_CREATED)
+    except Exception as e:
+        logger.error(f"Failed to log client error: {e}")
+        return Response({"error": "Failed to log error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
