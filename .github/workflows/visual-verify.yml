@@ -24,7 +24,12 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install PixelRAG (pixelshot)
-        run: pipx install pixelrag
+        run: |
+          pipx install pixelrag
+          # assert.mjs shells out to the system python3 with PIL (Pillow) to
+          # compute image stats. pixelrag's pipx venv does NOT expose PIL to the
+          # system interpreter, so install it explicitly.
+          python3 -m pip install --user Pillow
 
       - name: Install Playwright Chromium (pixelshot playwright backend)
         run: npx playwright install --with-deps chromium
