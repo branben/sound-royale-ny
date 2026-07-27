@@ -1,0 +1,7 @@
+{
+  "bead": "sound-royale-ny-churn-5",
+  "issue": 342,
+  "task": "extract round bounds",
+  "files_changed": ["src/types/game.ts", "src/components/game/MultiRoundConfig.tsx"],
+  "verification": { "tsc": "pass", "gaia_gate": "ALL GATES PASSED" }
+}

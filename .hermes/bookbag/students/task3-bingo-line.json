@@ -1,0 +1,13 @@
+{
+  "bead": "sound-royale-ny-churn-3",
+  "issue": 340,
+  "task": "extract BINGO_LINE_COUNT",
+  "files_changed": [
+    "backend/game_engine/models.py",
+    "backend/game_engine/views.py",
+    "src/types/game.ts",
+    "src/components/game/BingoBoard.tsx"
+  ],
+  "verification": { "tsc": "pass", "gaia_gate": "ALL GATES PASSED" },
+  "notes": "The literal 5 at views.py:406 (len(current_player_tiles) >= 5) and BingoBoard.tsx:58 (completedCount >= 5) represents a MINIMUM COMPLETED TILES THRESHOLD — not a count of winning lines. On the 3×3 board (9 positions), check_bingo_lines() detects any completed line of 3 positions, but the >= 5 guard is a deliberate design gate before bingo resolution runs. The serializers call check_bingo_lines without this guard, confirming the guard is a game-flow optimization/design choice, not a technical necessity. Named BINGO_LINE_COUNT per the brief's convention despite the nuance, with an explanatory comment."
+}

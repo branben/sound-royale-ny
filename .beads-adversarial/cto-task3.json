@@ -1,0 +1,7 @@
+{
+  "bead": "sound-royale-ny-churn-3",
+  "lens": "cto",
+  "verdict": "REWORK",
+  "evidence": "backend/game_engine/models.py:73, src/types/game.ts:13, backend/game_engine/views.py:406, src/components/game/BingoBoard.tsx:58",
+  "notes": "The extraction of the magic number 5 into a named constant is structurally correct, and the constant is consistently applied at both usage sites (views.py:406 and BingoBoard.tsx:58) with a cross-file sync comment. However, the name BINGO_LINE_COUNT is semantically wrong — it is not a count of winning bingo lines. The value 5 is a minimum completed-tiles threshold that gates whether bingo line detection is attempted (on a 3×3 board, where 3 tiles could complete one line). The Student's own docstring acknowledges this ('not a literal count of winning lines'), yet the chosen name directly contradicts the semantics. A future developer reading BINGO_LINE_COUNT = 5 then seeing if len(tiles) >= BINGO_LINE_COUNT would be confused. Recommended rename: MIN_TILES_FOR_BINGO_RESOLUTION, which accurately describes the gate/threshold behavior at both the backend check and frontend shudder animation sites."
+}

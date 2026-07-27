@@ -1,0 +1,7 @@
+{
+  "bead": "sound-royale-ny-churn-4",
+  "issue": 341,
+  "task": "extract sweep constants",
+  "files_changed": ["backend/game_engine/models.py", "backend/game_engine/views.py"],
+  "verification": { "tsc": "pass", "gaia_gate": "ALL GATES PASSED" }
+}

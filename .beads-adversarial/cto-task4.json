@@ -1,0 +1,7 @@
+{
+  "bead": "sound-royale-ny-churn-4",
+  "lens": "cto",
+  "verdict": "APPROVED",
+  "evidence": "backend/game_engine/models.py:75-78, backend/game_engine/views.py:329, backend/game_engine/views.py:1268",
+  "notes": "Clean constant extraction: SWEEP_ROUNDS=3 replaces magic literal 3 at views.py:329 (originally `== 3`, now `== Room.SWEEP_ROUNDS`). SWEEP_VOTE_MARGIN=1 replaces magic literal 1 at views.py:1268 (originally `== 1`, now `== Room.SWEEP_VOTE_MARGIN`). Pure constant substitution — same ints, no logic altered. No behavioral change."
+}
