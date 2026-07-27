@@ -2414,7 +2414,7 @@ def upload_audio(request, tile_id):
             "player_id": str(player.id),
             "player_name": player.name,
             "room_code": tile.room.code,
-            "filename": audio_file.name,
+            "audio_filename": audio_file.name,
             "file_size": audio_file.size,
             "content_type": audio_file.content_type,
             "timestamp": timezone.now().isoformat(),
