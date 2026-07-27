@@ -117,14 +117,15 @@ class TransactionSafetyTestCase(TestCase):
                 response = viewset.reset_game(request)
         
         # IntegrityError is caught and re-raised as ValueError inside the view,
-        # which is then caught by the outer except ValueError block → 400
+        # which is then caught by the outer except ValueError block → 400.
+        # The client receives a generic message (internal detail is logged, not leaked).
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("Failed to create tile", response.data['error'])
-        
+        self.assertIn("Invalid game state for reset", response.data['error'])
+
         # Verify rollback occurred - original tiles should still exist
         remaining_tiles = Tile.objects.filter(player__room=self.room).count()
         self.assertEqual(remaining_tiles, 1)  # Original tile should still be there
-        
+
         # Verify room state was not updated
         self.room.refresh_from_db()
         self.assertEqual(self.room.current_round, 1)  # Should not have been incremented
