@@ -1,0 +1,18 @@
+{
+  "bead": "sound-royale-ny-churn-1",
+  "issue": 338,
+  "task": "extract MIN_PRODUCERS_TO_PLAY",
+  "files_changed": [
+    "backend/game_engine/models.py",
+    "backend/game_engine/views.py",
+    "src/types/game.ts",
+    "src/components/lobby/LobbyWaitingRoom.tsx",
+    "src/components/game/RoomBrowser.tsx"
+  ],
+  "verification": {
+    "tsc": "pass",
+    "eslint": "pass",
+    "gaia_gate": "ALL GATES PASSED"
+  },
+  "summary": "extracted MIN_PRODUCERS_TO_PLAY=2 constant, replaced 5 inline sites"
+}

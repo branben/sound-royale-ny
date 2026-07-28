@@ -1,0 +1,7 @@
+{
+  "bead": "sound-royale-ny-churn-4",
+  "lens": "coo",
+  "verdict": "APPROVED",
+  "evidence": "git diff --stat shows 2 files changed (backend/game_engine/models.py +5, backend/game_engine/views.py +4/-2). models.py adds SWEEP_ROUNDS=3 and SWEEP_VOTE_MARGIN=1 class constants on Room; views.py replaces magic numbers len(resolved_rounds)==3 with Room.SWEEP_ROUNDS and vote_margin==1 with Room.SWEEP_VOTE_MARGIN. No other files touched. Maps to issue #341. Bookbag confirms tsc pass and gaia gate ALL GATES PASSED.",
+  "notes": "PR-ready. Isolated single-concern refactor — extracts two named constants into the Room model and consumes them in the two views.py locations that previously held the magic values. No scope bleed, no logic changes, no formatting or unrelated modifications. The diff is 7 insertions/2 deletions across exactly the two files in scope. Clear, minimal, and correct."
+}

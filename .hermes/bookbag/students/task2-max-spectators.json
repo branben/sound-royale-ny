@@ -1,0 +1,7 @@
+{
+  "bead": "sound-royale-ny-churn-2",
+  "issue": 339,
+  "task": "extract MAX_SPECTATORS",
+  "files_changed": ["backend/game_engine/models.py", "backend/game_engine/views.py"],
+  "verification": { "tsc": "pass", "gaia_gate": "ALL GATES PASSED" }
+}

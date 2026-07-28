@@ -1,0 +1,7 @@
+{
+  "bead": "sound-royale-ny-churn-2",
+  "lens": "coo",
+  "verdict": "APPROVED",
+  "evidence": "2 files changed: backend/game_engine/models.py (+3) and backend/game_engine/views.py (2 insertions, 2 deletions). No scope bleed — only models.py and views.py touched. Maps to issue #339 (extract MAX_SPECTATORS=10 constant). Bookbag verification matches git diff.",
+  "notes": "PR-ready. The refactor is a clean, single-concern extraction: MAX_SPECTATORS = 10 was added in models.py alongside the existing MIN_PRODUCERS_TO_PLAY constant (good placement), and both hardcoded occurrences of 10 in views.py (the numeric guard and the error-message string) were replaced with Room.MAX_SPECTATORS, including updating the error message to an f-string for dynamic display. No scope bleed, no incidental changes, no leftover magic numbers — exactly what issue #339 asked for."
+}

@@ -4,7 +4,6 @@ import asyncio
 from uuid import UUID
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
-from django.db import transaction
 from .models import Room, Player
 from .serializers import GameStateSerializer
 from .auth import _resolve_player, _resolve_player_from_token

@@ -1,0 +1,10 @@
+{
+  "bead": "sound-royale-ny-churn-6",
+  "issue": 343,
+  "task": "add voting-UI vitest coverage",
+  "files_changed": [
+    "src/components/game/__tests__/VotingPanel.test.tsx",
+    "src/components/game/__tests__/RoundStage.test.tsx"
+  ],
+  "verification": { "vitest": "pass", "tsc": "pass", "gaia_gate": "ALL GATES PASSED" }
+}

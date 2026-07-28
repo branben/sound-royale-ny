@@ -10,7 +10,6 @@ The path under test is the REAL completion endpoint the frontend uses:
 `tile.status = COMPLETE` and calls `_resolve_bingo_and_winner`, which
 declares a winner on the first 3-in-a-row.
 """
-from io import BytesIO
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase

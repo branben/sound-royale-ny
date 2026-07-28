@@ -22,7 +22,6 @@ import threading
 
 from django.test import TransactionTestCase, override_settings
 
-from channels.layers import InMemoryChannelLayer
 from channels.routing import ProtocolTypeRouter, URLRouter
 from game_engine.auth import WebSocketPlayerAuthMiddlewareStack
 from game_engine.models import Room
@@ -54,7 +53,7 @@ DATABASES = {
 
 def _free_port():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind(("", 0))
+    s.bind(("127.0.0.1", 0))
     port = s.getsockname()[1]
     s.close()
     return port

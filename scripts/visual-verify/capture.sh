@@ -50,12 +50,54 @@ echo "==> pixelshot: $PIXELSHOT"
 echo "==> run dir: $RUN_DIR"
 
 if ! curl -s -m 3 "$CDP_URL/json/version" >/dev/null; then
-  echo "ERROR: Chrome CDP not reachable at $CDP_URL." >&2
-  echo "Launch: /Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome --headless=new --remote-debugging-port=9222 --no-sandbox --disable-gpu --user-data-dir=/tmp/chrome-px" >&2
-  exit 1
+  # Auto-launch a headless Chromium with CDP if one isn't already running.
+  # On CI this uses Playwright's bundled Chromium (installed via
+  # `npx playwright install chromium`); locally it falls back to a system
+  # google-chrome / chromium if present. macOS /Applications path is NOT
+  # portable to the Linux runner, so resolve the binary dynamically.
+  CHROME_BIN=""
+  if command -v google-chrome >/dev/null 2>&1; then
+    CHROME_BIN="$(command -v google-chrome)"
+  elif command -v chromium >/dev/null 2>&1; then
+    CHROME_BIN="$(command -v chromium)"
+  elif command -v chromium-browser >/dev/null 2>&1; then
+    CHROME_BIN="$(command -v chromium-browser)"
+  else
+    # Resolve Playwright's bundled Chromium executable path. Use `pnpm exec`
+    # so pnpm's symlinked node_modules resolve the module from the repo root,
+    # falling back to a plain node invocation for non-pnpm setups.
+    CHROME_BIN="$(pnpm exec node -e "try{console.log(require('playwright').chromium.executablePath())}catch(e){try{console.log(require('playwright-core').chromium.executablePath())}catch(e2){process.exit(1)}}" 2>/dev/null || true)"
+    if [ -z "$CHROME_BIN" ]; then
+      CHROME_BIN="$(node -e "try{console.log(require('playwright').chromium.executablePath())}catch(e){try{console.log(require('playwright-core').chromium.executablePath())}catch(e2){process.exit(1)}}" 2>/dev/null || true)"
+    fi
+  fi
+
+  if [ -z "$CHROME_BIN" ] || [ ! -x "$CHROME_BIN" ]; then
+    echo "ERROR: no Chrome/Chromium found to launch CDP. Installed Playwright chromium? (npx playwright install chromium)" >&2
+    exit 1
+  fi
+
+  echo "==> launching Chromium (CDP) via: $CHROME_BIN"
+  "$CHROME_BIN" --headless=new --remote-debugging-port=9222 --no-sandbox --disable-gpu --user-data-dir=/tmp/chrome-px >/tmp/chrome-px.log 2>&1 &
+  CHROME_PID=$!
+  # Wait for CDP to come up (max 20s).
+  for i in $(seq 1 20); do
+    if curl -s -m 3 "$CDP_URL/json/version" >/dev/null; then
+      echo "==> Chromium CDP ready on $CDP_URL (pid $CHROME_PID)"
+      break
+    fi
+    sleep 1
+  done
+  if ! curl -s -m 3 "$CDP_URL/json/version" >/dev/null; then
+    echo "ERROR: Chrome CDP not reachable at $CDP_URL after launch." >&2
+    echo "Chrome log:" >&2; tail -5 /tmp/chrome-px.log >&2
+    kill "$CHROME_PID" 2>/dev/null || true
+    exit 1
+  fi
 fi
 if ! curl -s -m 4 "$BASE_URL/" -o /dev/null; then
   echo "ERROR: Dev server not reachable at $BASE_URL. Start: pnpm exec vite --port 8081" >&2
+  [ -n "${CHROME_PID:-}" ] && kill "$CHROME_PID" 2>/dev/null || true
   exit 1
 fi
 

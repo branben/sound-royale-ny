@@ -14,18 +14,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
-
-      - uses: pnpm/action-setup@v4
 
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile
 
       - name: Install PixelRAG (pixelshot)
-        run: pipx install pixelrag
+        run: |
+          pipx install pixelrag
+          # assert.mjs shells out to the system python3 with PIL (Pillow) to
+          # compute image stats. pixelrag's pipx venv does NOT expose PIL to the
+          # system interpreter, so install it explicitly.
+          python3 -m pip install --user Pillow
 
       - name: Install Playwright Chromium (pixelshot playwright backend)
         run: npx playwright install --with-deps chromium
@@ -57,12 +61,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
-
-      - uses: pnpm/action-setup@v4
 
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile

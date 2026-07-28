@@ -14,6 +14,8 @@ coverage for the WS auth -> broadcast path, which previously had zero tests.
 """
 from django.test import TestCase, override_settings
 
+import logging
+
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.testing import WebsocketCommunicator
 
@@ -125,8 +127,10 @@ class WebSocketAuthBroadcastTestCase(TestCase):
                     break
                 if resp.get("type") != "websocket.send":
                     continue
-        except Exception:
-            pass
+        except Exception as exc:
+            # Best-effort frame collection: stop if the socket closes or times out
+            # before we see the close frame; the assertion below verifies rejection.
+            logging.debug("ws auth broadcast frame collection stopped: %s", exc)
 
         self.assertIsNotNone(close_frame, "Invalid-secret auth must close the socket")
         self.assertEqual(
