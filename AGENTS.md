@@ -92,26 +92,26 @@ sound-royale-ny/
 These are living rules tied to open GitHub issues. Remove each section when its issue closes.
 Serena memories at `guardrails/` contain the canonical version with full context.
 
-### WebSocket Reconnect (issue #101)
+### WebSocket Reconnect (issue #101) — CLOSED
 - MUST re-fetch full game state on WebSocket reconnect via `roomApi.getRoom(roomCode)`
 - MUST NOT rely solely on incremental `game_state_update` events after reconnect
 - MUST display a "Reconnecting…" banner during the reconnection window
 - MUST replace (not merge) game state after reconnect
 
-### Error Handling (issue #102)
+### Error Handling (issue #102) — OPEN (active)
 - MUST NOT use empty catch blocks (`} catch {}`, `catch (e) {}` with no body)
 - MUST NOT use bare except in Python (`except: pass`, `except Exception: pass`)
 - MUST log AND surface all errors to the user (toast, banner, or error state)
 - MUST NOT use `console.error()` as the only error handling — invisible to users
 - Backend: MUST NOT swallow DB exceptions in consumers
 
-### Database Transactions (issue #103)
+### Database Transactions (issue #103) — CLOSED
 - MUST use `@transaction.atomic` on all state-mutating endpoints
 - MUST use `select_for_update()` on contested rows (tiles, votes, host)
 - MUST wrap room creation (Room + Player) in a single atomic transaction
 - MUST make bingo claim endpoint idempotent
 
-### Audio Upload (issue #104)
+### Audio Upload (issue #104) — CLOSED
 - MUST show upload progress indicator (0-100%)
 - MUST validate file size client-side BEFORE upload (max 10MB)
 - MUST restrict to MP3, WAV, OGG formats only

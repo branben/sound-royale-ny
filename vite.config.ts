@@ -1,36 +1,35 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react-swc";
-import path from "path";
-import { componentTagger } from "lovable-tagger";
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react-swc';
+import path from 'path';
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
-    host: "::",
+    host: '::',
     port: 8081,
   },
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  plugins: [react()],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      '@': path.resolve(__dirname, './src'),
     },
   },
   build: {
-    target: "ES2020",
+    target: 'ES2020',
     rollupOptions: {
       output: {
         manualChunks: {
-          "vendor-react": ["react", "react-dom", "react-router-dom"],
-          "vendor-query": ["@tanstack/react-query"],
-          "vendor-ui": [
-            "@radix-ui/react-dialog",
-            "@radix-ui/react-toast",
-            "@radix-ui/react-tooltip",
-            "@radix-ui/react-slot",
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-query': ['@tanstack/react-query'],
+          'vendor-ui': [
+            '@radix-ui/react-dialog',
+            '@radix-ui/react-toast',
+            '@radix-ui/react-tooltip',
+            '@radix-ui/react-slot',
           ],
-          "vendor-motion": ["framer-motion"],
-          "vendor-charts": ["recharts"],
-          "vendor-icons": ["lucide-react"],
+          'vendor-motion': ['framer-motion'],
+          'vendor-charts': ['recharts'],
+          'vendor-icons': ['lucide-react'],
         },
       },
     },
