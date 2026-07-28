@@ -4,25 +4,26 @@
 // cannot see — text, CTAs, live numbers, auth-state rendering.
 //
 // Routes use the repo's existing mock helpers (no Django/Redis
-// backend needed in CI). Auth-gated room route uses
-// setupPlayerSession + mockApiRoutes + mockWebSocketConnection.
+// backend needed in CI). /leaderboard is mocked via mockApiRoutes.
 //
-// First run: write baselines via --update-snapshots, then commit
-// the <spec>.spec.ts-snapshots/ directory (golden set).
+// Baseline note: the auth-gated /room route is intentionally excluded.
+// Its room code renders in the design-system monospace stack
+// ('SF Mono' on macOS, a different fallback on ubuntu-latest), so a
+// macOS-generated baseline can never match the CI runner's rasterization.
+// Snapshot baselines must be generated on the SAME OS as CI (ubuntu),
+// which requires a Linux baseline-generation step. The room's
+// auth-gated logic stays covered by the mock-driven e2e specs
+// (rejoin-recovery, live-websocket, etc.) — only pixel coverage is
+// deferred. First run (after adding a route): regenerate via
+// --update-snapshots, then commit the <spec>.spec.ts-snapshots/ set.
 
 import { test, expect, Page } from '@playwright/test';
-import {
-  enableE2EMode,
-  setupPlayerSession,
-  mockApiRoutes,
-  mockWebSocketConnection,
-} from './helpers';
+import { enableE2EMode, mockApiRoutes } from './helpers';
 
 type RouteDef = {
   path: string;
   name: string;
   waitText: string;
-  seeded?: boolean;
   mocked?: boolean;
 };
 
@@ -38,55 +39,7 @@ const routes: RouteDef[] = [
     waitText: 'Leaderboard',
     mocked: true,
   },
-  {
-    path: '/room/visual-regression-room',
-    name: 'room',
-    waitText: 'Battle Room',
-    seeded: true,
-  },
 ];
-
-async function setupRoomRoute(page: Page) {
-  await enableE2EMode(page);
-  await setupPlayerSession(page, {
-    playerName: 'Bot',
-    playerId: 'p1',
-    playerSecret: 's',
-    roomCode: 'visual-regression-room',
-  });
-  await mockWebSocketConnection(page);
-  await mockApiRoutes(page, {
-    roomResponse: {
-      code: 'visual-regression-room',
-      status: 'lobby',
-      current_round: 0,
-      players: [],
-      board: [],
-      theme_category: 'Any',
-      round_revealed: false,
-    },
-    rejoin: {
-      player: {
-        id: 'p1',
-        name: 'Bot',
-        avatar: undefined,
-        board: { tiles: [] },
-        isConnected: true,
-        isSpectator: false,
-        isHost: false,
-        isReady: false,
-        eloRating: 0,
-        eloWins: 0,
-        eloLosses: 0,
-        eloMatches: 0,
-        isCheckedIn: false,
-        currentTitle: 'NONE',
-        scoreInfo: null,
-      },
-      playerSecret: 's',
-    },
-  });
-}
 
 async function setupLeaderboardRoute(page: Page) {
   await enableE2EMode(page);
@@ -105,10 +58,6 @@ test.describe('visual regression', () => {
 
   for (const r of routes) {
     test(`${r.name} visual snapshot`, async ({ page }) => {
-      if (r.seeded) {
-        await setupRoomRoute(page);
-      }
-
       if (r.mocked) {
         await setupLeaderboardRoute(page);
       }
