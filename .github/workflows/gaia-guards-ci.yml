@@ -270,6 +270,18 @@ jobs:
           fi
           echo "✓ No tracked .beads files"
 
+      - name: Check for tracked agent-runtime artifacts
+        run: |
+          # .beads-adversarial, .wrangler, .dev.vars, .entire are agent/runtime
+          # artifacts that must never be committed (HEALTHY_MAIN.md §4).
+          TRACKED_ARTIFACTS=$(git ls-files .beads-adversarial/ .wrangler/ .dev.vars .entire/ 2>/dev/null || true)
+          if [ -n "$TRACKED_ARTIFACTS" ]; then
+            echo "ERROR: Agent-runtime artifacts are tracked by git:"
+            echo "$TRACKED_ARTIFACTS"
+            exit 1
+          fi
+          echo "✓ No tracked agent-runtime artifacts"
+
       - name: Check for absolute file URLs
         run: |
           if git grep -n "file:///Users/" -- . \
