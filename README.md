@@ -30,11 +30,11 @@ pnpm run dev
 
 # Backend
 cd backend
-python -m venv venv
+python3.11 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-python manage.py migrate
-python manage.py runserver
+python3.11 manage.py migrate
+python3.11 -m daphne -b 0.0.0.0 -p 8000 sound_royale_api.asgi:application
 ```
 
 ## Testing
@@ -47,13 +47,19 @@ npx tsc --noEmit
 pnpm run test:e2e
 
 # Backend tests
-cd backend && python manage.py test game_engine
+cd backend && python3.11 manage.py test game_engine
 ```
 
 ## Production Deployment
 
+### Railway (backend) + Cloudflare Pages (frontend)
+- Backend: `railway.toml` — deploys to Railway with managed Postgres + Redis
+- Frontend: `wrangler.toml` — deploys to Cloudflare Pages as a static SPA
+  calling the Railway backend via CORS
+
+### Docker (full local stack)
 ```bash
-docker compose up --build
+docker compose -f docker-compose.prod.yml up --build
 ```
 
 See [docs/operations/CHANGELOG.md](docs/operations/CHANGELOG.md) for release history.
@@ -69,5 +75,3 @@ For detailed architecture decisions, see [docs/architecture/SYSTEM_DESIGN_CHOICE
 ## License
 
 MIT
-# auto-review test
-# test
