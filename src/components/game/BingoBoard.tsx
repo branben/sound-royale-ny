@@ -4,6 +4,7 @@ import { BoardData, MIN_TILES_FOR_BINGO_RESOLUTION } from '@/types/game';
 import { BingoTile } from './BingoTile';
 import { cn } from '@/lib/utils';
 import { DiscordVerifiedIcon } from './DiscordVerifiedIcon';
+import { variants, stagger } from '@/lib/motion';
 
 interface BingoBoardProps {
   playerId: string;
@@ -139,19 +140,25 @@ export const BingoBoard = memo(
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-1.5">
+        <motion.div
+          className="grid grid-cols-3 gap-1.5"
+          variants={stagger.container}
+          initial="hidden"
+          animate="visible"
+        >
           {boardData.tiles.map((tile, idx) => (
-            <BingoTile
-              key={tile.id}
-              tile={tile}
-              onClick={() => onTileClick?.(tile.id)}
-              isInteractive={isInteractive && (isTileInteractive?.(tile.id) ?? true)}
-              isActiveRoundTile={isTileInteractive?.(tile.id)}
-              playerColorIndex={playerColorIndex}
-              index={idx}
-            />
+            <motion.div key={tile.id} variants={variants.slideUp}>
+              <BingoTile
+                tile={tile}
+                onClick={() => onTileClick?.(tile.id)}
+                isInteractive={isInteractive && (isTileInteractive?.(tile.id) ?? true)}
+                isActiveRoundTile={isTileInteractive?.(tile.id)}
+                playerColorIndex={playerColorIndex}
+                index={idx}
+              />
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       </motion.div>
     );
   }),
