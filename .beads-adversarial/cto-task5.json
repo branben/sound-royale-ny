@@ -1,7 +1,0 @@
-{
-  "bead": "sound-royale-ny-churn-5",
-  "lens": "cto",
-  "verdict": "APPROVED",
-  "evidence": "src/types/game.ts:16-17, src/components/game/MultiRoundConfig.tsx:7,25",
-  "notes": "Extracted MIN_ROUNDS=1 and MAX_ROUNDS=10 as named constants in src/types/game.ts, imported and used in MultiRoundConfig.tsx. Pure constant substitution — old literals 1 and 10 replaced by identical-valued constants. No logic altered. All checks pass."
-}

@@ -1,7 +1,0 @@
-{
-  "bead": "sound-royale-ny-churn-5",
-  "lens": "coo",
-  "verdict": "APPROVED",
-  "evidence": "git diff --stat shows only src/types/game.ts (4 insertions) and src/components/game/MultiRoundConfig.tsx (3 insertions, 1 deletion) — no scope bleed. Bookbag files_changed matches exactly. Diff extracts MIN_ROUNDS=1 and MAX_ROUNDS=10 constants into game.ts alongside sibling bounds constants, then replaces inline magic numbers 1 and 10 in MultiRoundConfig.tsx with the named imports. Maps directly to issue #342. tsc and gaia_gate both pass.",
-  "notes": "Textbook single-concern refactor. Two-file change, zero scope bleed, zero collateral. The constants are placed in the correct existing home (src/types/game.ts) alongside sibling bounds constants with a fitting comment. The usage site in MultiRoundConfig.tsx is a direct 1:1 replacement of magic literals with named imports — no logic change, no formatting noise. This is merge-ready: type-safe, minimal, and precisely scoped to the issue."
-}

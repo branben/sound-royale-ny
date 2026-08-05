@@ -1,7 +1,0 @@
-{
-  "bead": "sound-royale-ny-churn-1",
-  "lens": "cto",
-  "verdict": "APPROVED",
-  "evidence": "models.py:65, game.ts:9, views.py:852,1264,1380, RoomBrowser.tsx:87/94/144 (after diff), LobbyWaitingRoom.tsx:108 (after diff, formerly 107). LobbyWaitingRoom.tsx:96 (formerly 95) left as-is. RoomBrowser.tsx:37 and Lobby.tsx:211 remain as `players.length < 2` (missed).",
-  "notes": "APPROVED — the core extraction is correct. MIN_PRODUCERS_TO_PLAY = 2 is declared with proper comments in both backend (models.py:65, mirroring MIN_SPECTATORS_FOR_RANKED style) and frontend (game.ts:9, as an export const). All 5 explicitly listed inline thresholds (views.py:852/1264/1380, RoomBrowser.tsx x3, LobbyWaitingRoom.tsx:108) correctly use the constant. The `players.length >= 1` on LobbyWaitingRoom.tsx:96 was correctly left unchanged (different threshold). Behavior is purely constant substitution — same integer 2, no logic alterations. Style is consistent with existing MIN_SPECTATORS_FOR_RANKED pattern in both files. Gaia gates passed. However, 2 remaining inline `< 2` producer thresholds exist in RoomBrowser.tsx:37 (`r.players.length < 2`) and Lobby.tsx:211 (`r.players.length < 2`) — these are capacity-check filters (`has room for more`) that should also use MIN_PRODUCERS_TO_PLAY for full consistency. Not a blocker since the listed check locations are all correct, but a minor missed opportunity."
-}
