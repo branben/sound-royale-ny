@@ -23,7 +23,7 @@ export const RoundIndicator: React.FC<RoundIndicatorProps> = ({
       data-testid="round-indicator"
       className={cn(
         'bg-background/60 border-primary/20',
-        isPreparing && 'animate-pulse border-primary/50',
+        isPreparing && 'border-primary/50',
         className,
       )}
     >
