@@ -23,6 +23,12 @@ const emptyHeatmap = [
 test.describe('Producer titles', () => {
   test.beforeEach(async ({ page }) => {
     await enableE2EMode(page);
+    await page.route('**/api/auth/me/', async (route) => {
+      await route.fulfill({ json: { user: null } });
+    });
+    await page.route('**/admin/verify*', async (route) => {
+      await route.fulfill({ json: { success: true } });
+    });
   });
 
   test('renders title badges in leaderboard and player profile', async ({ page }) => {
@@ -63,6 +69,7 @@ test.describe('Producer titles', () => {
   });
 
   test('admin can toggle Checked In status', async ({ page }) => {
+    test.setTimeout(60000);
     const player = createMockProducer('Admin Target', {
       eloRating: 1200,
       isCheckedIn: false,

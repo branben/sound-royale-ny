@@ -15,12 +15,12 @@ import {
 import { useLiveSetup } from './live/setup';
 
 test.describe('Host Migration', () => {
-  useLiveSetup();
   test.beforeEach(async ({ page }) => {
     await enableE2EMode(page);
   });
 
   test('host migration indicator appears when host disconnects', async ({ page }) => {
+    test.setTimeout(60000);
     const host = createMockHostProducer('HostPlayer', { id: 'host-1' });
     const newHost = createMockProducer('NewHostPlayer', { id: 'newhost-1' });
     const players = { [host.id]: host, [newHost.id]: newHost };

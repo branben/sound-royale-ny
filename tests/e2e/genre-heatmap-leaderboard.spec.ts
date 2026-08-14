@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { createMockPlayingState, createMockProducer, toRoomResponse } from './utils/game-fixtures';
 import { enableE2EMode, mockApiRoutes, setupPlayerSession } from './helpers';
-import { useLiveSetup } from './live/setup';
 
 const fullGenrePerformance = [
   { genre: 'ambient', wins: 0, total_rounds: 0, win_rate: 0, grade: 'N/A' as const },
@@ -16,7 +15,6 @@ const fullGenrePerformance = [
 ];
 
 test.describe('Genre heatmap leaderboard', () => {
-  useLiveSetup();
   test.beforeEach(async ({ page }) => {
     await enableE2EMode(page);
   });

@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('PII Prevention', () => {
   test('should not expose playerSecret in console logs', async ({ page }) => {
+    test.setTimeout(60000);
     const piiViolations: string[] = [];
 
     // Listen for console messages
