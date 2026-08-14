@@ -19,7 +19,7 @@ export class GameOrchestrator {
   }
 
   async setup(config: GameConfig): Promise<void> {
-    const hostConfig = config.players.find(p => p.role === 'host');
+    const hostConfig = config.players.find((p) => p.role === 'host');
     if (!hostConfig) {
       throw new Error('Must have a host player');
     }
@@ -65,7 +65,7 @@ export class GameOrchestrator {
   }
 
   async startGame(): Promise<void> {
-    const host = Array.from(this.players.values()).find(p => p.role === 'host');
+    const host = Array.from(this.players.values()).find((p) => p.role === 'host');
     if (!host) {
       throw new Error('No host found');
     }
@@ -75,7 +75,9 @@ export class GameOrchestrator {
   async playCasualRound(skipAdvanceTurn = false): Promise<boolean> {
     // Each producer plays an incomplete tile via API
     // (Backend doesn't validate genre matching)
-    const producers = Array.from(this.players.values()).filter(p => p.role === 'producer' || p.role === 'host');
+    const producers = Array.from(this.players.values()).filter(
+      (p) => p.role === 'producer' || p.role === 'host',
+    );
     for (const producer of producers) {
       try {
         await producer.playTile(this.audioFilePath);
@@ -97,7 +99,7 @@ export class GameOrchestrator {
 
     if (!skipAdvanceTurn) {
       // Host advances turn (may fail if game already finished)
-      const host = Array.from(this.players.values()).find(p => p.role === 'host');
+      const host = Array.from(this.players.values()).find((p) => p.role === 'host');
       if (!host) {
         throw new Error('No host found');
       }
@@ -128,15 +130,17 @@ export class GameOrchestrator {
     }
 
     // Host opens voting directly (bypasses 60s timer for test speed)
-    const host = Array.from(this.players.values()).find(p => p.role === 'host');
+    const host = Array.from(this.players.values()).find((p) => p.role === 'host');
     if (host) {
       await host.openVoting();
     }
 
     // Each spectator votes
-    const spectators = Array.from(this.players.values()).filter(p => p.role === 'spectator');
-    const producers = Array.from(this.players.values()).filter(p => p.role === 'producer' || p.role === 'host');
-    
+    const spectators = Array.from(this.players.values()).filter((p) => p.role === 'spectator');
+    const producers = Array.from(this.players.values()).filter(
+      (p) => p.role === 'producer' || p.role === 'host',
+    );
+
     if (producers.length > 0) {
       const winner = producers[0]; // Simplified - just vote for first producer
       for (const spectator of spectators) {
@@ -158,7 +162,9 @@ export class GameOrchestrator {
     }
 
     // Refresh board tiles to get updated status
-    const allProducers = Array.from(this.players.values()).filter(p => p.role === 'producer' || p.role === 'host');
+    const allProducers = Array.from(this.players.values()).filter(
+      (p) => p.role === 'producer' || p.role === 'host',
+    );
     for (const producer of allProducers) {
       await producer.loadBoardTiles();
     }
@@ -175,7 +181,7 @@ export class GameOrchestrator {
       if (state.roundState?.votingOpen) {
         return;
       }
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
     throw new Error('Timeout waiting for voting to open');
   }
@@ -189,7 +195,7 @@ export class GameOrchestrator {
       if (state.current_round > lastRoundNumber) {
         return;
       }
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
     throw new Error('Timeout waiting for new round');
   }
@@ -217,8 +223,20 @@ export class GameOrchestrator {
   }
 
   async cleanup(): Promise<void> {
+    // Leave the room via API to clean up DB state — prevents spectator leak
+    // across spec files that causes "Spectator limit reached" rejections.
+    const { leaveRoom } = await import('../helpers');
     for (const [name, player] of this.players) {
-      await player.page.close();
+      try {
+        if (player.playerSecret && player.roomCode && player.playerId) {
+          await leaveRoom(player.roomCode, player.playerId, player.playerSecret);
+        }
+      } catch {
+        // Ignore cleanup errors — the room may already be gone.
+      } finally {
+        await player.page.close();
+      }
     }
+    this.players.clear();
   }
 }

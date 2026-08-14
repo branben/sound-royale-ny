@@ -169,6 +169,18 @@ export async function toggleReady(roomCode: string, playerSecret: string, player
   );
 }
 
+export async function leaveRoom(roomCode: string, playerId: string, playerSecret: string) {
+  return withRetry(
+    () =>
+      axios
+        .post(`${getApiBaseUrl()}/players/${playerId}/leave_game/`, {
+          player_secret: playerSecret,
+        })
+        .then((r) => r.data),
+    `leaveRoom(${roomCode})`,
+  );
+}
+
 export async function pollGameState(
   roomCode: string,
   condition: (state: any) => boolean,
