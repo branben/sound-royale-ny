@@ -134,6 +134,8 @@ jobs:
     name: E2E Full Suite
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    env:
+      LINEAR_WEBHOOK_SECRET: 'ci-e2e-webhook-secret'
     services:
       postgres:
         image: postgres:16-alpine

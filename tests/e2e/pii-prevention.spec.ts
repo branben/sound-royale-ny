@@ -22,7 +22,9 @@ test.describe('PII Prevention', () => {
     await page.goto('/');
 
     // Wait for the initial lobby shell so startup logs have already fired.
-    await page.getByTestId('lobby').getByText('SOUND ROYALE').waitFor();
+    // Use .first() to avoid strict-mode violation when multiple lobby testids
+    // exist across views.
+    await page.getByTestId('lobby').first().getByText('SOUND ROYALE').first().waitFor();
     await expect(page.getByText('Enter a room code to join the battle')).toBeVisible();
 
     // Verify no PII was logged
