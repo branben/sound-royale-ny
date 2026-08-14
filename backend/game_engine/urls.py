@@ -17,6 +17,7 @@ from .views import (
 )
 from .health import HealthCheckView
 from .webhooks import LinearWebhookView
+from .test_cleanup import TestCleanupView
 
 router = DefaultRouter()
 router.register(r'rooms', RoomViewSet)
@@ -45,6 +46,7 @@ urlpatterns = [
     ),
     path('api/admin/verify/', verify_admin_pin, name='admin-verify'),
     path('api/errors/log/', log_client_error, name='error-log'),
+    path('api/test/cleanup/', TestCleanupView.as_view(), name='test-cleanup'),
     path('api/', include(router.urls)),
     path('webhooks/linear/', LinearWebhookView.as_view(), name='linear-webhook'),
 ]

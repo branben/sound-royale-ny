@@ -11,6 +11,7 @@ export default defineConfig({
     timeout: 5000,
   },
   workers: 2,
+  globalSetup: './tests/e2e/global-setup.ts',
   projects: [
     {
       name: 'chromium',
