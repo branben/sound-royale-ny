@@ -1042,7 +1042,6 @@ class RoomViewSet(viewsets.ModelViewSet):
     serializer_class = RoomSerializer
     permission_classes = [AllowAny]
     lookup_field = "code"  # Allow lookup by 4-digit room code
-    lookup_url_kwarg = "code"  # URL kwarg name (matches reverse() in tests)
     throttle_scope = "room_creation"
     # Security: disable generic write/delete routes. All room mutations must
     # go through the custom actions (start_game, reset_game, next_turn, etc.)
@@ -1065,18 +1064,15 @@ class RoomViewSet(viewsets.ModelViewSet):
         return throttles
 
     def get_object(self):
-        """
-        Override get_object to handle room code lookup. DRF action URLs
-        (join_game, start_game) register as <pk>/action, while detail URLs
-        use <code> (via lookup_url_kwarg). Check both kwargs.
-        """
-        code = self.kwargs.get("code") or self.kwargs.get("pk")
-        if code:
+        if self.kwargs.get(self.lookup_field):
+            # Try to get by room code first
             try:
-                return Room.objects.get(code=str(code))
+                return Room.objects.get(code=str(self.kwargs[self.lookup_field]))
             except Room.DoesNotExist:
+                # Fallback to UUID lookup if code lookup fails
                 pass
 
+        # Default behavior for UUID lookup
         return super().get_object()
 
     def get_serializer_class(self):
@@ -2124,7 +2120,7 @@ class PlayerViewSet(viewsets.ModelViewSet):
     serializer_class = PlayerSerializer
     permission_classes = [AllowAny]
     lookup_field = "player_secret"  # Allow lookup by player secret
-    lookup_url_kwarg = "player_secret"  # URL kwarg name (matches reverse() in tests)
+    # Security: disable generic create/write/delete routes. Players may only
     # be created through room create_room/join_game actions which enforce
     # lobby status and spectator-count limits. Privileged state changes go
     # through dedicated secret-verified actions.
@@ -2150,15 +2146,13 @@ class PlayerViewSet(viewsets.ModelViewSet):
 
     def get_object(self):
         """
-        Override get_object to handle player_secret lookup. DRF action URLs
-        (leave_game, update_score) register as <pk>/action, while detail
-        URLs use <player_secret> (via lookup_url_kwarg). Check both kwargs.
+        Override get_object to handle player_secret lookup. The secret in the
+        URL is the plaintext; the stored value is hashed (guardrail #105).
         """
-        pk = self.kwargs.get(self.lookup_field) or self.kwargs.get("pk")
-        if pk:
+        if self.kwargs.get(self.lookup_field):
             try:
                 return Player.objects.get(
-                    player_secret=hash_secret(pk)
+                    player_secret=hash_secret(self.kwargs[self.lookup_field])
                 )
             except Player.DoesNotExist:
                 pass
