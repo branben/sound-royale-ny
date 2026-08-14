@@ -17,7 +17,7 @@ export default defineConfig({
   webServer: {
     command: 'pnpm exec vite --port 8081 --host',
     url: 'http://localhost:8081',
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 120000,
     env: {
       VITE_E2E_TESTING: 'true',
@@ -45,11 +45,7 @@ export default defineConfig({
       },
     },
   ],
-  // The frontend must be running manually on localhost:8080 before E2E runs.
-  // Keep this aligned with tests/e2e/README.md and scripts/e2e-guard.sh preflight output.
   use: {
-    // Vite dev server runs on 8081 (vite.config.ts). Align them so CI/local
-    // smoke tests work without a port override.
     baseURL: 'http://localhost:8081',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',

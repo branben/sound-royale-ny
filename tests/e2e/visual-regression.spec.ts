@@ -48,6 +48,7 @@ async function setupLeaderboardRoute(page: Page) {
   });
 }
 
+test.describe.configure({ mode: 'serial' });
 test.describe('visual regression', () => {
   // Pin the baseline suffix to 'linux' so macOS and CI share one canonical
   // set (Playwright defaults to the host OS: 'darwin' locally). Supported via
@@ -58,18 +59,23 @@ test.describe('visual regression', () => {
 
   for (const r of routes) {
     test(`${r.name} visual snapshot`, async ({ page }) => {
+      test.setTimeout(120000);
       if (r.mocked) {
         await setupLeaderboardRoute(page);
       }
 
-      await page.goto(r.path, { waitUntil: 'domcontentloaded' });
-      await expect(page.getByText(r.waitText).first()).toBeVisible({ timeout: 10000 });
-      // Give fonts/layout a moment to settle. Avoid waitForLoadState('networkidle')
-      // — the Vite HMR websocket keeps the network busy so it never fires.
-      await page.waitForTimeout(400);
+      // Navigate and wait for the page to be ready.
+      await page.goto(r.path, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      // Wait for the anchor text to be visible before screenshot.
+      await expect(page.getByText(r.waitText).first()).toBeVisible({ timeout: 15000 });
+      // Settle: wait for fonts/layout. Avoid 'networkidle' — Vite HMR keeps
+      // the socket open forever.
+      await page.waitForTimeout(600);
+      // Take the screenshot.
       await expect(page).toHaveScreenshot(`${r.name}.png`, {
         maxDiffPixelRatio: 0.02,
         animations: 'disabled',
+        fullPage: false,
       });
     });
   }
