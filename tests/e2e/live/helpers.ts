@@ -45,7 +45,7 @@ export async function getGameState(roomCode: string) {
 
 export async function joinRoom(roomCode: string, playerName: string, isSpectator: boolean = false) {
   try {
-    return await withRetry(
+    const response = await withRetry(
       () =>
         axios
           .post(`${getApiBaseUrl()}/rooms/${roomCode}/join_game/`, {
@@ -55,7 +55,20 @@ export async function joinRoom(roomCode: string, playerName: string, isSpectator
           .then((r) => r.data),
       `joinRoom(${roomCode})`,
     );
+    // Debug: log if player_secret is missing
+    if (!response.player_secret) {
+      console.warn(
+        `[joinRoom] player_secret missing for ${playerName} in ${roomCode}. Keys: ${Object.keys(response).join(', ')}`,
+      );
+    }
+    return response;
   } catch (error: any) {
+    // Log the actual error for debugging
+    if (error.response?.status && error.response.status !== 409) {
+      console.error(
+        `[joinRoom] HTTP ${error.response.status} for ${playerName} in ${roomCode}: ${JSON.stringify(error.response.data)}`,
+      );
+    }
     // Idempotent rejoin: a 409 means the name already exists in the room
     // (e.g. a benign double-join under parallel Postgres load, or a page
     // refresh). Resolve the existing player from room state instead of failing.
