@@ -170,16 +170,15 @@ export async function toggleReady(roomCode: string, playerSecret: string, player
 }
 
 export async function leaveRoom(roomCode: string, playerId: string, playerSecret: string) {
-  // Best-effort cleanup — the PlayerViewSet uses player_secret as
-  // lookup_field, so the URL is /players/<player_secret>/leave_game/.
-  // We suppress errors here because cleanup must never fail a test.
+  // Best-effort cleanup — use the player's UUID (pk) in the URL.
+  // The PlayerViewSet uses lookup_field="player_secret" but the URL kwarg
+  // is "pk" by default, so we pass the UUID as pk.
   return withRetry(
     async () => {
       try {
-        const response = await axios.post(
-          `${getApiBaseUrl()}/players/${playerSecret}/leave_game/`,
-          {},
-        );
+        const response = await axios.post(`${getApiBaseUrl()}/players/${playerId}/leave_game/`, {
+          player_secret: playerSecret,
+        });
         return response.data;
       } catch (error: any) {
         console.warn(
