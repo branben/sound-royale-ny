@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { useLiveSetup } from './setup';
 import { GameOrchestrator, GameConfig } from './pom/GameOrchestrator';
 import { getGameState } from './helpers';
 import * as path from 'path';
@@ -16,6 +17,8 @@ const CONFIG: GameConfig = {
   ],
   audioFilePath,
 };
+
+useLiveSetup();
 
 test.describe('Live Golden User Flow', () => {
   test('host, producer, and spectator all see game board after start', async ({ browser }) => {

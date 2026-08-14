@@ -60,6 +60,8 @@ async function closeActors(actors: TestActor[]): Promise<void> {
 // Tests
 // ---------------------------------------------------------------------------
 
+useLiveSetup();
+
 test.describe('Create → Join → Start Integration Flow', () => {
   // -----------------------------------------------------------------------
   // Scenario 1: Host creates room → sees "Start Battle" button

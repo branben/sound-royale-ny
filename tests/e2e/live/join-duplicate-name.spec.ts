@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { useLiveSetup } from './setup';
 import axios from 'axios';
 import { PlayerPage } from './pom/PlayerPage';
 import { getGameState } from './helpers';
@@ -22,6 +23,8 @@ import { getGameState } from './helpers';
 function getApiBaseUrl(): string {
   return process.env.LIVE_API_BASE_URL || 'http://127.0.0.1:8000/api';
 }
+
+useLiveSetup();
 
 test.describe('Live E2E — join_game duplicate name returns 409 (not 500)', () => {
   test('duplicate player name joins with 409 and room stays joinable', async ({ browser }) => {
@@ -88,10 +91,7 @@ test.describe('Live E2E — join_game duplicate name returns 409 (not 500)', () 
     expect(r2.status).toBe(201);
     // Auto-numbering must produce exactly "Spectator 1" / "Spectator 2"
     // (distinct, sequential) — not a regression that emits "Spectator 3/4".
-    expect([r1.data.name, r2.data.name].sort()).toEqual([
-      'Spectator 1',
-      'Spectator 2',
-    ]);
+    expect([r1.data.name, r2.data.name].sort()).toEqual(['Spectator 1', 'Spectator 2']);
 
     const state = await getGameState(roomCode);
     const spectatorNames = Object.values(state.players || {})
