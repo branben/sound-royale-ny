@@ -7,16 +7,15 @@ import { request } from '@playwright/test';
  * "Spectator limit reached" rejections.
  */
 async function globalSetup() {
-  const baseURL = process.env.LIVE_API_BASE_URL || 'http://127.0.0.1:8000/api';
+  const baseURL = process.env.LIVE_API_BASE_URL || 'http://127.0.0.1:8000';
 
   try {
     // Use the test-only cleanup endpoint if available, otherwise best-effort.
     const context = await request.newContext({ baseURL });
 
     // Truncate all game state via a dedicated test endpoint
-    const response = await context.post('/test/cleanup/', {
-      data: { truncate_all: true },
-    });
+    // The endpoint is at /test/cleanup/ (not /api/test/cleanup/)
+    const response = await context.post('/test/cleanup/');
 
     if (response.ok()) {
       console.log('[globalSetup] Database cleaned successfully');

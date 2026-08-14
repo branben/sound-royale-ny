@@ -46,7 +46,8 @@ urlpatterns = [
     ),
     path('api/admin/verify/', verify_admin_pin, name='admin-verify'),
     path('api/errors/log/', log_client_error, name='error-log'),
-    path('api/test/cleanup/', TestCleanupView.as_view(), name='test-cleanup'),
     path('api/', include(router.urls)),
     path('webhooks/linear/', LinearWebhookView.as_view(), name='linear-webhook'),
+    # Test-only cleanup endpoint (outside api/ prefix to avoid double-prefix)
+    path('test/cleanup/', TestCleanupView.as_view(), name='test-cleanup'),
 ]
