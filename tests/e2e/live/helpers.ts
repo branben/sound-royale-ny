@@ -170,13 +170,11 @@ export async function toggleReady(roomCode: string, playerSecret: string, player
 }
 
 export async function leaveRoom(roomCode: string, playerId: string, playerSecret: string) {
+  // PlayerViewSet uses player_secret as the lookup_field, so the URL is
+  // /players/<player_secret>/leave_game/ (not player ID).
   return withRetry(
     () =>
-      axios
-        .post(`${getApiBaseUrl()}/players/${playerId}/leave_game/`, {
-          player_secret: playerSecret,
-        })
-        .then((r) => r.data),
+      axios.post(`${getApiBaseUrl()}/players/${playerSecret}/leave_game/`, {}).then((r) => r.data),
     `leaveRoom(${roomCode})`,
   );
 }
