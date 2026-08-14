@@ -1064,10 +1064,16 @@ class RoomViewSet(viewsets.ModelViewSet):
         return throttles
 
     def get_object(self):
-        if self.kwargs.get(self.lookup_field):
+        """
+        Override get_object to handle room code lookup. The router registers
+        URL kwarg as "pk", so we read from "pk" and look up by code first,
+        then fall back to UUID.
+        """
+        pk = self.kwargs.get("pk")
+        if pk:
             # Try to get by room code first
             try:
-                return Room.objects.get(code=str(self.kwargs[self.lookup_field]))
+                return Room.objects.get(code=str(pk))
             except Room.DoesNotExist:
                 # Fallback to UUID lookup if code lookup fails
                 pass
@@ -2148,11 +2154,13 @@ class PlayerViewSet(viewsets.ModelViewSet):
         """
         Override get_object to handle player_secret lookup. The secret in the
         URL is the plaintext; the stored value is hashed (guardrail #105).
+        The router registers URL kwarg as "pk", so we read from "pk" and hash.
         """
-        if self.kwargs.get(self.lookup_field):
+        pk = self.kwargs.get("pk")
+        if pk:
             try:
                 return Player.objects.get(
-                    player_secret=hash_secret(self.kwargs[self.lookup_field])
+                    player_secret=hash_secret(pk)
                 )
             except Player.DoesNotExist:
                 pass
