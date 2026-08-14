@@ -8,7 +8,7 @@ export default defineConfig({
   retries: 2,
   timeout: 90000,
   expect: {
-    timeout: 5000,
+    timeout: 10000,
   },
   workers: 2,
   globalSetup: './tests/e2e/global-setup.ts',

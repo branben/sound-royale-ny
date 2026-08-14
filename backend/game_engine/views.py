@@ -1165,7 +1165,13 @@ class RoomViewSet(viewsets.ModelViewSet):
         """
         Join a game room as a player or spectator.
         """
-        room = self.get_object()
+        import logging
+        logger = logging.getLogger(__name__)
+        try:
+            room = self.get_object()
+        except Exception as e:
+            logger.error("join_game get_object failed: pk=%s code=%s error=%s", pk, code, e, exc_info=True)
+            return Response({"error": "Room not found", "detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
 
         existing_names = set()
         try:
