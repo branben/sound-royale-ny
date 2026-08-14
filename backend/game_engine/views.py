@@ -1210,61 +1210,55 @@ class RoomViewSet(viewsets.ModelViewSet):
                     # spectator joins (e.g. E2E workers=2) can pick the SAME N and
                     # both hit the (room, name) unique constraint. Rather than
                     # 409-ing a legitimate spectator, retry with the next free
-                    # number, re-reading inside the atomic block each attempt so
-                    # the allocation is self-healing under concurrency. Bounded to
-                    # avoid an infinite loop if the room is full of spectators.
+                    # number. Each attempt is wrapped in its own atomic block so
+                    # an IntegrityError aborts only that savepoint, not the whole
+                    # transaction (Postgres leaves the tx in aborted state on error).
                     spectator_num = 0
                     MAX_SPECTATOR_ALLOC_RETRIES = Room.MAX_SPECTATORS + 1
                     for _ in range(MAX_SPECTATOR_ALLOC_RETRIES):
-                        existing_names = set(
-                            Player.objects.filter(room=room).values_list(
-                                "name", flat=True
-                            )
-                        )
-                        # Advance past any name already taken (committed OR a
-                        # collision we just hit and must skip over).
-                        spectator_num += 1
-                        while f"Spectator {spectator_num}" in existing_names:
-                            spectator_num += 1
-                        data["name"] = f"Spectator {spectator_num}"
-                        serializer = PlayerCreateSerializer(
-                            data=data, context={"room": room}
-                        )
-                        if not serializer.is_valid():
-                            return Response(
-                                serializer.errors,
-                                status=status.HTTP_400_BAD_REQUEST,
-                            )
                         try:
-                            player = serializer.save()
-                            break
+                            with transaction.atomic():
+                                existing_names = set(
+                                    Player.objects.filter(room=room).values_list("name", flat=True)
+                                )
+                                spectator_num += 1
+                                while f"Spectator {spectator_num}" in existing_names:
+                                    spectator_num += 1
+                                data["name"] = f"Spectator {spectator_num}"
+                                serializer = PlayerCreateSerializer(data=data, context={"room": room})
+                                if not serializer.is_valid():
+                                    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                                player = serializer.save()
+                                break
                         except IntegrityError:
-                            # Another worker claimed this number first (or the
-                            # prior attempt rolled back) — the next loop bumps
-                            # spectator_num past it and recomputes.
                             continue
                     else:
-                        # Exhausted retries (effectively the spectator limit).
                         return Response(
-                            {
-                                "error": f"Spectator limit reached (max {Room.MAX_SPECTATORS})",
-                                "conflict_type": "spectator_limit",
-                            },
+                            {"error": f"Spectator limit reached (max {Room.MAX_SPECTATORS})", "conflict_type": "spectator_limit"},
                             status=status.HTTP_400_BAD_REQUEST,
                         )
                 else:
-                    existing_names = set(
-                        Player.objects.filter(room=room).values_list("name", flat=True)
-                    )
-                    serializer = PlayerCreateSerializer(
-                        data=data, context={"room": room}
-                    )
-                    if not serializer.is_valid():
+                    # Wrap in a savepoint so an IntegrityError on duplicate
+                    # name doesn't abort the whole transaction.
+                    try:
+                        with transaction.atomic():
+                            existing_names = set(
+                                Player.objects.filter(room=room).values_list("name", flat=True)
+                            )
+                            serializer = PlayerCreateSerializer(
+                                data=data, context={"room": room}
+                            )
+                            if not serializer.is_valid():
+                                return Response(
+                                    serializer.errors,
+                                    status=status.HTTP_400_BAD_REQUEST,
+                                )
+                            player = serializer.save()
+                    except IntegrityError:
                         return Response(
-                            serializer.errors,
-                            status=status.HTTP_400_BAD_REQUEST,
+                            {"error": "Name is already taken in this room", "conflict_type": "duplicate_name"},
+                            status=status.HTTP_409_CONFLICT,
                         )
-                    player = serializer.save()
 
                 # Shared success path (both spectator and player joins).
                 discord_error = attach_discord_identity_from_session(player, data)
