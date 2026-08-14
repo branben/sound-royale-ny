@@ -25,9 +25,9 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,6 +37,12 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
 
       - name: Install dependencies
         run: |
@@ -81,6 +87,12 @@ jobs:
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
 
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+
       - name: Install dependencies
         run: rm -rf node_modules && pnpm install --frozen-lockfile
 
@@ -103,15 +115,27 @@ jobs:
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
 
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+
       - name: Install dependencies
         run: rm -rf node_modules && pnpm install --frozen-lockfile
 
-      - name: Install Playwright Chromium
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}
+
+      - name: Install Playwright (if cache miss)
         run: pnpm exec playwright install chromium --with-deps
 
-      - name: Start Vite dev server
+      - name: Start Vite dev server (E2E mode)
         run: |
-          pnpm run dev:frontend &
+          VITE_E2E_TESTING=true pnpm run dev:frontend &
           VITE_PID=$!
           echo "VITE_PID=$VITE_PID" >> $GITHUB_ENV
           # Wait for Vite to be ready (max 30s)
@@ -134,6 +158,10 @@ jobs:
     name: E2E Full Suite
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     env:
       LINEAR_WEBHOOK_SECRET: 'ci-e2e-webhook-secret'
     services:
@@ -147,18 +175,18 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 10
       redis:
         image: redis:7-alpine
         ports:
           - 6379:6379
         options: >-
           --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -166,16 +194,29 @@ jobs:
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
 
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+
       - name: Install dependencies
         run: rm -rf node_modules && pnpm install --frozen-lockfile
 
-      - name: Install Playwright Chromium
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}
+
+      - name: Install Playwright (if cache miss)
         run: pnpm exec playwright install chromium --with-deps
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
 
       - name: Install backend dependencies
         run: |
@@ -213,9 +254,9 @@ jobs:
             sleep 1
           done
 
-      - name: Start Vite dev server
+      - name: Start Vite dev server (E2E mode)
         run: |
-          pnpm run dev:frontend &
+          VITE_E2E_TESTING=true pnpm run dev:frontend &
           VITE_PID=$!
           echo "VITE_PID=$VITE_PID" >> $GITHUB_ENV
           for i in $(seq 1 30); do
@@ -226,9 +267,9 @@ jobs:
             sleep 1
           done
 
-      - name: Run full E2E suite
-        run: pnpm exec playwright test tests/e2e/ --workers=2
-        timeout-minutes: 20
+      - name: Run E2E shard ${{ matrix.shard }}/4
+        run: pnpm exec playwright test tests/e2e/ --workers=2 --shard=${{ matrix.shard }}/4
+        timeout-minutes: 15
 
       - name: Print failing test details (if any)
         if: always()
