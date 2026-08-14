@@ -1042,6 +1042,7 @@ class RoomViewSet(viewsets.ModelViewSet):
     serializer_class = RoomSerializer
     permission_classes = [AllowAny]
     lookup_field = "code"  # Allow lookup by 4-digit room code
+    lookup_url_kwarg = "code"  # URL kwarg name (matches reverse() in tests)
     throttle_scope = "room_creation"
     # Security: disable generic write/delete routes. All room mutations must
     # go through the custom actions (start_game, reset_game, next_turn, etc.)
@@ -1066,19 +1067,16 @@ class RoomViewSet(viewsets.ModelViewSet):
     def get_object(self):
         """
         Override get_object to handle room code lookup. The router registers
-        URL kwarg as "pk", so we read from "pk" and look up by code first,
-        then fall back to UUID.
+        URL kwarg as "code" (via lookup_url_kwarg), so we look up by code
+        first, then fall back to UUID.
         """
-        pk = self.kwargs.get("pk")
-        if pk:
-            # Try to get by room code first
+        code = self.kwargs.get("code")
+        if code:
             try:
-                return Room.objects.get(code=str(pk))
+                return Room.objects.get(code=str(code))
             except Room.DoesNotExist:
-                # Fallback to UUID lookup if code lookup fails
                 pass
 
-        # Default behavior for UUID lookup
         return super().get_object()
 
     def get_serializer_class(self):
@@ -2126,7 +2124,7 @@ class PlayerViewSet(viewsets.ModelViewSet):
     serializer_class = PlayerSerializer
     permission_classes = [AllowAny]
     lookup_field = "player_secret"  # Allow lookup by player secret
-    # Security: disable generic create/write/delete routes. Players may only
+    lookup_url_kwarg = "player_secret"  # URL kwarg name (matches reverse() in tests)
     # be created through room create_room/join_game actions which enforce
     # lobby status and spectator-count limits. Privileged state changes go
     # through dedicated secret-verified actions.
@@ -2154,13 +2152,12 @@ class PlayerViewSet(viewsets.ModelViewSet):
         """
         Override get_object to handle player_secret lookup. The secret in the
         URL is the plaintext; the stored value is hashed (guardrail #105).
-        The router registers URL kwarg as "pk", so we read from "pk" and hash.
+        lookup_url_kwarg="player_secret" ensures self.kwargs has the secret.
         """
-        pk = self.kwargs.get("pk")
-        if pk:
+        if self.kwargs.get(self.lookup_field):
             try:
                 return Player.objects.get(
-                    player_secret=hash_secret(pk)
+                    player_secret=hash_secret(self.kwargs[self.lookup_field])
                 )
             except Player.DoesNotExist:
                 pass
