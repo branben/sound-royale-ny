@@ -17,7 +17,7 @@ export default defineConfig({
   webServer: {
     command: 'pnpm exec vite --port 8081 --host',
     url: 'http://localhost:8081',
-    reuseExistingServer: false,
+    reuseExistingServer: !process.env.CI,
     timeout: 120000,
     env: {
       VITE_E2E_TESTING: 'true',

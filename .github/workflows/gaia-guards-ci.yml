@@ -133,20 +133,6 @@ jobs:
       - name: Install Playwright (if cache miss)
         run: pnpm exec playwright install chromium --with-deps
 
-      - name: Start Vite dev server (E2E mode)
-        run: |
-          VITE_E2E_TESTING=true pnpm run dev:frontend &
-          VITE_PID=$!
-          echo "VITE_PID=$VITE_PID" >> $GITHUB_ENV
-          # Wait for Vite to be ready (max 30s)
-          for i in $(seq 1 30); do
-            if curl -s http://localhost:8081 > /dev/null 2>&1; then
-              echo "Vite ready on port 8081"
-              break
-            fi
-            sleep 1
-          done
-
       - name: Run smoke tests
         run: pnpm exec playwright test tests/e2e/smoke.spec.ts --reporter=line
 
@@ -249,19 +235,6 @@ jobs:
           for i in $(seq 1 30); do
             if curl -s http://127.0.0.1:8000/api/ > /dev/null 2>&1; then
               echo "Backend ready on port 8000"
-              break
-            fi
-            sleep 1
-          done
-
-      - name: Start Vite dev server (E2E mode)
-        run: |
-          VITE_E2E_TESTING=true pnpm run dev:frontend &
-          VITE_PID=$!
-          echo "VITE_PID=$VITE_PID" >> $GITHUB_ENV
-          for i in $(seq 1 30); do
-            if curl -s http://localhost:8081 > /dev/null 2>&1; then
-              echo "Vite ready on port 8081"
               break
             fi
             sleep 1
