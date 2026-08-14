@@ -170,12 +170,26 @@ export async function toggleReady(roomCode: string, playerSecret: string, player
 }
 
 export async function leaveRoom(roomCode: string, playerId: string, playerSecret: string) {
-  // PlayerViewSet uses player_secret as the lookup_field, so the URL is
-  // /players/<player_secret>/leave_game/ (not player ID).
+  // Best-effort cleanup — the PlayerViewSet uses player_secret as
+  // lookup_field, so the URL is /players/<player_secret>/leave_game/.
+  // We suppress errors here because cleanup must never fail a test.
   return withRetry(
-    () =>
-      axios.post(`${getApiBaseUrl()}/players/${playerSecret}/leave_game/`, {}).then((r) => r.data),
+    async () => {
+      try {
+        const response = await axios.post(
+          `${getApiBaseUrl()}/players/${playerSecret}/leave_game/`,
+          {},
+        );
+        return response.data;
+      } catch (error: any) {
+        console.warn(
+          `[leaveRoom] Best-effort cleanup failed for ${roomCode}: ${error.response?.status} ${error.response?.data?.error || error.message}`,
+        );
+        return null;
+      }
+    },
     `leaveRoom(${roomCode})`,
+    2, // Low retry count for cleanup
   );
 }
 
