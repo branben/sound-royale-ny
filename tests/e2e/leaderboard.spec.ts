@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { enableE2EMode } from './helpers';
+import { useLiveSetup } from './live/setup';
 
 test.describe('Verified leaderboard', () => {
+  useLiveSetup();
   test.beforeEach(async ({ page }) => {
     await enableE2EMode(page);
     await page.route('**/api/auth/me/', async (route) => {

@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { enableE2EMode, setupPlayerSession } from './helpers';
+import { useLiveSetup } from './live/setup';
 
 test.describe('Integration Verification — All Flows', () => {
+  useLiveSetup();
   test.beforeEach(async ({ page }) => {
     await enableE2EMode(page);
   });
