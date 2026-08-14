@@ -1,5 +1,4 @@
 import { test, expect } from '@playwright/test';
-import { useLiveSetup } from './setup';
 import { GameOrchestrator, GameConfig } from './pom/GameOrchestrator';
 import { getGameState } from './helpers';
 import * as path from 'path';
@@ -19,8 +18,6 @@ const RANKED_CONFIG: GameConfig = {
   ],
   audioFilePath,
 };
-
-useLiveSetup();
 
 test.describe('Live Spectator UI Verification', () => {
   test('spectator sees live game progression through boards, voting, and round advance', async ({
