@@ -1,5 +1,4 @@
 import { test, expect } from '@playwright/test';
-import { useLiveSetup } from './setup';
 import { GameOrchestrator, GameConfig } from './pom/GameOrchestrator';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -7,8 +6,6 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const audioFilePath = path.join(__dirname, 'fixtures/test-audio.wav');
-
-useLiveSetup();
 
 test.describe('Live E2E — Casual Mode (2 Players)', () => {
   test('should play full casual game to bingo', async ({ browser }) => {

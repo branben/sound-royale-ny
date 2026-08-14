@@ -1,5 +1,4 @@
 import { test, expect, type Browser, type Page } from '@playwright/test';
-import { useLiveSetup } from './setup';
 import { PlayerPage } from './pom/PlayerPage';
 import { getGameState } from './helpers';
 
@@ -60,8 +59,6 @@ async function closeActors(actors: TestActor[]): Promise<void> {
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
-
-useLiveSetup();
 
 test.describe('Create → Join → Start Integration Flow', () => {
   // -----------------------------------------------------------------------

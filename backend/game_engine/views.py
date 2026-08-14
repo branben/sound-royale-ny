@@ -1340,6 +1340,17 @@ class RoomViewSet(viewsets.ModelViewSet):
             logger.exception(
                 f"Failed to join room in room {room.code if 'room' in locals() else 'unknown'}"
             )
+            # Return 409 for transaction serialization failures under concurrency
+            # (PostgreSQL raises OperationalError: could not serialize access)
+            from django.db import DatabaseError, OperationalError
+            if isinstance(e, (DatabaseError, OperationalError)):
+                return Response(
+                    {
+                        "error": "Concurrent modification detected. Please retry.",
+                        "conflict_type": "concurrent_modification",
+                    },
+                    status=status.HTTP_409_CONFLICT,
+                )
             return Response(
                 {
                     "error": "Failed to join room. Please try again.",
