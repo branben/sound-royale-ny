@@ -1,4 +1,5 @@
 import { test, expect, type Browser, type Page } from '@playwright/test';
+import { useLiveSetup } from './setup';
 import { PlayerPage } from './pom/PlayerPage';
 import { getGameState } from './helpers';
 
