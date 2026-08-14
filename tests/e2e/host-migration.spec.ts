@@ -12,8 +12,6 @@ import {
   toRoomResponse,
 } from './utils/game-fixtures';
 
-import { useLiveSetup } from './live/setup';
-
 test.describe('Host Migration', () => {
   test.beforeEach(async ({ page }) => {
     await enableE2EMode(page);
