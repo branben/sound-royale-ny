@@ -12,6 +12,18 @@ export default defineConfig({
   },
   workers: 2,
   globalSetup: './tests/e2e/global-setup.ts',
+  // Auto-start Vite dev server before running tests.
+  // No need to manually start a separate terminal.
+  webServer: {
+    command: 'pnpm exec vite --port 8081 --host',
+    url: 'http://localhost:8081',
+    reuseExistingServer: !process.env.CI,
+    timeout: 120000,
+    env: {
+      VITE_E2E_TESTING: 'true',
+      NODE_ENV: 'development',
+    },
+  },
   projects: [
     {
       name: 'chromium',
