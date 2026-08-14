@@ -1066,11 +1066,11 @@ class RoomViewSet(viewsets.ModelViewSet):
 
     def get_object(self):
         """
-        Override get_object to handle room code lookup. The router registers
-        URL kwarg as "code" (via lookup_url_kwarg), so we look up by code
-        first, then fall back to UUID.
+        Override get_object to handle room code lookup. DRF action URLs
+        (join_game, start_game) register as <pk>/action, while detail URLs
+        use <code> (via lookup_url_kwarg). Check both kwargs.
         """
-        code = self.kwargs.get("code")
+        code = self.kwargs.get("code") or self.kwargs.get("pk")
         if code:
             try:
                 return Room.objects.get(code=str(code))
@@ -2150,14 +2150,15 @@ class PlayerViewSet(viewsets.ModelViewSet):
 
     def get_object(self):
         """
-        Override get_object to handle player_secret lookup. The secret in the
-        URL is the plaintext; the stored value is hashed (guardrail #105).
-        lookup_url_kwarg="player_secret" ensures self.kwargs has the secret.
+        Override get_object to handle player_secret lookup. DRF action URLs
+        (leave_game, update_score) register as <pk>/action, while detail
+        URLs use <player_secret> (via lookup_url_kwarg). Check both kwargs.
         """
-        if self.kwargs.get(self.lookup_field):
+        pk = self.kwargs.get(self.lookup_field) or self.kwargs.get("pk")
+        if pk:
             try:
                 return Player.objects.get(
-                    player_secret=hash_secret(self.kwargs[self.lookup_field])
+                    player_secret=hash_secret(pk)
                 )
             except Player.DoesNotExist:
                 pass
