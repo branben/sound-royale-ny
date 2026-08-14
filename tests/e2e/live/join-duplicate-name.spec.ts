@@ -1,5 +1,4 @@
 import { test, expect } from '@playwright/test';
-import { useLiveSetup } from './setup';
 import axios from 'axios';
 import { PlayerPage } from './pom/PlayerPage';
 import { getGameState } from './helpers';
@@ -23,8 +22,6 @@ import { getGameState } from './helpers';
 function getApiBaseUrl(): string {
   return process.env.LIVE_API_BASE_URL || 'http://127.0.0.1:8000/api';
 }
-
-useLiveSetup();
 
 test.describe('Live E2E — join_game duplicate name returns 409 (not 500)', () => {
   test('duplicate player name joins with 409 and room stays joinable', async ({ browser }) => {
