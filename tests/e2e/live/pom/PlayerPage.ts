@@ -75,6 +75,13 @@ export class PlayerPage {
     this.playerId = data.player_id || '';
     this.playerSecret = data.player_secret || '';
 
+    // Debug: log if player_secret is missing to diagnose contract drift
+    if (!this.playerSecret) {
+      console.warn(
+        `[createRoom] player_secret missing from response. Keys: ${Object.keys(data).join(', ')}`,
+      );
+    }
+
     // Inject session via the shared helper (uses addInitScript)
     await setupPlayerSession(this.page, {
       playerName: this.name,
