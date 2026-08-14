@@ -71,6 +71,8 @@ export class PlayerPage {
     }
     if (!response) throw new Error('createRoom failed after retries');
     const data = response.data;
+    // DEBUG: log the entire response to diagnose player_secret extraction
+    console.log(`[createRoom] Full response data: ${JSON.stringify(data).substring(0, 500)}`);
     this.roomCode = data.room_code || data.room?.code || '';
     this.playerId = data.player_id || '';
     this.playerSecret = data.player_secret || '';
