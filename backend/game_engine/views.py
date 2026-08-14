@@ -1176,6 +1176,8 @@ class RoomViewSet(viewsets.ModelViewSet):
         existing_names = set()
         try:
             with transaction.atomic():
+                # Lock the room row to serialize concurrent joins.
+                room = Room.objects.select_for_update().get(pk=room.pk)
                 # Handle JSON parsing errors
                 try:
                     data = request.data.copy()
