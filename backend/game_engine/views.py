@@ -2330,7 +2330,12 @@ class PlayerViewSet(viewsets.ModelViewSet):
         """
         Leave a game room.
         """
-        player = self.get_object()
+        try:
+            player = self.get_object()
+        except Player.DoesNotExist:
+            # Already deleted by a concurrent cleanup.
+            return Response({"status": "Already left"}, status=status.HTTP_200_OK)
+
         if not player.room:
             player.delete()
             return Response({"status": "Left"}, status=status.HTTP_200_OK)
