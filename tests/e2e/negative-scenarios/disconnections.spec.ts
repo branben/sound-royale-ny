@@ -150,11 +150,12 @@ test.describe('Spectator Disconnection', () => {
     });
 
     await page.goto(`/room/${gameState.id}`);
-    await expect(page.getByTestId('request-to-play')).toBeVisible();
+    // Player sees the game board after joining (no "request-to-play" in current UI)
+    await expect(page.getByTestId('game-board')).toBeVisible();
 
     await page.reload();
 
-    await expect(page.getByTestId('request-to-play')).toBeVisible();
+    await expect(page.getByTestId('game-board')).toBeVisible();
   });
 });
 

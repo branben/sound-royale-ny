@@ -42,6 +42,9 @@ test.describe('Host Migration', () => {
 
     await page.goto(`/room/${gameState.id}`);
 
+    // Wait for game board to be visible first (mock room response triggers render)
+    await expect(page.getByTestId('game-board')).toBeVisible({ timeout: 10000 });
+
     // Inject host_migrated message (host disconnect is simulated by the app's
     // own reconnect logic; the indicator renders from this WS message)
     await page.evaluate(() => {
@@ -49,7 +52,7 @@ test.describe('Host Migration', () => {
       if (instances && instances.length > 0) {
         instances[0].injectMessage({
           type: 'host_migrated',
-          payload: { newHostId: 'new-host-id', newHostName: 'NewHostPlayer' },
+          payload: { newHostId: 'newhost-1', newHostName: 'NewHostPlayer' },
           timestamp: Date.now(),
         });
       }
