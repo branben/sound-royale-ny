@@ -79,14 +79,16 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Start Vite dev server (E2E mode)
-        run: VITE_E2E_TESTING=true pnpm exec vite --port 8081 --host &
+      - name: Start Vite dev server (E2E mode, port 8082)
+        run: VITE_E2E_TESTING=true pnpm exec vite --port 8082 --host &
 
       - name: Wait for dev server
-        run: npx wait-on http://localhost:8081 --timeout 600000
+        run: npx wait-on http://localhost:8082 --timeout 600000
 
       - name: Run visual-regression suite
         run: pnpm run verify:visual:e2e
+        env:
+          BASE_URL: http://localhost:8082
 
       - name: Upload snapshot diffs on failure
         if: failure()

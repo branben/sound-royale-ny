@@ -46,7 +46,7 @@ export default defineConfig({
     },
   ],
   use: {
-    baseURL: 'http://localhost:8081',
+    baseURL: process.env.BASE_URL || 'http://localhost:8081',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
