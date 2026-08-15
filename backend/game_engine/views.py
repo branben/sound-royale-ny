@@ -2364,8 +2364,8 @@ class PlayerViewSet(viewsets.ModelViewSet):
         """
         try:
             player = self.get_object()
-        except Player.DoesNotExist:
-            # Already deleted by a concurrent cleanup.
+        except Exception:
+            # Already deleted by a concurrent cleanup, or invalid secret.
             return Response({"status": "Already left"}, status=status.HTTP_200_OK)
 
         if not player.room:
