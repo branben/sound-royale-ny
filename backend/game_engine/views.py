@@ -1167,6 +1167,38 @@ class RoomViewSet(viewsets.ModelViewSet):
         """
         import logging
         logger = logging.getLogger(__name__)
+
+        # Retry the whole operation on transient DB errors (IntegrityError from
+        # duplicate key races under concurrency). Each attempt opens a fresh
+        # transaction, so aborted state from a prior attempt never leaks in.
+        MAX_JOIN_RETRIES = 5
+        for attempt in range(MAX_JOIN_RETRIES):
+            try:
+                return self._join_game_inner(request, pk=pk, code=code)
+            except IntegrityError as e:
+                logger.warning(
+                    "join_game IntegrityError (attempt %d/%d): %s",
+                    attempt + 1, MAX_JOIN_RETRIES, e,
+                )
+                continue
+            except Exception as e:
+                logger.exception(
+                    "join_game unexpected error in room %s", code or pk
+                )
+                return Response(
+                    {"error": "Failed to join room. Please try again."},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+        return Response(
+            {"error": "Failed to join room after retries.", "conflict_type": "retry_exhausted"},
+            status=status.HTTP_409_CONFLICT,
+        )
+
+    def _join_game_inner(self, request, pk=None, code=None):
+        """Inner join logic — runs inside the retry wrapper above."""
+        import logging
+        logger = logging.getLogger(__name__)
         try:
             room = self.get_object()
         except Exception as e:
