@@ -26,7 +26,9 @@ test.describe('PII Prevention', () => {
     // Use .first() to avoid strict-mode violation when multiple lobby testids
     // exist across views.
     await page.getByTestId('lobby').first().getByText('SOUND ROYALE').first().waitFor();
-    await expect(page.getByText('Enter a room code to join the battle')).toBeVisible();
+    await expect(
+      page.getByText('Multiplayer music bingo. Upload beats, claim tiles, win the round.'),
+    ).toBeVisible();
 
     // Verify no PII was logged
     expect(piiViolations, `PII exposed in console: ${piiViolations.join('; ')}`).toHaveLength(0);

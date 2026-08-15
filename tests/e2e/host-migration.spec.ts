@@ -49,7 +49,7 @@ test.describe('Host Migration', () => {
       if (instances && instances.length > 0) {
         instances[0].injectMessage({
           type: 'host_migrated',
-          data: { newHostId: 'new-host-id', newHostName: 'NewHostPlayer' },
+          payload: { newHostId: 'new-host-id', newHostName: 'NewHostPlayer' },
           timestamp: Date.now(),
         });
       }

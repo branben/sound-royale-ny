@@ -31,7 +31,8 @@ test.describe('Verified leaderboard', () => {
 
     await page.goto('/leaderboard');
 
-    await expect(page.getByRole('heading', { name: 'Verified Leaderboard' })).toBeVisible();
+    // Leaderboard page uses /players/ endpoint to display all producers
+    await expect(page.getByRole('heading', { name: 'Leaderboard' })).toBeVisible();
     await expect(page.getByText('VerifiedProducer')).toBeVisible();
     await expect(page.getByText('1340')).toBeVisible();
     await expect(page.getByRole('link', { name: /Back to Lobby/i })).toBeVisible();

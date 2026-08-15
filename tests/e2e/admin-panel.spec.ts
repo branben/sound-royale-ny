@@ -22,13 +22,13 @@ test.describe('Admin Panel', () => {
             key: 'classic',
             name: 'Classic',
             description: 'theme by @1120cooks',
-            genres: ['Phonk','Trap','Lo-Fi','House','Drill','R&B','EDM','Jazz','Ambient'],
+            genres: ['Phonk', 'Trap', 'Lo-Fi', 'House', 'Drill', 'R&B', 'EDM', 'Jazz', 'Ambient'],
           },
           {
             key: 'weekly',
             name: 'Weekly Rotation',
             description: 'theme by @1120cooks',
-            genres: ['Trap','Phonk','Drill','R&B','EDM','House','Lo-Fi','Jazz','Ambient'],
+            genres: ['Trap', 'Phonk', 'Drill', 'R&B', 'EDM', 'House', 'Lo-Fi', 'Jazz', 'Ambient'],
           },
         ],
       });
@@ -73,5 +73,7 @@ test.describe('Admin Panel', () => {
     await expect(page.getByText('Theme Rotations')).toBeVisible({ timeout: 10000 });
     // Verify that the Classic rotation name is displayed after unlocking
     await expect(page.getByText('Classic')).toBeVisible({ timeout: 10000 });
+    // Admin panel shows "Check In Selected" button for batch operations
+    await expect(page.getByRole('button', { name: /Check In Selected/i })).toBeVisible();
   });
 });
