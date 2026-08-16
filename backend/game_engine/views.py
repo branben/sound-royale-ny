@@ -1072,13 +1072,6 @@ class RoomViewSet(viewsets.ModelViewSet):
                 # Fallback to UUID lookup if code lookup fails
                 pass
 
-        # Also check 'pk' kwarg (DRF DefaultRouter uses <pk> in URL)
-        if self.kwargs.get('pk'):
-            try:
-                return Room.objects.get(code=str(self.kwargs['pk']))
-            except Room.DoesNotExist:
-                pass
-
         # Default behavior for UUID lookup
         return super().get_object()
 
@@ -2200,15 +2193,11 @@ class PlayerViewSet(viewsets.ModelViewSet):
         """
         Override get_object to handle player_secret lookup. The secret in the
         URL is the plaintext; the stored value is hashed (guardrail #105).
-
-        DRF's DefaultRouter registers the URL with <pk>, not <player_secret>,
-        so we check both self.lookup_field and 'pk' for the raw secret.
         """
-        raw_secret = self.kwargs.get(self.lookup_field) or self.kwargs.get('pk')
-        if raw_secret:
+        if self.kwargs.get(self.lookup_field):
             try:
                 return Player.objects.get(
-                    player_secret=hash_secret(raw_secret)
+                    player_secret=hash_secret(self.kwargs[self.lookup_field])
                 )
             except Player.DoesNotExist:
                 pass
