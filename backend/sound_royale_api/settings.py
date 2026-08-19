@@ -18,6 +18,21 @@ from datetime import timedelta
 from decouple import config
 from corsheaders.defaults import default_headers
 
+# ── Fly.io / 12-factor DATABASE_URL ─────────────────────────────────────
+# Fly.io's MPG attach injects DATABASE_URL but not the DB_* keys this file
+# reads. If present, parse it and inject the components into os.environ so
+# the existing config('DB_*') calls below work unchanged.
+import urllib.parse
+
+if os.environ.get("DATABASE_URL"):
+    url = urllib.parse.urlparse(os.environ["DATABASE_URL"])
+    os.environ.setdefault("DB_ENGINE", "django.db.backends.postgresql")
+    os.environ.setdefault("DB_NAME", url.path.lstrip("/"))
+    os.environ.setdefault("DB_USER", url.username or "")
+    os.environ.setdefault("DB_PASSWORD", url.password or "")
+    os.environ.setdefault("DB_HOST", url.hostname or "")
+    os.environ.setdefault("DB_PORT", str(url.port) if url.port else "")
+
 # ── Sentry Error Tracking ──────────────────────────────────────────────
 SENTRY_DSN = config('SENTRY_DSN', default='')
 if SENTRY_DSN:
