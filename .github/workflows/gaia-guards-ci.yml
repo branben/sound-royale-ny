@@ -14,20 +14,9 @@ jobs:
   django-tests:
     name: Django Backend Tests
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: sound_royale_test
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 2s
-          --health-timeout 2s
-          --health-retries 10
+    # NOTE: No postgres service needed — settings_test uses SQLite (:memory:).
+    # Removing the unused service eliminates the "role root does not exist" failure
+    # and cuts ~30s of container startup per run.
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -147,7 +136,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2]
     env:
       LINEAR_WEBHOOK_SECRET: 'ci-e2e-webhook-secret'
     services:
@@ -157,22 +146,24 @@ jobs:
           POSTGRES_DB: sound_royale_test
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
         ports:
           - 5432:5432
         options: >-
           --health-cmd pg_isready
-          --health-interval 2s
-          --health-timeout 2s
-          --health-retries 10
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+          --user postgres
       redis:
         image: redis:7-alpine
         ports:
           - 6379:6379
         options: >-
           --health-cmd "redis-cli ping"
-          --health-interval 2s
-          --health-timeout 2s
-          --health-retries 10
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -209,6 +200,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
 
+      - name: Ensure backend log dir
+        run: mkdir -p backend/logs
+
       - name: Run migrations
         working-directory: ./backend
         env:
@@ -228,8 +222,9 @@ jobs:
           # Provisioned secret for the Linear webhook e2e test (webhook.spec.ts
           # signs its payload with this value; backend requires the signature).
           LINEAR_WEBHOOK_SECRET: 'ci-e2e-webhook-secret'
+          E2E_LOG_LEVEL: 'ERROR'          # flip to DEBUG for a verbose re-run
         run: |
-          python -m daphne -p 8000 -b 0.0.0.0 sound_royale_api.asgi:application &
+          python -m daphne -v 2 -p 8000 -b 0.0.0.0 sound_royale_api.asgi:application 2>&1 | tee backend/logs/daphne-console.log &
           BACKEND_PID=$!
           echo "BACKEND_PID=$BACKEND_PID" >> $GITHUB_ENV
           for i in $(seq 1 30); do
@@ -240,8 +235,8 @@ jobs:
             sleep 1
           done
 
-      - name: Run E2E shard ${{ matrix.shard }}/4
-        run: pnpm exec playwright test tests/e2e/ --workers=2 --shard=${{ matrix.shard }}/4
+      - name: Run E2E shard ${{ matrix.shard }}/2
+        run: pnpm exec playwright test tests/e2e/ --workers=2 --shard=${{ matrix.shard }}/2
         timeout-minutes: 15
 
       - name: Print failing test details (if any)
@@ -253,6 +248,14 @@ jobs:
         run: |
           kill $BACKEND_PID 2>/dev/null || true
           kill $VITE_PID 2>/dev/null || true
+
+      - name: Upload backend E2E log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-e2e-log
+          path: backend/logs/e2e-django.log
+          retention-days: 30
 
   ui-quality:
     name: UI Quality Gate (Impeccable)
