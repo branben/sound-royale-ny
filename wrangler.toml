@@ -12,4 +12,4 @@ pages_build_output_dir = "dist"
 # https://soundroyale.pages.dev. VITE_WS_URL is derived from this URL
 # (http->ws, strip /api) so it needs no separate setting.
 [vars]
-VITE_API_BASE_URL = "https://sound-royale-backend-production.up.railway.app/api"
+VITE_API_BASE_URL = "https://sound-royale-ny.fly.dev/api"
