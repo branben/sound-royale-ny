@@ -14,6 +14,8 @@ We verify:
 
 Exit 0 = all refs resolve. Exit 1 = at least one dangling ref.
 """
+from __future__ import annotations
+
 import json
 import sys
 from pathlib import Path
