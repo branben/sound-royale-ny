@@ -51,7 +51,7 @@ export function TurnIndicator({
         </div>
       </div>
 
-      {isActive && <div className="flex h-3 w-3 rounded-full bg-green-500 animate-pulse" />}
+      {isActive && <div className="flex h-3 w-3 rounded-full bg-green-500" />}
     </div>
   );
 }

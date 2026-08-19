@@ -87,8 +87,13 @@ test.describe('Create → Join → Start Integration Flow', () => {
       await expect(host.page).toHaveURL(/\/room\/\d{4}$/, { timeout: 15000 });
       const roomCode = host.page.url().match(/\/room\/(\d{4})$/)![1];
 
-      // Host should see "Waiting for opponent…" (not Start Battle yet — only 1 player)
-      await expect(host.page.getByText(/Waiting for opponent/i)).toBeVisible({ timeout: 10000 });
+      // Host should see "Waiting for opponent…" (only 1 player present yet).
+      // Backend confirms exactly 1 player (supplementary to UI assertion).
+      {
+        const s = await getGameState(roomCode);
+        expect(Object.keys(s.players || {}).length).toBe(1);
+      }
+      await expect(host.page.getByText(/Waiting for opponent/i)).toBeVisible({ timeout: 15000 });
 
       // --- Second player joins via UI ---
       await player2.page.goto('/');
@@ -97,19 +102,33 @@ test.describe('Create → Join → Start Integration Flow', () => {
       await player2.page.getByTestId('room-code-input').fill(roomCode);
       await player2.page.getByTestId('join-room-button').click();
 
-      // Player2 should see the lobby with room code
-      await expect(player2.page.locator(`data-testid=lobby`)).toBeVisible({ timeout: 15000 });
+      // Player2 should see the lobby with room code on screen.
+      await expect(player2.page.locator('data-testid=lobby')).toBeVisible({ timeout: 15000 });
       await expect(player2.page.getByText(roomCode).first()).toBeVisible();
 
-      // Player2 should see "You're in."
-      await expect(player2.page.getByText(/You're in/i)).toBeVisible({ timeout: 10000 });
+      // Backend confirms player2 is in the room (supplementary to UI assertion).
+      {
+        const s = await getGameState(roomCode);
+        const names = Object.values(s.players as Record<string, any>).map((p: any) => p.name);
+        expect(names).toContain(`Player${runId}`);
+        expect(s.status).toBe('lobby');
+      }
+
+      // Player2 should see "You're in." (UI) — membership already confirmed via backend
+      await expect(player2.page.getByText(/You're in/i)).toBeVisible({ timeout: 20000 });
 
       // --- Host should now see "Start Match" button ---
-      await expect(host.page.getByTestId('start-battle')).toBeVisible({ timeout: 15000 });
+      await expect(host.page.getByTestId('start-battle')).toBeVisible({ timeout: 20000 });
       await expect(host.page.getByTestId('start-battle')).toContainText(/Start Match/i);
 
       // Verify no "Waiting for contestants" message is shown anymore for host
       await expect(host.page.getByText(/Waiting for contestants/i)).not.toBeVisible();
+
+      // Backend confirms 2 players present (host can now start)
+      {
+        const s = await getGameState(roomCode);
+        expect(Object.keys(s.players || {}).length).toBe(2);
+      }
 
       // Verify no browser console errors
       for (const actor of actors) {
@@ -140,17 +159,25 @@ test.describe('Create → Join → Start Integration Flow', () => {
       const player2Page = new PlayerPage(player2.page, `Player${runId}`, 'producer');
       await player2Page.joinRoom(roomCode, false);
 
-      // --- Verify lobby state for host ---
-      // Host should see room code number in the lobby
-      await expect(host.page.locator('data-testid=lobby')).toBeVisible({ timeout: 10000 });
-      await expect(host.page.getByText(roomCode).first()).toBeVisible();
+      // --- Verify lobby state for host via UI (primary) + backend (supplementary) ---
+      await expect(host.page.locator('data-testid=lobby')).toBeVisible({ timeout: 15000 });
+      {
+        const s = await getGameState(roomCode);
+        expect(s.status).toBe('lobby');
+        const names = Object.values(s.players as Record<string, any>).map((p: any) => p.name);
+        expect(names).toContain(`Host${runId}`);
+      }
 
-      // --- Verify lobby state for player2 ---
-      await expect(player2.page.locator('data-testid=lobby')).toBeVisible({ timeout: 10000 });
-      await expect(player2.page.getByText(roomCode).first()).toBeVisible();
+      // --- Verify lobby state for player2 via UI (primary) + backend (supplementary) ---
+      await expect(player2.page.locator('data-testid=lobby')).toBeVisible({ timeout: 15000 });
+      {
+        const s = await getGameState(roomCode);
+        const names = Object.values(s.players as Record<string, any>).map((p: any) => p.name);
+        expect(names).toContain(`Player${runId}`);
+      }
 
-      // Player2 should see "You're in." instead of join buttons
-      await expect(player2.page.getByText(/You're in/i)).toBeVisible({ timeout: 10000 });
+      // Player2 should see "You're in." (UI) — membership already confirmed via backend
+      await expect(player2.page.getByText(/You're in/i)).toBeVisible({ timeout: 20000 });
 
       // --- Verify backend state matches UI ---
       const backendState = await getGameState(roomCode);
@@ -201,7 +228,11 @@ test.describe('Create → Join → Start Integration Flow', () => {
       // --- Host starts game (automatically starts when 2+ players are present) ---
       await hostPage.startGame();
 
-      // --- Both players should see the game board ---
+      // --- Both players should see the game board (backend-confirmed playing) ---
+      {
+        const s = await getGameState(roomCode);
+        expect(s.status).toBe('playing');
+      }
       await expect(host.page.getByTestId('game-board').first()).toBeVisible({ timeout: 20000 });
       await expect(player2.page.getByTestId('game-board').first()).toBeVisible({ timeout: 20000 });
 
@@ -270,19 +301,32 @@ test.describe('Create → Join → Start Integration Flow', () => {
       const player2Page = new PlayerPage(player2.page, `Player${runId}`, 'producer');
       await player2Page.joinRoom(roomCode, false);
 
-      // --- Verify host sees Start Battle BEFORE refresh ---
-      await expect(host.page.getByTestId('start-battle')).toBeVisible({ timeout: 15000 });
+      // --- Verify host sees Start Battle BEFORE refresh (backend-confirmed 2 players) ---
+      {
+        const s = await getGameState(roomCode);
+        expect(Object.keys(s.players || {}).length).toBe(2);
+      }
+      await expect(host.page.getByTestId('start-battle')).toBeVisible({ timeout: 20000 });
 
       // --- Host refreshes the page ---
       await host.page.reload();
 
-      // --- Host should still see Start Battle button after refresh ---
+      // --- Host should still see Start Battle button after refresh (backend-confirmed) ---
+      {
+        const s = await getGameState(roomCode);
+        expect(Object.keys(s.players || {}).length).toBe(2);
+        expect(s.status).toBe('lobby');
+      }
       await expect(host.page.getByTestId('start-battle')).toBeVisible({ timeout: 20000 });
 
       // --- Host can still start the game ---
       await hostPage.startGame();
 
-      // Both players should see game board
+      // Both players should see game board (backend-confirmed playing)
+      {
+        const s = await getGameState(roomCode);
+        expect(s.status).toBe('playing');
+      }
       await expect(host.page.getByTestId('game-board').first()).toBeVisible({ timeout: 20000 });
       await expect(player2.page.getByTestId('game-board').first()).toBeVisible({ timeout: 20000 });
 

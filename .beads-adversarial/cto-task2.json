@@ -1,7 +1,0 @@
-{
-  "bead": "sound-royale-ny-churn-2",
-  "lens": "cto",
-  "verdict": "APPROVED",
-  "evidence": "backend/game_engine/models.py:68, backend/game_engine/views.py:716,718",
-  "notes": "Clean extract-constant refactor. MAX_SPECTATORS = 10 added at models.py:68 immediately after MIN_PRODUCERS_TO_PLAY, matching neighboring constant style (comment + assignment). In views.py, both usages of the magic number 10 were replaced with Room.MAX_SPECTATORS: the guard comparison at line 716 and the f-string error message at line 718. Pure constant substitution — same int 10, no logic altered, no scope creep. Diff is limited to the two files and two changes described. All gates passed."
-}

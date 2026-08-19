@@ -56,9 +56,9 @@ logs/
 .events.jsonl
 .feed.jsonl
 
-# --- AGENTS.md (internal AI instructions, not for public) ---
-AGENTS.md
-**/AGENTS.md
+# --- AGANTS.md (internal AI instructions, not for public) ---
+AGANTS.md
+**/AGANTS.md
 
 # --- Local runtime state ---
 daemon/
@@ -92,6 +92,7 @@ public/seed.html
 
 # --- AI / Dev Tooling (local state only) ---
 .beads/
+.beads-adversarial/
 .beadsignore
 .beadsha*
 .ai-tools/
@@ -101,7 +102,6 @@ public/seed.html
 .gaia_private/
 .cocoindex_code/
 .cursorrules
-.serena/
 .playwright-cli/
 scripts/gaia-*
 scripts/guardrail*
@@ -124,6 +124,9 @@ deacon/
 # CocoIndex Code (ccc)
 /.cocoindex_code/
 .worktrees
+.wrangler/
+.dev.vars
+.entire/
 
 # --- Local agent/scratch surfaces (NOT version-controlled; harness works from shared state) ---
 .agents/
@@ -131,4 +134,3 @@ deacon/
 .codex/
 .ce-loop/
 data/
-

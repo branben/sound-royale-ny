@@ -1,7 +1,0 @@
-{
-  "bead": "sound-royale-ny-churn-3",
-  "lens": "coo",
-  "verdict": "APPROVED",
-  "evidence": "4 files changed — backend/game_engine/models.py, backend/game_engine/views.py, src/types/game.ts, src/components/game/BingoBoard.tsx. No scope bleed; git diff --stat matches bookbag files_changed array exactly. BINGO_LINE_COUNT=5 extracted as a named constant on both backend (Room.BINGO_LINE_COUNT) and frontend (export BINGO_LINE_COUNT) with cross-referencing sync comments. The bookbag confirms issue #340 and task 'extract BINGO_LINE_COUNT'. Verifications in bookbag show tsc pass and gaia gate pass.",
-  "notes": "PR-ready. This is a textbook single-concern refactor: the hardcoded literal 5 was identified in two locations (views.py:406 guard on bingo resolution, BingoBoard.tsx:58 guard on shudder animation) and replaced with a named constant BINGO_LINE_COUNT=5 defined once per layer. The diff is minimal (12 insertions, 3 deletions), no formatting drift, no unrelated imports or changes. The constant carries an explanatory comment on the 3×3 board context and cross-references between backend and frontend definitions. Bookbag evidence confirms all gates pass. No scope bleed whatsoever — isolated, disciplined, complete."
-}

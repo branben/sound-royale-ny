@@ -37,11 +37,19 @@ test.describe('Live Golden User Flow', () => {
       await producer.page.goto(`/room/${game.roomCode}`);
       await spectator1.page.goto(`/room/${game.roomCode}`);
 
-      // Assert: host and producer see game board
+      // Assert: host and producer see game board (backend-confirmed playing)
+      {
+        const s = await getGameState(game.roomCode);
+        expect(s.status).toBe('playing');
+      }
       await host.assertBoardVisible();
       await producer.assertBoardVisible();
 
       // Assert: spectator sees game board (SpectatorView renders BingoBoard for each producer)
+      {
+        const s = await getGameState(game.roomCode);
+        expect(s.status).toBe('playing');
+      }
       await spectator1.assertBoardVisible();
 
       // Verify backend state

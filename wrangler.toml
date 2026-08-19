@@ -6,10 +6,14 @@ compatibility_date = "2025-07-01"
 # makes Cloudflare reject the deploy ("Unexpected fields found in build field").
 pages_build_output_dir = "dist"
 
-# Vite reads import.meta.env.* at BUILD TIME. REST + WS go DIRECTLY to the
-# Railway backend (no Cloudflare Pages Function proxy) so API traffic is not
-# billed as a Cloudflare request. CORS on the backend already allows
-# https://soundroyale.pages.dev. VITE_WS_URL is derived from this URL
-# (http->ws, strip /api) so it needs no separate setting.
+# Vite reads import.meta.env.* at BUILD TIME. REST traffic goes directly to
+# the Railway backend via VITE_API_BASE_URL (CORS-configured on backend) so
+# API traffic is not billed as a Cloudflare request. VITE_WS_URL is derived
+# from this URL (http→ws, strip /api) so it needs no separate setting.
+#
+# Safety net: functions/api/[[path]].js proxies /api/* on the Pages domain
+# itself if VITE_API_BASE_URL is ever misconfigured to a relative /api path.
+# Set API_ORIGIN in Pages Dashboard > Settings > Environment variables for
+# that safety net; if unset, the Function returns a clear 500.
 [vars]
 VITE_API_BASE_URL = "https://sound-royale-ny.fly.dev/api"

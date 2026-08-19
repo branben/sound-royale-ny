@@ -1,7 +1,0 @@
-{
-  "bead": "sound-royale-ny-churn-6",
-  "lens": "cto",
-  "verdict": "APPROVED",
-  "evidence": "src/components/game/__tests__/VotingPanel.test.tsx:42-47,58-61; src/components/game/__tests__/RoundStage.test.tsx:7-10,13-14,19-22,24-27",
-  "notes": "VotingPanel correctly displays 'Waiting for more spectators to join (2/3 for ranked mode)' at spectatorCount=2 and 'Waiting for producers to finish their beats...' at spectatorCount=3. RoundStage correctly displays 'Ranked voting' at >=3 spectators and 'Casual mode' at <3. All assertions use imported MIN_SPECTATORS_FOR_RANKED (not hardcoded 3). Only the two new test files were added (no source changes). Vitest confirms 10/10 tests pass. Gaia gate confirmed ALL GATES PASSED."
-}
