@@ -18,6 +18,21 @@ from datetime import timedelta
 from decouple import config
 from corsheaders.defaults import default_headers
 
+# ── Fly.io / 12-factor DATABASE_URL ─────────────────────────────────────
+# Fly.io's MPG attach injects DATABASE_URL but not the DB_* keys this file
+# reads. If present, parse it and inject the components into os.environ so
+# the existing config('DB_*') calls below work unchanged.
+import urllib.parse
+
+if os.environ.get("DATABASE_URL"):
+    url = urllib.parse.urlparse(os.environ["DATABASE_URL"])
+    os.environ.setdefault("DB_ENGINE", "django.db.backends.postgresql")
+    os.environ.setdefault("DB_NAME", url.path.lstrip("/"))
+    os.environ.setdefault("DB_USER", url.username or "")
+    os.environ.setdefault("DB_PASSWORD", url.password or "")
+    os.environ.setdefault("DB_HOST", url.hostname or "")
+    os.environ.setdefault("DB_PORT", str(url.port) if url.port else "")
+
 # ── Sentry Error Tracking ──────────────────────────────────────────────
 SENTRY_DSN = config('SENTRY_DSN', default='')
 if SENTRY_DSN:
@@ -111,6 +126,13 @@ DATABASES = {
         'PASSWORD': config('DB_PASSWORD', default=''),
         'HOST': config('DB_HOST', default=''),
         'PORT': config('DB_PORT', default=''),
+        # Supabase free tier gives us only 2 connections via PgBouncer.
+        # Keep connections alive so we don't churn through the pool.
+        'CONN_MAX_AGE': config('DB_CONN_MAX_AGE', default='60', cast=int),
+        'CONN_HEALTH_CHECKS': True,
+        # Supabase + PgBouncer: server-side cursors pin a connection for
+        # the whole transaction, which exhausts the pool under concurrency.
+        'DISABLE_SERVER_SIDE_CURSORS': True,
     }
 }
 
@@ -214,18 +236,34 @@ REST_FRAMEWORK = {
     )
     and []
     or [
+        'game_engine.throttling.GlobalRateThrottle',  # ← shared cap across ALL users
         'rest_framework.throttling.AnonRateThrottle',
         'rest_framework.throttling.UserRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon': config('ANON_THROTTLE_RATE', default='300/minute'),
-        'user': config('USER_THROTTLE_RATE', default='300/minute'),
-        'audio_upload': config('AUDIO_UPLOAD_THROTTLE_RATE', default='120/minute'),
-        'room_creation': config('ROOM_CREATION_THROTTLE_RATE', default='60/minute'),
+        'anon': config('ANON_THROTTLE_RATE', default='60/minute'),     # was 300/min
+        'user': config('USER_THROTTLE_RATE', default='120/minute'),    # was 300/min
+        'audio_upload': config('AUDIO_UPLOAD_THROTTLE_RATE', default='30/minute'),  # was 120/min
+        'room_creation': config('ROOM_CREATION_THROTTLE_RATE', default='10/minute'), # was 60/min
+        'global': config('GLOBAL_THROTTLE_RATE', default='200/minute'), # ← new global cap
     },
 }
 
-# Channels settings
+# Cache configuration
+# Use Redis for everything (throttle counters + game state cache).
+# This keeps read-heavy endpoints off the DB AND ensures throttle
+# counters are shared across all Daphne workers (N1: global throttle).
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": config("REDIS_URL", default="redis://127.0.0.1:6379/1"),
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+        "TIMEOUT": 10,
+        "KEY_PREFIX": "sound-royale",
+    }
+}
 ASGI_APPLICATION = 'sound_royale_api.asgi.application'
 
 # Channel layer settings (using Redis)

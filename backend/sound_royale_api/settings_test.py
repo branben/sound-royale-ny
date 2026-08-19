@@ -53,12 +53,17 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
-    "DEFAULT_THROTTLE_CLASSES": [],
+    "DEFAULT_THROTTLE_CLASSES": [
+        "game_engine.throttling.GlobalRateThrottle",
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
     "DEFAULT_THROTTLE_RATES": {
         "anon": "10000/minute",
         "user": "100000/minute",
         "audio_upload": "10000/minute",
         "room_creation": "10000/minute",
+        "global": "100000/minute",
     },
 }
 
