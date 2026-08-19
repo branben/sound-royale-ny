@@ -1,12 +1,14 @@
 import json
 import logging
 import asyncio
+import time
 from uuid import UUID
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from .models import Room, Player
 from .serializers import GameStateSerializer
 from .auth import _resolve_player, _resolve_player_from_token
+from .throttling import RoomBroadcastThrottle
 
 # Audit logger for security-relevant events
 audit_logger = logging.getLogger("game_audit")
@@ -15,6 +17,12 @@ logger = logging.getLogger(__name__)
 
 # Seconds to wait for a post-handshake auth message before closing (#105).
 AUTH_TIMEOUT_SECONDS = 10
+
+# WebSocket message rate limit: max messages per second per player
+# Prevents a single client from spamming the channel layer
+WS_RATE_LIMIT_PER_SECOND = 5
+# Cooldown after a player triggers rate limit (seconds)
+WS_RATE_LIMIT_COOLDOWN = 2.0
 
 
 class GameConsumer(AsyncWebsocketConsumer):
@@ -32,6 +40,19 @@ class GameConsumer(AsyncWebsocketConsumer):
         "host_migrated",
     }
 
+    # N7: Per-IP unauthenticated connection limiter (prevents auth shadow attacks)
+    MAX_UNAUTHENTICATED_PER_IP = 5
+    _unauth_connections: dict[str, int] = {}  # class-level
+
+    # Class-level broadcast throttler — shared across all instances
+    _broadcast_throttle = RoomBroadcastThrottle()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Per-connection rate limiting for incoming messages
+        self._message_timestamps: list[float] = []
+        self._rate_limited_until: float = 0.0
+
     async def connect(self):
         room_identifier = self.scope["url_route"]["kwargs"]["game_id"]
         room_identity = await self.get_room_identity(room_identifier)
@@ -45,6 +66,14 @@ class GameConsumer(AsyncWebsocketConsumer):
         self.player_id = None
         self.authed = False
         self.auth_timeout = None
+
+        # N7: Per-IP unauthenticated connection limiter
+        client_ip = self.scope.get("client", ["0.0.0.0"])[0]
+        current = GameConsumer._unauth_connections.get(client_ip, 0)
+        if current >= GameConsumer.MAX_UNAUTHENTICATED_PER_IP:
+            await self.close(code=4408)
+            return
+        GameConsumer._unauth_connections[client_ip] = current + 1
 
         # Player may already be resolved from a query/JWT by the auth
         # middleware (legacy path). Otherwise we accept the socket and wait
@@ -138,6 +167,13 @@ class GameConsumer(AsyncWebsocketConsumer):
         await self.finalize_connection(player)
 
     async def disconnect(self, close_code):
+        # N7: Decrement per-IP unauthenticated connection count
+        if not self.authed and self.player_id is None:
+            client_ip = self.scope.get("client", ["0.0.0.0"])[0]
+            GameConsumer._unauth_connections[client_ip] = max(
+                0, GameConsumer._unauth_connections.get(client_ip, 1) - 1
+            )
+
         # Mark player as disconnected
         if self.player_id:
             player_payload = await self.get_player_presence_payload(self.player_id)
@@ -170,6 +206,42 @@ class GameConsumer(AsyncWebsocketConsumer):
         await self.channel_layer.group_discard(self.game_group_name, self.channel_name)
 
     async def receive(self, text_data):
+        # --- Incoming WebSocket message rate limiting ---
+        # Prevents a single client from spamming the channel layer and
+        # triggering broadcast storms.
+        now = time.monotonic()
+        if now < self._rate_limited_until:
+            # In cooldown — silently drop
+            return
+
+        # Sliding window: keep timestamps within the last second
+        self._message_timestamps = [
+            t for t in self._message_timestamps if now - t < 1.0
+        ]
+        if len(self._message_timestamps) >= WS_RATE_LIMIT_PER_SECOND:
+            audit_logger.warning(
+                "websocket_rate_limited",
+                extra={
+                    "room_id": self.game_id,
+                    "player_id": self.player_id,
+                    "action": "rate_limited",
+                },
+            )
+            self._rate_limited_until = now + WS_RATE_LIMIT_COOLDOWN
+            await self.send(
+                text_data=json.dumps(
+                    {
+                        "type": "error",
+                        "payload": {
+                            "code": "RATE_LIMITED",
+                            "message": "Too many messages. Slow down.",
+                        },
+                    }
+                )
+            )
+            return
+        self._message_timestamps.append(now)
+
         try:
             text_data_json = json.loads(text_data)
         except (json.JSONDecodeError, ValueError):
@@ -357,7 +429,18 @@ class GameConsumer(AsyncWebsocketConsumer):
             return None
 
     async def broadcast_game_state(self):
-        """Broadcast current game state to all clients in the room"""
+        """Broadcast current game state to all clients in the room.
+
+        Throttled: at most one broadcast per room per
+        RoomBroadcastThrottle.MIN_INTERVAL seconds. During a reconnect
+        cascade, multiple connect/disconnect events can pile up; this
+        collapses them into a single broadcast.
+        """
+        if not GameConsumer._broadcast_throttle.allow(self.game_group_name):
+            # A broadcast was sent too recently for this room — skip this
+            # one. The most recent state will be sent on the next allowed
+            # tick.
+            return
         game_state = await self.get_game_state()
         if game_state:
             await self.channel_layer.group_send(
