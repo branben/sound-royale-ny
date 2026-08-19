@@ -4,6 +4,7 @@ import os
 # voting, ELO, and audit logging). See game_engine/ for the consumer/auth layer.
 
 from django.shortcuts import get_object_or_404
+from django.http import Http404
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
@@ -1064,10 +1065,13 @@ class RoomViewSet(viewsets.ModelViewSet):
         return throttles
 
     def get_object(self):
-        if self.kwargs.get(self.lookup_field):
-            # Try to get by room code first
+        # DRF's DefaultRouter registers URLs with <pk>, so room codes arrive
+        # as self.kwargs['pk']. Fall back to 'pk' when lookup_field ('code')
+        # isn't in the kwargs.
+        room_code = self.kwargs.get(self.lookup_field) or self.kwargs.get('pk')
+        if room_code:
             try:
-                return Room.objects.get(code=str(self.kwargs[self.lookup_field]))
+                return Room.objects.get(code=str(room_code))
             except Room.DoesNotExist:
                 # Fallback to UUID lookup if code lookup fails
                 pass
@@ -1553,6 +1557,14 @@ class RoomViewSet(viewsets.ModelViewSet):
 
         try:
             with transaction.atomic():
+                # Lock the room row so concurrent reset_game calls (e.g. two
+                # Playwright E2E workers racing on the same room) serialize
+                # instead of both deleting+recreating tiles in the same
+                # transaction — which would collide on the per-player tile
+                # unique_together (position) and raise IntegrityError. The lock
+                # is released when this transaction commits/rolls back, so the
+                # loser observes a consistent starting state on its retry.
+                room = Room.objects.select_for_update().get(pk=room.pk)
                 # Store original round for the success response payload
                 original_round = room.current_round
 
@@ -1633,11 +1645,22 @@ class RoomViewSet(viewsets.ModelViewSet):
             )
 
         except IntegrityError as e:
-            # Database constraint violation - transaction will automatically rollback
+            # A constraint violation (e.g. a parallel reset_game or a tile
+            # unique_together race) reaching here means the conflict was not the
+            # expected pre-validated case. By the time we land here the
+            # `transaction.atomic()` above has already rolled back, so we return
+            # a 409 conflict (not a 500) — 500s are precisely what the
+            # parallel-E2E suite was reporting. This mirrors the
+            # duplicate_name 409 contract in join_game. The broad
+            # `except Exception` below is the only true 500 path and only fires
+            # for genuinely unexpected faults.
             logger.error(f"Database integrity error in reset_game for room {room.code}: {str(e)}")
             return Response(
-                {"error": "Database constraint violation. Please try again."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                {
+                    "error": "Database conflict while resetting game. Please retry.",
+                    "conflict_type": "reset_conflict",
+                },
+                status=status.HTTP_409_CONFLICT,
             )
 
         except Exception as e:
@@ -2193,11 +2216,16 @@ class PlayerViewSet(viewsets.ModelViewSet):
         """
         Override get_object to handle player_secret lookup. The secret in the
         URL is the plaintext; the stored value is hashed (guardrail #105).
+
+        DRF's DefaultRouter registers URLs with <pk>, so the player_secret
+        arrives as self.kwargs['pk']. Fall back to 'pk' when lookup_field
+        ('player_secret') isn't in the kwargs.
         """
-        if self.kwargs.get(self.lookup_field):
+        raw_secret = self.kwargs.get(self.lookup_field) or self.kwargs.get('pk')
+        if raw_secret:
             try:
                 return Player.objects.get(
-                    player_secret=hash_secret(self.kwargs[self.lookup_field])
+                    player_secret=hash_secret(raw_secret)
                 )
             except Player.DoesNotExist:
                 pass
@@ -2348,7 +2376,7 @@ class PlayerViewSet(viewsets.ModelViewSet):
             raise serializers.ValidationError("room_id is required")
 
     @action(detail=True, methods=["get"])
-    def genre_performance(self, request, pk=None):
+    def genre_performance(self, request, player_secret=None):
         """
         Get genre performance stats for a player with FIFA-style grades.
         Computes win rate per genre based on historical round data.
@@ -2358,7 +2386,7 @@ class PlayerViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["post"])
-    def leave_game(self, request, pk=None, code=None):
+    def leave_game(self, request, player_secret=None):
         """
         Leave a game room.
         """
@@ -2486,6 +2514,18 @@ class TileViewSet(viewsets.ModelViewSet):
         """
         Play a tile in the game.
         """
+        # N8: Reject oversized uploads BEFORE reading the body (413)
+        content_length = request.META.get("CONTENT_LENGTH", 0)
+        try:
+            content_length = int(content_length)
+        except (ValueError, TypeError):
+            content_length = 0
+        if content_length > settings.MAX_UPLOAD_SIZE:
+            return Response(
+                {"error": f"File too large. Maximum size is {settings.MAX_UPLOAD_SIZE // (1024 * 1024)}MB."},
+                status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            )
+
         tile = self.get_object()
         room = tile.room
 
