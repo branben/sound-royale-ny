@@ -44,6 +44,10 @@ class GameConsumer(AsyncWebsocketConsumer):
     MAX_UNAUTHENTICATED_PER_IP = 5
     _unauth_connections: dict[str, int] = {}  # class-level
 
+    # N4: Per-room connection cap (prevents viral streamer from exhausting Supabase WS limit)
+    MAX_CLIENTS_PER_ROOM = 50
+    _room_client_count: dict[str, int] = {}  # class-level
+
     # Class-level broadcast throttler — shared across all instances
     _broadcast_throttle = RoomBroadcastThrottle()
 
@@ -74,6 +78,13 @@ class GameConsumer(AsyncWebsocketConsumer):
             await self.close(code=4408)
             return
         GameConsumer._unauth_connections[client_ip] = current + 1
+
+        # N4: Per-room connection cap
+        current_room = GameConsumer._room_client_count.get(self.game_group_name, 0)
+        if current_room >= GameConsumer.MAX_CLIENTS_PER_ROOM:
+            await self.close(code=4409)
+            return
+        GameConsumer._room_client_count[self.game_group_name] = current_room + 1
 
         # Player may already be resolved from a query/JWT by the auth
         # middleware (legacy path). Otherwise we accept the socket and wait
@@ -172,6 +183,12 @@ class GameConsumer(AsyncWebsocketConsumer):
             client_ip = self.scope.get("client", ["0.0.0.0"])[0]
             GameConsumer._unauth_connections[client_ip] = max(
                 0, GameConsumer._unauth_connections.get(client_ip, 1) - 1
+            )
+
+        # N4: Decrement per-room connection count
+        if self.game_group_name:
+            GameConsumer._room_client_count[self.game_group_name] = max(
+                0, GameConsumer._room_client_count.get(self.game_group_name, 1) - 1
             )
 
         # Mark player as disconnected
