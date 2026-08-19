@@ -2520,12 +2520,14 @@ class TileViewSet(viewsets.ModelViewSet):
         Play a tile in the game.
         """
         # N8: Reject oversized uploads BEFORE reading the body (413)
+        # Allow 1KB tolerance for multipart encoding overhead so a file
+        # of exactly MAX_UPLOAD_SIZE bytes isn't falsely rejected.
         content_length = request.META.get("CONTENT_LENGTH", 0)
         try:
             content_length = int(content_length)
         except (ValueError, TypeError):
             content_length = 0
-        if content_length > settings.MAX_UPLOAD_SIZE:
+        if content_length > settings.MAX_UPLOAD_SIZE + 1024:
             return Response(
                 {"error": f"File too large. Maximum size is {settings.MAX_UPLOAD_SIZE // (1024 * 1024)}MB."},
                 status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
