@@ -231,12 +231,8 @@ REST_FRAMEWORK = {
         'rest_framework.renderers.JSONRenderer',
     ],
     'DEFAULT_PAGINATION_CLASS': None,
-    'DEFAULT_THROTTLE_CLASSES': config(
-        'DISABLE_THROTTLES', default='false', cast=bool
-    )
-    and []
-    or [
-        'game_engine.throttling.GlobalRateThrottle',  # ← shared cap across ALL users
+    'DEFAULT_THROTTLE_CLASSES': [
+        'game_engine.throttling.GlobalRateThrottle',
         'rest_framework.throttling.AnonRateThrottle',
         'rest_framework.throttling.UserRateThrottle',
     ],
