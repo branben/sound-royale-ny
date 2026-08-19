@@ -16,6 +16,7 @@ from django.db.models import Prefetch
 from django.utils import timezone
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.cache import caches
 
 from rest_framework_simplejwt.tokens import RefreshToken
 from channels.layers import get_channel_layer
@@ -1063,6 +1064,10 @@ class RoomViewSet(viewsets.ModelViewSet):
         if self.action == "create":
             throttles.append(ScopedRateThrottle())
         return throttles
+
+    def _invalidate_room_cache(self, room_code: str):
+        """N6: Invalidate the cached game state for a room."""
+        caches["default"].delete(f"room_state:{room_code}")
 
     def get_object(self):
         # DRF's DefaultRouter registers URLs with <pk>, so room codes arrive
@@ -2617,6 +2622,9 @@ class TileViewSet(viewsets.ModelViewSet):
             _resolve_bingo_and_winner(room, player)
 
             transaction.on_commit(lambda: broadcast_game_update(room))
+
+        # N6: Invalidate room cache on state mutation
+        caches["default"].delete(f"room_state:{room.code}")
 
         # Return updated game state
         game_serializer = GameStateSerializer(room)
