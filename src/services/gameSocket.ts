@@ -71,6 +71,14 @@ class GameSocketService {
   private isConnecting = false;
   private connectTimeout: ReturnType<typeof setTimeout> | null = null;
   private pendingMessages: Array<{ type: string; payload: unknown }> = [];
+  // Debounce: ignore reconnect triggers that fire within this window of the
+  // last one. A single network blip can cause onclose + onerror to both fire;
+  // without this we'd start two parallel reconnect races.
+  private lastDisconnectAt = 0;
+  private static readonly RECONNECT_DEBOUNCE_MS = 500;
+  // Cap on pending HTTP fetches triggered by reconnect (prevents the
+  // onConnect → refreshRoomState → HTTP GET storm).
+  private refreshInFlight = false;
 
   private getWsUrl(): string {
     const baseUrl =
@@ -187,11 +195,13 @@ class GameSocketService {
         }
         this.isConnecting = false;
         this.reconnectAttempts = 0;
-        this.options?.onConnect?.();
         this.drainQueue();
         // Post-handshake auth: send the authenticator as the first message
         // so player_secret / JWT are never placed in the URL (guardrail #105).
         this.sendAuthMessage();
+        // Route onConnect through the debounce/coalesce helper so rapid
+        // (re)connects collapse into a single refresh.
+        this.triggerRefresh();
       };
 
       this.ws.onmessage = (event) => {
@@ -246,8 +256,26 @@ class GameSocketService {
     }
   }
 
+  private triggerRefresh(): void {
+    if (this.refreshInFlight) return;
+    this.refreshInFlight = true;
+    // Coalesce rapid onConnect calls into a single HTTP fetch.
+    setTimeout(async () => {
+      this.refreshInFlight = false;
+      if (this.options?.onConnect) {
+        this.options.onConnect();
+      }
+    }, 200);
+  }
+
   private attemptReconnect(): void {
     if (this.isIntentionallyClosed || !this.options) return;
+
+    const now = Date.now();
+    if (now - this.lastDisconnectAt < GameSocketService.RECONNECT_DEBOUNCE_MS) {
+      return; // Debounce: a reconnect is already in flight
+    }
+    this.lastDisconnectAt = now;
 
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       return;
