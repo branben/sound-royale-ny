@@ -5,6 +5,7 @@ import time
 from uuid import UUID
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
+from django.core.cache import cache
 from .models import Room, Player
 from .serializers import GameStateSerializer
 from .auth import _resolve_player, _resolve_player_from_token
@@ -42,11 +43,10 @@ class GameConsumer(AsyncWebsocketConsumer):
 
     # N7: Per-IP unauthenticated connection limiter (prevents auth shadow attacks)
     MAX_UNAUTHENTICATED_PER_IP = 5
-    _unauth_connections: dict[str, int] = {}  # class-level
-
     # N4: Per-room connection cap (prevents viral streamer from exhausting Supabase WS limit)
     MAX_CLIENTS_PER_ROOM = 50
-    _room_client_count: dict[str, int] = {}  # class-level
+    # TTL for connection-count keys — auto-expires if disconnect doesn't fire
+    CONN_COUNT_TTL = 3600
 
     # Class-level broadcast throttler — shared across all instances
     _broadcast_throttle = RoomBroadcastThrottle()
@@ -71,20 +71,30 @@ class GameConsumer(AsyncWebsocketConsumer):
         self.authed = False
         self.auth_timeout = None
 
-        # N7: Per-IP unauthenticated connection limiter
+        # N7: Per-IP unauthenticated connection limiter (Redis-backed, atomic across workers)
         client_ip = self.scope.get("client", ["0.0.0.0"])[0]
-        current = GameConsumer._unauth_connections.get(client_ip, 0)
-        if current >= GameConsumer.MAX_UNAUTHENTICATED_PER_IP:
+        unauth_key = f"ws_unauth_ip:{client_ip}"
+        current = cache.get(unauth_key)
+        if current is None:
+            cache.set(unauth_key, 0, timeout=self.CONN_COUNT_TTL)
+            current = 0
+        if current >= self.MAX_UNAUTHENTICATED_PER_IP:
             await self.close(code=4408)
             return
-        GameConsumer._unauth_connections[client_ip] = current + 1
+        cache.incr(unauth_key)
 
-        # N4: Per-room connection cap
-        current_room = GameConsumer._room_client_count.get(self.game_group_name, 0)
-        if current_room >= GameConsumer.MAX_CLIENTS_PER_ROOM:
+        # N4: Per-room connection cap (Redis-backed, atomic across workers)
+        room_key = f"ws_room_count:{self.game_group_name}"
+        current_room = cache.get(room_key)
+        if current_room is None:
+            cache.set(room_key, 0, timeout=self.CONN_COUNT_TTL)
+            current_room = 0
+        if current_room >= self.MAX_CLIENTS_PER_ROOM:
+            # Roll back the unauth increment since we're rejecting
+            cache.decr(unauth_key)
             await self.close(code=4409)
             return
-        GameConsumer._room_client_count[self.game_group_name] = current_room + 1
+        cache.incr(room_key)
 
         # Player may already be resolved from a query/JWT by the auth
         # middleware (legacy path). Otherwise we accept the socket and wait
@@ -178,18 +188,22 @@ class GameConsumer(AsyncWebsocketConsumer):
         await self.finalize_connection(player)
 
     async def disconnect(self, close_code):
-        # N7: Decrement per-IP unauthenticated connection count
+        # N7: Decrement per-IP unauthenticated connection count (Redis-backed)
         if not self.authed and self.player_id is None:
             client_ip = self.scope.get("client", ["0.0.0.0"])[0]
-            GameConsumer._unauth_connections[client_ip] = max(
-                0, GameConsumer._unauth_connections.get(client_ip, 1) - 1
-            )
+            unauth_key = f"ws_unauth_ip:{client_ip}"
+            if cache.get(unauth_key) is not None:
+                new_val = cache.decr(unauth_key)
+                if new_val < 0:
+                    cache.set(unauth_key, 0, timeout=self.CONN_COUNT_TTL)
 
-        # N4: Decrement per-room connection count
+        # N4: Decrement per-room connection count (Redis-backed)
         if self.game_group_name:
-            GameConsumer._room_client_count[self.game_group_name] = max(
-                0, GameConsumer._room_client_count.get(self.game_group_name, 1) - 1
-            )
+            room_key = f"ws_room_count:{self.game_group_name}"
+            if cache.get(room_key) is not None:
+                new_val = cache.decr(room_key)
+                if new_val < 0:
+                    cache.set(room_key, 0, timeout=self.CONN_COUNT_TTL)
 
         # Mark player as disconnected
         if self.player_id:
