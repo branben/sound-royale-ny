@@ -17,6 +17,16 @@ jobs:
     # NOTE: No postgres service needed — settings_test uses SQLite (:memory:).
     # Removing the unused service eliminates the "role root does not exist" failure
     # and cuts ~30s of container startup per run.
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -224,7 +234,7 @@ jobs:
           LINEAR_WEBHOOK_SECRET: 'ci-e2e-webhook-secret'
           E2E_LOG_LEVEL: 'ERROR'          # flip to DEBUG for a verbose re-run
         run: |
-          python -m daphne -v 2 -p 8000 -b 0.0.0.0 sound_royale_api.asgi:application 2>&1 | tee backend/logs/daphne-console.log &
+          python -m daphne -v 2 -p 8000 -b 0.0.0.0 sound_royale_api.asgi:application 2>&1 | tee logs/daphne-console.log &
           BACKEND_PID=$!
           echo "BACKEND_PID=$BACKEND_PID" >> $GITHUB_ENV
           for i in $(seq 1 30); do
