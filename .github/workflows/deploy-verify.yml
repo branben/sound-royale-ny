@@ -1,0 +1,140 @@
+name: Deploy Verification
+
+# Triggered when CI passes OR on direct push to main.
+# Railway's GitHub webhook starts the deploy on push; this workflow
+# polls the health endpoint until the new version is live and stable.
+on:
+  push:
+    branches: [main]
+  workflow_run:
+    workflows: ["Sound Royale CI"]
+    types: [completed]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify-deploy:
+    name: Verify Railway Deploy
+    runs-on: ubuntu-latest
+    # Only run on push to main, OR when the triggering CI run succeeded
+    if: |
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    steps:
+      - name: Announce deploy check
+        run: |
+          echo "🔍 Waiting for Railway deploy to complete..."
+          echo "Backend URL: https://sound-royale-backend-production.up.railway.app"
+
+      - name: Poll health endpoint until deploy is live
+        run: |
+          MAX_RETRIES=40
+          RETRY_DELAY=15
+          HEALTH_URL="https://sound-royale-backend-production.up.railway.app/health/"
+          STREAK_NEEDED=3
+          healthy_streak=0
+          first_healthy_at=""
+
+          for i in $(seq 1 $MAX_RETRIES); do
+            now=$(date -u +"%H:%M:%S")
+            HTTP_CODE=$(curl -s -o /tmp/health_body -w "%{http_code}" --max-time 15 "$HEALTH_URL" 2>/dev/null || echo "000")
+            BODY=$(cat /tmp/health_body 2>/dev/null || echo "{}")
+
+            if [ "$HTTP_CODE" = "200" ]; then
+              healthy_streak=$((healthy_streak + 1))
+              if [ -z "$first_healthy_at" ]; then
+                first_healthy_at=$now
+                echo "✅ [$now] First healthy response (HTTP 200): $BODY"
+              fi
+              if [ "$healthy_streak" -ge "$STREAK_NEEDED" ]; then
+                echo "✅ [$now] Deploy verified — $STREAK_NEEDED consecutive healthy checks"
+                echo ""
+                echo "Deploy stable. Total wait: from $first_healthy_at to $now"
+                exit 0
+              fi
+              echo "   [$now] Healthy ($healthy_streak/$STREAK_NEEDED) — confirming stability..."
+            else
+              # Reset streak if we get a non-200
+              if [ "$healthy_streak" -gt 0 ]; then
+                echo "   [$now] Streak broken (HTTP $HTTP_CODE) — resetting"
+              fi
+              healthy_streak=0
+              first_healthy_at=""
+              if [ "$HTTP_CODE" = "503" ]; then
+                echo "⚠️ [$now] Service reports unhealthy (503) — deploy likely rolling: $BODY"
+              elif [ "$HTTP_CODE" = "000" ]; then
+                echo "⚠️ [$now] Connection refused/timeout — service may be restarting"
+              else
+                echo "⚠️ [$now] HTTP $HTTP_CODE — unexpected response"
+              fi
+            fi
+
+            if [ "$i" -lt "$MAX_RETRIES" ]; then
+              sleep $RETRY_DELAY
+            fi
+          done
+
+          echo ""
+          echo "❌ Deploy verification failed — service did not stabilize after $((MAX_RETRIES * RETRY_DELAY))s"
+          exit 1
+
+      - name: Verify API endpoints respond
+        run: |
+          BASE="https://sound-royale-backend-production.up.railway.app"
+          echo "Checking critical endpoints..."
+
+          # /health/ — already verified, but confirm once more
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$BASE/health/")
+          echo "  /health/ → $HTTP"
+
+          # /api/rooms/ — list rooms (should return 403, not 500/502)
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$BASE/api/rooms/")
+          echo "  /api/rooms/ → $HTTP (403 = global listing blocked, 200 = ok)"
+
+          # /api/health/ — DRF health
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$BASE/api/health/")
+          echo "  /api/health/ → $HTTP"
+
+          echo "✅ All endpoints responding"
+
+      - name: Report deploy status
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const verdict = '${{ job.status }}';
+            const emoji = verdict === 'success' ? '✅' : '❌';
+            const sha = context.sha.substring(0, 7);
+            const ref = context.ref.replace('refs/heads/', '');
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            const body = [
+              `## ${emoji} Deploy Verification: ${verdict.toUpperCase()}`,
+              '',
+              `**Commit:** \`${sha}}\` on \`${ref}\``,
+              `**Run:** [${context.runId}](${runUrl})`,
+              '',
+              verdict === 'success'
+                ? 'Health endpoint stable — new version is live.'
+                : 'Health endpoint did not stabilize — check Railway dashboard.',
+            ].join('\n');
+
+            // Find any open PRs for this commit and post a comment
+            if (context.eventName === 'push') {
+              const prs = await github.rest.pulls.list({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                head: `${context.repo.owner}:${ref}`,
+              });
+              for (const pr of prs.data) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  body,
+                });
+              }
+            }
