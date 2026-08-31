@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { enableE2EMode } from './helpers';
+import { enableE2EMode, mockApiRoutes } from './helpers';
 
 test.describe('Admin Panel', () => {
   test.beforeEach(async ({ page }) => {
@@ -60,7 +60,7 @@ test.describe('Admin Panel', () => {
     await expect(pinInput).toBeVisible();
   });
 
-  test('correct PIN unlocks admin panel', async ({ page }) => {
+  test('correct PIN unlocks theme admin', async ({ page }) => {
     // Unlock and then verify rotation name input selector
     await page.goto('/admin/themes');
     const pinInput = page.locator('#theme-admin-pin');
@@ -73,6 +73,32 @@ test.describe('Admin Panel', () => {
     await expect(page.getByText('Theme Rotations')).toBeVisible({ timeout: 10000 });
     // Verify that the Classic rotation name is displayed after unlocking
     await expect(page.getByText('Classic')).toBeVisible({ timeout: 10000 });
+  });
+
+  test('correct PIN unlocks player admin', async ({ page }) => {
+    // Mock the players endpoint for PlayerAdmin
+    await mockApiRoutes(page, {
+      players: [
+        {
+          id: 'player-1',
+          name: 'TestPlayer',
+          eloRating: 1200,
+          eloWins: 5,
+          eloLosses: 3,
+          eloMatches: 8,
+        },
+      ],
+    });
+
+    await page.goto('/admin/players');
+    const pinInput = page.locator('#player-admin-pin');
+    await pinInput.fill('admin-secret');
+    const unlockButton = page.getByRole('button', { name: /unlock|submit|verify|enter/i });
+    if (await unlockButton.isVisible()) {
+      await unlockButton.click();
+    }
+    // Wait for players to load
+    await expect(page.getByText('Players')).toBeVisible({ timeout: 10000 });
     // Admin panel shows "Check In Selected" button for batch operations
     await expect(page.getByRole('button', { name: /Check In Selected/i })).toBeVisible();
   });
