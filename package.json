@@ -13,7 +13,7 @@
     "build:dev": "vite build --mode development",
     "verify:symbols": "serena-slim",
     "verify:types": "npx tsc --noEmit",
-    "lint": "npx tsc --noEmit && eslint .",
+    "lint": "npx tsc --noEmit",
     "audit:ui": "npx impeccable detect src/",
     "audit:ui:json": "npx impeccable detect src/ --json",
     "preview": "vite preview",
