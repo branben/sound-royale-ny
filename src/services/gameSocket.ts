@@ -256,15 +256,25 @@ class GameSocketService {
     }
   }
 
+  private triggerRefreshTimeout: ReturnType<typeof setTimeout> | null = null;
+
   private triggerRefresh(): void {
     if (this.refreshInFlight) return;
     this.refreshInFlight = true;
     // Coalesce rapid onConnect calls into a single HTTP fetch.
-    setTimeout(async () => {
-      this.refreshInFlight = false;
-      if (this.options?.onConnect) {
-        this.options.onConnect();
+    // Store the timeout ID so disconnect() can cancel a pending refresh.
+    // Check isIntentionallyClosed so a refresh scheduled before a disconnect
+    // does not fire after teardown.
+    this.triggerRefreshTimeout = setTimeout(async () => {
+      this.triggerRefreshTimeout = null;
+      if (this.isIntentionallyClosed) {
+        this.refreshInFlight = false;
+        return;
       }
+      if (this.options?.onConnect) {
+        await this.options.onConnect();
+      }
+      this.refreshInFlight = false;
     }, 200);
   }
 
@@ -297,6 +307,7 @@ class GameSocketService {
     this.isIntentionallyClosed = true;
     this.isConnecting = false;
     this.currentConnectionKey = null;
+    this.refreshInFlight = false;
 
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
@@ -306,6 +317,11 @@ class GameSocketService {
     if (this.connectTimeout) {
       clearTimeout(this.connectTimeout);
       this.connectTimeout = null;
+    }
+
+    if (this.triggerRefreshTimeout) {
+      clearTimeout(this.triggerRefreshTimeout);
+      this.triggerRefreshTimeout = null;
     }
 
     if (this.ws) {
