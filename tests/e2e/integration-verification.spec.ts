@@ -7,7 +7,7 @@ test.describe('Integration Verification — All Flows', () => {
     await enableE2EMode(page);
   });
 
-  test('lobby shell loads with title and join mode', async ({ page }) => {
+  test('lobby shell loads with title and room code input', async ({ page }) => {
     await page.goto('/');
 
     await expect(page).toHaveTitle(/Sound Royale/);

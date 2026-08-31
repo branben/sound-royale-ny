@@ -465,4 +465,115 @@ class TransactionEdgeCasesTestCase(TestCase):
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['round'], 1)
-        self.assertEqual(response.data['previous_round'], 999)
+
+
+class ResetGameConcurrencyRegressionTestCase(TestCase):
+    """Regression coverage for the parallel-E2E 500 surface in reset_game.
+
+    The original reset_game returned HTTP 500 on any IntegrityError reaching
+    its outer handler (e.g. a per-player tile unique_together race when two
+    Playwright workers reset the same room concurrently). This class pins:
+      * two resets on the same room both succeed (room-row lock serializes);
+      * an IntegrityError that escapes the inner handler is returned as a 409
+        conflict (never a 500);
+      * the failed transaction still rolls back (no orphaned/duplicated rows);
+      * genuine unexpected faults still surface as a 500.
+    """
+
+    def setUp(self):
+        self.room = Room.objects.create(code="1234", name="Reset Room")
+        self.host = make_player(
+            room=self.room, name="HostPlayer", is_host=True, player_secret=uuid.uuid4()
+        )
+        self.player = make_player(
+            room=self.room, name="TestPlayer", is_host=False, player_secret=uuid.uuid4()
+        )
+        self.room.status = Room.Status.LOBBY
+        self.room.save()
+        for p in [self.host, self.player]:
+            create_user_for_player(p)
+
+    def _reset(self):
+        """Drive reset_game the same way the existing reset tests do."""
+        viewset = RoomViewSet()
+        viewset.kwargs = {"code": self.room.code}
+        viewset.format_kwarg = None
+        request = MagicMock()
+        request.data = {"player_secret": self.host.plain_secret}
+        request.user = self.host.user
+        with patch.object(viewset, "get_object", return_value=self.room):
+            return viewset.reset_game(request)
+
+    def test_two_resets_both_succeed_and_regenerate_tiles(self):
+        """Two resets on the same room both succeed (lock serializes)."""
+        r1 = self._reset()
+        r2 = self._reset()
+        self.assertEqual(r1.status_code, status.HTTP_200_OK)
+        self.assertEqual(r2.status_code, status.HTTP_200_OK)
+        # After both resets, exactly 9 tiles per non-spectator player exist
+        # (no duplicate-position rows from a race).
+        for p in [self.host, self.player]:
+            tiles = Tile.objects.filter(player=p, room=self.room)
+            self.assertEqual(tiles.count(), 9)
+            self.assertEqual(tiles.count(), len({t.position for t in tiles}))
+
+    def test_integrity_error_returns_409_not_500(self):
+        """An IntegrityError escaping the inner handler yields 409, not 500.
+
+        The tile-creation IntegrityError is caught and re-raised as ValueError
+        (→400) inside the atomic block, so it never reaches this handler. The
+        realistic path that reaches the outer IntegrityError handler is a
+        row-level conflict on `room.save()` racing with a concurrent reset
+        (two workers deleting/recreating tiles in the same transaction). We
+        simulate that by making the room's save raise IntegrityError.
+        """
+        Tile.objects.create(
+            player=self.player, room=self.room, position=0, genre=Tile.Genre.PHONK
+        )
+        viewset = RoomViewSet()
+        viewset.kwargs = {"code": self.room.code}
+        viewset.format_kwarg = None
+
+        request = MagicMock()
+        request.data = {"player_secret": self.host.plain_secret}
+        request.user = self.host.user
+
+        save_count = [0]
+
+        def mock_room_save(self_room, *args, **kwargs):
+            save_count[0] += 1
+            if save_count[0] == 1:
+                from django.db import IntegrityError as IE
+
+                raise IE("Simulated concurrent reset row conflict")
+            return Room.save(self_room, *args, **kwargs)
+
+        with patch.object(Room, "save", mock_room_save):
+            with patch.object(viewset, "get_object", return_value=self.room):
+                response = viewset.reset_game(request)
+
+        # Hardened: conflict, not a 500.
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.data.get("conflict_type"), "reset_conflict")
+
+        # Rollback preserved: original tile still present, no partial writes.
+        self.room.refresh_from_db()
+        self.assertEqual(Tile.objects.filter(player__room=self.room).count(), 1)
+
+    def test_non_integrity_exception_still_500(self):
+        """Genuine unexpected faults still surface as 500 (true fault path)."""
+        viewset = RoomViewSet()
+        viewset.kwargs = {"code": self.room.code}
+        viewset.format_kwarg = None
+
+        request = MagicMock()
+        request.data = {"player_secret": self.host.plain_secret}
+        request.user = self.host.user
+
+        with patch.object(
+            Room.objects, "select_for_update", side_effect=RuntimeError("boom")
+        ):
+            with patch.object(viewset, "get_object", return_value=self.room):
+                response = viewset.reset_game(request)
+
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)

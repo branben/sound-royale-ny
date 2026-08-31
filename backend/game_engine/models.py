@@ -160,7 +160,7 @@ class Player(models.Model):
         # (e.g. loaded from DB or already hashed) to avoid double-hashing.
         raw = self.player_secret
         secret_str = raw if isinstance(raw, str) else str(raw)
-        if len(secret_str) != 64 and not is_hex64(secret_str):
+        if not is_hex64(secret_str):
             self.player_secret = hash_secret(secret_str)
         super().save(*args, **kwargs)
     name = models.CharField(max_length=50)
