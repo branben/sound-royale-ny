@@ -34,9 +34,11 @@ def create_user_for_player(player: Player) -> User:
     """
     username = f"player_{player.id.hex[:12]}"
     # Use get_or_create in case the user already exists
+    # Django 5.2 removed User.objects.make_random_password()
+    import secrets
     user, _ = User.objects.get_or_create(
         username=username,
-        defaults={"password": User.objects.make_random_password()},
+        defaults={"password": secrets.token_urlsafe(32)},
     )
     # Link the user to the player if not already linked
     if not player.user_id:
