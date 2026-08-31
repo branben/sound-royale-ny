@@ -535,7 +535,9 @@ export async function mockApiRoutes(page: Page, options: MockApiRoutesOptions): 
       }
     }
 
-    // Default: continue with original request
-    await route.continue();
+    // Default: abort — unmocked endpoints must fail loudly so missing
+    // coverage surfaces as an explicit test error instead of silently
+    // escaping to the live backend (which produces false greens AND false reds).
+    await route.abort();
   });
 }
