@@ -15,14 +15,16 @@ def test_n4_class_level_room_cap_exists():
 
 
 def test_n4_room_client_count_dict_exists():
-    """GameConsumer must have a class-level _room_client_count dict."""
+    """GameConsumer must track per-room connection counts (Redis-backed)."""
+    from game_engine import consumers
     from game_engine.consumers import GameConsumer
 
-    assert hasattr(GameConsumer, "_room_client_count"), (
-        "GameConsumer must have _room_client_count class attribute"
-    )
-    assert isinstance(GameConsumer._room_client_count, dict), (
-        "_room_client_count must be a dict"
+    # N4 uses Redis cache for room connection tracking (shared across workers)
+    # Verify the connect method uses cache for room count tracking
+    import inspect
+    source = inspect.getsource(consumers.GameConsumer.connect)
+    assert "ws_room_count" in source or "cache" in source, (
+        "GameConsumer must track per-room connections via cache"
     )
 
 
@@ -43,6 +45,7 @@ def test_n4_disconnect_decrements_room_count():
 
     import inspect
     source = inspect.getsource(consumers.GameConsumer.disconnect)
-    assert "_room_client_count" in source, (
-        "disconnect() must decrement _room_client_count"
+    # N4 uses Redis cache (ws_room_count: prefix) instead of class-level dict
+    assert "ws_room_count" in source or "cache.decr" in source, (
+        "disconnect() must decrement room connection count"
     )

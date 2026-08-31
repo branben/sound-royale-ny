@@ -15,14 +15,16 @@ def test_n7_class_level_limiter_exists():
 
 
 def test_n7_unauth_connections_dict_exists():
-    """GameConsumer must have a class-level _unauth_connections dict."""
+    """GameConsumer must track unauthenticated connections (Redis-backed)."""
+    from game_engine import consumers
     from game_engine.consumers import GameConsumer
 
-    assert hasattr(GameConsumer, "_unauth_connections"), (
-        "GameConsumer must have _unauth_connections class attribute"
-    )
-    assert isinstance(GameConsumer._unauth_connections, dict), (
-        "_unauth_connections must be a dict"
+    # N7 uses Redis cache for connection tracking (shared across workers)
+    # Verify the connect method uses cache for unauth tracking
+    import inspect
+    source = inspect.getsource(consumers.GameConsumer.connect)
+    assert "ws_unauth_ip" in source or "cache" in source, (
+        "GameConsumer must track unauthenticated connections via cache"
     )
 
 
@@ -44,6 +46,7 @@ def test_n7_disconnect_decrements_count():
 
     import inspect
     source = inspect.getsource(consumers.GameConsumer.disconnect)
-    assert "_unauth_connections" in source, (
-        "disconnect() must decrement _unauth_connections"
+    # N7 uses Redis cache (ws_unauth_ip: prefix) instead of class-level dict
+    assert "ws_unauth_ip" in source or "cache.decr" in source, (
+        "disconnect() must decrement unauthenticated connection count"
     )
