@@ -85,7 +85,7 @@ class TileCreateSerializerTestCase(TestCase):
         
         self.assertFalse(serializer.is_valid())
         # Django 5.2 changed error message format
-        self.assertIn('less than or equal to 8', str(serializer.errors))
+        self.assertIn('Position 9 is invalid', str(serializer.errors))
     
     def test_duplicate_position_in_room(self):
         """Test validation fails for duplicate position in same room"""
