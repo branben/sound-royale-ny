@@ -10,6 +10,8 @@
     "dev:backend": "cd backend && python3.11 -m daphne -p 8000 sound_royale_api.asgi:application",
     "dev:all": "npm run dev:frontend & npm run dev:backend",
     "build": "vite build",
+    "test:e2e:live": "playwright test --config=playwright.live.config.ts",
+    "test:visual": "playwright test --config=playwright.visual.config.ts",
     "build:dev": "vite build --mode development",
     "verify:symbols": "serena-slim",
     "verify:types": "npx tsc --noEmit",

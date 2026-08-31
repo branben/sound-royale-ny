@@ -1,0 +1,63 @@
+name: Database Backup
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM UTC
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install wrangler
+        run: npm install -g wrangler
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client gpg
+
+      - name: Create backup
+        run: |
+          pg_dump "postgresql://${{ secrets.DB_USER }}:${{ secrets.DB_PASSWORD }}@${{ secrets.DB_HOST }}:${{ secrets.DB_PORT }}/${{ secrets.DB_NAME }}" \
+            --no-owner --no-privileges --clean --if-exists \
+            > backup.sql
+
+      - name: Compress backup
+        run: gzip backup.sql
+
+      - name: Encrypt backup
+        run: |
+          echo "${{ secrets.BACKUP_ENCRYPTION_KEY }}" | gpg --batch --yes --passphrase-fd 0 \
+            --symmetric --cipher-algo AES256 \
+            --backup backup.sql.gz
+
+      - name: Upload to R2
+        run: |
+          wrangler r2 object put \
+            sound-royale-backups/backups/$(date +%Y-%m-%d).sql.gz.gpg \
+            --file backup.sql.gz.gpg
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.R2_ACCESS_KEY_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+
+      - name: Update latest symlink
+        run: |
+          wrangler r2 object put \
+            sound-royale-backups/backups/latest.sql.gz.gpg \
+            --file backup.sql.gz.gpg
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.R2_ACCESS_KEY_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+
+      - name: Cleanup old backups (30+ days)
+        run: |
+          wrangler r2 object list sound-royale-backups --prefix backups/ | \
+            grep -oP 'backups/\K[0-9]{4}-[0-9]{2}-[0-9]{2}' | \
+            sort | head -n -30 | \
+            while read date; do
+              wrangler r2 object delete sound-royale-backups "backups/${date}.sql.gz.gpg"
+            done
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.R2_ACCESS_KEY_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
