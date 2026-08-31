@@ -261,7 +261,6 @@ class GameSocketService {
   private triggerRefresh(): void {
     if (this.refreshInFlight) return;
     this.refreshInFlight = true;
-    // Coalesce rapid onConnect calls into a single HTTP fetch.
     // Store the timeout ID so disconnect() can cancel a pending refresh.
     // Check isIntentionallyClosed so a refresh scheduled before a disconnect
     // does not fire after teardown.

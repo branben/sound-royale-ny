@@ -43,7 +43,7 @@ class GameConsumer(AsyncWebsocketConsumer):
 
     # N7: Per-IP unauthenticated connection limiter (prevents auth shadow attacks)
     MAX_UNAUTHENTICATED_PER_IP = 5
-    # N4: Per-room connection cap (prevents viral streamer from exhausting Supabase WS limit)
+# N4: Per-room connection cap (prevents viral streamer from exhausting Supabase WS limit)
     MAX_CLIENTS_PER_ROOM = 50
     # TTL for connection-count keys — auto-expires if disconnect doesn't fire
     CONN_COUNT_TTL = 3600
@@ -71,7 +71,7 @@ class GameConsumer(AsyncWebsocketConsumer):
         self.authed = False
         self.auth_timeout = None
 
-        # N7: Per-IP unauthenticated connection limiter (Redis-backed, atomic across workers)
+# N7: Per-IP unauthenticated connection limiter (Redis-backed, atomic across workers)
         client_ip = self.scope.get("client", ["0.0.0.0"])[0]
         unauth_key = f"ws_unauth_ip:{client_ip}"
         current = cache.get(unauth_key)
@@ -188,7 +188,7 @@ class GameConsumer(AsyncWebsocketConsumer):
         await self.finalize_connection(player)
 
     async def disconnect(self, close_code):
-        # N7: Decrement per-IP unauthenticated connection count (Redis-backed)
+# N7: Decrement per-IP unauthenticated connection count (Redis-backed)
         if not self.authed and self.player_id is None:
             client_ip = self.scope.get("client", ["0.0.0.0"])[0]
             unauth_key = f"ws_unauth_ip:{client_ip}"
