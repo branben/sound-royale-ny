@@ -4,6 +4,7 @@ import { Tile } from '@/types/game';
 import { cn } from '@/lib/utils';
 import { Music, Loader2, Check, Play, Pause } from 'lucide-react';
 import { transitions, hover } from '@/lib/motion';
+import { Waveform } from '@/components/game/Waveform';
 
 interface BingoTileProps {
   tile: Tile;
@@ -57,11 +58,8 @@ export const BingoTile = memo(function BingoTile({
   playerColorIndex,
   index = 0,
 }: BingoTileProps) {
-  const [isPlaying, setIsPlaying] = useState(false);
   const [prevStatus, setPrevStatus] = useState(tile.status);
   const [justCompleted, setJustCompleted] = useState(false);
-  const playCountRef = useRef(0);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const accent =
     playerColorIndex !== undefined && playerColorIndex < TILE_ACCENT.length
@@ -200,19 +198,9 @@ export const BingoTile = memo(function BingoTile({
       </div>
 
       {tile.audioUrl && (
-        <button
-          onClick={handlePlayClick}
-          className={cn(
-            'absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full transition-colors',
-            accent ? `${accent.playBtn}` : 'bg-zinc-700 hover:bg-zinc-600',
-          )}
-        >
-          {isPlaying ? (
-            <Pause className="h-3 w-3 text-white" />
-          ) : (
-            <Play className="h-3 w-3 text-white" />
-          )}
-        </button>
+        <div className="mt-2 w-full px-1">
+          <Waveform url={tile.audioUrl} compact accentColor={accent ? undefined : undefined} />
+        </div>
       )}
 
       <motion.span
