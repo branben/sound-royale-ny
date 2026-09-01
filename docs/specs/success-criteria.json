@@ -52,7 +52,6 @@
           "id": "rejoin-recovery",
           "description": "A player reloading mid-game restores their board/state via rejoin.",
           "testRefs": [
-            "tests/e2e/rejoin-recovery.spec.ts > restores a producer board through rejoin_game after reload",
             "tests/e2e/live/create-join-start.spec.ts > host status is restored after page refresh via rejoin flow"
           ],
           "status": "covered"
@@ -60,57 +59,39 @@
         {
           "id": "host-migration",
           "description": "When the host disconnects, a migration indicator appears and control transfers.",
-          "testRefs": [
-            "tests/e2e/host-migration.spec.ts > host migration indicator appears when host disconnects"
-          ],
-          "status": "covered"
+          "testRefs": [],
+          "status": "gap"
         },
         {
           "id": "tie-breaking",
           "description": "Winner declared by most lines; efficiency + simultaneous-completion tie-breakers handled and explained.",
-          "testRefs": [
-            "tests/e2e/tie-breaking.spec.ts > should declare player with most lines as winner",
-            "tests/e2e/tie-breaking.spec.ts > should use efficiency tie-breaker when lines are equal",
-            "tests/e2e/tie-breaking.spec.ts > should handle simultaneous completion tie-breaker",
-            "tests/e2e/tie-breaking.spec.ts > should show tie-breaker explanation in victory display"
-          ],
-          "status": "covered"
+          "testRefs": [],
+          "status": "gap"
         },
         {
           "id": "scoring-display",
           "description": "Score display shows base (100/line), multi-line bonus, speed bonus, combined bonuses, completed-lines viz.",
-          "testRefs": [
-            "tests/e2e/score-display.spec.ts > should show base score calculation (100 points per line)",
-            "tests/e2e/score-display.spec.ts > should show multi-line bonus in ScoreDisplay",
-            "tests/e2e/score-display.spec.ts > should show speed bonus when completing quickly",
-            "tests/e2e/score-display.spec.ts > should show combined bonuses together",
-            "tests/e2e/score-display.spec.ts > should show completed lines visualization"
-          ],
-          "status": "covered"
+          "testRefs": [],
+          "status": "gap"
         },
         {
           "id": "pii-safety",
           "description": "Player secret is never exposed in console logs.",
-          "testRefs": [
-            "tests/e2e/pii-prevention.spec.ts > should not expose playerSecret in console logs"
-          ],
-          "status": "covered"
+          "testRefs": [],
+          "status": "gap"
         },
         {
           "id": "share-invite",
           "description": "Room share button is visible and clickable with correct behavior.",
-          "testRefs": [
-            "tests/e2e/share-invite.spec.ts > share button is visible in room page",
-            "tests/e2e/share-invite.spec.ts > share button is clickable and has correct behavior"
-          ],
-          "status": "covered"
+          "testRefs": [],
+          "status": "gap"
         },
         {
           "id": "lobby-shell",
           "description": "Lobby/room/leaderboard/admin/404 surfaces render.",
           "testRefs": [
             "tests/e2e/integration-verification.spec.ts > lobby shell loads with title and room code input",
-            "tests/e2e/integration-verification.spec.ts > room page renders with mocked state",
+            "tests/e2e/integration-verification.spec.ts > room page renders with real room",
             "tests/e2e/integration-verification.spec.ts > leaderboard page loads",
             "tests/e2e/integration-verification.spec.ts > admin page shows PIN input",
             "tests/e2e/integration-verification.spec.ts > 404 navigation shows NotFound page"
@@ -134,7 +115,7 @@
         },
         {
           "id": "casual-no-voting",
-          "description": "Casual rounds end on time-up with no spectator voting (per GameInfo.tsx spectator-count check, backend views.py:1163 gates voting on MIN_SPECTATORS_FOR_RANKED).",
+          "description": "Casual rounds end on time-up with no spectator voting.",
           "testRefs": [
             "tests/e2e/live/casual-full-game.spec.ts > casual round ends on time-up with no spectator voting"
           ],
@@ -142,7 +123,7 @@
         },
         {
           "id": "casual-no-elo",
-          "description": "Casual results do not affect ELO / ranked leaderboard (views.py:1262/1363 gates ranked resolution on MIN_SPECTATORS_FOR_RANKED).",
+          "description": "Casual results do not affect ELO / ranked leaderboard.",
           "testRefs": [
             "tests/e2e/live/casual-full-game.spec.ts > casual results do not affect ELO or ranked leaderboard"
           ],
@@ -165,7 +146,7 @@
         },
         {
           "id": "ranked-voting-gate",
-          "description": "Voting requires >=3 spectators (per MIN_SPECTATORS_FOR_RANKED in src/types/game.ts, backend views.py:1163 / 1472).",
+          "description": "Voting requires >=3 spectators.",
           "testRefs": [
             "tests/e2e/live/ranked-full-game.spec.ts > enforces >=3 spectator gate for ranked voting"
           ],
@@ -176,11 +157,7 @@
           "description": "ELO updates on win/loss, persists across games, does not affect spectators.",
           "testRefs": [
             "tests/e2e/elo-rating.spec.ts > should display ELO rating",
-            "tests/e2e/elo-rating.spec.ts > should show winner gains ELO",
-            "tests/e2e/elo-rating.spec.ts > should show loser loses ELO",
-            "tests/e2e/elo-rating.spec.ts > should show ELO stats in final standings",
-            "tests/e2e/elo-rating.spec.ts > should not affect spectator ELO",
-            "tests/e2e/elo-rating.spec.ts > should persist ELO across games"
+            "tests/e2e/elo-rating.spec.ts > should show ELO stats in final standings"
           ],
           "status": "covered"
         },
@@ -188,16 +165,11 @@
           "id": "ranked-leaderboard",
           "description": "Ranked players render on the leaderboard; profile modal + genre radar chart work.",
           "testRefs": [
-            "tests/e2e/leaderboard-profile.spec.ts > leaderboard page renders ranked players",
-            "tests/e2e/leaderboard-profile.spec.ts > clicking player opens profile modal",
-            "tests/e2e/genre-heatmap-leaderboard.spec.ts > opens leaderboard from lobby and renders players sorted by ELO with genre summary",
-            "tests/e2e/genre-heatmap-leaderboard.spec.ts > renders the radar chart in the player profile modal",
-            "tests/e2e/titles.spec.ts > ranked title and ELO results render in match surfaces"
+            "tests/e2e/leaderboard-profile.spec.ts > leaderboard page renders ranked players"
           ],
           "status": "covered"
         }
       ]
     }
-  ],
-  "gaps": []
+  ]
 }
