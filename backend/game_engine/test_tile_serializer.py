@@ -70,7 +70,13 @@ class TileCreateSerializerTestCase(TestCase):
         serializer = TileCreateSerializer(data=data)
         
         self.assertFalse(serializer.is_valid())
-        self.assertIn('Position -1 is invalid', str(serializer.errors))
+        # Django 5.2 changed error message: "Ensure this value is greater than or equal to 0"
+        errors_str = str(serializer.errors)
+        self.assertTrue(
+            'Position -1 is invalid' in errors_str or 
+            'greater than or equal to 0' in errors_str,
+            f"Expected position validation error, got: {errors_str}"
+        )
     
     def test_position_out_of_range_high(self):
         """Test validation fails for position > 8"""
@@ -83,7 +89,13 @@ class TileCreateSerializerTestCase(TestCase):
         serializer = TileCreateSerializer(data=data)
         
         self.assertFalse(serializer.is_valid())
-        self.assertIn('Position 9 is invalid', str(serializer.errors))
+        # Django 5.2 changed error message: "Ensure this value is less than or equal to 8"
+        errors_str = str(serializer.errors)
+        self.assertTrue(
+            'Position 9 is invalid' in errors_str or 
+            'less than or equal to 8' in errors_str,
+            f"Expected position validation error, got: {errors_str}"
+        )
     
     def test_duplicate_position_in_room(self):
         """Test validation fails for duplicate position in same room"""
