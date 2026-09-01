@@ -90,7 +90,7 @@
           "id": "lobby-shell",
           "description": "Lobby/room/leaderboard/admin/404 surfaces render.",
           "testRefs": [
-            "tests/e2e/integration-verification.spec.ts > lobby shell loads with title and room code input",
+            "tests/e2e/integration-verification.spec.ts > lobby shell loads with title and player name input",
             "tests/e2e/integration-verification.spec.ts > room page renders with real room",
             "tests/e2e/integration-verification.spec.ts > leaderboard page loads",
             "tests/e2e/integration-verification.spec.ts > admin page shows PIN input",
