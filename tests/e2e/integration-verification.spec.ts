@@ -3,6 +3,12 @@ import { test, expect } from '@playwright/test';
 test.describe('Integration Verification — All Flows', () => {
   test.setTimeout(60000);
 
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('hasSeenOnboarding', 'true');
+    });
+  });
+
   test('lobby shell loads with title and player name input', async ({ page }) => {
     await page.goto('/');
 

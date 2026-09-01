@@ -3,6 +3,13 @@ import { test, expect } from '@playwright/test';
 test.describe('Smoke', () => {
   test.setTimeout(60000);
 
+  test.beforeEach(async ({ page }) => {
+    // Dismiss onboarding modal by setting localStorage before page loads
+    await page.addInitScript(() => {
+      localStorage.setItem('hasSeenOnboarding', 'true');
+    });
+  });
+
   test('loads the lobby shell', async ({ page }) => {
     await page.goto('/');
 
@@ -18,12 +25,19 @@ test.describe('Smoke', () => {
     await page.goto('/');
 
     // Enter player name first (required for buttons to be enabled)
-    await page.getByTestId('player-name-input').fill('TestPlayer');
+    const nameInput = page.getByTestId('player-name-input');
+    await expect(nameInput).toBeVisible();
+    await nameInput.fill('TestPlayer');
+    // Wait for React state to update
+    await page.waitForTimeout(100);
 
     // Switch to join mode
-    await page.getByTestId('join-room-mode-button').click();
+    const joinModeBtn = page.getByTestId('join-room-mode-button');
+    await expect(joinModeBtn).toBeVisible();
+    await joinModeBtn.click();
 
     const roomCode = page.getByTestId('room-code-input');
+    await expect(roomCode).toBeVisible();
     const joinButton = page.getByTestId('join-room-button');
 
     await expect(joinButton).toBeDisabled();
@@ -31,5 +45,30 @@ test.describe('Smoke', () => {
 
     await expect(roomCode).toHaveValue('1234');
     await expect(joinButton).toBeEnabled();
+  });
+
+  test('joining a room navigates to the room page', async ({ page }) => {
+    // Create a real room via API
+    const createRes = await page.request.post('/api/rooms/', {
+      data: { host_name: 'SmokeTestHost' },
+    });
+    const room = await createRes.json();
+
+    await page.goto('/');
+
+    // Enter player name first
+    await page.getByTestId('player-name-input').fill('TestPlayer');
+    await page.waitForTimeout(100);
+
+    // Switch to join mode
+    await page.getByTestId('join-room-mode-button').click();
+
+    const roomCode = page.getByTestId('room-code-input');
+    await roomCode.fill(room.room_code);
+
+    await page.getByTestId('join-room-button').click();
+
+    // Should navigate to room page
+    await expect(page).toHaveURL(new RegExp(`/room/${room.room_code}`));
   });
 });

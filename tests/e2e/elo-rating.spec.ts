@@ -3,6 +3,12 @@ import { test, expect } from '@playwright/test';
 test.describe('ELO Rating System', () => {
   test.setTimeout(60000);
 
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('hasSeenOnboarding', 'true');
+    });
+  });
+
   test('should display ELO rating', async ({ page }) => {
     // Create a room
     const createRes = await page.request.post('/api/rooms/', {

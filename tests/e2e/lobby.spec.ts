@@ -3,6 +3,13 @@ import { test, expect } from '@playwright/test';
 test.describe('Lobby', () => {
   test.setTimeout(60000);
 
+  test.beforeEach(async ({ page }) => {
+    // Dismiss onboarding modal
+    await page.addInitScript(() => {
+      localStorage.setItem('hasSeenOnboarding', 'true');
+    });
+  });
+
   test('renders lobby container with correct heading', async ({ page }) => {
     await page.goto('/');
 
@@ -18,6 +25,7 @@ test.describe('Lobby', () => {
 
     // Enter player name first
     await page.getByTestId('player-name-input').fill('TestPlayer');
+    await page.waitForTimeout(100);
 
     // Switch to join mode
     await page.getByTestId('join-room-mode-button').click();
@@ -39,6 +47,7 @@ test.describe('Lobby', () => {
 
     // Enter player name first
     await page.getByTestId('player-name-input').fill('TestPlayer');
+    await page.waitForTimeout(100);
 
     // Switch to join mode
     await page.getByTestId('join-room-mode-button').click();
@@ -54,6 +63,7 @@ test.describe('Lobby', () => {
 
     // Enter player name first
     await page.getByTestId('player-name-input').fill('TestPlayer');
+    await page.waitForTimeout(100);
 
     // Switch to join mode
     await page.getByTestId('join-room-mode-button').click();
@@ -77,6 +87,7 @@ test.describe('Lobby', () => {
 
     // Enter player name first
     await page.getByTestId('player-name-input').fill('TestPlayer');
+    await page.waitForTimeout(100);
 
     // Switch to join mode
     await page.getByTestId('join-room-mode-button').click();
@@ -103,6 +114,7 @@ test.describe('Lobby', () => {
 
     // Enter player name first
     await page.getByTestId('player-name-input').fill('TestPlayer');
+    await page.waitForTimeout(100);
 
     // Switch to join mode
     await page.getByTestId('join-room-mode-button').click();

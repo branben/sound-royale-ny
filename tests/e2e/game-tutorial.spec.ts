@@ -3,6 +3,12 @@ import { test, expect } from '@playwright/test';
 test.describe('Game Tutorial', () => {
   test.setTimeout(60000);
 
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('hasSeenOnboarding', 'true');
+    });
+  });
+
   test('tutorial appears on first game start for producer', async ({ page }) => {
     // Create a room
     const createRes = await page.request.post('/api/rooms/', {
