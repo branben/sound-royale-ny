@@ -6,6 +6,8 @@ on:
 jobs:
    test:
     runs-on: ubuntu-latest
+    # External service — don't block PR merge if TestDriver is down
+    continue-on-error: true
     permissions:
       id-token: write   # required to mint the OIDC token for auth
       contents: read

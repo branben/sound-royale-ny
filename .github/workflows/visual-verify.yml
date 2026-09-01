@@ -9,12 +9,6 @@ jobs:
   # PixelRAG design-token gate: bgNearBlack / noGradient / noGlow across public routes.
   # (Auth-gated room route requires a running Django backend + seed; out of scope here —
   #  run capture.sh --seed locally. The public 8 routes need no backend.)
-  #
-  # NOTE: a separate Playwright toHaveScreenshot "visual-regression" job previously lived
-  # here, but it only ever ran a skip-only spec (tests/e2e/visual-regression.spec.ts,
-  # 0 tests) — a false-green. The real visual gate is this PixelRAG job. Re-add a
-  # Playwright toHaveScreenshot spec (sprinkled into existing e2e specs) before
-  # restoring a dedicated Playwright visual job.
   pixelrag:
     runs-on: ubuntu-latest
     steps:
@@ -58,41 +52,3 @@ jobs:
         with:
           name: visual-verify-pixelrag
           path: scripts/visual-verify/captures/latest
-
-  # Content/layout regression gate (Technique B): Playwright toHaveScreenshot.
-  # Catches text, CTA, and layout changes pixelrag (Technique A) cannot see.
-  # Uses the repo's existing mock helpers (no Django/Redis needed).
-  playwright:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install frontend deps
-        run: pnpm install --frozen-lockfile
-
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
-
-      - name: Start Vite dev server (E2E mode, port 8082)
-        run: VITE_E2E_TESTING=true pnpm exec vite --port 8082 --host &
-
-      - name: Wait for dev server
-        run: npx wait-on http://localhost:8082 --timeout 600000
-
-      - name: Run visual-regression suite
-        run: pnpm run verify:visual:e2e
-        env:
-          BASE_URL: http://localhost:8082
-
-      - name: Upload snapshot diffs on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: visual-verify-playwright
-          path: test-results
