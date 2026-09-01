@@ -9,12 +9,19 @@ test.describe('Smoke', () => {
     await expect(page).toHaveTitle(/Sound Royale/);
     await expect(page.locator('h1')).toHaveText('SOUND ROYALE');
     await expect(page.locator('[data-testid="lobby"]')).toBeVisible();
+
+    // Switch to join mode to see the form
+    await page.getByTestId('join-room-mode-button').click();
+
     await expect(page.getByTestId('room-code-input')).toBeVisible();
     await expect(page.getByTestId('join-room-button')).toBeDisabled();
   });
 
   test('enables room join after a four digit room code', async ({ page }) => {
     await page.goto('/');
+
+    // Switch to join mode
+    await page.getByTestId('join-room-mode-button').click();
 
     const roomCode = page.getByTestId('room-code-input');
     const joinButton = page.getByTestId('join-room-button');
@@ -34,6 +41,9 @@ test.describe('Smoke', () => {
     const room = await createRes.json();
 
     await page.goto('/');
+
+    // Switch to join mode
+    await page.getByTestId('join-room-mode-button').click();
 
     const roomCode = page.getByTestId('room-code-input');
     await roomCode.fill(room.room_code);

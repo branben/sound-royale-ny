@@ -6,12 +6,6 @@ declare global {
   }
 }
 
-export async function enableE2EMode(page: Page): Promise<void> {
-  await page.addInitScript(() => {
-    window.__E2E_TESTING__ = true;
-  });
-}
-
 export async function setupPlayerSession(
   page: Page,
   session: {
