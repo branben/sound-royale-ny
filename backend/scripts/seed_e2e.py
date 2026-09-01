@@ -27,8 +27,12 @@ def seed():
         {"name": "DrumQueen", "elo_rating": 1200, "elo_wins": 4, "elo_losses": 5},
     ]
 
-    for pdata in players_data:
-        room = Room.objects.create(match_type='casual', status='finished')
+    for i, pdata in enumerate(players_data):
+        room = Room.objects.create(
+            match_type='casual',
+            status='finished',
+            code=f"9{i}00",  # Unique 4-digit code: 9000, 9100, 9200, 9300
+        )
         user = User.objects.create_user(
             username=f"seed_{pdata['name'].lower()}",
             password='testpass123'
