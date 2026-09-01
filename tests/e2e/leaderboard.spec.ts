@@ -15,12 +15,11 @@ test.describe('Verified leaderboard', () => {
     // Wait for leaderboard data to load
     await page.waitForTimeout(3000);
 
+    // Check heading is visible
     await expect(page.getByRole('heading', { name: 'Leaderboard' })).toBeVisible({
       timeout: 10000,
     });
-    // Check for the presence of leaderboard table/rows rather than specific text
-    await expect(page.locator('table, [class*="leaderboard"], [class*="rank"]')).toBeVisible({
-      timeout: 10000,
-    });
+    // Check the divide-y container exists (player list)
+    await expect(page.locator('[class*="divide-y"]')).toBeVisible({ timeout: 10000 });
   });
 });
