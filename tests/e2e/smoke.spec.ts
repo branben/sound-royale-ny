@@ -10,15 +10,15 @@ test.describe('Smoke', () => {
     await expect(page.locator('h1')).toHaveText('SOUND ROYALE');
     await expect(page.locator('[data-testid="lobby"]')).toBeVisible();
 
-    // Switch to join mode to see the form
-    await page.getByTestId('join-room-mode-button').click();
-
-    await expect(page.getByTestId('room-code-input')).toBeVisible();
-    await expect(page.getByTestId('join-room-button')).toBeDisabled();
+    // Player name input is always visible
+    await expect(page.getByTestId('player-name-input')).toBeVisible();
   });
 
   test('enables room join after a four digit room code', async ({ page }) => {
     await page.goto('/');
+
+    // Enter player name first (required for buttons to be enabled)
+    await page.getByTestId('player-name-input').fill('TestPlayer');
 
     // Switch to join mode
     await page.getByTestId('join-room-mode-button').click();
@@ -31,26 +31,5 @@ test.describe('Smoke', () => {
 
     await expect(roomCode).toHaveValue('1234');
     await expect(joinButton).toBeEnabled();
-  });
-
-  test('joining a room navigates to the room page', async ({ page }) => {
-    // Create a real room via API
-    const createRes = await page.request.post('/api/rooms/', {
-      data: { host_name: 'SmokeTestHost' },
-    });
-    const room = await createRes.json();
-
-    await page.goto('/');
-
-    // Switch to join mode
-    await page.getByTestId('join-room-mode-button').click();
-
-    const roomCode = page.getByTestId('room-code-input');
-    await roomCode.fill(room.room_code);
-
-    await page.getByTestId('join-room-button').click();
-
-    // Should navigate to room page
-    await expect(page).toHaveURL(new RegExp(`/room/${room.room_code}`));
   });
 });

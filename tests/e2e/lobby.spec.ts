@@ -16,6 +16,9 @@ test.describe('Lobby', () => {
   test('room code input accepts only digits', async ({ page }) => {
     await page.goto('/');
 
+    // Enter player name first
+    await page.getByTestId('player-name-input').fill('TestPlayer');
+
     // Switch to join mode
     await page.getByTestId('join-room-mode-button').click();
 
@@ -34,6 +37,10 @@ test.describe('Lobby', () => {
   test('room code input is capped at 4 digits', async ({ page }) => {
     await page.goto('/');
 
+    // Enter player name first
+    await page.getByTestId('player-name-input').fill('TestPlayer');
+
+    // Switch to join mode
     await page.getByTestId('join-room-mode-button').click();
 
     const input = page.getByTestId('room-code-input');
@@ -45,6 +52,10 @@ test.describe('Lobby', () => {
   test('join button is disabled until exactly 4 digits entered', async ({ page }) => {
     await page.goto('/');
 
+    // Enter player name first
+    await page.getByTestId('player-name-input').fill('TestPlayer');
+
+    // Switch to join mode
     await page.getByTestId('join-room-mode-button').click();
 
     const input = page.getByTestId('room-code-input');
@@ -64,6 +75,10 @@ test.describe('Lobby', () => {
   test('clearing room code re-disables the join button', async ({ page }) => {
     await page.goto('/');
 
+    // Enter player name first
+    await page.getByTestId('player-name-input').fill('TestPlayer');
+
+    // Switch to join mode
     await page.getByTestId('join-room-mode-button').click();
 
     const input = page.getByTestId('room-code-input');
@@ -86,6 +101,10 @@ test.describe('Lobby', () => {
 
     await page.goto('/');
 
+    // Enter player name first
+    await page.getByTestId('player-name-input').fill('TestPlayer');
+
+    // Switch to join mode
     await page.getByTestId('join-room-mode-button').click();
 
     const input = page.getByTestId('room-code-input');

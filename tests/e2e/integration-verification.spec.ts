@@ -3,13 +3,13 @@ import { test, expect } from '@playwright/test';
 test.describe('Integration Verification — All Flows', () => {
   test.setTimeout(60000);
 
-  test('lobby shell loads with title and room code input', async ({ page }) => {
+  test('lobby shell loads with title and player name input', async ({ page }) => {
     await page.goto('/');
 
     await expect(page).toHaveTitle(/Sound Royale/);
     await expect(page.locator('h1')).toHaveText('SOUND ROYALE');
     await expect(page.getByTestId('lobby')).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText('SOUND ROYALE').first()).toBeVisible();
+    await expect(page.getByTestId('player-name-input')).toBeVisible();
   });
 
   test('room page renders with real room', async ({ page }) => {
