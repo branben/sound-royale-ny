@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test';
 import crypto from 'crypto';
-import { enableE2EMode } from './helpers';
 
 const BACKEND_URL = 'http://127.0.0.1:8000';
 
@@ -15,12 +14,8 @@ function signLinearPayload(payload: unknown): string {
 }
 
 test.describe('Webhook', () => {
-  test.beforeEach(async ({ page }) => {
-    await enableE2EMode(page);
-  });
-
-  test('GET /webhooks/linear/ returns health check', async ({ page }) => {
-    const response = await page.request.get(`${BACKEND_URL}/webhooks/linear/`);
+  test('GET /webhooks/linear/ returns health check', async ({ request }) => {
+    const response = await request.get(`${BACKEND_URL}/webhooks/linear/`);
 
     expect(response.status()).toBe(200);
 
@@ -29,7 +24,7 @@ test.describe('Webhook', () => {
     expect(json.webhook).toBe('linear-gaia-bridge');
   });
 
-  test('POST /api/webhooks/linear/ with valid payload enqueues task', async ({ page }) => {
+  test('POST /api/webhooks/linear/ with valid payload enqueues task', async ({ request }) => {
     const webhookPayload = {
       type: 'IssueCreated',
       data: {
@@ -43,7 +38,7 @@ test.describe('Webhook', () => {
       },
     };
 
-    const response = await page.request.post(`${BACKEND_URL}/webhooks/linear/`, {
+    const response = await request.post(`${BACKEND_URL}/webhooks/linear/`, {
       data: webhookPayload,
       headers: {
         'Content-Type': 'application/json',
@@ -60,7 +55,7 @@ test.describe('Webhook', () => {
     expect(json.priority).toBe(3);
   });
 
-  test('POST /api/webhooks/linear/ with urgent label uses higher priority', async ({ page }) => {
+  test('POST /api/webhooks/linear/ with urgent label uses higher priority', async ({ request }) => {
     const webhookPayload = {
       type: 'IssueCreated',
       data: {
@@ -74,7 +69,7 @@ test.describe('Webhook', () => {
       },
     };
 
-    const response = await page.request.post(`${BACKEND_URL}/webhooks/linear/`, {
+    const response = await request.post(`${BACKEND_URL}/webhooks/linear/`, {
       data: webhookPayload,
       headers: {
         'Content-Type': 'application/json',
@@ -89,7 +84,7 @@ test.describe('Webhook', () => {
     expect(json.priority).toBe(2);
   });
 
-  test('POST /api/webhooks/linear/ ignores done/canceled states', async ({ page }) => {
+  test('POST /api/webhooks/linear/ ignores done/canceled states', async ({ request }) => {
     const webhookPayload = {
       type: 'IssueUpdated',
       data: {
@@ -103,7 +98,7 @@ test.describe('Webhook', () => {
       },
     };
 
-    const response = await page.request.post(`${BACKEND_URL}/webhooks/linear/`, {
+    const response = await request.post(`${BACKEND_URL}/webhooks/linear/`, {
       data: webhookPayload,
       headers: {
         'Content-Type': 'application/json',
@@ -116,19 +111,5 @@ test.describe('Webhook', () => {
     const json = await response.json();
     expect(json.status).toBe('ignored');
     expect(json.reason).toContain('state=done');
-  });
-
-  test.skip('POST /webhooks/linear/ rejects invalid JSON', async ({ page }) => {
-    const response = await page.request.post(`${BACKEND_URL}/webhooks/linear/`, {
-      data: 'not valid json',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    expect(response.status()).toBe(400);
-
-    const json = await response.json();
-    expect(json.error).toBe('Invalid JSON');
   });
 });

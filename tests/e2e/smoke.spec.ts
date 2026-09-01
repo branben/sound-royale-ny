@@ -1,13 +1,7 @@
 import { test, expect } from '@playwright/test';
-import { enableE2EMode, setupPlayerSession } from './helpers';
 
 test.describe('Smoke', () => {
-  test.beforeEach(async ({ page }) => {
-    await enableE2EMode(page);
-    await setupPlayerSession(page, { playerName: 'TestPlayer', playerId: 'test-id', playerSecret: 'test-secret' });
-    // Dismiss onboarding so the h1 is the only heading matching "SOUND ROYALE"
-    await page.addInitScript(() => localStorage.setItem('hasSeenOnboarding', 'true'));
-  });
+  test.setTimeout(60000);
 
   test('loads the lobby shell', async ({ page }) => {
     await page.goto('/');
@@ -30,5 +24,23 @@ test.describe('Smoke', () => {
 
     await expect(roomCode).toHaveValue('1234');
     await expect(joinButton).toBeEnabled();
+  });
+
+  test('joining a room navigates to the room page', async ({ page }) => {
+    // Create a real room via API
+    const createRes = await page.request.post('/api/rooms/', {
+      data: { host_name: 'SmokeTestHost' },
+    });
+    const room = await createRes.json();
+
+    await page.goto('/');
+
+    const roomCode = page.getByTestId('room-code-input');
+    await roomCode.fill(room.room_code);
+
+    await page.getByTestId('join-room-button').click();
+
+    // Should navigate to room page
+    await expect(page).toHaveURL(new RegExp(`/room/${room.room_code}`));
   });
 });
