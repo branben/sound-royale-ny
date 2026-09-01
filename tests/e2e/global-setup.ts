@@ -1,26 +1,50 @@
-import { execSync } from 'child_process';
-
 /**
  * Global setup — runs once before all E2E tests.
  * Cleans up stale rooms/players from previous test runs to prevent
  * "Spectator limit reached" and dirty-state failures.
+ *
+ * Uses the /test/cleanup/ POST endpoint which TRUNCATES all game state.
+ * That endpoint is test-only (never registered in production urls.py).
  */
 export default async function globalSetup() {
   console.log('[globalSetup] Cleaning up stale test data...');
 
+  const apiBase = process.env.LIVE_API_BASE_URL || 'http://127.0.0.1:8000/api';
+  const rootBase = apiBase.replace('/api', '');
+  const cleanupUrl = `${rootBase}/test/cleanup/`;
+
+  // Wait for backend to be ready (CI containers take a moment)
+  let ready = false;
+  for (let i = 0; i < 30; i++) {
+    try {
+      const response = await fetch(cleanupUrl, { method: 'GET' });
+      if (response.ok || response.status === 405) {
+        // 405 means endpoint exists but doesn't accept GET — that's expected
+        ready = true;
+        break;
+      }
+    } catch {
+      // Backend not ready yet
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+
+  if (!ready) {
+    console.warn('[globalSetup] Backend not reachable, skipping cleanup');
+    return;
+  }
+
   try {
-    // Clean up all rooms (cascades to players, tiles, rounds)
-    const cmd =
-      'cd backend && DJANGO_SETTINGS_MODULE=sound_royale_api.settings_e2e POSTGRES_HOST=localhost python -c "' +
-      'import django; django.setup(); ' +
-      'from game_engine.models import Room; ' +
-      'n = Room.objects.all().delete()[0]; ' +
-      'print(f"[globalSetup] Cleaned up {n} rooms")' +
-      '"';
-    execSync(cmd, { stdio: 'inherit', timeout: 30000 });
+    const response = await fetch(cleanupUrl, { method: 'POST' });
+    if (response.ok) {
+      console.log('[globalSetup] Test database cleaned successfully');
+    } else {
+      console.warn(`[globalSetup] Cleanup returned ${response.status}`);
+    }
   } catch (error) {
-    // Don't fail the run if cleanup fails — the database might be empty
-    console.warn('[globalSetup] Cleanup skipped or failed:', error);
+    console.warn(
+      `[globalSetup] Cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 
   console.log('[globalSetup] Done');
