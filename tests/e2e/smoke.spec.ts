@@ -4,7 +4,7 @@ test.describe('Smoke', () => {
   test.setTimeout(60000);
 
   test.beforeEach(async ({ page }) => {
-    // Dismiss onboarding modal by setting localStorage before page loads
+    // Dismiss onboarding modal
     await page.addInitScript(() => {
       localStorage.setItem('hasSeenOnboarding', 'true');
     });
@@ -28,7 +28,6 @@ test.describe('Smoke', () => {
     const nameInput = page.getByTestId('player-name-input');
     await expect(nameInput).toBeVisible();
     await nameInput.fill('TestPlayer');
-    // Wait for React state to update
     await page.waitForTimeout(100);
 
     // Switch to join mode
