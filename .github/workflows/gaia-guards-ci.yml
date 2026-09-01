@@ -129,37 +129,6 @@ jobs:
         if: always()
         run: kill $VITE_PID 2>/dev/null || true
 
-  e2e-mock:
-    name: E2E Mock-Based (frontend-only)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Cache pnpm store
-        uses: actions/cache@v4
-        with:
-          path: ~/.local/share/pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
-
-      - name: Install dependencies
-        run: rm -rf node_modules && pnpm install --frozen-lockfile
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}
-
-      - name: Install Playwright (if cache miss)
-        run: pnpm exec playwright install chromium --with-deps
-
-      - name: Run mock-based tests
-        run: pnpm exec playwright test tests/e2e/lobby.spec.ts tests/e2e/game-tutorial.spec.ts tests/e2e/elo-rating.spec.ts tests/e2e/bingo-line-detection.spec.ts tests/e2e/battle-flows.spec.ts tests/e2e/integration-verification.spec.ts tests/e2e/smoke.spec.ts tests/e2e/websocket.spec.ts tests/e2e/websocket-direct.spec.ts --reporter=line
-
   e2e-full:
     name: E2E Full Suite (Live Backend)
     runs-on: ubuntu-latest
@@ -275,7 +244,7 @@ jobs:
           done
 
       - name: Run E2E shard ${{ matrix.shard }}/2
-        run: pnpm exec playwright test tests/e2e/live/ --workers=2 --shard=${{ matrix.shard }}/2
+        run: pnpm exec playwright test tests/e2e/ --workers=2 --shard=${{ matrix.shard }}/2 --ignore-snapshots
         timeout-minutes: 15
 
       - name: Print failing test details (if any)

@@ -1,54 +1,34 @@
 import { test, expect } from '@playwright/test';
-import { enableE2EMode, setupPlayerSession, mockApiRoutes } from './helpers';
-import { createMockPlayingState, createMockProducer, toRoomResponse } from './utils/game-fixtures';
 
 test.describe('Game Tutorial', () => {
-  test.beforeEach(async ({ page }) => {
-    await enableE2EMode(page);
-  });
+  test.setTimeout(60000);
 
   test('tutorial appears on first game start for producer', async ({ page }) => {
-    const producer = createMockProducer('Producer1', { id: 'producer-1' });
-    const gameState = createMockPlayingState({ [producer.id]: producer });
-
-    await mockApiRoutes(page, {
-      roomResponse: toRoomResponse(gameState),
-      rejoin: { player: producer, playerSecret: 'producer-secret' },
+    // Create a room
+    const createRes = await page.request.post('/api/rooms/', {
+      data: { host_name: 'TestHost' },
     });
+    const room = await createRes.json();
 
     // Clear localStorage to simulate first-time user
     await page.addInitScript(() => localStorage.removeItem('hasSeenGameTutorial'));
 
-    await setupPlayerSession(page, {
-      playerName: producer.name,
-      playerId: 'producer-1',
-      playerSecret: 'producer-secret',
-    });
-
-    await page.goto(`/room/${gameState.id}`);
+    // Navigate to room
+    await page.goto(`/room/${room.room_code}`);
 
     // Tutorial should appear with first step title
     await expect(page.getByText('Your Turn!')).toBeVisible({ timeout: 10000 });
   });
 
   test('tutorial can be dismissed and not shown again', async ({ page }) => {
-    const producer = createMockProducer('Producer1', { id: 'producer-1' });
-    const gameState = createMockPlayingState({ [producer.id]: producer });
-
-    await mockApiRoutes(page, {
-      roomResponse: toRoomResponse(gameState),
-      rejoin: { player: producer, playerSecret: 'producer-secret' },
+    const createRes = await page.request.post('/api/rooms/', {
+      data: { host_name: 'TestHost' },
     });
+    const room = await createRes.json();
 
     await page.addInitScript(() => localStorage.removeItem('hasSeenGameTutorial'));
 
-    await setupPlayerSession(page, {
-      playerName: producer.name,
-      playerId: 'producer-1',
-      playerSecret: 'producer-secret',
-    });
-
-    await page.goto(`/room/${gameState.id}`);
+    await page.goto(`/room/${room.room_code}`);
 
     // Tutorial visible
     await expect(page.getByText('Your Turn!')).toBeVisible({ timeout: 10000 });
@@ -69,24 +49,15 @@ test.describe('Game Tutorial', () => {
   });
 
   test('tutorial not shown when already seen', async ({ page }) => {
-    const producer = createMockProducer('Producer1', { id: 'producer-1' });
-    const gameState = createMockPlayingState({ [producer.id]: producer });
-
-    await mockApiRoutes(page, {
-      roomResponse: toRoomResponse(gameState),
-      rejoin: { player: producer, playerSecret: 'producer-secret' },
+    const createRes = await page.request.post('/api/rooms/', {
+      data: { host_name: 'TestHost' },
     });
+    const room = await createRes.json();
 
     // Set localStorage flag
     await page.addInitScript(() => localStorage.setItem('hasSeenGameTutorial', 'true'));
 
-    await setupPlayerSession(page, {
-      playerName: producer.name,
-      playerId: 'producer-1',
-      playerSecret: 'producer-secret',
-    });
-
-    await page.goto(`/room/${gameState.id}`);
+    await page.goto(`/room/${room.room_code}`);
 
     // Tutorial should NOT appear
     await expect(page.getByText('Your Turn!')).not.toBeVisible({ timeout: 5000 });

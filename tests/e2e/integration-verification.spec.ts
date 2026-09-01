@@ -1,11 +1,7 @@
 import { test, expect } from '@playwright/test';
-import { enableE2EMode, setupPlayerSession } from './helpers';
 
 test.describe('Integration Verification — All Flows', () => {
   test.setTimeout(60000);
-  test.beforeEach(async ({ page }) => {
-    await enableE2EMode(page);
-  });
 
   test('lobby shell loads with title and room code input', async ({ page }) => {
     await page.goto('/');
@@ -13,21 +9,17 @@ test.describe('Integration Verification — All Flows', () => {
     await expect(page).toHaveTitle(/Sound Royale/);
     await expect(page.locator('h1')).toHaveText('SOUND ROYALE');
     await expect(page.getByTestId('lobby')).toBeVisible({ timeout: 10000 });
-    // JoinRoomForm with room-code-input is rendered when user switches to "join" mode.
-    // The lobby starts in "landing" mode which shows a different view.
     await expect(page.getByText('SOUND ROYALE').first()).toBeVisible();
   });
 
-  test('room page renders with mocked state', async ({ page }) => {
-    await setupPlayerSession(page, {
-      playerName: 'TestPlayer',
-      playerId: 'test-id',
-      playerSecret: 'test-secret',
+  test('room page renders with real room', async ({ page }) => {
+    // Create a real room via API
+    const createRes = await page.request.post('/api/rooms/', {
+      data: { host_name: 'TestHost' },
     });
+    const room = await createRes.json();
 
-    await page.goto('/room/test-room');
-
-    // Room page should render (either loading state or game content)
+    await page.goto(`/room/${room.room_code}`);
     await expect(page.locator('body')).toBeVisible({ timeout: 10000 });
   });
 
@@ -43,7 +35,6 @@ test.describe('Integration Verification — All Flows', () => {
 
   test('404 navigation shows NotFound page', async ({ page }) => {
     await page.goto('/nonexistent-page');
-    // Either shows a 404 message or redirects to lobby
     await expect(page.locator('body')).toBeVisible({ timeout: 10000 });
   });
 });
