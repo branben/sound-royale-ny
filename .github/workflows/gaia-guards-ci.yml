@@ -219,6 +219,20 @@ jobs:
           POSTGRES_HOST: localhost
         run: python scripts/seed_e2e.py
 
+      - name: Cleanup stale test data
+        working-directory: ./backend
+        env:
+          DJANGO_SETTINGS_MODULE: sound_royale_api.settings_e2e
+          PYTHONPATH: ..
+          POSTGRES_HOST: localhost
+        run: |
+          python -c "
+          import django; django.setup()
+          from game_engine.models import Room
+          n = Room.objects.all().delete()[0]
+          print(f'Cleaned up {n} stale rooms')
+          "
+
       - name: Start Django backend (daphne, async — matches local E2E harness)
         working-directory: ./backend
         env:
