@@ -4,7 +4,18 @@ from django.test import RequestFactory
 from game_engine.throttling import GlobalRateThrottle
 
 
+def _has_redis_cache():
+    """Check if the default cache is Redis-backed."""
+    from django.core.cache import caches
+    try:
+        cache = caches["default"]
+        return hasattr(cache, "client") or hasattr(cache, "_redis")
+    except Exception:
+        return False
+
+
 @pytest.mark.django_db
+@pytest.mark.skipif(not _has_redis_cache(), reason="Redis not available — throttle tests require shared cache")
 def test_global_throttle_uses_shared_cache():
     """Global throttle must use a shared cache (Redis), not per-process LocMemCache."""
     from django.core.cache import caches

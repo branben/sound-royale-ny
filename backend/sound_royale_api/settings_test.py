@@ -28,6 +28,9 @@ CACHES = {
     }
 }
 
+# Note: Throttle tests check for Redis-backed cache. LocMemCache doesn't have
+# `client` or `_redis` attributes, so those tests will skip in CI.
+
 # Disable security settings that interfere with tests
 SECURE_SSL_REDIRECT = False
 SECURE_HSTS_SECONDS = 0

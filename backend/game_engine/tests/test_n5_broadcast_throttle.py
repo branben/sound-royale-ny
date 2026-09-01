@@ -2,6 +2,17 @@
 import pytest
 
 
+def _has_redis_cache():
+    """Check if the default cache is Redis-backed."""
+    from django.core.cache import caches
+    try:
+        cache = caches["default"]
+        return hasattr(cache, "client") or hasattr(cache, "_redis")
+    except Exception:
+        return False
+
+
+@pytest.mark.skipif(not _has_redis_cache(), reason="Redis not available — throttle tests require shared cache")
 def test_n5_broadcast_throttle_uses_redis():
     """RoomBroadcastThrottle must use Redis (shared across workers), not in-process dict."""
     from game_engine.throttling import RoomBroadcastThrottle
