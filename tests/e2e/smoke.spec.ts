@@ -46,28 +46,21 @@ test.describe('Smoke', () => {
     await expect(joinButton).toBeEnabled();
   });
 
-  test('joining a room navigates to the room page', async ({ page }) => {
-    // Create a real room via API
-    const createRes = await page.request.post('/api/rooms/', {
-      data: { host_name: 'SmokeTestHost' },
-    });
-    const room = await createRes.json();
-
+  test('create room flow navigates to room page', async ({ page }) => {
     await page.goto('/');
 
     // Enter player name first
     await page.getByTestId('player-name-input').fill('TestPlayer');
     await page.waitForTimeout(100);
 
-    // Switch to join mode
-    await page.getByTestId('join-room-mode-button').click();
+    // Create room mode
+    await page.getByTestId('create-room-button').click();
 
-    const roomCode = page.getByTestId('room-code-input');
-    await roomCode.fill(room.room_code);
-
-    await page.getByTestId('join-room-button').click();
+    // Fill room name and submit
+    await page.getByTestId('create-room-name-input').fill('Test Room');
+    await page.getByTestId('create-room-submit-button').click();
 
     // Should navigate to room page
-    await expect(page).toHaveURL(new RegExp(`/room/${room.room_code}`));
+    await expect(page).toHaveURL(/\/room\/.+/);
   });
 });
