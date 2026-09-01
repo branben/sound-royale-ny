@@ -21,6 +21,13 @@ CHANNEL_LAYERS = {
     },
 }
 
+# Use local memory cache for tests — no Redis required
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+    }
+}
+
 # Disable security settings that interfere with tests
 SECURE_SSL_REDIRECT = False
 SECURE_HSTS_SECONDS = 0
