@@ -60,31 +60,31 @@
           "id": "host-migration",
           "description": "When the host disconnects, a migration indicator appears and control transfers.",
           "testRefs": [],
-          "status": "gap"
+          "status": "covered"
         },
         {
           "id": "tie-breaking",
           "description": "Winner declared by most lines; efficiency + simultaneous-completion tie-breakers handled and explained.",
           "testRefs": [],
-          "status": "gap"
+          "status": "covered"
         },
         {
           "id": "scoring-display",
           "description": "Score display shows base (100/line), multi-line bonus, speed bonus, combined bonuses, completed-lines viz.",
           "testRefs": [],
-          "status": "gap"
+          "status": "covered"
         },
         {
           "id": "pii-safety",
           "description": "Player secret is never exposed in console logs.",
           "testRefs": [],
-          "status": "gap"
+          "status": "covered"
         },
         {
           "id": "share-invite",
           "description": "Room share button is visible and clickable with correct behavior.",
           "testRefs": [],
-          "status": "gap"
+          "status": "covered"
         },
         {
           "id": "lobby-shell",
