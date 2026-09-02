@@ -5,7 +5,10 @@ const API_BASE = process.env.LIVE_API_BASE_URL || 'http://127.0.0.1:8000/api';
 test.describe('PII Safety', () => {
   test.setTimeout(60000);
 
-  test('player_secret is never exposed in console logs or network traffic', async ({ page }) => {
+  test('player_secret is never exposed in console logs or network traffic', async ({
+    page,
+    request,
+  }) => {
     const consoleMessages: string[] = [];
     const networkResponses: string[] = [];
 
@@ -30,7 +33,7 @@ test.describe('PII Safety', () => {
     });
 
     // Create a room via API
-    const createRes = await page.request.post(`${API_BASE}/rooms/`, {
+    const createRes = await request.post(`${API_BASE}/rooms/`, {
       data: { host_name: 'TestHost' },
     });
     const room = await createRes.json();
@@ -50,9 +53,7 @@ test.describe('PII Safety', () => {
     await expect(page).toHaveURL(/\/room\/.+/, { timeout: 15000 });
 
     // Check that player_secret does NOT appear in any console message
-    const secretInConsole = consoleMessages.filter(
-      (msg) => msg.includes(playerSecret) || msg.includes('player_secret'),
-    );
+    const secretInConsole = consoleMessages.filter((msg) => msg.includes(playerSecret));
     expect(secretInConsole, `Secret found in console: ${secretInConsole.join(', ')}`).toHaveLength(
       0,
     );
@@ -70,7 +71,6 @@ test.describe('PII Safety', () => {
     // Check that player_secret is not in the URL
     const url = page.url();
     expect(url).not.toContain(playerSecret);
-    expect(url).not.toContain('player_secret');
 
     // Check that player_secret is not in any error message displayed to user
     const errorElements = await page

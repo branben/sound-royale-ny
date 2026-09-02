@@ -6,17 +6,17 @@ test.describe('Scoring Display', () => {
   test.setTimeout(90000);
 
   test('score display shows base points, bonuses, and completed lines after bingo', async ({
-    browser,
+    page,
+    request,
   }) => {
-    // Create a room
-    const createRes = await browser.contexts()[0].request.post(`${API_BASE}/rooms/`, {
+    // Create a room via API
+    const createRes = await request.post(`${API_BASE}/rooms/`, {
       data: { host_name: 'TestHost' },
     });
     const room = await createRes.json();
     expect(room.room_code).toBeTruthy();
 
     // Navigate to room page
-    const page = await browser.newPage();
     await page.addInitScript(() => {
       localStorage.setItem('hasSeenOnboarding', 'true');
     });
