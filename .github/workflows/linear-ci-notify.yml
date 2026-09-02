@@ -1,0 +1,42 @@
+name: Linear CI Failure Notify
+
+on:
+  workflow_run:
+    workflows: ["Sound Royale CI"]
+    types:
+      - completed
+
+jobs:
+  linear-notify:
+    name: File Linear Issue on CI Failure
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'failure'
+    steps:
+      - name: Extract failure info
+        id: info
+        run: |
+          echo "run_url=${{ github.event.workflow_run.html_url }}" >> $GITHUB_OUTPUT
+          echo "run_id=${{ github.event.workflow_run.id }}" >> $GITHUB_OUTPUT
+          echo "branch=${{ github.event.workflow_run.head_branch }}" >> $GITHUB_OUTPUT
+          echo "commit=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_OUTPUT
+          echo "actor=${{ github.event.workflow_run.triggering_actor.login }}" >> $GITHUB_OUTPUT
+
+      - name: Get failed job names
+        id: jobs
+        run: |
+          FAILED_JOBS=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}/jobs --jq '.jobs[] | select(.conclusion=="failure") | .name' | tr '\n' ', ')
+          echo "failed_jobs=$FAILED_JOBS" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Linear Issue
+        run: |
+          TITLE="CI Failure: ${{ steps.info.outputs.branch }} - ${{ steps.info.outputs.failed_jobs }}"
+          DESCRIPTION="CI Failure Report\n\nBranch: ${{ steps.info.outputs.branch }}\nCommit: ${{ steps.info.outputs.commit }}\nActor: @${{ steps.info.outputs.actor }}\nRun: ${{ steps.info.outputs.run_url }}\n\nFailed Jobs: ${{ steps.info.outputs.failed_jobs }}\n\nNext Steps:\n1. Click Run URL for full logs\n2. Check E2E shard logs for backend 500s\n3. Reproduce locally with same branch"
+          
+          curl -s -X POST https://api.linear.app/graphql \
+            -H "Authorization: ${{ secrets.LINEAR_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": \"mutation($teamId: String!, $title: String!, $description: String!) { issueCreate(input: { teamId: $teamId, title: $title, description: $description }) { success issue { identifier url } } }\", \"variables\": {\"teamId\": \"${{ secrets.LINEAR_TEAM_ID }}\", \"title\": \"$TITLE\", \"description\": \"$DESCRIPTION\"}}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

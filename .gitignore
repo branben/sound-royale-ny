@@ -74,6 +74,7 @@ scripts/*
 !scripts/check-anti-patterns.sh
 !scripts/semantic-scan.sh
 !scripts/e2e-guard.sh
+!scripts/bd-close-linear.sh
 !scripts/ci/
 !scripts/visual-verify/
 backend/gaia/
