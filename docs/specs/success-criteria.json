@@ -71,20 +71,26 @@
         {
           "id": "scoring-display",
           "description": "Score display shows base (100/line), multi-line bonus, speed bonus, combined bonuses, completed-lines viz.",
-          "testRefs": [],
-          "status": "gap"
+          "testRefs": [
+            "tests/e2e/scoring-display.spec.ts > Scoring Display > score display shows base points, bonuses, and completed lines after bingo"
+          ],
+          "status": "covered"
         },
         {
           "id": "pii-safety",
           "description": "Player secret is never exposed in console logs.",
-          "testRefs": [],
-          "status": "gap"
+          "testRefs": [
+            "tests/e2e/pii-safety.spec.ts > PII Safety > player_secret is never exposed in console logs or network traffic"
+          ],
+          "status": "covered"
         },
         {
           "id": "share-invite",
           "description": "Room share button is visible and clickable with correct behavior.",
-          "testRefs": [],
-          "status": "gap"
+          "testRefs": [
+            "tests/e2e/share-invite.spec.ts > Share Invite > room code is visible and share instructions are shown"
+          ],
+          "status": "covered"
         },
         {
           "id": "lobby-shell",
