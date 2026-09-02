@@ -104,6 +104,19 @@ test.describe('Create → Join → Start Integration Flow', () => {
       // Player2 should see "You're in."
       await expect(player2.page.getByText(/You're in/i)).toBeVisible({ timeout: 10000 });
 
+      // Poll the API (authoritative state) until the room has 2 players.
+      // The WebSocket push can be missed under CI load; polling the API
+      // removes the race condition between join and UI update.
+      await expect
+        .poll(
+          async () => {
+            const state = await getGameState(roomCode);
+            return Object.keys(state.players || {}).length;
+          },
+          { timeout: 15000, intervals: [500, 1000, 2000] },
+        )
+        .toBe(2);
+
       // --- Host should now see "Start Match" button ---
       await expect(host.page.getByTestId('start-battle')).toBeVisible({ timeout: 15000 });
       await expect(host.page.getByTestId('start-battle')).toContainText(/Start Match/i);
@@ -139,6 +152,17 @@ test.describe('Create → Join → Start Integration Flow', () => {
       // --- Player2 joins via API ---
       const player2Page = new PlayerPage(player2.page, `Player${runId}`, 'producer');
       await player2Page.joinRoom(roomCode, false);
+
+      // Poll API until both players are registered (WebSocket state can lag).
+      await expect
+        .poll(
+          async () => {
+            const state = await getGameState(roomCode);
+            return Object.keys(state.players || {}).length;
+          },
+          { timeout: 15000, intervals: [500, 1000, 2000] },
+        )
+        .toBe(2);
 
       // --- Verify lobby state for host ---
       // Host should see room code number in the lobby
@@ -198,8 +222,19 @@ test.describe('Create → Join → Start Integration Flow', () => {
       const player2Page = new PlayerPage(player2.page, `Player${runId}`, 'producer');
       await player2Page.joinRoom(roomCode, false);
 
-      // --- Host starts game (automatically starts when 2+ players are present) ---
+      // --- Host starts game ---
       await hostPage.startGame();
+
+      // Poll API for playing state (WebSocket broadcast can lag under CI load).
+      await expect
+        .poll(
+          async () => {
+            const state = await getGameState(roomCode);
+            return state.status;
+          },
+          { timeout: 15000, intervals: [500, 1000, 2000] },
+        )
+        .toBe('playing');
 
       // --- Both players should see the game board ---
       await expect(host.page.getByTestId('game-board').first()).toBeVisible({ timeout: 20000 });
@@ -270,6 +305,17 @@ test.describe('Create → Join → Start Integration Flow', () => {
       const player2Page = new PlayerPage(player2.page, `Player${runId}`, 'producer');
       await player2Page.joinRoom(roomCode, false);
 
+      // Poll API until both players are registered before asserting UI state.
+      await expect
+        .poll(
+          async () => {
+            const state = await getGameState(roomCode);
+            return Object.keys(state.players || {}).length;
+          },
+          { timeout: 15000, intervals: [500, 1000, 2000] },
+        )
+        .toBe(2);
+
       // --- Verify host sees Start Battle BEFORE refresh ---
       await expect(host.page.getByTestId('start-battle')).toBeVisible({ timeout: 15000 });
 
@@ -281,6 +327,17 @@ test.describe('Create → Join → Start Integration Flow', () => {
 
       // --- Host can still start the game ---
       await hostPage.startGame();
+
+      // Poll API for playing state (WebSocket can lag after refresh).
+      await expect
+        .poll(
+          async () => {
+            const state = await getGameState(roomCode);
+            return state.status;
+          },
+          { timeout: 15000, intervals: [500, 1000, 2000] },
+        )
+        .toBe('playing');
 
       // Both players should see game board
       await expect(host.page.getByTestId('game-board').first()).toBeVisible({ timeout: 20000 });

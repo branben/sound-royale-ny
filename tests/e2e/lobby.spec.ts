@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { getGameState } from './live/helpers';
 
 test.describe('Lobby', () => {
   test.setTimeout(60000);
@@ -123,6 +124,21 @@ test.describe('Lobby', () => {
     await input.fill(room.room_code);
 
     await page.getByTestId('join-room-button').click();
+
+    // Poll API until player is registered in the room (WebSocket state can lag).
+    await expect
+      .poll(
+        async () => {
+          try {
+            const state = await getGameState(room.room_code);
+            return Object.keys(state.players || {}).length;
+          } catch {
+            return 0;
+          }
+        },
+        { timeout: 15000, intervals: [500, 1000, 2000] },
+      )
+      .toBe(2);
 
     // Should navigate to room page
     await expect(page).toHaveURL(new RegExp(`/room/${room.room_code}`));

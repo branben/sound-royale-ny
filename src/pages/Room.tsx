@@ -134,9 +134,19 @@ export default function Room() {
   }, [gameState.players, userSession.playerId, room]);
 
   const activePlayersCount = useMemo(() => {
-    if (!gameState.players) return 0;
-    return Object.values(gameState.players).filter((p) => !p.name?.startsWith('Spectator ')).length;
-  }, [gameState.players]);
+    // Primary: use gameState (WebSocket, real-time)
+    if (gameState.players) {
+      const wsCount = Object.values(gameState.players).filter(
+        (p) => !p.name?.startsWith('Spectator '),
+      ).length;
+      if (wsCount > 0) return wsCount;
+    }
+    // Fallback: use room data from API (handles WebSocket lag/miss)
+    if (room?.players) {
+      return room.players.filter((p) => !p.name?.startsWith('Spectator ')).length;
+    }
+    return 0;
+  }, [gameState.players, room]);
 
   const handleJoinAsPlayer = async () => {
     if (!roomId) return;
@@ -380,6 +390,18 @@ export default function Room() {
   );
 
   useGameRefreshEffect(fetchRoom);
+
+  // Poll the API for fresh room state every 2 seconds while in lobby.
+  // The WebSocket push can be missed during reconnection or under CI load,
+  // so polling ensures player count and status stay consistent with the
+  // authoritative server state. Stops when the game transitions to playing/finished.
+  useEffect(() => {
+    if (gameState.status !== 'lobby') return;
+    const interval = setInterval(() => {
+      fetchRoom(true).catch((err) => console.error('Lobby poll error:', err));
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [gameState.status, fetchRoom]);
 
   // Auto-reset after match ends
   const [resetCountdown, setResetCountdown] = useState<number | null>(null);
