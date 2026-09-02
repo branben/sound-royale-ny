@@ -123,9 +123,16 @@ test.describe('Lobby', () => {
     const input = page.getByTestId('room-code-input');
     await input.fill(room.room_code);
 
-    await page.getByTestId('join-room-button').click();
+    // Wait for the join API response before asserting navigation
+    const joinPromise = page.waitForResponse(
+      (resp) => resp.url().includes('/join_game/') && resp.status() === 201,
+      { timeout: 15000 },
+    );
 
-    // Poll API until player is registered in the room (WebSocket state can lag).
+    await page.getByTestId('join-room-button').click();
+    await joinPromise;
+
+    // Poll API until both players are registered (WebSocket state can lag).
     await expect
       .poll(
         async () => {
