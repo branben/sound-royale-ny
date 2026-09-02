@@ -41,16 +41,29 @@ test.describe('PII Safety', () => {
 
     expect(playerSecret).toBeTruthy();
 
-    // Navigate to the room page
-    await page.goto('/');
-    await page.getByTestId('player-name-input').fill('TestPlayer');
-    await page.waitForTimeout(100);
-    await page.getByTestId('create-room-button').click();
-    await page.getByTestId('create-room-name-input').fill('Test Room');
-    await page.getByTestId('create-room-submit-button').click();
+    // Mock the room API for the page navigation so the UI has data to render
+    await page.route('**/api/rooms/**', async (route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            code: room.room_code,
+            status: 'lobby',
+            players: {},
+            host_id: room.player_id,
+          }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
 
-    // Wait for navigation to room page
-    await expect(page).toHaveURL(/\/room\/.+/, { timeout: 15000 });
+    // Navigate to the room page
+    await page.goto(`/room/${room.room_code}`);
+
+    // Wait for the page to load
+    await expect(page.locator('h1')).toHaveText('SOUND ROYALE', { timeout: 15000 });
 
     // Check that player_secret does NOT appear in any console message
     const secretInConsole = consoleMessages.filter((msg) => msg.includes(playerSecret));

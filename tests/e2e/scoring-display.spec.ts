@@ -16,6 +16,40 @@ test.describe('Scoring Display', () => {
     const room = await createRes.json();
     expect(room.room_code).toBeTruthy();
 
+    // Mock the room API to return a finished game with scores
+    await page.route('**/api/rooms/**', async (route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            code: room.room_code,
+            status: 'finished',
+            players: {
+              [room.player_id]: {
+                id: room.player_id,
+                name: 'TestHost',
+                is_host: true,
+                is_spectator: false,
+                is_connected: true,
+                board: { tiles: [] },
+                score_info: {
+                  score: 400,
+                  base_score: 300,
+                  bonuses: [{ type: 'multi_line', points: 100 }],
+                  lines: [{ type: 'horizontal', positions: [0, 1, 2] }],
+                },
+                elo_rating: 1280,
+              },
+            },
+            host_id: room.player_id,
+          }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
     // Navigate to room page
     await page.addInitScript(() => {
       localStorage.setItem('hasSeenOnboarding', 'true');
