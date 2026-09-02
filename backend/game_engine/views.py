@@ -475,32 +475,38 @@ def broadcast_game_update(room):
     """
     Helper to broadcast game state updates to the room's channel group.
     """
-    channel_layer = get_channel_layer()
-    serializer = GameStateSerializer(room)
-    async_to_sync(channel_layer.group_send)(
-        f"game_{room.id}", {"type": "game_state_update", "payload": serializer.data}
-    )
+    try:
+        channel_layer = get_channel_layer()
+        serializer = GameStateSerializer(room)
+        async_to_sync(channel_layer.group_send)(
+            f"game_{room.id}", {"type": "game_state_update", "payload": serializer.data}
+        )
+    except Exception as e:
+        logger.warning("broadcast_game_update failed for room %s: %s", getattr(room, 'code', '?'), e)
 
 
 def broadcast_timer_tick(room):
     """
     Broadcast a timer_tick message to the room's channel group.
     """
-    channel_layer = get_channel_layer()
-    current_round = Round.objects.filter(room=room).first()
-    if not current_round or not current_round.timer_ends_at:
-        return
+    try:
+        channel_layer = get_channel_layer()
+        current_round = Round.objects.filter(room=room).first()
+        if not current_round or not current_round.timer_ends_at:
+            return
 
-    now = timezone.now()
-    if current_round.timer_ends_at <= now:
-        time_remaining = 0
-    else:
-        time_remaining = int((current_round.timer_ends_at - now).total_seconds())
+        now = timezone.now()
+        if current_round.timer_ends_at <= now:
+            time_remaining = 0
+        else:
+            time_remaining = int((current_round.timer_ends_at - now).total_seconds())
 
-    async_to_sync(channel_layer.group_send)(
-        f"game_{room.id}",
-        {"type": "timer_tick", "payload": {"timeRemaining": time_remaining}},
-    )
+        async_to_sync(channel_layer.group_send)(
+            f"game_{room.id}",
+            {"type": "timer_tick", "payload": {"timeRemaining": time_remaining}},
+        )
+    except Exception as e:
+        logger.warning("broadcast_timer_tick failed for room %s: %s", getattr(room, 'code', '?'), e)
 
 
 _active_timer_tasks: dict[str, asyncio.Task] = {}
@@ -933,32 +939,38 @@ def broadcast_game_update(room):
     """
     Helper to broadcast game state updates to the room's channel group.
     """
-    channel_layer = get_channel_layer()
-    serializer = GameStateSerializer(room)
-    async_to_sync(channel_layer.group_send)(
-        f"game_{room.id}", {"type": "game_state_update", "payload": serializer.data}
-    )
+    try:
+        channel_layer = get_channel_layer()
+        serializer = GameStateSerializer(room)
+        async_to_sync(channel_layer.group_send)(
+            f"game_{room.id}", {"type": "game_state_update", "payload": serializer.data}
+        )
+    except Exception as e:
+        logger.warning("broadcast_game_update failed for room %s: %s", getattr(room, 'code', '?'), e)
 
 
 def broadcast_timer_tick(room):
     """
     Broadcast a timer_tick message to the room's channel group.
     """
-    channel_layer = get_channel_layer()
-    current_round = Round.objects.filter(room=room).first()
-    if not current_round or not current_round.timer_ends_at:
-        return
+    try:
+        channel_layer = get_channel_layer()
+        current_round = Round.objects.filter(room=room).first()
+        if not current_round or not current_round.timer_ends_at:
+            return
 
-    now = timezone.now()
-    if current_round.timer_ends_at <= now:
-        time_remaining = 0
-    else:
-        time_remaining = int((current_round.timer_ends_at - now).total_seconds())
+        now = timezone.now()
+        if current_round.timer_ends_at <= now:
+            time_remaining = 0
+        else:
+            time_remaining = int((current_round.timer_ends_at - now).total_seconds())
 
-    async_to_sync(channel_layer.group_send)(
-        f"game_{room.id}",
-        {"type": "timer_tick", "payload": {"timeRemaining": time_remaining}},
-    )
+        async_to_sync(channel_layer.group_send)(
+            f"game_{room.id}",
+            {"type": "timer_tick", "payload": {"timeRemaining": time_remaining}},
+        )
+    except Exception as e:
+        logger.warning("broadcast_timer_tick failed for room %s: %s", getattr(room, 'code', '?'), e)
 
 
 _active_timer_tasks: dict[str, asyncio.Task] = {}
