@@ -47,6 +47,26 @@ test.describe('Smoke', () => {
   });
 
   test('create room flow navigates to room page', async ({ page }) => {
+    // Mock the rooms API so this test is self-contained (no backend needed).
+    // The smoke suite verifies frontend navigation logic only.
+    await page.route('**/api/rooms/', async (route) => {
+      if (route.request().method() === 'POST') {
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            room_code: '1234',
+            player_id: 'mock-player-id',
+            player_secret: 'mock-secret',
+            access_token: 'mock-access',
+            refresh_token: 'mock-refresh',
+          }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
     await page.goto('/');
 
     // Enter player name first
