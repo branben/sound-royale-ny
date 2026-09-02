@@ -105,10 +105,13 @@ test.describe('Lobby', () => {
   });
 
   test('joining a room navigates to the room page', async ({ page }) => {
-    // Create a real room via API
-    const createRes = await page.request.post('/api/rooms/', {
+    // Create a real room via direct backend API (avoids Vite proxy races)
+    const apiBase = process.env.LIVE_API_BASE_URL || 'http://127.0.0.1:8000/api';
+    const rootBase = apiBase.replace('/api', '');
+    const createRes = await page.request.post(`${rootBase}/api/rooms/`, {
       data: { host_name: 'TestHost' },
     });
+    expect(createRes.status(), 'room creation should succeed').toBe(201);
     const room = await createRes.json();
 
     await page.goto('/');

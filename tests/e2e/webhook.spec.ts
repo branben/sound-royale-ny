@@ -13,6 +13,11 @@ function signLinearPayload(payload: unknown): string {
   return `sha256=${digest}`;
 }
 
+// Skip all webhook tests unless LINEAR_WEBHOOK_SECRET matches the backend.
+// In CI this is set on the e2e-full job; locally these tests are skipped.
+const webhookSecret = process.env.LINEAR_WEBHOOK_SECRET;
+const webhookConfigured = webhookSecret && webhookSecret.length > 0;
+
 test.describe('Webhook', () => {
   test('GET /webhooks/linear/ returns health check', async ({ request }) => {
     const response = await request.get(`${BACKEND_URL}/webhooks/linear/`);
@@ -25,6 +30,7 @@ test.describe('Webhook', () => {
   });
 
   test('POST /api/webhooks/linear/ with valid payload enqueues task', async ({ request }) => {
+    test.skip(!webhookConfigured, 'LINEAR_WEBHOOK_SECRET not configured locally');
     const webhookPayload = {
       type: 'IssueCreated',
       data: {
@@ -56,6 +62,7 @@ test.describe('Webhook', () => {
   });
 
   test('POST /api/webhooks/linear/ with urgent label uses higher priority', async ({ request }) => {
+    test.skip(!webhookConfigured, 'LINEAR_WEBHOOK_SECRET not configured locally');
     const webhookPayload = {
       type: 'IssueCreated',
       data: {
@@ -85,6 +92,7 @@ test.describe('Webhook', () => {
   });
 
   test('POST /api/webhooks/linear/ ignores done/canceled states', async ({ request }) => {
+    test.skip(!webhookConfigured, 'LINEAR_WEBHOOK_SECRET not configured locally');
     const webhookPayload = {
       type: 'IssueUpdated',
       data: {
