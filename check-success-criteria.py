@@ -26,10 +26,16 @@ def main() -> int:
         mode_id = mode.get("id", "?")
         for crit in mode.get("criteria", []):
             status = crit.get("status")
+            testRefs = crit.get("testRefs", [])
             if status != "covered":
                 failures.append(
                     f"[{mode_id}] {crit.get('id')}: status={status!r} "
                     f"(expected 'covered')"
+                )
+            elif not testRefs:
+                failures.append(
+                    f"[{mode_id}] {crit.get('id')}: status='covered' but "
+                    f"testRefs is empty (fake close)"
                 )
 
     for gap in spec.get("gaps", []):
