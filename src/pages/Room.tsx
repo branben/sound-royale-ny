@@ -290,7 +290,7 @@ export default function Room() {
   ]);
 
   const fetchRoom = useCallback(
-    async (force = false) => {
+    async (force = false, showLoading = true) => {
       if (!roomId) {
         setError('Room ID is required');
         setLoading(false);
@@ -302,7 +302,7 @@ export default function Room() {
       }
 
       try {
-        setLoading(true);
+        if (showLoading) setLoading(true);
         setError(null);
         const roomData = await roomApi.getRoom(roomId);
         setRoom(roomData);
@@ -398,7 +398,7 @@ export default function Room() {
   useEffect(() => {
     if (gameState.status !== 'lobby') return;
     const interval = setInterval(() => {
-      fetchRoom(true).catch((err) => console.error('Lobby poll error:', err));
+      fetchRoom(true, false).catch((err) => console.error('Lobby poll error:', err));
     }, 2000);
     return () => clearInterval(interval);
   }, [gameState.status, fetchRoom]);
