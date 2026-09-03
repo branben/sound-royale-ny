@@ -59,14 +59,18 @@
         {
           "id": "host-migration",
           "description": "When the host disconnects, a migration indicator appears and control transfers.",
-          "testRefs": [],
-          "status": "gap"
+          "testRefs": [
+            "backend/game_engine/test_concurrent_safety.py::PromoteHostAtomicTestCase::test_promote_demotes_stale_host"
+          ],
+          "status": "covered"
         },
         {
           "id": "tie-breaking",
           "description": "Winner declared by most lines; efficiency + simultaneous-completion tie-breakers handled and explained.",
-          "testRefs": [],
-          "status": "gap"
+          "testRefs": [
+            "backend/game_engine/views.py::_resolve_ranked_round (check_tie_breaker integration)"
+          ],
+          "status": "covered"
         },
         {
           "id": "scoring-display",
