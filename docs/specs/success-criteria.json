@@ -71,18 +71,14 @@
         {
           "id": "scoring-display",
           "description": "Score display shows base (100/line), multi-line bonus, speed bonus, combined bonuses, completed-lines viz.",
-          "testRefs": [
-            "tests/e2e/live/scoring-display.spec.ts > Scoring Display > score display shows base points, bonuses, and completed lines after bingo"
-          ],
-          "status": "covered"
+          "testRefs": [],
+          "status": "gap"
         },
         {
           "id": "pii-safety",
           "description": "Player secret is never exposed in console logs.",
-          "testRefs": [
-            "tests/e2e/live/pii-safety.spec.ts > PII Safety > player_secret is never exposed in console logs or network traffic"
-          ],
-          "status": "covered"
+          "testRefs": [],
+          "status": "gap"
         },
         {
           "id": "share-invite",
