@@ -87,8 +87,10 @@
         {
           "id": "share-invite",
           "description": "Room share button is visible and clickable with correct behavior.",
-          "testRefs": [],
-          "status": "gap"
+          "testRefs": [
+            "tests/e2e/share-invite.spec.ts > Share Invite > room code is visible and share instructions are shown"
+          ],
+          "status": "covered"
         },
         {
           "id": "lobby-shell",
