@@ -297,6 +297,13 @@ export default function Room() {
         return;
       }
 
+      // Guard: if user has no session and room already loaded, stop.
+      // This prevents the infinite loop when visiting /room/{code} directly.
+      if (!userSession.playerSecret && hasLoaded) {
+        setLoading(false);
+        return;
+      }
+
       if (!force && hasLoaded && !error) {
         return;
       }
@@ -370,6 +377,9 @@ export default function Room() {
             clearSession();
             setPlayerCredentials('', '');
             setSpectatorMode(false);
+            // Stop here — don't re-trigger fetchRoom which would loop forever
+            setLoading(false);
+            return;
           }
         }
       } catch (err: unknown) {
@@ -391,17 +401,24 @@ export default function Room() {
 
   useGameRefreshEffect(fetchRoom);
 
-  // Poll the API for fresh room state every 2 seconds while in lobby.
-  // The WebSocket push can be missed during reconnection or under CI load,
-  // so polling ensures player count and status stay consistent with the
-  // authoritative server state. Stops when the game transitions to playing/finished.
+  // Start polling once the user has a session (joined via UI).
   useEffect(() => {
     if (gameState.status !== 'lobby') return;
+    if (!userSession.playerSecret) return;
+    // Force an initial fetch when session is established
+    fetchRoom(true, false).catch((err) => console.error('Initial session fetch error:', err));
+  }, [userSession.playerSecret, gameState.status]);
+
+  // Poll the API for fresh room state every 2 seconds while in lobby.
+  // Skip when the user has no session (direct URL visit) — they're not a participant yet.
+  useEffect(() => {
+    if (gameState.status !== 'lobby') return;
+    if (!userSession.playerSecret) return;
     const interval = setInterval(() => {
       fetchRoom(true, false).catch((err) => console.error('Lobby poll error:', err));
     }, 2000);
     return () => clearInterval(interval);
-  }, [gameState.status, fetchRoom]);
+  }, [gameState.status, fetchRoom, userSession.playerSecret]);
 
   // Auto-reset after match ends
   const [resetCountdown, setResetCountdown] = useState<number | null>(null);
