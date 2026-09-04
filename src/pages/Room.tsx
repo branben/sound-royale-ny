@@ -290,7 +290,7 @@ export default function Room() {
   ]);
 
   const fetchRoom = useCallback(
-    async (force = false, showLoading = true) => {
+    async (force = false, showLoading = true, skipRejoin = false) => {
       if (!roomId) {
         setError('Room ID is required');
         setLoading(false);
@@ -370,7 +370,10 @@ export default function Room() {
 
         setGameState((prev) => ({ ...prev, ...newGameState }));
 
-        if (userSession.playerSecret) {
+        // Only attempt rejoin when explicitly requested (user actions).
+        // The lobby poll calls this every 2s — triggering rejoin each time
+        // causes an infinite loop of state updates → effects → fetches.
+        if (userSession.playerSecret && !skipRejoin) {
           const rejoined = await attemptRejoin();
           if (!rejoined) {
             // Rejoin failed — clear stale session so player can re-join fresh
@@ -405,8 +408,8 @@ export default function Room() {
   useEffect(() => {
     if (gameState.status !== 'lobby') return;
     if (!userSession.playerSecret) return;
-    // Force an initial fetch when session is established
-    fetchRoom(true, false).catch((err) => console.error('Initial session fetch error:', err));
+    // Force an initial fetch when session is established (skip rejoin since we just joined)
+    fetchRoom(true, false, true).catch((err) => console.error('Initial session fetch error:', err));
   }, [userSession.playerSecret, gameState.status]);
 
   // Poll the API for fresh room state every 2 seconds while in lobby.
@@ -415,7 +418,7 @@ export default function Room() {
     if (gameState.status !== 'lobby') return;
     if (!userSession.playerSecret) return;
     const interval = setInterval(() => {
-      fetchRoom(true, false).catch((err) => console.error('Lobby poll error:', err));
+      fetchRoom(true, false, true).catch((err) => console.error('Lobby poll error:', err));
     }, 2000);
     return () => clearInterval(interval);
   }, [gameState.status, fetchRoom, userSession.playerSecret]);
