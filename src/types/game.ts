@@ -13,7 +13,17 @@ export const MIN_PRODUCERS_TO_PLAY = 2;
 export const MIN_TILES_FOR_BINGO_RESOLUTION = 5;
 
 // Min/max rounds a match can be configured to run.
+
+/**
+ * Minimum number of rounds a match can be configured to run.
+ * Must be >= 1 to ensure every match has at least one round.
+ */
 export const MIN_ROUNDS = 1;
+
+/**
+ * Maximum number of rounds a match can be configured to run.
+ * Caps match length to prevent excessively long games.
+ */
 export const MAX_ROUNDS = 10;
 
 export interface Tile {
