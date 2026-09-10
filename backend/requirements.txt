@@ -1,6 +1,6 @@
 psycopg2-binary==2.9.9
 Django==5.2.17
-djangorestframework==3.16.0
+djangorestframework==3.17.2
 django-cors-headers==4.7.0
 # NOTE: channels==4.0.0 is INCOMPATIBLE with daphne==4.2.2 — daphne 4.2.x calls
 # self.handshake_deferred on its WebSocketProtocol, which only exists in channels>=4.1.0.
