@@ -21,20 +21,63 @@ Sound Royale is a multiplayer music bingo game where producers compete head-to-h
 | Database | PostgreSQL (production), SQLite (development) |
 | CI/CD | GitHub Actions, Docker Compose, Playwright |
 
-## Quick Start
+## Installation
+
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) (v18 or later) and [pnpm](https://pnpm.io/)
+- Python 3.11 with the `python3.11` executable and `pip`
+
+### Frontend
 
 ```bash
-# Frontend
-pnpm install
-pnpm run dev
+# Clone the repository
+git clone https://github.com/branben/sound-royale-ny.git
+cd sound-royale-ny
 
-# Backend
+# Install dependencies
+pnpm install
+
+# Start the frontend dev server
+pnpm run dev:frontend
+```
+
+The frontend will be available at `http://localhost:8081`.
+
+### Backend
+
+```bash
 cd backend
+
+# Create a virtual environment
 python -m venv venv
-source venv/bin/activate
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
 pip install -r requirements.txt
+
+# Create a local environment file for development
+cat > .env << 'EOF'
+SECRET_KEY=dev-secret-key
+DEBUG=True
+EOF
+
+# Run database migrations
 python manage.py migrate
+
+# Start the development server
 python manage.py runserver
+```
+
+The backend API will be available at `http://localhost:8000`.
+
+## Quick Start
+
+For the full setup walkthrough, see the [Installation](#installation) section above.
+
+```bash
+# Start both frontend and backend together
+pnpm run dev
 ```
 
 ## Testing
@@ -43,7 +86,7 @@ python manage.py runserver
 # Type check
 npx tsc --noEmit
 
-# E2E tests (requires frontend on localhost:8080)
+# E2E tests (requires frontend on localhost:8081)
 pnpm run test:e2e
 
 # Backend tests
