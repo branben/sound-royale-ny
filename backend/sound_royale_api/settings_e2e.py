@@ -15,6 +15,11 @@ import os
 
 from sound_royale_api.settings_test import *  # noqa: F401,F403
 
+# Expose the unauthenticated /test/cleanup/ endpoint for the Playwright suite
+# (tests/e2e/global-setup.ts). Production settings never set this, so the route
+# is not registered there at all. See game_engine/urls.py.
+ALLOW_TEST_CLEANUP = True
+
 # Persistent Postgres database from CI service env (default to localhost:5432).
 DATABASES = {
     "default": {

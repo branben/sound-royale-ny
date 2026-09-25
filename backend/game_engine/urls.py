@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
@@ -48,6 +49,16 @@ urlpatterns = [
     path('api/errors/log/', log_client_error, name='error-log'),
     path('api/', include(router.urls)),
     path('webhooks/linear/', LinearWebhookView.as_view(), name='linear-webhook'),
-    # Test-only cleanup endpoint (outside api/ prefix to avoid double-prefix)
-    path('test/cleanup/', TestCleanupView.as_view(), name='test-cleanup'),
 ]
+
+# Test-only cleanup endpoint (outside api/ prefix to avoid double-prefix).
+#
+# SECURITY: this view truncates all game state and is unauthenticated. It is
+# registered ONLY when a deployment explicitly sets ALLOW_TEST_CLEANUP=True
+# (currently sound_royale_api.settings_e2e, used by the Playwright suite).
+# Production must never set it. The route is absent — not merely 403 — so the
+# endpoint cannot be discovered or invoked from a production deployment.
+if getattr(settings, "ALLOW_TEST_CLEANUP", False):
+    urlpatterns += [
+        path('test/cleanup/', TestCleanupView.as_view(), name='test-cleanup'),
+    ]
