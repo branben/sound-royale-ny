@@ -10,9 +10,14 @@ from game_engine.models import Player, Room, Tile, BingoClaim
 class TestCleanupView(View):
     """Test-only endpoint to truncate all game state before E2E runs.
 
-    This is deliberately NOT protected by authentication — it is only
-    mounted when DJANGO_SETTINGS_MODULE is settings_e2e, and even then
-    only listens on 127.0.0.1 via the Daphne startup in CI.
+    SECURITY: unauthenticated by design (E2E calls it before any player
+    exists) and it deletes all rows. Safety comes from ROUTING, not from
+    this view: it is registered only when a settings module sets
+    ALLOW_TEST_CLEANUP = True (see game_engine/urls.py). With the default
+    production settings the route does not exist at all.
+
+    Do not add authentication checks here as the primary control — that
+    would break E2E. Add or tighten the routing gate instead.
     """
 
     def post(self, request):
